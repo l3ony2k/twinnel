@@ -36,6 +36,9 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		return
 	}
 	a.opNotes(c, s)
+	if a.helperListsLoading(c, 3) {
+		return // no false 还没有历史记录 before the first load
+	}
 	if len(d.history) == 0 {
 		groupBox(c, t).Children(func() { emptyState(c, iconHistory, T.HistoryEmpty, T.HistoryEmptyHint) })
 		return
@@ -109,7 +112,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		if ui.Button(c.Key("hist-diff"), T.HistoryDiff).Disabled(a.hd.busy != "").Clicked() {
 			a.historyDiff(s, entry.ID)
 		}
-		if iconButton(c.Key("hist-rollback"), iconRollback, T.HistoryRollback, true).Disabled(!a.helperWrites(s)).Clicked() {
+		if a.opButton(c.Key("hist-rollback"), iconRollback, T.HistoryRollback, true, T.HistoryRollback).Disabled(!a.helperWrites(s)).Clicked() {
 			a.historyRollback(*entry)
 		}
 	}, func() {

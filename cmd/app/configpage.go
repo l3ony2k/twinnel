@@ -105,6 +105,9 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 			v.subOpen, v.subMins = true, "1440"
 		}
 	}), func() {
+		if a.helperListsLoading(c, 2) {
+			return // no false 还没有订阅 before the first load
+		}
 		if len(d.subs) == 0 {
 			listRow(c).Children(func() { ui.Text(c, T.SubNone).TextColor(t.TextMuted) })
 		}
@@ -164,7 +167,7 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 				tag(c, T.SubActive)
 			}
 			ui.Spacer(c)
-			if sub.HasURL && iconButton(c.Key("refresh"), iconRefresh, T.SubRefresh, false).Disabled(!w).Clicked() {
+			if sub.HasURL && a.opButton(c.Key("refresh"), iconRefresh, T.SubRefresh, false, T.SubRefresh+" "+id).Disabled(!w).Clicked() {
 				refresh()
 			}
 			if !sub.Active && ui.Button(c.Key("activate"), T.SubActivate).Disabled(!w).Clicked() {
@@ -275,16 +278,18 @@ func (a *app) saveSubscription() {
 	fetch := p.URL != "" && p.Content == ""
 	// Clear the form at once: the URL is not kept in the app.
 	v.subOpen, v.subID, v.subName, v.subURL, v.subMins, v.subContent, v.subFile = false, "", "", "", "", "", ""
-	a.helperOp(T.SubSave+" "+p.ID, 2*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
+	// subscription.put's warnings (a plain-http URL, …) show until the
+	// next operation.
+	a.helperOpW(T.SubSave+" "+p.ID, 2*time.Minute, func(ctx context.Context, hc *status.HelperConn) ([]string, error) {
 		var sub rpc.Subscription
 		if err := hc.Call(ctx, rpc.MethodSubPut, p, &sub); err != nil {
-			return err
+			return nil, err
 		}
 		if fetch && sub.Size == 0 { // fetch right away so the user sees whether the URL works
 			var r rpc.SubRefreshResult
-			return hc.Call(ctx, rpc.MethodSubRefresh, rpc.IDParams{ID: sub.ID}, &r)
+			return sub.Warnings, hc.Call(ctx, rpc.MethodSubRefresh, rpc.IDParams{ID: sub.ID}, &r)
 		}
-		return nil
+		return sub.Warnings, nil
 	}, nil)
 }
 
@@ -331,6 +336,9 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 			a.newLayer()
 		}
 	}, func() {
+		if a.helperListsLoading(c, 2) {
+			return
+		}
 		if len(user) == 0 && !v.isNew {
 			listRow(c).Children(func() { ui.Text(c, T.LayersNone).TextColor(t.TextMuted) })
 		}
@@ -669,13 +677,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 		if v.ed == nil {
 			// Hold the editor's height while it loads, so the page does
 			// not jump when the text comes (review-b 017 #6).
-			ui.Column(c).Height(320).Radius(plat.innerRadius).Border(1, pal(t).groupLine).
-				AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Spinner(c)
-					ui.Text(c, T.Loading).FontSize(12).TextColor(t.TextMuted)
-				})
-			})
+			a.loadingBox(c, "layer-editor", 320)
 			return
 		}
 		editor.View(c.Key("ed:"+v.sel), v.ed).Height(320).Radius(plat.innerRadius).Border(1, pal(t).groupLine)
@@ -786,8 +788,9 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 	w := a.helperWrites(s)
 	headedCard(c, func() {
 		ui.Text(c, T.PreviewApply).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
+		a.unappliedNote(c)
 		ui.Spacer(c)
-		if iconButton(c.Key("preview"), iconSpeed, T.Preview, false).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {
+		if a.opButton(c.Key("preview"), iconSpeed, T.Preview, false, T.Preview).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {
 			a.runPreview(s)
 		}
 	}, func() {
@@ -811,7 +814,7 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 				ui.Text(c, T.ApplyReason).FontSize(12).TextColor(t.TextMuted)
 				ui.TextInput(c.Key("reason"), &v.reason).Label(T.ApplyReason).Placeholder(T.ApplyReasonPlaceholder)
 			})
-			if iconButton(c.Key("apply"), iconOK, T.Apply, true).Disabled(!w).Clicked() {
+			if a.opButton(c.Key("apply"), iconOK, T.Apply, a.hd.unapplied, T.Apply).Disabled(!w).Clicked() {
 				a.runApply()
 			}
 		})

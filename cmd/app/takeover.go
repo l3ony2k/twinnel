@@ -151,7 +151,7 @@ func (a *app) takeoverIntro(c *ui.Context, s status.Snapshot) {
 			// Planning is read-only for the system (the helper writes the
 			// plan into its own state dir), so it needs no write permission.
 			can := (s.Helper.Connected() && d.busy == "" && !v.unsupported) && !v.fixture
-			if iconButton(c.Key("plan"), iconRefresh, T.TakeoverPlan, v.plan == nil).Disabled(!can).Clicked() {
+			if a.opButton(c.Key("plan"), iconRefresh, T.TakeoverPlan, v.plan == nil, T.TakeoverPlan).Disabled(!can).Clicked() {
 				a.takeoverMakePlan("")
 			}
 			if v.loading {
@@ -469,7 +469,7 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 			} else {
 				ui.Spacer(c)
 			}
-			if iconButton(c.Key("adopt"), iconTakeover, T.TakeoverAdopt, true).Disabled(!ok).Clicked() {
+			if a.opButton(c.Key("adopt"), iconTakeover, T.TakeoverAdopt, true, T.TakeoverAdopt).Disabled(!ok).Clicked() {
 				plan := *p
 				a.confirm(T.TakeoverAdoptTitle, fmt.Sprintf(T.TakeoverAdoptBody, plan.LiveConfig), T.TakeoverAdopt, func() {
 					a.takeoverAdopt(plan)
@@ -657,7 +657,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 		ui.Row(c).Children(func() {
 			ui.Spacer(c)
 			can := a.helperWrites(s) && !v.unsupported && !v.fixture
-			if iconButton(c.Key("secure"), iconSecure, T.SecureRun, false).Disabled(!can).Clicked() {
+			if a.opButton(c.Key("secure"), iconSecure, T.SecureRun, false, T.SecureRun).Disabled(!can).Clicked() {
 				a.confirm(T.SecureTitle+"？", T.SecureBody, T.SecureRun, a.controllerSecure)
 			}
 		})
