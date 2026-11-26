@@ -73,12 +73,29 @@ func (a *app) panelView(c *ui.Context) {
 		if a.actionErr != "" {
 			errorNote(c, a.actionErr)
 		}
-		ui.Row(c).Gap(8).Children(func() {
-			ui.Button(c, T.OpenMainWindow).OnClick(a.openMain)
-			ui.Spacer(c)
-			ui.Button(c, T.Quit).OnClick(mygo.App.Quit)
+		// The foot as a menu bar extra ends: menu-style rows, not buttons.
+		ui.Column(c).Gap(0).MarginY(-4).Children(func() {
+			panelRow(c.Key("open"), T.PanelOpen, a.openMain)
+			panelRow(c.Key("quit"), T.PanelQuit, mygo.App.Quit)
 		})
 	})
+}
+
+// panelRow is one row of the flyout's foot, drawn as a menu item: full
+// width, body text, a hover fill in the control radius (as helperLine).
+func panelRow(c *ui.Context, label string, fn func()) {
+	t := c.Theme()
+	row := ui.Row(c).AlignItems(ui.Center).Padding(5, 8).MarginX(-8).Radius(plat.controlRadius).
+		Role(ui.RoleButton).Label(label).Focusable().Cursor(ui.CursorPointer)
+	row.Children(func() {
+		ui.Text(c, label).Grow(1).SingleLine()
+	})
+	if row.Hovered() || row.Focused() {
+		row.Background(t.Text.Alpha(0.08))
+	}
+	if row.Clicked() {
+		fn()
+	}
 }
 
 func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
@@ -91,47 +108,51 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	}
 	sectionTitle(c, T.Mihomo, col, state+versionSuffix(m.Version))
 	if !m.Reachable {
-		if m.Err != "" {
-			small(c, m.Err).Wrap()
-		}
+		unreachableLine(c, svcMihomo, m.Err)
 		return
 	}
 	w := s.WritesAllowed
 	kvWith(c, T.Mode, func() {
 		idx := 0
+		cur := pendingValue(a, pendMode, m.Config.Mode)
 		labels := make([]string, len(mihomo.Modes))
 		for i, md := range mihomo.Modes {
 			labels[i] = T.ModeName(string(md))
-			if md == m.Config.Mode {
+			if md == cur {
 				idx = i
 			}
 		}
 		if ui.Segmented(c.Key("mode"), &idx, labels...).Disabled(!w).Grow(1).Changed() {
 			md := mihomo.Modes[idx]
-			a.do(func(ctx context.Context) error { return a.mh.SetMode(ctx, md) })
+			a.optimistic(pendMode, md, T.ModeFailed, func(ctx context.Context) error { return a.mh.SetMode(ctx, md) })
 		}
 	})
+	a.controlError(c, pendMode)
 	tun := T.TunOff
-	if m.Config.Tun.Enable {
+	if a.tunOn(s) {
 		tun = m.Config.Tun.Device
+		if tun == "" {
+			tun = T.Tun
+		}
 	}
 	kvWith(c, T.Tun, func() {
 		a.tunSwitch(c, s)
 		ui.Icon(c, iconTun).FontSize(13).TextColor(t.TextMuted)
 		small(c, tun).SingleLine().Shrink(1)
 	})
+	a.controlError(c, pendTun)
 	if p := m.Primary; p != nil {
 		kvWith(c, p.Name, func() {
-			sel := p.Now
+			sel := pendingValue(a, nodeKey(p.Name), p.Now)
 			opts := make([]string, len(p.Members))
 			for i, mem := range p.Members {
 				opts[i] = mem.Name
 			}
 			if ui.Select(c.Key("node"), &sel, opts).Disabled(!w || !p.Selectable()).Grow(1).Label(T.Node).Changed() {
-				group := p.Name
-				a.do(func(ctx context.Context) error { return a.mh.SelectProxy(ctx, group, sel) })
+				a.selectNode(p.Name, sel)
 			}
 		})
+		a.controlError(c, nodeKey(p.Name))
 		if len(p.Chain) > 0 {
 			kvWith(c, T.Exit, func() {
 				ui.Text(c, p.Node).SingleLine().Shrink(1)
@@ -162,10 +183,9 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 			a.tsPowerSwitch(c, s)
 		}
 	})
+	a.controlError(c, pendTS)
 	if !ts.Reachable {
-		if ts.Err != "" {
-			small(c, ts.Err).Wrap()
-		}
+		unreachableLine(c, svcTailscale, ts.Err)
 		return
 	}
 	if ip := st.Self.IPv4(); ip.IsValid() {
@@ -173,6 +193,7 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 	}
 	kv(c, T.OnlinePeers, fmt.Sprintf("%d / %d", st.OnlinePeers(), len(st.Peers)))
 	kvWith(c, T.ExitNode, func() { kvControl(a.exitNodePicker(c, s)) })
+	a.controlError(c, pendExit)
 }
 
 func versionSuffix(v string) string {

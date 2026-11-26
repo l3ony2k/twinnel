@@ -35,6 +35,7 @@ var warnPatterns = []warnPattern{
 	{kind: "adopt-disrupts", re: regexp.MustCompile(`^adopt's reload interrupts the network briefly: (.*)$`)},
 	{kind: "adopt-differs", re: regexp.MustCompile(`^the applied config differs from the plan's composed\.yaml`)},
 	{kind: "binary-writable", re: regexp.MustCompile(`^the mihomo binary (.+) can be replaced without root \((.*)\), and the service runs it as root`)},
+	{kind: "plain-http", re: regexp.MustCompile(`^the subscription URL uses plain http: `)},
 	{kind: "secret-clients", re: regexp.MustCompile(`^clients of the controller \(the web dashboard, the app, scripts\) need the new secret; .*?(sudo security find-generic-password .*?)\)?$`)},
 }
 

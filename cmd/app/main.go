@@ -76,6 +76,9 @@ type app struct {
 	hd          helperData                 // what the helper pages show
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
+	pend        pendingState               // optimistic control values and their errors (pending.go)
+	retry       busySpan                   // the unreachable states' 重试 press (states.go)
+	loadingSeen map[string][2]time.Time    // loadingBox: first and last frame per key
 	shotNav     struct {                   // shot mode: force the sidebar's key/hover looks
 		active *bool
 		hover  string
