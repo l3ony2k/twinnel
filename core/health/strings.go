@@ -31,7 +31,7 @@ const (
 	titleSystemDNS      = "系统 DNS"
 	titleVPNConflict    = "没有冲突的 VPN"
 	titleDirectPeers    = "打洞质量"
-	titleLeakGuard      = "防泄露"
+	titleLeakGuard      = "防泄漏"
 	titleController     = "控制接口安全"
 	titleResolverBind   = "tailnet DNS 出口绑定"
 	titleFakeIPMode     = "fake-ip 过滤模式"
@@ -50,7 +50,7 @@ const (
 	evBindResolver   = "nameserver-policy %s → %s"
 	evBindHosts      = "hosts 里的设备名：%d 个"
 	evBindCurrent    = "Tailscale 当前接口：%s"
-	fixBind          = "重新生成“Tailscale 共存”覆写，让 tailnet 解析器写成 100.100.100.100#<Tailscale 接口>，并生成设备 hosts。tailscaled 重启后接口名会变，也需要重新生成。"
+	fixBind          = "重新生成「Tailscale 共存」覆写，让 tailnet 解析器写成 100.100.100.100#<Tailscale 接口>，并生成设备 hosts。tailscaled 重启后接口名会变，也需要重新生成。"
 )
 
 // fake-ip-filter-mode
@@ -60,7 +60,7 @@ const (
 	msgWildcardOK     = "fake-ip-filter 的 '*' 配合 blacklist 模式：单标签名字拿真实地址"
 	msgWildcardBad    = "fake-ip-filter 里有 '*'，但 fake-ip-filter-mode 是 %s：'*' 只在 blacklist 模式下表示“单标签名字不用 fake-ip”"
 	evFakeIPMode      = "fake-ip-filter-mode：%s"
-	fixWildcard       = "把 fake-ip-filter-mode 改回 blacklist（默认），或在当前模式下用对应写法排除单标签名字，然后重新生成“Tailscale 共存”覆写。"
+	fixWildcard       = "把 fake-ip-filter-mode 改回 blacklist（默认），或在当前模式下用对应写法排除单标签名字，然后重新生成「Tailscale 共存」覆写。"
 	labelDefaultBlack = "blacklist（默认）"
 )
 
@@ -121,7 +121,7 @@ const (
 	msgExcludeMissing = "route-exclude-address 缺少：%s"
 	evExcludeList     = "route-exclude-address（%s）：%s"
 	evCoveredBy       = "%s 被 %s 覆盖"
-	fixExclude        = "在 tun.route-exclude-address 里加入缺少的网段（启用内置的“Tailscale 共存”覆写即可）。"
+	fixExclude        = "在 tun.route-exclude-address 里加入缺少的网段（启用内置的「Tailscale 共存」覆写即可）。"
 )
 
 // tailscale-direct-rules
@@ -136,7 +136,7 @@ const (
 	evNoMatch      = "没有规则命中"
 	evNotDirect    = "不是 DIRECT"
 	evShadowed     = "前面的 %s 可能先命中"
-	fixRules       = "把 PROCESS-NAME,tailscaled,DIRECT、DOMAIN-SUFFIX,tailscale.com,DIRECT、IP-CIDR,100.64.0.0/10,DIRECT,no-resolve 和 IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve 放到规则最前面（启用“Tailscale 共存”覆写）。"
+	fixRules       = "把 PROCESS-NAME,tailscaled,DIRECT、DOMAIN-SUFFIX,tailscale.com,DIRECT、IP-CIDR,100.64.0.0/10,DIRECT,no-resolve 和 IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve 放到规则最前面（启用「Tailscale 共存」覆写）。"
 )
 
 // magicdns
@@ -153,9 +153,9 @@ const (
 	evDNSTimeout       = "超时，2 秒内没有应答（mihomo 可能在等一个绕回自己的上游）"
 	evResolverCfg      = "系统 resolver：%s → 100.100.100.100 %s；100.x 反解 zone %d 个"
 	evPolicy           = "mihomo nameserver-policy %s：%s"
-	fixMagicSys        = "确认 Tailscale 的 MagicDNS 已开启、tailscaled 在运行，然后重新生成“Tailscale 共存”覆写（它让 tailnet 名字跳过 fake-ip）。"
+	fixMagicSys        = "确认 Tailscale 的 MagicDNS 已开启、tailscaled 在运行，然后重新生成「Tailscale 共存」覆写（它让 tailnet 名字跳过 fake-ip）。"
 	fixMagicSystemLoop = "nameserver-policy 把 tailnet 域名交给了 system，而系统 DNS 指向 mihomo 自己，查询绕回来失败。"
-	fixMagicMihomo     = "重新生成“Tailscale 共存”覆写：它把 tailnet 域名、单标签短名和 tailnet 反解交给 100.100.100.100（开了 auto-detect-interface / interface-name 时写成 100.100.100.100#<Tailscale 接口>），让短名跳过 fake-ip，并为设备生成 hosts。直接查询 127.0.0.1:53 或被 dns-hijack 劫持的程序才会受影响，走系统解析的程序不受影响。"
+	fixMagicMihomo     = "重新生成「Tailscale 共存」覆写：它把 tailnet 域名、单标签短名和 tailnet 反解交给 100.100.100.100（开了 auto-detect-interface / interface-name 时写成 100.100.100.100#<Tailscale 接口>），让短名跳过 fake-ip，并为设备生成 hosts。直接查询 127.0.0.1:53 或被 dns-hijack 劫持的程序才会受影响，走系统解析的程序不受影响。"
 )
 
 // peer-short-names
@@ -166,7 +166,7 @@ const (
 	msgNamesStale   = "规则里有已不存在的设备：%s"
 	evNamesPeers    = "tailnet 设备：%s"
 	evNamesRules    = "规则（%s）里的短名：%s"
-	fixNames        = "重新生成“Tailscale 共存”覆写，让设备短名列表和当前 tailnet 一致。"
+	fixNames        = "重新生成「Tailscale 共存」覆写，让设备短名列表和当前 tailnet 一致。"
 )
 
 // system-dns
@@ -230,7 +230,7 @@ const (
 	evLeakDirect    = "真实 IP 出口"
 	evLeakAuto      = "自动回退路径：%s"
 	evLeakManual    = "可选路径：%s"
-	fixLeak         = "从敏感策略组里去掉 DIRECT，没有可用节点时用 REJECT（启用“防泄露”覆写）。"
+	fixLeak         = "从敏感策略组里去掉 DIRECT，没有可用节点时用 REJECT（启用「防泄漏」覆写）。"
 )
 
 // controller-security

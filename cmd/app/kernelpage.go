@@ -68,7 +68,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 	v := &d.kern
 	w := a.helperWrites(s)
 	k := d.kernels
-	listCard(c, listHead(c, nil, T.KernelMihomo, nil), func() {
+	listCard(c, listHead(c, iconKernel, T.KernelMihomo, nil), func() {
 		if k == nil {
 			listRow(c).Children(func() { ui.Text(c, T.Loading).TextColor(t.TextMuted) })
 			return
@@ -195,7 +195,7 @@ func (a *app) tailscaleVersionCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.kern
-	listCard(c, listHead(c, nil, T.Tailscale, func() {
+	listCard(c, listHead(c, iconTailscale, T.Tailscale, func() {
 		label := T.KernelCheck
 		if v.tsLoading {
 			label = T.Checking

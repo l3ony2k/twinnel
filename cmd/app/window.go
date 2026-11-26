@@ -362,10 +362,16 @@ func (a *app) helperSummary(c *ui.Context, s status.Snapshot) {
 	st := h.Status
 	if !h.Connected() || st == nil {
 		kv(c, T.HelperSocket, h.Socket)
-		if h.State == status.HelperNotInstalled && ui.Button(c.Key("onboard"), T.OnboardOpen).Clicked() {
-			old := a.page
-			a.page = pageConfig
-			a.pageChanged(old)
+		if h.State == status.HelperNotInstalled {
+			// A push button in the value column, as other row actions;
+			// not a bar across the card.
+			kvWith(c, "", func() {
+				if pushButton(c.Key("onboard"), T.OnboardOpen).Clicked() {
+					old := a.page
+					a.page = pageConfig
+					a.pageChanged(old)
+				}
+			})
 		}
 		return
 	}
@@ -411,8 +417,10 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 		via := strings.Join(append([]string{p.Name}, p.Chain[:max(len(p.Chain)-1, 0)]...), " → ") + " →"
 		kvWith(c, T.Exit, func() {
 			ui.Row(c).Gap(4).Grow(1).Shrink(1).MinWidth(0).Tooltip(route).Children(func() {
-				ui.Text(c, via).TextColor(t.TextMuted).SingleLine().Shrink(100)
-				ui.Text(c, p.Node).SingleLine().Shrink(1)
+				// The groups may shrink to nothing (the tooltip has the
+				// route); the node keeps its whole name.
+				ui.Text(c, via).TextColor(t.TextMuted).SingleLine().Shrink(100).MinWidth(0)
+				ui.Text(c, p.Node).SingleLine().Shrink(0)
 			})
 			num(ui.Text(c, status.DelayText(p.Delay, p.Tested)).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
 		})
@@ -476,7 +484,9 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	hist := a.mon.TrafficHistory()
 	up := t.TextMuted
-	ui.Row(c).Gap(28).AlignItems(ui.End).Children(func() {
+	// Room under the figures: the plot's top tick label sits at its top
+	// edge and would touch the 累计 line otherwise.
+	ui.Row(c).Gap(28).AlignItems(ui.End).Margin(0, 0, 8, 0).Children(func() {
 		figure := func(label string, col ui.Color, rate int64) {
 			ui.Column(c).Gap(2).Children(func() {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {

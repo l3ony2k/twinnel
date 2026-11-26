@@ -56,7 +56,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 			if a.logs.paused {
 				pause = T.LogResume
 			}
-			b := ui.Button(c.Key("pause"), pause).Role(ui.RoleToggleButton).AccessSelected(a.logs.paused).Label(T.LogPause)
+			b := pushButton(c.Key("pause"), pause).Role(ui.RoleToggleButton).AccessSelected(a.logs.paused).Label(T.LogPause)
 			if a.logs.paused {
 				b.Tooltip(i18n.T.LogPaused)
 			}
@@ -64,7 +64,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 				a.logs.paused = !a.logs.paused
 				a.logs.frozen = a.mon.Logs()
 			}
-			if ui.Button(c.Key("clear"), T.LogClear).Clicked() {
+			if pushButton(c.Key("clear"), T.LogClear).Clicked() {
 				a.mon.ClearLogs()
 				a.logs.frozen = nil
 			}

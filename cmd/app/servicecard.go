@@ -128,20 +128,20 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 			}
 			return
 		}
-		if !st.Running && ui.Button(c.Key("start"), T.ServiceStart).Disabled(!w).Clicked() {
+		if !st.Running && pushButton(c.Key("start"), T.ServiceStart).Disabled(!w).Clicked() {
 			a.serviceOp(rpc.MethodServiceStart, name, T.ServiceStart)
 		}
-		if st.Running && ui.Button(c.Key("restart"), T.ServiceRestart).Disabled(!w).Clicked() {
+		if st.Running && pushButton(c.Key("restart"), T.ServiceRestart).Disabled(!w).Clicked() {
 			a.confirm(fmt.Sprintf(T.ServiceRestartTitle, name), T.ServiceRestartBody, T.ServiceRestart, func() {
 				a.serviceOp(rpc.MethodServiceRestart, name, T.ServiceRestart)
 			})
 		}
-		if st.Running && ui.Button(c.Key("stop"), T.ServiceStop).Disabled(!w).Clicked() {
+		if st.Running && pushButton(c.Key("stop"), T.ServiceStop).Disabled(!w).Clicked() {
 			a.confirm(fmt.Sprintf(T.ServiceStopTitle, name), T.ServiceStopBody, T.ServiceStop, func() {
 				a.serviceOp(rpc.MethodServiceStop, name, T.ServiceStop)
 			})
 		}
-		if name == "mihomo" && ui.Button(c.Key("uninstall"), T.ServiceUninstall).Disabled(!w).Clicked() {
+		if name == "mihomo" && pushButton(c.Key("uninstall"), T.ServiceUninstall).Disabled(!w).Clicked() {
 			a.confirm(fmt.Sprintf(T.ServiceUninstallTitle, name),
 				fmt.Sprintf(T.ServiceUninstallBody, st.Label, orDash(st.Definition)), T.ServiceUninstall, func() {
 					a.serviceOp(rpc.MethodServiceUninstall, name, T.ServiceUninstall)

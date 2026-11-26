@@ -39,7 +39,7 @@ func iconButton(c *ui.Context, icon *ui.SVG, label string, primary bool) ui.Elem
 	if primary {
 		b = ui.PrimaryButton(c, "")
 	} else {
-		b = ui.Button(c, "")
+		b = pushFace(c, ui.Button(c, ""))
 	}
 	return b.Label(label).Children(func() {
 		ui.Icon(c, icon).FontSize(iconInline)
@@ -124,7 +124,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 	groupBox(c, t).Children(func() {
 		icon, col, label := healthStatusLook(t, rep.Overall)
 		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
-			ui.Icon(c, icon).FontSize(22).TextColor(col).Shrink(0)
+			ui.Icon(c, icon).FontSize(iconLarge).TextColor(col).Shrink(0)
 			ui.Column(c).Gap(4).Grow(1).Children(func() {
 				ui.Text(c, label).FontSize(15).FontWeight(600)
 				num(small(c, healthCountsText(cnt)))
@@ -151,17 +151,14 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 		if len(crs) == 0 {
 			return
 		}
-		ui.Column(c).Gap(8).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Height(28).Children(func() {
-				ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
-				ui.Spacer(c)
-				num(small(c, fmt.Sprint(len(crs))))
-			})
-			listBox(c, t).Children(func() {
-				for _, cr := range crs {
-					a.healthCheckRow(c.Key("check:"+cr.ID), cr)
-				}
-			})
+		// The same heading as every other group: lined up with the
+		// labels in its box (groupPadX).
+		listCard(c, listHead(c, nil, title, func() {
+			num(small(c, fmt.Sprint(len(crs))))
+		}), func() {
+			for _, cr := range crs {
+				a.healthCheckRow(c.Key("check:"+cr.ID), cr)
+			}
 		})
 	}
 	list(T.HealthProblems, problems)
@@ -192,7 +189,12 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 		head.Children(func() {
 			ui.Icon(c, icon).FontSize(16).TextColor(col).Shrink(0).AccessHidden(true)
 			ui.Text(c, cr.Title).FontWeight(500).SingleLine().Shrink(0)
-			if !open {
+			switch {
+			case !expandable:
+				// Nothing to open, so nothing may be cut off: the
+				// sentence wraps under itself.
+				ui.Text(c, cr.Summary).TextColor(t.TextMuted).Wrap().Shrink(1).Selectable()
+			case !open:
 				// Cut to one line; the whole sentence on hover, as
 				// macOS shows a truncated cell's text.
 				ui.Text(c, cr.Summary).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(cr.Summary)

@@ -150,7 +150,7 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 			if v.running {
 				ui.Spinner(c)
 			}
-			if ui.Button(c.Key("recheck"), T.HelperRetry).Clicked() {
+			if pushButton(c.Key("recheck"), T.HelperRetry).Clicked() {
 				v.loaded = false
 				a.hc.Retry()
 			}
@@ -180,10 +180,10 @@ func (a *app) installPlanCard(c *ui.Context) {
 	v := &a.hd.onb
 	steps, parsed := parsePlan(v.plan)
 	ui.Column(c).Gap(8).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).MinHeight(28).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(28).Children(func() {
 			ui.Text(c, T.OnboardPlan).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 		})
-		hintText(c, T.OnboardPlanHint).PaddingX(4)
+		hintText(c, T.OnboardPlanHint).PaddingX(groupPadX)
 		listBox(c, t).Children(func() {
 			switch {
 			case v.loading && v.plan == "":
@@ -236,13 +236,7 @@ func (a *app) installStepRow(c *ui.Context, n int, st planStep) {
 			if v.fileOpen {
 				label = T.OnboardHideFile
 			}
-			disc := ui.Row(c.Key("file")).Gap(4).AlignItems(ui.Center).Cursor(ui.CursorPointer).
-				Focusable().Role(ui.RoleDisclosure).Expanded(v.fileOpen).Label(label)
-			disc.Children(func() {
-				ui.Icon(c, iconCollapsed).FontSize(11).TextColor(t.Accent).Transition(turnMotion).Rotate(map[bool]float32{true: 90}[v.fileOpen])
-				ui.Text(c, label).FontSize(plat.smallSize).TextColor(t.Accent)
-			})
-			if disc.Clicked() {
+			if linkDisclosure(c.Key("file"), v.fileOpen, label).Clicked() {
 				v.fileOpen = !v.fileOpen
 			}
 			if v.fileOpen {

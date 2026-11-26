@@ -99,8 +99,8 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 	d := &a.hd
 	v := &d.cfg
 	w := a.helperWrites(s)
-	listCard(c, listHead(c, iconSubscription, T.Subscriptions, func() {
-		if !v.subOpen && ui.Button(c.Key("sub-add"), T.SubAdd).Disabled(!w).Clicked() {
+	listCard(c, listHead(c, nil, T.Subscriptions, func() {
+		if !v.subOpen && pushButton(c.Key("sub-add"), T.SubAdd).Disabled(!w).Clicked() {
 			v.subOpen, v.subMins = true, "1440"
 		}
 	}), func() {
@@ -169,10 +169,10 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 			if sub.HasURL && a.opButton(c.Key("refresh"), iconRefresh, T.SubRefresh, false, T.SubRefresh+" "+id).Disabled(!w).Clicked() {
 				refresh()
 			}
-			if !sub.Active && ui.Button(c.Key("activate"), T.SubActivate).Disabled(!w).Clicked() {
+			if !sub.Active && pushButton(c.Key("activate"), T.SubActivate).Disabled(!w).Clicked() {
 				activate()
 			}
-			if ui.Button(c.Key("remove"), T.Remove).Disabled(!w).Clicked() {
+			if pushButton(c.Key("remove"), T.Remove).Disabled(!w).Clicked() {
 				remove()
 			}
 		})
@@ -223,7 +223,7 @@ func (a *app) subscriptionForm(c *ui.Context, w bool) {
 	ui.Row(c).Gap(12).AlignItems(ui.End).Children(func() {
 		field("sub-url", T.SubURL, &v.subURL, "https://…")
 		ui.Text(c, T.Or).FontSize(12).TextColor(t.TextMuted).MarginY(8)
-		if ui.Button(c.Key("sub-file"), T.SubImportFile).Clicked() {
+		if pushButton(c.Key("sub-file"), T.SubImportFile).Clicked() {
 			a.pickSubscriptionFile()
 		}
 	})
@@ -236,7 +236,7 @@ func (a *app) subscriptionForm(c *ui.Context, w bool) {
 		if ui.PrimaryButton(c.Key("sub-save"), T.Save).Disabled(!w || !ready).Clicked() {
 			a.saveSubscription()
 		}
-		if ui.Button(c.Key("sub-cancel"), T.Cancel).Clicked() {
+		if pushButton(c.Key("sub-cancel"), T.Cancel).Clicked() {
 			v.subOpen, v.subID, v.subName, v.subURL, v.subMins, v.subContent, v.subFile = false, "", "", "", "", "", ""
 		}
 	})
@@ -330,11 +330,10 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 		ids[i] = l.ID
 	}
 	listCard(c, func() {
-		ui.Icon(c, iconLayer).FontSize(iconInline).TextColor(t.TextMuted)
 		ui.Text(c, T.Layers).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Shrink(0)
 		ui.Text(c, T.LayersHint).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).Shrink(1).SingleLine().Tooltip(T.LayersHint)
 		ui.Spacer(c)
-		if !v.isNew && ui.Button(c.Key("layer-new"), T.LayerNew).Disabled(!w).Clicked() {
+		if !v.isNew && pushButton(c.Key("layer-new"), T.LayerNew).Disabled(!w).Clicked() {
 			a.newLayer()
 		}
 	}, func() {
@@ -533,7 +532,7 @@ func (a *app) newLayerRow(c *ui.Context, s status.Snapshot, w bool) {
 			Background(pal(t).accentSoft).Children(func() {
 			disclosure(c, true).Shrink(0)
 			ui.Text(c, T.LayerNew).FontWeight(600).Grow(1).SingleLine()
-			if ui.Button(c.Key("ed-cancel"), T.Cancel).Clicked() {
+			if pushButton(c.Key("ed-cancel"), T.Cancel).Clicked() {
 				v.isNew, v.ed = false, nil
 			}
 		})
@@ -713,7 +712,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 			a.loadingBox(c, "layer-editor", 320)
 			return
 		}
-		editor.View(c.Key("ed:"+v.sel), v.ed).Height(320).Radius(plat.innerRadius).Border(1, pal(t).groupLine)
+		codeFrame(c, 320, func() { editor.View(c.Key("ed:"+v.sel), v.ed).Grow(1) })
 		if v.managed {
 			return
 		}
@@ -727,7 +726,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 				ui.Text(c, T.Unsaved).FontSize(12).TextColor(pal(t).warnText)
 			}
 			ui.Spacer(c)
-			if !v.isNew && ui.Button(c.Key("ed-delete"), T.Remove).Disabled(!w).Clicked() {
+			if !v.isNew && pushButton(c.Key("ed-delete"), T.Remove).Disabled(!w).Clicked() {
 				a.removeLayer(id, v.edName)
 			}
 		})
@@ -838,7 +837,7 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 			add, del := v.diff.Stats()
 			ui.Text(c, fmt.Sprintf(T.DiffStats, add, del)).FontSize(12).TextColor(t.TextMuted)
 			if add+del > 0 {
-				editor.DiffView(c.Key("preview-diff"), v.diff).Height(380).Radius(plat.innerRadius).Border(1, pal(t).groupLine)
+				codeFrame(c, 380, func() { editor.DiffView(c.Key("preview-diff"), v.diff).Grow(1) })
 			}
 		}
 		ui.Divider(c)

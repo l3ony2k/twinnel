@@ -139,8 +139,8 @@ func (a *app) takeoverIntro(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	d := &a.hd
 	v := &d.take
-	iconCard(c, iconTakeover, T.TakeoverTitle, func() {
-		ui.Text(c, T.TakeoverIntro).FontSize(13).Wrap()
+	card(c, T.TakeoverTitle, func() {
+		hintText(c, T.TakeoverIntro)
 		if v.unsupported {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconWarning).FontSize(14).TextColor(pal(t).warnText)
@@ -190,10 +190,10 @@ func (a *app) takeoverPlanRow(c *ui.Context, s status.Snapshot, p rpc.TakeoverPl
 		ui.Text(c, filepath.Base(p.Base)).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(p.Base)
 		ui.Spacer(c)
 		ui.Text(c, p.PlanID).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(p.PlanID)
-		if !sel && ui.Button(c.Key("open"), T.TakeoverOpen).Disabled(a.hd.busy != "").Clicked() {
+		if !sel && pushButton(c.Key("open"), T.TakeoverOpen).Disabled(a.hd.busy != "").Clicked() {
 			a.takeoverSelect(p.PlanID)
 		}
-		if p.State != rpc.PlanAdopted && !v.fixture && ui.Button(c.Key("discard"), T.Remove).Disabled(!a.helperWrites(s)).Clicked() {
+		if p.State != rpc.PlanAdopted && !v.fixture && pushButton(c.Key("discard"), T.Remove).Disabled(!a.helperWrites(s)).Clicked() {
 			id := p.PlanID
 			a.confirm(fmt.Sprintf(T.TakeoverDiscardTitle, id), T.TakeoverDiscardBody, T.Remove, func() {
 				a.helperOp(T.Remove, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
@@ -319,7 +319,7 @@ func (a *app) takeoverFoundCards(c *ui.Context, p *rpc.TakeoverPlan) {
 				if cd.Chosen || cd.Path == p.Base {
 					tag(c, T.TakeoverBaseChosen)
 				} else if cd.Error == "" && !v.fixture && p.State == rpc.PlanReady {
-					if ui.Button(c.Key("use"), T.TakeoverUseBase).Disabled(a.hd.busy != "").Clicked() {
+					if pushButton(c.Key("use"), T.TakeoverUseBase).Disabled(a.hd.busy != "").Clicked() {
 						a.takeoverMakePlan(cd.Path)
 					}
 				}
@@ -340,7 +340,9 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 			ui.Row(c.Key(fmt.Sprint("l", i))).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, l.Name).FontSize(13).Width(180).Shrink(0).SingleLine().Tooltip(l.Name)
 				tag(c, T.StageName(l.Stage))
-				ui.Text(c, l.Kind).FontSize(11).TextColor(t.TextMuted)
+				if l.Kind == "managed" { // as the 订阅与覆写 page marks it; "user" needs no mark
+					tag(c, T.LayerManaged)
+				}
 				what := strings.Join(l.Keys, ", ")
 				if l.Rules > 0 {
 					if what != "" {
@@ -391,15 +393,13 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 			warningNote(c, w)
 		}
 		if p.Summary != "" || p.SemDiff != "" {
-			chev, label := iconCollapsed, T.TakeoverShowText
+			label := T.TakeoverShowText
 			if v.showText {
-				chev, label = iconExpanded, T.TakeoverHideText
+				label = T.TakeoverHideText
 			}
-			ui.Row(c).Children(func() {
-				if iconButton(c.Key("text"), chev, label, false).Clicked() {
-					v.showText = !v.showText
-				}
-			})
+			if linkDisclosure(c.Key("text"), v.showText, label).Clicked() {
+				v.showText = !v.showText
+			}
 			if v.showText {
 				for _, txt := range []string{p.Summary, p.SemDiff} {
 					if txt == "" {
@@ -649,8 +649,8 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.take
-	iconCard(c, iconSecure, T.SecureTitle, func() {
-		ui.Text(c, T.SecureHint).FontSize(12).TextColor(t.TextMuted).Wrap()
+	card(c, T.SecureTitle, func() {
+		hintText(c, T.SecureHint)
 		if p := v.plan; p != nil && !p.SecretSet && v.secure == nil {
 			ui.Text(c, T.TakeoverNoSecret).FontSize(12).TextColor(pal(t).warnText)
 		}
