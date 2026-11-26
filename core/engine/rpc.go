@@ -76,6 +76,11 @@ func (e *Engine) Register(s *rpc.Server) {
 		return e.ServiceStatus(ctx, p.Name)
 	})
 
+	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, _ rpc.Empty) (rpc.HealthReport, error) { return e.HealthLast() })
+	rpc.Typed(s, rpc.MethodHealthRun, func(ctx context.Context, p rpc.HealthRunParams) (rpc.HealthReport, error) {
+		return e.HealthRun(ctx, p.Reason)
+	})
+
 	rpc.Typed(s, rpc.MethodEventsWait, func(ctx context.Context, p rpc.EventsWaitParams) (rpc.EventsWaitResult, error) {
 		t := time.Duration(p.TimeoutMS) * time.Millisecond
 		if t <= 0 {

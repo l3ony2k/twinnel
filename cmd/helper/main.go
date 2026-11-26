@@ -34,6 +34,10 @@ type options struct {
 	group         string
 	tailnetStatus string
 	version       bool
+
+	tailnetIface   string
+	noHealth       bool
+	healthInterval time.Duration
 }
 
 func parseFlags(args []string) (*options, error) {
@@ -44,6 +48,9 @@ func parseFlags(args []string) (*options, error) {
 	fs.BoolVar(&o.foreground, "foreground", false, "log to stderr instead of <state-dir>/logs/helper.log")
 	fs.StringVar(&o.group, "group", "admin", "`GROUP` whose members may use the helper (besides root and the helper's own user)")
 	fs.StringVar(&o.tailnetStatus, "tailnet-status-file", "", "development: read tailscale status JSON from `FILE` instead of running `tailscale status --json`")
+	fs.StringVar(&o.tailnetIface, "tailnet-iface", "auto", "Tailscale interface for the coexist resolver: auto (route to 100.100.100.100), none, or a `NAME`")
+	fs.BoolVar(&o.noHealth, "no-health", false, "do not run the health checks (health.last/run then fail)")
+	fs.DurationVar(&o.healthInterval, "health-interval", 5*time.Minute, "time between scheduled health runs")
 	fs.BoolVar(&o.version, "version", false, "print the version and exit")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -113,6 +120,7 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 		e.Tailnet = engine.CLITailnet{Probe: probe}
 	}
 	e.Services = platformServices()
+	watch := setupPlatform(e, o)
 
 	tr := rpc.NewUnixTransport()
 	auth, err := rpc.NewGroupAuthorizer(o.group)
@@ -136,6 +144,7 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 	loopCtx, cancelLoops := context.WithCancel(ctx)
 	loopsDone := make(chan struct{})
 	go func() { e.Run(loopCtx); close(loopsDone) }()
+	go watch(loopCtx)
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(l) }()
 	if ready != nil {

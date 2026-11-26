@@ -276,6 +276,7 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 	} else {
 		res.HistoryID = h.ID
 	}
+	e.triggerHealth("config applied")
 	return e.done(res, start), nil
 }
 

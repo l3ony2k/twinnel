@@ -51,6 +51,9 @@ type Engine struct {
 	Services service.Manager
 	Bus      *rpc.Bus
 	Log      *slog.Logger
+	// NetChanges delivers network change reasons (darwin.NetWatcher). Run
+	// turns each into a health trigger and a tailnet refresh.
+	NetChanges <-chan string
 
 	// NewController builds the controller client for an address and secret
 	// (default *HTTPController).
@@ -72,6 +75,7 @@ type Engine struct {
 	lastApply *rpc.ApplyResult
 	tailnet   rpc.TailnetStatus
 	started   time.Time
+	health    healthState
 }
 
 // New returns an engine with defaults for everything optional.
@@ -171,13 +175,24 @@ func (e *Engine) mihomoBinary(st *store.Settings) (string, error) {
 	return "", errors.New("no mihomo binary: install a kernel or set mihomo.binary in settings.json")
 }
 
-// Run starts the background loops (subscription schedule, tailnet poll)
+// Run starts the background loops (subscription schedule, tailnet poll,
+// network changes, health schedule)
 // and blocks until ctx ends.
 func (e *Engine) Run(ctx context.Context) {
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 	go func() { defer wg.Done(); e.subscriptionLoop(ctx) }()
 	go func() { defer wg.Done(); e.tailnetLoop(ctx) }()
+	go func() { defer wg.Done(); e.netLoop(ctx) }()
+	if s := e.healthSched(); s != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.Run(ctx); err != nil && ctx.Err() == nil {
+				e.log().Warn("health scheduler", "err", err)
+			}
+		}()
+	}
 	wg.Wait()
 }
 
