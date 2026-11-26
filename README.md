@@ -18,7 +18,8 @@ It is a manager for the cores you already trust. It is **not** another Clash cli
 | Area | State |
 |---|---|
 | `duet doctor`: 13 coexistence health checks, text / Markdown / JSON | macOS, Linux |
-| `duet takeover plan`: read a hand-made mihomo + Tailscale setup and derive override layers that reproduce it, proven with `mihomo -t` and a semantic diff | macOS, Linux (read-only; there is no apply step yet) |
+| `duet takeover plan`: read a hand-made mihomo + Tailscale setup and derive override layers that reproduce it, proven with `mihomo -t` and a semantic diff | macOS, Linux (read-only) |
+| Adopt through the helper (`duet takeover plan --via-helper`, `duet helper adopt`): exact backup, import, apply, health before/after, automatic restore; `duet helper secure-controller`; `duet helper harden`: move the adopted mihomo to the managed kernel and a root-owned config dir in one restart. Procedure: [docs/runbook-adopt-macos.md](docs/runbook-adopt-macos.md) | macOS. Rehearsed on a copy of a real setup with a non-root helper (dry run for launchctl); not yet run as root on the real one |
 | `duet compose`: subscription + override layers → config, validated with `mihomo -t` | all |
 | Root helper (`duet-helper`): compose → validate → back up → write → hot reload → verify, with automatic rollback; subscriptions, layers, history, mihomo kernel download / switch / rollback; geo databases and the external dashboard, verified against published digests | macOS, Linux |
 | Health checks inside the helper: on a timer, after applies and service operations, and on network changes (macOS); `duet helper health` | macOS, Linux (no network-change trigger on Linux yet) |
@@ -83,8 +84,22 @@ duet kernel check                # mihomo releases: list | check | install | rol
 duet kernel geo check            # geo databases: check | update; duet kernel ui check|update for the dashboard
 duet service restart mihomo      # services: status | start | stop | restart (mihomo, tailscaled) | install | uninstall (mihomo)
 duet settings                    # leak guard, coexist, tailnet resolver, history size, kernel channel, auto-apply
+duet tailnet refresh             # re-read the peers now (the helper also polls every 60 s)
 duet events --follow
 ```
+
+Taking over a hand-made setup (step by step in [docs/runbook-adopt-macos.md](docs/runbook-adopt-macos.md)):
+
+```sh
+duet takeover plan --via-helper  # the helper makes the plan and keeps it; prints the plan id
+duet helper plans [PLAN_ID]      # list or show kept plans
+duet helper adopt PLAN_ID        # back up, import, apply, compare health; restores the backup if worse
+duet helper secure-controller    # set a controller secret (active after mihomo's next start)
+duet helper harden plan          # macOS: what moving to the managed kernel and a root-owned dir would do
+duet helper harden apply         # one restart of mihomo, a few seconds offline
+```
+
+Commands that ask `Proceed? [y/N]` need `--yes` when stdin is not a terminal.
 
 ## Health checks
 

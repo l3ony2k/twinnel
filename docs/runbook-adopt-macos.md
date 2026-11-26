@@ -93,6 +93,8 @@ duet history list
 duet history rollback <id of the "backup" entry>   # the pre-adopt file, through mihomo -t and a reload
 ```
 
+History entries never hold the `secret:` line: the helper writes the stored secret back in, and with an empty secret it leaves the line out. So the result is not byte-identical to `live-backup.yaml` (it lacks `secret: ""`), but mihomo reads both the same way. For the exact bytes, use B.
+
 **B. Completely back to the hand-made setup.** Stop the helper first, so it doesn't re-apply on a tailnet change:
 
 ```sh
@@ -101,7 +103,7 @@ sudo cp "/Library/Application Support/duet/takeover/<plan id>/live-backup.yaml" 
 curl -s -X PUT 'http://127.0.0.1:9090/configs?force=true' -H 'Content-Type: application/json' \
      -d "{\"path\":\"$HOME/mihomo-migration/conf/config.yaml\"}"
 # or: sudo launchctl kickstart -k system/com.mihomo.proxy
-shasum -a 256 ~/mihomo-migration/conf/config.yaml  # equals live_sha256 in `duet helper plans <plan id>` (or plan.json)
+shasum -a 256 ~/mihomo-migration/conf/config.yaml  # starts with the sha256 on the `live config` line of `duet helper plans <plan id>`; full value: live_sha256 in plan.json
 ```
 
 `cp` onto the existing file keeps its owner (you). If the network is down, run `bash ~/mihomo-migration/emergency-restore.sh` first.
@@ -157,7 +159,7 @@ duet helper harden apply            # shows the newest ready plan again, then y/
 
 Before the cut (network unaffected): installs or selects the kernel, copies into a staging dir, writes the config, runs `mihomo -t` with the new kernel, renames the staging dir into place, saves a copy of the old plist in `/Library/Application Support/duet/harden/<plan id>/old-service.plist`, writes `/Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist`, and runs the health checks.
 
-The cut: `launchctl bootout system/com.mihomo.proxy`, wait until its controller stops answering, `launchctl bootstrap system /Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist`, wait for `GET /version` (at most 45 s), health checks again.
+The cut: `launchctl bootout system/com.mihomo.proxy`, wait until its controller stops answering (at most 15 s), `launchctl bootstrap system /Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist` and `launchctl kickstart system/com.l3ony2k.duet.mihomo`, wait for `GET /version` (at most 45 s), health checks again.
 
 - **Success:** `launchctl disable system/com.mihomo.proxy` (the plist stays, it just does not load at boot any more) and settings switch to the new kernel, dir and label. The result shows the measured time offline.
 - **Failure** (the new one does not answer, or health is worse): the new label is booted out and its plist removed, `com.mihomo.proxy` is bootstrapped again, the previous secret is restored, and the new dir is moved to `…/harden/<plan id>/failed-config-dir` for inspection. Settings are not changed. Offline time is then about twice as long.

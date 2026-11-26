@@ -149,7 +149,6 @@ The binary path comes from a plist, possibly a user-written agent. Adopt now req
 
 ## Still to do
 
-- Finding 13: confined reads in `platform/darwin` and `core/takeover`.
 - Finding 5: the owner runs `duet helper harden apply` when idle (one restart).
 - Finding 14 in the app: show `warnings` from `subscription.put`.
 - Consider an `O_NOFOLLOW` open for `helper.log`. The logs dir is root-owned inside the root-owned state dir, so this is not exploitable today.
