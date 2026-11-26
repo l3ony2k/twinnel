@@ -179,16 +179,17 @@ func (a *app) takeoverPlanRow(c *ui.Context, s status.Snapshot, p rpc.TakeoverPl
 	T := i18n.T
 	v := &a.hd.take
 	sel := v.plan != nil && v.plan.PlanID == p.PlanID
-	row := ui.Row(c.Key(p.PlanID)).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).PaddingY(8)
+	row := ui.Row(c.Key(p.PlanID)).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).PaddingY(8).
+		Transition(rowMotion).Label(p.PlanID).AccessSelected(sel)
 	if sel { // the open plan: a tinted row, as a selected list row
 		row.Background(pal(t).accentSoft).Radius(plat.controlRadius).MarginX(-8).PaddingX(8)
 	}
 	row.Children(func() {
 		num(ui.Text(c, p.CreatedAt.Local().Format("01-02 15:04")).SingleLine().Shrink(0))
 		tag(c, T.PlanState(p.State))
-		ui.Text(c, filepath.Base(p.Base)).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		ui.Text(c, filepath.Base(p.Base)).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(p.Base)
 		ui.Spacer(c)
-		ui.Text(c, p.PlanID).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		ui.Text(c, p.PlanID).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(p.PlanID)
 		if !sel && ui.Button(c.Key("open"), T.TakeoverOpen).Disabled(a.hd.busy != "").Clicked() {
 			a.takeoverSelect(p.PlanID)
 		}
@@ -337,7 +338,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 		}
 		for i, l := range p.Layers {
 			ui.Row(c.Key(fmt.Sprint("l", i))).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, l.Name).FontSize(13).Width(180).Shrink(0).SingleLine()
+				ui.Text(c, l.Name).FontSize(13).Width(180).Shrink(0).SingleLine().Tooltip(l.Name)
 				tag(c, T.StageName(l.Stage))
 				ui.Text(c, l.Kind).FontSize(11).TextColor(t.TextMuted)
 				what := strings.Join(l.Keys, ", ")
@@ -347,7 +348,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 					}
 					what += fmt.Sprintf(T.TakeoverRules, l.Rules)
 				}
-				ui.Text(c, what).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1)
+				ui.Text(c, what).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(what)
 			})
 		}
 	})
@@ -611,7 +612,7 @@ func healthCompare(c *ui.Context, r *rpc.AdoptResult) {
 			if worse[id] {
 				col = t.Danger
 			}
-			ui.Text(c, name).FontSize(12).TextColor(col).Width(200).Shrink(0).SingleLine()
+			ui.Text(c, name).FontSize(12).TextColor(col).Width(200).Shrink(0).SingleLine().Tooltip(name)
 			b, ok := before[id]
 			cell(b, ok)
 			af, ok := after[id]

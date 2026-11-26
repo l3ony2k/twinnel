@@ -308,7 +308,7 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 			tag(c, T.AccessoryUnverifiable)
 		}
 		ui.Spacer(c)
-		ui.Text(c, filepath.Base(f.File)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
+		ui.Text(c, filepath.Base(f.File)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable().Tooltip(f.File)
 	})
 	local := T.AccessoryMissing
 	if f.Installed {

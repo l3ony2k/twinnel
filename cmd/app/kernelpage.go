@@ -100,7 +100,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 						num(small(c, kv.Time.Local().Format("2006-01-02")).SingleLine().Shrink(0))
 					}
 				})
-				ui.Text(c, kv.Path).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Selectable()
+				ui.Text(c, kv.Path).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Selectable().Tooltip(kv.Path)
 			})
 		}
 		listRow(c).Children(func() {
@@ -227,7 +227,7 @@ func (a *app) tailscaleVersionCard(c *ui.Context, s status.Snapshot) {
 					if info.UpdateAvailable {
 						col = t.Accent
 					}
-					ui.Text(c, latest).TextColor(col).SingleLine().Shrink(1)
+					ui.Text(c, latest).TextColor(col).SingleLine().Shrink(1).Tooltip(latest)
 				})
 				if info.UpdateAvailable {
 					hintText(c, T.TSUpdateHint(info.InstallKind))
