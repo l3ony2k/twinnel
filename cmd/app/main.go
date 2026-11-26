@@ -100,6 +100,10 @@ func main() {
 	a.ts = tailscale.New(tailscale.LocalAPI(nil), a.cfg.AllowWrites)
 	a.notes = newNotifier()
 	a.theme = os.Getenv("DUET_THEME")
+	// Shot mode never takes the owner's focus: no tray, no notifications,
+	// windows created hidden and captured from memory (Window.CapturePage
+	// renders native content itself; it needs no pixels on screen).
+	a.shotMode = os.Getenv("DUET_SHOTS") != ""
 
 	mygo.App.SetName(i18n.T.AppName)
 	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
@@ -112,6 +116,13 @@ func main() {
 }
 
 func (a *app) ready() {
+	if a.shotMode {
+		a.startHelper()
+		a.start()
+		a.openMain()
+		a.shots(os.Getenv("DUET_SHOTS"))
+		return
+	}
 	var err error
 	a.tray, err = mygo.NewTray(mygo.TrayOptions{
 		ID:              "duet",
@@ -145,7 +156,9 @@ func (a *app) ready() {
 		if a.stop != nil {
 			a.stop()
 		}
-		a.tray.Destroy()
+		if a.tray != nil {
+			a.tray.Destroy()
+		}
 	})
 	a.startHelper()
 	a.start()
@@ -153,12 +166,6 @@ func (a *app) ready() {
 		if err := a.loadTakeoverFixture(dir); err != nil {
 			log.Printf("takeover fixture: %v", err)
 		}
-	}
-	if dir := os.Getenv("DUET_SHOTS"); dir != "" {
-		a.shotMode = true
-		a.openMain()
-		a.shots(dir)
-		return
 	}
 	if os.Getenv("DUET_OPEN") != "" { // for development
 		a.openMain()
@@ -242,15 +249,16 @@ func (a *app) changed(mon *status.Monitor) {
 		if mon != a.mon {
 			return // replaced by start
 		}
-		if title != a.trayTitle {
+		if a.tray == nil { // shot mode
+		} else if title != a.trayTitle {
 			a.trayTitle = title
 			a.tray.SetTitle(title)
 		}
-		if shape := status.TrayIconFor(s); shape != a.trayShape {
+		if shape := status.TrayIconFor(s); a.tray != nil && shape != a.trayShape {
 			a.trayShape = shape
 			a.tray.SetIcon(trayIcon(shape), true)
 		}
-		if s.Level != a.trayLevel {
+		if a.tray != nil && s.Level != a.trayLevel {
 			a.trayLevel = s.Level
 			a.tray.SetToolTip(i18n.T.AppName + " · " + s.Level.Text())
 		}
@@ -260,7 +268,7 @@ func (a *app) changed(mon *status.Monitor) {
 		if a.win != nil {
 			a.win.Invalidate()
 		}
-		if !a.cfg.NotificationsOff {
+		if !a.cfg.NotificationsOff && !a.shotMode {
 			a.notes.check(s, a.openFor)
 		}
 	})
@@ -313,6 +321,14 @@ func (a *app) togglePanel() {
 		a.panel.Close()
 		return
 	}
+	if a.shotMode { // a hidden window of the flyout's width, captured from memory
+		a.panel = mygo.NewWindow(mygo.WindowOptions{
+			Title: i18n.T.AppName, Hidden: true, Width: 340, Height: 500,
+			Content: ui.View(a.panelView),
+		})
+		a.panel.OnClosed(func() { a.panel = nil })
+		return
+	}
 	a.panel = mygo.NewFlyout(mygo.FlyoutOptions{
 		Tray:       a.tray,
 		Placement:  mygo.PlacementBottom,
@@ -336,6 +352,9 @@ func (a *app) openMain() {
 		a.panel.Close()
 	}
 	if a.win != nil {
+		if a.shotMode {
+			return
+		}
 		a.win.Show()
 		a.win.Focus()
 		mygo.App.Focus()
@@ -352,6 +371,7 @@ func (a *app) openMain() {
 		MinWidth:      760,
 		MinHeight:     480,
 		StateKey:      a.stateKey(),
+		Hidden:        a.shotMode, // never shown: captured from memory
 		Content:       ui.View(a.mainView),
 	})
 	a.win.OnClosed(func() {
@@ -366,7 +386,9 @@ func (a *app) openMain() {
 		a.runHealth()
 	}
 	a.syncHealthVisible()
-	mygo.App.Focus()
+	if !a.shotMode {
+		mygo.App.Focus()
+	}
 }
 
 // winWidth is 980, or DUET_SHOTS_WIDTH in shot mode (narrow/wide passes).
