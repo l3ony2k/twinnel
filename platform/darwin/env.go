@@ -62,6 +62,9 @@ type Options struct {
 	DNSServer string
 	// TailscaleBin is the tailscale CLI. Default: discovered.
 	TailscaleBin string
+	// TailscaleStatus, if set, replaces `tailscale status --json` (a
+	// development helper started with --tailnet-status-file).
+	TailscaleStatus func(ctx context.Context) ([]byte, error)
 	// Settings are check preferences. Default: health.DefaultSettings().
 	Settings *health.Settings
 
@@ -195,6 +198,13 @@ func (e *Env) tailscaleBin() (string, error) {
 }
 
 func (e *Env) Tailscale(ctx context.Context) (*health.TailscaleStatus, error) {
+	if e.opt.TailscaleStatus != nil {
+		out, err := e.opt.TailscaleStatus(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return ParseTailscaleStatus(out)
+	}
 	bin, err := e.tailscaleBin()
 	if err != nil {
 		return nil, err

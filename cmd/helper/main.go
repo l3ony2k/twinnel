@@ -56,7 +56,7 @@ func parseFlags(args []string) (*options, error) {
 	fs.StringVar(&o.socket, "socket", rpc.DefaultSocket, "unix socket `PATH` to listen on")
 	fs.BoolVar(&o.foreground, "foreground", false, "log to stderr instead of <state-dir>/logs/helper.log")
 	fs.StringVar(&o.group, "group", "admin", "`GROUP` whose members may use the helper (besides root and the helper's own user)")
-	fs.StringVar(&o.tailnetStatus, "tailnet-status-file", "", "development: read tailscale status JSON from `FILE` instead of running 'tailscale status --json'")
+	fs.StringVar(&o.tailnetStatus, "tailnet-status-file", "", "development: read tailscale status JSON from `FILE` instead of running 'tailscale status --json' (peers for the coexist layer, takeover probe and health checks)")
 	fs.StringVar(&o.secrets, "secrets", "auto", "where secrets live: keychain, file (<state-dir>/secrets.json, development) or auto (keychain when running as root on macOS)")
 	fs.StringVar(&o.keychain, "keychain", "", "keychain `FILE` for --secrets keychain (default the System keychain)")
 	fs.StringVar(&o.tailnetIface, "tailnet-iface", "auto", "Tailscale interface for the coexist resolver: auto (route to 100.100.100.100), none, or a `NAME`")
@@ -250,6 +250,16 @@ func orDefault(s, d string) string {
 		return d
 	}
 	return s
+}
+
+// devTailnetStatus is the tailnet source of the health checks when the
+// helper runs with --tailnet-status-file (development), so a rehearsal never
+// reads the live tailnet; nil otherwise (the checks run the tailscale CLI).
+func devTailnetStatus(e *engine.Engine, o *options) func(context.Context) ([]byte, error) {
+	if o == nil || o.tailnetStatus == "" || e.Tailnet == nil {
+		return nil
+	}
+	return e.Tailnet.Status
 }
 
 // fileTailnet reads a saved `tailscale status --json` (development).

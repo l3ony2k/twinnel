@@ -321,3 +321,19 @@ func TestMihomoConfigRefusesEscapingSymlink(t *testing.T) {
 		t.Fatal("read a config through a symlink leaving its dir")
 	}
 }
+
+func TestTailscaleStatusOverride(t *testing.T) {
+	ran := false
+	e := New(Options{
+		TailscaleBin: "/nonexistent/tailscale",
+		Run: func(context.Context, string, ...string) ([]byte, error) {
+			ran = true
+			return nil, errors.New("live read")
+		},
+		TailscaleStatus: func(context.Context) ([]byte, error) { return fixture(t, "tailscale_status.json"), nil },
+	})
+	st, err := e.Tailscale(context.Background())
+	if err != nil || ran || st.BackendState == "" {
+		t.Fatalf("%+v %v ran=%v", st, err, ran)
+	}
+}
