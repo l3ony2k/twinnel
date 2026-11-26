@@ -397,7 +397,7 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 			if h.Err != "" {
 				ui.Text(c, h.Err).FontSize(12).TextColor(t.TextMuted).Wrap().Selectable()
 			}
-			if ui.Button(c.Key("retry"), i18n.T.HelperRetry).Clicked() {
+			if pushButton(c.Key("retry"), i18n.T.HelperRetry).Clicked() {
 				a.hc.Retry()
 			}
 		})

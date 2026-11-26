@@ -179,6 +179,18 @@ func spinnerIcon(c *ui.Context) ui.Element {
 }
 
 // levelColor is the dot color of a status level.
+// levelMark is the shape of a status level (stateDot), so the level
+// does not rest on its color alone.
+func levelMark(l status.Level) stateMark {
+	switch l {
+	case status.LevelOK:
+		return markOK
+	case status.LevelWarn:
+		return markAttention
+	}
+	return markDown
+}
+
 func levelColor(t *ui.Theme, l status.Level) ui.Color {
 	switch l {
 	case status.LevelOK:
@@ -240,10 +252,10 @@ func kvControl(e ui.Element) ui.Element {
 }
 
 // sectionTitle draws a heading with a status dot and a state on the right.
-func sectionTitle(c *ui.Context, title string, col ui.Color, right string) {
+func sectionTitle(c *ui.Context, title string, mark stateMark, col ui.Color, right string) {
 	t := c.Theme()
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		dot(c, col, 8)
+		stateDot(c, mark, col, 8)
 		ui.Text(c, title).FontWeight(plat.headingWeight)
 		ui.Spacer(c)
 		if right != "" {

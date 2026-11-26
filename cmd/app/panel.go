@@ -34,7 +34,7 @@ func (a *app) panelView(c *ui.Context) {
 	box.Padding(plat.panelPad).Gap(10).Children(func() {
 		// Overall state and the live rates.
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			dot(c, levelColor(t, s.Level), 10)
+			stateDot(c, levelMark(s.Level), levelColor(t, s.Level), 10)
 			ui.Text(c, s.Level.Text()).FontSize(15).FontWeight(600)
 			ui.Spacer(c)
 			if s.Mihomo.Reachable {
@@ -102,11 +102,11 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	m := s.Mihomo
-	col, state := t.Danger, T.Unreachable
+	mark, col, state := markDown, t.Danger, T.Unreachable
 	if m.Reachable {
-		col, state = t.Success, T.Running
+		mark, col, state = markOK, t.Success, T.Running
 	}
-	sectionTitle(c, T.Mihomo, col, state+versionSuffix(m.Version))
+	sectionTitle(c, T.Mihomo, mark, col, state+versionSuffix(m.Version))
 	if !m.Reachable {
 		unreachableLine(c, svcMihomo, m.Err)
 		return
@@ -171,7 +171,7 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 	// The heading's switch connects and disconnects, as Tailscale's own
 	// menu does.
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		dot(c, tsColor(t, s), 8)
+		stateDot(c, tsMark(s), tsColor(t, s), 8)
 		ui.Text(c, T.Tailscale).FontWeight(plat.headingWeight)
 		ui.Spacer(c)
 		state := T.Unreachable

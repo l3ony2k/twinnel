@@ -150,7 +150,7 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 			if v.running {
 				ui.Spinner(c)
 			}
-			if ui.Button(c.Key("recheck"), T.HelperRetry).Clicked() {
+			if pushButton(c.Key("recheck"), T.HelperRetry).Clicked() {
 				v.loaded = false
 				a.hc.Retry()
 			}
@@ -180,10 +180,10 @@ func (a *app) installPlanCard(c *ui.Context) {
 	v := &a.hd.onb
 	steps, parsed := parsePlan(v.plan)
 	ui.Column(c).Gap(8).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).MinHeight(28).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(28).Children(func() {
 			ui.Text(c, T.OnboardPlan).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 		})
-		hintText(c, T.OnboardPlanHint).PaddingX(4)
+		hintText(c, T.OnboardPlanHint).PaddingX(groupPadX)
 		listBox(c, t).Children(func() {
 			switch {
 			case v.loading && v.plan == "":

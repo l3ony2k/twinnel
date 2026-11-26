@@ -109,7 +109,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		ui.Text(c, T.HistoryEntry).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 		ui.Text(c, entry.ID).Font("monospace").FontSize(12).TextColor(t.TextMuted).Selectable()
 		ui.Spacer(c)
-		if ui.Button(c.Key("hist-diff"), T.HistoryDiff).Disabled(a.hd.busy != "").Clicked() {
+		if pushButton(c.Key("hist-diff"), T.HistoryDiff).Disabled(a.hd.busy != "").Clicked() {
 			a.historyDiff(s, entry.ID)
 		}
 		if a.opButton(c.Key("hist-rollback"), iconRollback, T.HistoryRollback, true, T.HistoryRollback).Disabled(!a.helperWrites(s)).Clicked() {
