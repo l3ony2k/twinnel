@@ -24,6 +24,7 @@ import (
 	"github.com/l3ony2k/duet/core/engine"
 	"github.com/l3ony2k/duet/core/kernel"
 	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/duet/core/service"
 	"github.com/l3ony2k/duet/core/store"
 )
 
@@ -125,6 +126,12 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 		e.Tailnet = engine.CLITailnet{Probe: probe}
 	}
 	e.Services = platformServices()
+	// launchctl and plist writes only as root; a development helper reports
+	// the plans as dry runs.
+	e.ServiceRunner = &engine.ServiceRunner{DryRun: true}
+	if os.Geteuid() == 0 {
+		e.ServiceRunner = &engine.ServiceRunner{Exec: service.ExecExecutor{}, Files: service.OSFiles{}}
+	}
 	watch := setupPlatform(e, o)
 
 	tr := rpc.NewUnixTransport()

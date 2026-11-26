@@ -49,8 +49,10 @@ type Engine struct {
 	TailnetInterface func(ctx context.Context) (string, error)
 	// Services reads service status (nil: service.status fails).
 	Services service.Manager
-	Bus      *rpc.Bus
-	Log      *slog.Logger
+	// ServiceRunner carries out service.start/stop/... (nil: dry run).
+	ServiceRunner *ServiceRunner
+	Bus           *rpc.Bus
+	Log           *slog.Logger
 	// NetChanges delivers network change reasons (darwin.NetWatcher). Run
 	// turns each into a health trigger and a tailnet refresh.
 	NetChanges <-chan string
@@ -63,6 +65,9 @@ type Engine struct {
 	// HTTPClient returns the client used for subscription downloads and
 	// release checks; proxy is nil for direct.
 	HTTPClient func(proxy *url.URL) *http.Client
+	// GitHubAPI is the API base for geo/UI digests (default
+	// https://api.github.com; tests point it at a fake).
+	GitHubAPI string
 	// UserAgent for subscription downloads (default "clash.meta", which
 	// makes providers return the mihomo format).
 	UserAgent string
@@ -71,6 +76,7 @@ type Engine struct {
 	Now           func() time.Time
 
 	applyMu   sync.Mutex
+	serviceMu sync.Mutex
 	mu        sync.Mutex
 	lastApply *rpc.ApplyResult
 	tailnet   rpc.TailnetStatus
