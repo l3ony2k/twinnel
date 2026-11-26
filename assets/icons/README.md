@@ -57,6 +57,8 @@ what it stands for in duet. **New** = added in the design pass and not yet wired
 | `app-window.svg` **new** | 外部面板 (external UI) | stock |
 | `import.svg` **new** | 接管现有配置 (takeover / adopt) | stock |
 | `key-round.svg` **new** | 加固控制接口 (controller secret) | stock |
+| `file-diff.svg` | 预览 (what an apply would change: the composed config against the running one) | stock |
+| `eye.svg` | 查看 (show a read-only view; kept for a future 查看 action) | stock |
 | `shield-droplet.svg` **new** | 防泄漏 (leak guard) | drawn |
 | `tunnel.svg` **new** | TUN 模式 (use instead of `globe.svg` for TUN) | drawn |
 | `nodes-direct.svg` **new** | 直连 (Tailscale peer reached directly) | drawn |

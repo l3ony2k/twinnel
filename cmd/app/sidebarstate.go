@@ -130,3 +130,16 @@ func tsColor(t *ui.Theme, s status.Snapshot) ui.Color {
 	}
 	return t.Danger
 }
+
+// levelMark is the shape of an overall status level: as the sidebar's,
+// warnings are a ring with a dot, errors and the unknown an empty ring
+// (the words beside the mark tell those two apart).
+func levelMark(l status.Level) stateMark {
+	switch l {
+	case status.LevelOK:
+		return markOK
+	case status.LevelWarn:
+		return markAttention
+	}
+	return markDown
+}

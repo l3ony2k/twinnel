@@ -177,7 +177,6 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 // material, with the duet pair's state at its foot.
 func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
-	T := i18n.T
 	bar := c.TitleBar()
 	side := ui.Column(c).Width(plat.sidebarWidth).Shrink(0).DragWindow()
 	if !c.Vibrancy() { // an opaque stand-in for the material
@@ -188,34 +187,18 @@ func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 	}
 	side.Padding(max(bar.Bottom+12, 16), 10, 12).Gap(4).Children(func() {
 		old := a.page
-		ts, health := 0, 0
+		ts := 0
 		if s.Tailscale.Reachable {
 			ts = s.Tailscale.State.OnlinePeers()
 		}
 		w, f := s.Health.Counts()
-		health = w + f
+		health := w + f
 		healthTone := toneAttention
 		if f > 0 {
 			healthTone = toneAlert
 		}
-		sections := []navSection{
-			{items: []navItem{
-				{id: pageOverview, icon: iconOverview, label: T.PageOverview},
-				{id: pageProxies, icon: iconProxies, label: T.PageProxies},
-				{id: pageTailscale, icon: iconTailscale, label: T.PageTailscale, count: ts},
-				{id: pageHealth, icon: iconHealth, label: T.PageHealth, count: health, tone: healthTone},
-			}},
-			{title: T.SidebarHelper, items: []navItem{
-				{id: pageConfig, icon: iconConfig, label: T.PageConfig},
-				{id: pageHistory, icon: iconHistory, label: T.PageHistory},
-				{id: pageKernel, icon: iconKernel, label: T.PageKernel},
-				{id: pageTakeover, icon: iconTakeover, label: T.PageTakeover},
-			}},
-			{title: T.SidebarApp, items: []navItem{
-				{id: pageLogs, icon: iconLogs, label: T.PageLogs},
-				{id: pageSettings, icon: iconSettings, label: T.PageSettings},
-			}},
-		}
+		sections := navSections(ts, health, healthTone)
+		a.pageKeys(c, sections)
 		active := c.WindowActive()
 		if a.shotNav.active != nil {
 			active = *a.shotNav.active
@@ -227,6 +210,74 @@ func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 		})
 		a.duetPair(c, s, 6)
 	})
+}
+
+// navSections are the sidebar's pages in order, with the counts their
+// rows show (Tailscale devices online, health problems). The first nine
+// pages get ⌘1…⌘9 (numberPages); 设置 has ⌘, as in every Mac app.
+func navSections(ts, health int, healthTone navTone) []navSection {
+	T := i18n.T
+	sections := []navSection{
+		{items: []navItem{
+			{id: pageOverview, icon: iconOverview, label: T.PageOverview},
+			{id: pageProxies, icon: iconProxies, label: T.PageProxies},
+			{id: pageTailscale, icon: iconTailscale, label: T.PageTailscale, count: ts},
+			{id: pageHealth, icon: iconHealth, label: T.PageHealth, count: health, tone: healthTone},
+		}},
+		{title: T.SidebarHelper, items: []navItem{
+			{id: pageConfig, icon: iconConfig, label: T.PageConfig},
+			{id: pageHistory, icon: iconHistory, label: T.PageHistory},
+			{id: pageKernel, icon: iconKernel, label: T.PageKernel},
+			{id: pageTakeover, icon: iconTakeover, label: T.PageTakeover},
+		}},
+		{title: T.SidebarApp, items: []navItem{
+			{id: pageLogs, icon: iconLogs, label: T.PageLogs},
+			{id: pageSettings, icon: iconSettings, label: T.PageSettings},
+		}},
+	}
+	n := 0
+	for si := range sections {
+		for ii := range sections[si].items {
+			it := &sections[si].items[ii]
+			if it.id == pageSettings || n == len(digitKeys) {
+				continue
+			}
+			it.key, it.digit = digitKeys[n], n+1
+			n++
+		}
+	}
+	return sections
+}
+
+// digitKeys are the keys of ⌘1…⌘9, in order.
+var digitKeys = []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9}
+
+// pageKeys registers ⌘1…⌘9 for the pages that have one, on every page
+// (the sidebar is built with each of them).
+func (a *app) pageKeys(c *ui.Context, sections []navSection) {
+	for _, sec := range sections {
+		for _, it := range sec.items {
+			if it.digit == 0 {
+				continue
+			}
+			id := it.id
+			c.OnWindowShortcut(ui.Cmd, it.key, func() { a.showPage(id) })
+		}
+	}
+}
+
+// showPage turns the main window to a page, as a click on its sidebar row
+// does. Main thread.
+func (a *app) showPage(id string) {
+	if a.page == id {
+		return
+	}
+	old := a.page
+	a.page = id
+	a.pageChanged(old)
+	if a.win != nil {
+		a.win.Invalidate()
+	}
 }
 
 func (a *app) pageChanged(old string) {
@@ -650,8 +701,26 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	sel := pendingValue(a, nodeKey(g.Name), g.Now) // the pick shows at once
 	chain := strings.Join(g.Chain, " → ")
 	ui.Column(c).Gap(8).PaddingY(8).Clip().Transition(expandFor(open)).Children(func() {
+		// The head is a disclosure the keyboard reaches: Tab stops on it,
+		// Return or Space opens and closes the group.
 		head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).Cursor(ui.CursorPointer).
-			Role(ui.RoleDisclosure).Label(g.Name).Expanded(open)
+			Role(ui.RoleDisclosure).Label(g.Name).Expanded(open).Focusable().FocusRingOffset(2)
+		head.ContextMenu(func(m *ui.Menu) {
+			label := T.GroupExpand
+			if open {
+				label = T.GroupCollapse
+			}
+			if m.Item(label).Chosen() {
+				a.groupsOpen[g.Name] = !open
+			}
+			m.Separator()
+			if m.Item(T.TestGroupDelay).Disabled(a.mon.Testing(g.Name)).Chosen() {
+				a.testGroup(g.Name)
+			}
+			if m.Item(T.CopyName).Chosen() {
+				copyText(c, g.Name)
+			}
+		})
 		head.Children(func() {
 			disclosure(c, open)
 			ui.Text(c, g.Name).FontWeight(600).SingleLine().Shrink(0)
@@ -661,13 +730,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			num(ui.Text(c, status.DelayText(g.Delay, g.Tested)).TextColor(delayColor(t, g.Delay, g.Tested)).Shrink(0))
 			testing := a.mon.Testing(g.Name)
 			if toolIcon(c.Key("test"), iconSpeed, T.TestGroupDelay, testing).Clicked() && !testing {
-				name, mon := g.Name, a.mon
-				go func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
-					_ = mon.TestGroup(ctx, name)
-				}()
-				a.groupsOpen[g.Name] = true
+				a.testGroup(g.Name)
 			}
 		})
 		if head.Clicked() {
@@ -684,14 +747,18 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			a.tileCols[g.Name] = cols
 			c.Invalidate()
 		}
+		// The tiles are one stop of Tab (entering at the selected node),
+		// ← and → step through them, ↑ and ↓ by a row of the grid
+		// (nodeTile). The arrows only move the focus: Return or Space
+		// selects, as switching the node changes where traffic goes.
 		grid := ui.Grid(c.Key("tiles")).Gap(tileGap).MarginStart(22).MarginY(2).Columns(cols).
-			Role(ui.RoleRadioGroup).Label(g.Name)
+			Role(ui.RoleRadioGroup).Label(g.Name).FocusGroup(ui.Horizontal)
 		if maxW > 0 {
 			grid.MaxWidth(maxW)
 		}
 		grid.Children(func() {
-			for _, mem := range g.Members {
-				a.nodeTile(c.Key(mem.Name), g, mem, mem.Name == sel, writes)
+			for i, mem := range g.Members {
+				a.nodeTile(c.Key(mem.Name), g, i, cols, mem, mem.Name == sel, writes)
 			}
 		})
 	})
@@ -699,29 +766,55 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 
 // nodeTile is one node of an open group: its name, type and delay. The
 // selected one has the accent's soft fill and a quiet accent hairline;
-// only colors animate, quickly, so tiles never slide on a resize.
-func (a *app) nodeTile(c *ui.Context, g status.Group, mem status.Member, selected, writes bool) {
+// only colors animate, quickly, so tiles never slide on a resize. i is its
+// place in the group, cols the grid's columns (for ↑ and ↓).
+func (a *app) nodeTile(c *ui.Context, g status.Group, i, cols int, mem status.Member, selected, writes bool) {
 	t := c.Theme()
 	p := pal(t)
+	T := i18n.T
 	typ := mem.Type
 	if typ == "" {
 		typ = "?"
 	}
 	delay := status.DelayText(mem.Delay, mem.Tested)
 	desc := mem.Name + " · " + typ + " · " + delay
+	canSelect := writes && g.Selectable() && !selected
+	// Every tile takes the focus, so the keyboard and VoiceOver can read
+	// the whole group; one that cannot be picked (read-only mode, or a
+	// group mihomo picks for itself) says so as unavailable.
 	chip := ui.Column(c).MinWidth(0).Padding(8, 10).Gap(2).Radius(plat.innerRadius).
 		Background(p.code).Border(1, p.groupLine).Transition(colorMotion).
-		Role(ui.RoleRadio).Label(desc).AccessSelected(selected).Tooltip(desc)
+		Role(ui.RoleRadio).Label(desc).AccessSelected(selected).Tooltip(desc).
+		Focusable().AccessDisabled(!canSelect && !selected)
 	if selected {
 		chip.Background(p.accentSoft).Border(1, t.Accent.Alpha(0.35))
 	}
-	canSelect := writes && g.Selectable() && !selected
 	if canSelect {
-		chip.Cursor(ui.CursorPointer).Focusable()
+		chip.Cursor(ui.CursorPointer)
 		if chip.Hovered() {
 			chip.Background(t.SurfaceHover)
 		}
 	}
+	if f := a.tileFocus; f.group == g.Name && f.node == mem.Name {
+		chip.Focus()
+		a.tileFocus = tileRef{}
+	}
+	if j, ok := tileStep(i, cols, len(g.Members), chip.Shortcut(0, ui.KeyUp), chip.Shortcut(0, ui.KeyDown)); ok {
+		a.tileFocus = tileRef{g.Name, g.Members[j].Name}
+		c.Invalidate() // a tile above is built already
+	}
+	chip.ContextMenu(func(m *ui.Menu) {
+		if m.Item(T.NodeUse).Disabled(!canSelect).Chosen() {
+			a.selectNode(g.Name, mem.Name)
+		}
+		m.Separator()
+		if m.Item(T.TestNodeDelay).Chosen() {
+			a.testNode(mem.Name)
+		}
+		if m.Item(T.CopyNodeName).Chosen() {
+			copyText(c, mem.Name)
+		}
+	})
 	chip.Children(func() {
 		ui.Text(c, mem.Name).SingleLine()
 		ui.Row(c).Gap(6).Children(func() {
@@ -732,6 +825,45 @@ func (a *app) nodeTile(c *ui.Context, g status.Group, mem status.Member, selecte
 	if chip.Clicked() && canSelect {
 		a.selectNode(g.Name, mem.Name)
 	}
+}
+
+// tileRef names a node tile that takes the focus when next built.
+type tileRef struct{ group, node string }
+
+// tileStep is where ↑ (up) or ↓ (down) moves the focus from tile i of n
+// in a grid of cols columns: the tile a row above or below, and false at
+// the grid's top or bottom row (the focus stays).
+func tileStep(i, cols, n int, up, down bool) (int, bool) {
+	cols = max(cols, 1)
+	switch {
+	case up && i-cols >= 0:
+		return i - cols, true
+	case down && i+cols < n:
+		return i + cols, true
+	}
+	return 0, false
+}
+
+// testGroup delay-tests every node of a group (a read: the controller's
+// GET /group/<name>/delay) and opens the group to show the results.
+func (a *app) testGroup(name string) {
+	mon := a.mon
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = mon.TestGroup(ctx, name)
+	}()
+	a.groupsOpen[name] = true
+}
+
+// testNode delay-tests one node (GET /proxies/<name>/delay).
+func (a *app) testNode(name string) {
+	mon := a.mon
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, _ = mon.TestNode(ctx, name)
+	}()
 }
 
 // --- tailscale ---
@@ -769,13 +901,38 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 		a.controlError(c, pendExit)
 	})
 	peers := st.Peers
-	title := fmt.Sprintf("%s · %d / %d", T.Devices, st.OnlinePeers(), len(peers))
+	if a.shotNoPeers { // shots of the empty devices card (shots_final.go)
+		peers = nil
+	}
+	online := 0
+	for _, p := range peers {
+		if p.Online {
+			online++
+		}
+	}
+	title := fmt.Sprintf("%s · %d / %d", T.Devices, online, len(peers))
 	card(c, title, func() {
 		if len(peers) == 0 {
-			emptyState(c, iconTailscale, T.NoPeers, T.NoPeersHint)
+			// In a card under the account's: the card size of an empty
+			// state (one row, the title alone), not a page's.
+			cardEmpty(c, iconTailscale, T.NoPeers).Tooltip(T.NoPeersHint)
 			return
 		}
 		a.peers.RowHeight = 32
+		// Each row's context menu copies the device's address or name.
+		a.peers.CellMenu = func(m *ui.Menu, row, _ int) {
+			if row < 0 || row >= len(peers) {
+				return
+			}
+			p := peers[row]
+			ip := p.IPv4()
+			if m.Item(T.CopyIP).Disabled(!ip.IsValid()).Chosen() {
+				copyText(c, ip.String())
+			}
+			if m.Item(T.CopyName).Chosen() {
+				copyText(c, p.Name)
+			}
+		}
 		// The name takes the room the others leave, so the table fits a
 		// narrow window (900 px) and the last column is never cut.
 		cols := []ui.TableColumn{
