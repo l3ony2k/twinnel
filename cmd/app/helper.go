@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -162,8 +163,8 @@ func (a *app) helperOp(label string, timeout time.Duration, fn func(ctx context.
 			d.busy = ""
 			if err != nil {
 				d.msg, d.msgErr = i18n.T.ErrorPrefix+helperError(err), true
-			} else {
-				d.msg = fmt.Sprintf(i18n.T.OpDone, label)
+			} else if !readOnlyOp(label) {
+				a.toast = fmt.Sprintf(i18n.T.OpDone, label)
 			}
 			if done != nil {
 				done(err)
@@ -172,6 +173,17 @@ func (a *app) helperOp(label string, timeout time.Duration, fn func(ctx context.
 			a.invalidate()
 		})
 	}()
+}
+
+// readOnlyOp reports whether an operation only reads (a preview, a diff, a
+// check): its result shows on the page, so it gets no toast.
+func readOnlyOp(label string) bool {
+	T := i18n.T
+	switch label {
+	case T.Preview, T.HistoryDiff, T.TakeoverOpen, T.KernelCheck:
+		return true
+	}
+	return strings.HasSuffix(label, " · "+T.KernelCheck)
 }
 
 // helperError shortens an RPC error for the UI: the helper's message
@@ -213,29 +225,29 @@ func (a *app) helperWrites(s status.Snapshot) bool {
 	return s.Helper.Connected() && s.WritesAllowed && a.hd.busy == ""
 }
 
-// opNotes shows the read-only hint, the running operation and the last
-// outcome of the helper pages.
+// opNotes shows the read-only notice, the running operation and the last
+// error of the helper pages. Successes go to a toast (helperOp).
 func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	d := &a.hd
 	if !s.WritesAllowed {
-		ui.Text(c, i18n.T.WritesDisabledHint).FontSize(12).TextColor(t.TextMuted)
+		notice(c, iconSecure, i18n.T.WritesDisabledHint)
 	}
 	if d.busy != "" {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Children(func() {
 			ui.Spinner(c)
-			ui.Text(c, d.busy+"…").FontSize(12).TextColor(t.TextMuted)
+			small(c, d.busy+"…")
 		})
 	}
 	if d.msg != "" {
-		col := t.Success
 		if d.msgErr {
-			col = t.Danger
+			errorNote(c, d.msg)
+		} else {
+			ui.Text(c, d.msg).TextColor(t.TextMuted).Wrap().Selectable()
 		}
-		ui.Text(c, d.msg).FontSize(12).TextColor(col).Wrap().Selectable()
 	}
 	if d.loadErr != "" {
-		ui.Text(c, i18n.T.ErrorPrefix+d.loadErr).FontSize(12).TextColor(t.Danger).Wrap()
+		errorNote(c, i18n.T.ErrorPrefix+d.loadErr)
 	}
 }
 

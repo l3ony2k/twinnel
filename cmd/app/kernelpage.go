@@ -90,10 +90,10 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 					ui.Row(c.Key(kv.Version)).Gap(10).AlignItems(ui.Center).Children(func() {
 						ui.Text(c, kv.Version).Font("monospace").FontSize(12).Width(140).Shrink(0)
 						if kv.Current {
-							ui.Badge(c, T.KernelCurrent)
+							tag(c, T.KernelCurrent)
 						}
 						if kv.Previous {
-							ui.Badge(c, T.KernelPrevious)
+							tag(c, T.KernelPrevious)
 						}
 						if !kv.Time.IsZero() {
 							ui.Text(c, kv.Time.Local().Format("2006-01-02")).FontSize(12).TextColor(t.TextMuted)
@@ -113,7 +113,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 			if iconButton(c.Key("k-check"), iconRefresh, T.KernelCheck, false).Disabled(d.busy != "").Clicked() {
 				a.kernelCheck()
 			}
-			if k.Previous != "" && ui.Button(c.Key("k-rollback"), T.KernelRollback).Disabled(!w).Clicked() {
+			if k.Previous != "" && iconButton(c.Key("k-rollback"), iconRollback, T.KernelRollback, false).Disabled(!w).Clicked() {
 				a.confirm(fmt.Sprintf(T.KernelRollbackTitle, k.Previous), T.KernelRollbackBody, T.KernelRollback, func() {
 					a.helperOp(T.KernelRollback, time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
 						return hc.Call(ctx, rpc.MethodKernelRollback, nil, nil)
@@ -122,7 +122,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 			}
 		})
 		if r := v.release; r != nil {
-			ui.Column(c).Gap(6).Padding(10, 12).Radius(8).Background(t.Background).Border(1, t.Border).Children(func() {
+			ui.Column(c).Gap(6).Padding(10, 12).Radius(plat.controlRadius+2).Background(pal(t).code).Border(1, pal(t).groupLine).Children(func() {
 				head, col := T.KernelUpToDate, t.Success
 				switch {
 				case r.UpdateAvailable && r.Current == "": // only an external binary so far
@@ -132,7 +132,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 				}
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					dot(c, col, 8)
-					ui.Text(c, head).FontSize(13).Bold()
+					ui.Text(c, head).FontWeight(600)
 				})
 				pub := ""
 				if !r.Published.IsZero() {
@@ -235,7 +235,7 @@ func (a *app) tailscaleVersionCard(c *ui.Context, s status.Snapshot) {
 			}
 		}
 		if info.Error != "" {
-			ui.Text(c, T.ErrorPrefix+strings.TrimSpace(info.Error)).FontSize(12).TextColor(t.Danger).Wrap()
+			ui.Text(c, T.ErrorPrefix+strings.TrimSpace(info.Error)).FontSize(12).TextColor(pal(t).badText).Wrap()
 		}
 	})
 }

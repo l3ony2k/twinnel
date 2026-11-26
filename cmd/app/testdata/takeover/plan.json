@@ -2,6 +2,7 @@
   "plan_id": "20261126-153012-a1b2",
   "created_at": "2026-11-26T15:30:12+08:00",
   "state": "ready",
+  "impact": {"disruptive": false, "force": false, "restart_needed": ["secret"]},
   "confirm_hash": "5f0c1e9a2b7d4c3e8f61a0b9c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1",
   "live_config": "/Users/example/mihomo/conf/config.yaml",
   "live_sha256": "9b3d0c27a1e54f6b8c7d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b",

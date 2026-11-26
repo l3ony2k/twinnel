@@ -23,8 +23,13 @@ var (
 	iconProxies   = svgIcon("split")
 	iconTailscale = svgIcon("monitor-smartphone")
 	iconHealth    = svgIcon("heart-pulse")
+	iconConfig    = svgIcon("layers")
+	iconHistory   = svgIcon("history")
+	iconKernel    = svgIcon("cpu")
+	iconTakeover  = svgIcon("import")
 	iconLogs      = svgIcon("list")
 	iconSettings  = svgIcon("settings")
+
 	iconRefresh   = svgIcon("rotate-cw")
 	iconCopy      = svgIcon("copy")
 	iconSpeed     = svgIcon("gauge")
@@ -33,21 +38,27 @@ var (
 	iconOK        = svgIcon("circle-check")
 	iconError     = svgIcon("circle-x")
 	iconSkip      = svgIcon("circle-minus")
-	iconPower     = svgIcon("power")
-	iconTun       = svgIcon("globe")
+	iconTun       = svgIcon("tunnel")
 	iconFlush     = svgIcon("eraser")
 	iconCollapsed = svgIcon("chevron-right")
 	iconExpanded  = svgIcon("chevron-down")
 	iconDuet      = svgIcon("duet")
-	// Placeholders until the design pass draws their own icons.
-	iconConfig   = svgIcon("list")
-	iconHistory  = svgIcon("rotate-cw")
-	iconKernel   = svgIcon("gauge")
-	iconTakeover = svgIcon("log-out")
+
+	iconSubscription = svgIcon("rss")
+	iconLayer        = svgIcon("square-pen")
+	iconManaged      = svgIcon("file-lock")
+	iconRollback     = svgIcon("undo-2")
+	iconService      = svgIcon("server")
+	iconGeo          = svgIcon("map")
+	iconDashboard    = svgIcon("app-window")
+	iconSecure       = svgIcon("key-round")
+	iconLeakGuard    = svgIcon("shield-droplet")
+	iconPathDirect   = svgIcon("nodes-direct")
+	iconPathRelay    = svgIcon("nodes-relay")
 )
 
-// trayIcon returns a menu bar template icon (32×32 PNG = 16 pt @2x, black
-// on transparent): two interlocked rings whose shape tells the state
+// trayIcon returns a menu bar template icon (41×36 PNG = 18 pt tall @2x,
+// black on transparent; macOS scales it on 1x screens): two interlocked rings whose shape tells the state
 // (status.TrayIconFor picks it; never color, the icon is a template).
 func trayIcon(v status.TrayIcon) []byte {
 	b, err := icons.FS.ReadFile("tray/" + string(v) + ".png")

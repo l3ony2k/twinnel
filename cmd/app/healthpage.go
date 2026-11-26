@@ -75,15 +75,8 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	h := s.Health
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		pageTitle(c, T.PageHealth)
-		ui.Spacer(c)
+	pageHeader(c, T.PageHealth, func() {
 		if h.Report != nil {
-			ui.Text(c, fmt.Sprintf(T.HealthLastRun, h.Report.Started.Format("15:04:05"),
-				fmt.Sprintf(T.Seconds, h.Report.Duration.Seconds()))).FontSize(12).TextColor(t.TextMuted).SingleLine()
-			if a.health != nil && a.health.FromHelper() {
-				ui.Badge(c, T.HealthFromHelper)
-			}
 			if iconButton(c.Key("copy-report"), iconCopy, T.HealthCopyReport, false).Clicked() {
 				copyText(c, h.Report.Markdown())
 			}
@@ -93,68 +86,94 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			if h.Running {
 				label = T.HealthRunning
 			}
-			if iconButton(c.Key("rerun"), iconRefresh, label, true).Disabled(h.Running).Clicked() {
+			if iconButton(c.Key("rerun"), iconRefresh, label, false).Disabled(h.Running).Clicked() {
 				a.rerunHealth()
 			}
 		}
 	})
 	switch {
 	case a.healthSrc == nil:
-		card(c, "", func() { ui.Text(c, T.HealthUnavailable).TextColor(t.TextMuted) })
+		groupBox(c, t).Children(func() { emptyState(c, iconHealth, T.HealthUnavailable, "") })
 		return
 	case h.Report == nil && h.Err != "":
-		card(c, "", func() { ui.Text(c, fmt.Sprintf(T.HealthError, h.Err)).TextColor(t.Danger).Wrap() })
+		groupBox(c, t).Children(func() { errorNote(c, fmt.Sprintf(T.HealthError, h.Err)) })
 		return
 	case h.Report == nil:
-		card(c, "", func() {
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+		groupBox(c, t).Children(func() {
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Justify(ui.Center).Padding(20).Children(func() {
 				ui.Spinner(c)
-				ui.Text(c, T.HealthRunning).TextColor(t.TextMuted)
+				small(c, T.HealthRunning)
 			})
 		})
 		return
 	}
 	rep := h.Report
 	cnt := rep.Counts()
-	card(c, "", func() {
+	groupBox(c, t).Children(func() {
 		icon, col, label := healthStatusLook(t, rep.Overall)
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, icon).FontSize(24).TextColor(col)
-			ui.Column(c).Gap(2).Grow(1).Children(func() {
-				ui.Text(c, label).FontSize(16).Bold()
-				ui.Text(c, fmt.Sprintf(T.HealthSummary, cnt[health.StatusOK], cnt[health.StatusWarn],
-					cnt[health.StatusFail], cnt[health.StatusSkip])).FontSize(12).TextColor(t.TextMuted)
+		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
+			ui.Icon(c, icon).FontSize(22).TextColor(col).Shrink(0)
+			ui.Column(c).Gap(4).Grow(1).Children(func() {
+				ui.Text(c, label).FontSize(15).FontWeight(600)
+				num(small(c, fmt.Sprintf(T.HealthSummary, cnt[health.StatusOK], cnt[health.StatusWarn],
+					cnt[health.StatusFail], cnt[health.StatusSkip])))
+				last := fmt.Sprintf(T.HealthLastRun, rep.Started.Format("15:04:05"), fmt.Sprintf(T.Seconds, rep.Duration.Seconds()))
+				if a.health != nil && a.health.FromHelper() {
+					last += " · " + T.HealthFromHelper
+				}
+				num(small(c, last))
 			})
 		})
 		if h.Err != "" {
-			ui.Text(c, fmt.Sprintf(T.HealthError, h.Err)).FontSize(12).TextColor(t.Danger).Wrap()
+			errorNote(c, fmt.Sprintf(T.HealthError, h.Err))
 		}
 	})
+	var problems, rest []health.CheckReport
 	for _, cr := range rep.Checks {
-		a.healthCheckCard(c.Key("check:"+cr.ID), cr)
+		if cr.Status == health.StatusWarn || cr.Status == health.StatusFail {
+			problems = append(problems, cr)
+		} else {
+			rest = append(rest, cr)
+		}
 	}
+	list := func(title string, crs []health.CheckReport) {
+		if len(crs) == 0 {
+			return
+		}
+		ui.Column(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Height(28).Children(func() {
+				ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
+				ui.Spacer(c)
+				num(small(c, fmt.Sprint(len(crs))))
+			})
+			listBox(c, t).Children(func() {
+				for _, cr := range crs {
+					a.healthCheckRow(c.Key("check:"+cr.ID), cr)
+				}
+			})
+		})
+	}
+	list(T.HealthProblems, problems)
+	list(T.HealthPassed, rest)
 }
 
-func (a *app) healthCheckCard(c *ui.Context, cr health.CheckReport) {
+func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 	t := c.Theme()
 	T := i18n.T
+	p := pal(t)
 	open, set := a.healthOpen[cr.ID]
 	if !set { // problems start expanded
 		open = cr.Status == health.StatusWarn || cr.Status == health.StatusFail
 	}
 	expandable := len(cr.Evidence) > 0 || cr.Fix != nil
 	icon, col, _ := healthStatusLook(t, cr.Status)
-	quiet := cr.Status == health.StatusOK || cr.Status == health.StatusSkip
-	ui.Column(c).Padding(12, 16).Gap(8).Radius(10).Background(t.Surface).Border(1, t.Border).Children(func() {
-		head := ui.Row(c).Gap(10).AlignItems(ui.Center)
+	ui.Column(c).PaddingY(10).Gap(8).Clip().Transition(expandMotion).Children(func() {
+		head := ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(20)
 		head.Children(func() {
-			ui.Icon(c, icon).FontSize(16).TextColor(col)
-			ui.Text(c, cr.Title).FontSize(13).Bold().SingleLine().Shrink(0)
-			if quiet && !open {
-				// Passing checks fold into one line: title, then the summary.
-				ui.Text(c, cr.Summary).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(1)
-			} else {
-				ui.Text(c, cr.ID).Font("monospace").FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1)
+			ui.Icon(c, icon).FontSize(16).TextColor(col).Shrink(0)
+			ui.Text(c, cr.Title).FontWeight(500).SingleLine().Shrink(0)
+			if !open {
+				ui.Text(c, cr.Summary).TextColor(t.TextMuted).SingleLine().Shrink(1)
 			}
 			ui.Spacer(c)
 			if expandable {
@@ -162,7 +181,7 @@ func (a *app) healthCheckCard(c *ui.Context, cr health.CheckReport) {
 				if open {
 					chev = iconExpanded
 				}
-				ui.Icon(c, chev).FontSize(14).TextColor(t.TextMuted)
+				ui.Icon(c, chev).FontSize(12).TextColor(t.TextMuted)
 			}
 		})
 		if expandable {
@@ -171,35 +190,38 @@ func (a *app) healthCheckCard(c *ui.Context, cr health.CheckReport) {
 				a.healthOpen[cr.ID] = !open
 			}
 		}
-		if quiet && !open {
+		if !open {
 			return
 		}
-		// Summary, indented under the title.
-		ui.Text(c, cr.Summary).FontSize(13).Wrap().Selectable().MarginStart(26)
-		if !open || !expandable {
-			return
-		}
-		ui.Column(c).Gap(8).MarginStart(26).Children(func() {
+		ui.Column(c).Gap(10).MarginStart(26).Children(func() {
+			ui.Text(c, cr.Summary).Wrap().Selectable()
+			if !expandable {
+				return
+			}
 			if len(cr.Evidence) > 0 {
-				ui.Text(c, T.HealthEvidence).FontSize(11).TextColor(t.TextMuted)
-				ui.Column(c).Gap(3).Padding(10, 12).Radius(6).Background(t.Background).Border(1, t.Border).Children(func() {
-					for _, e := range cr.Evidence {
-						ui.Text(c, e).Font("monospace").FontSize(11).Wrap().Selectable()
-					}
+				ui.Column(c).Gap(6).Children(func() {
+					small(c, T.HealthEvidence)
+					ui.Column(c).Gap(3).Padding(10, 12).Radius(plat.controlRadius+2).Background(p.code).Border(1, p.groupLine).Children(func() {
+						for _, e := range cr.Evidence {
+							ui.Text(c, e).Font("monospace").FontSize(11).Wrap().Selectable()
+						}
+					})
 				})
 			}
 			if f := cr.Fix; f != nil {
-				ui.Text(c, T.HealthFix).FontSize(11).TextColor(t.TextMuted)
-				ui.Text(c, f.Text).FontSize(12).Wrap().Selectable()
-				if f.Command != "" {
-					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, "$ "+strings.ReplaceAll(f.Command, "\n", "\n$ ")).Font("monospace").FontSize(12).
-							Padding(8, 10).Radius(6).Background(t.Background).Border(1, t.Border).Grow(1).Wrap().Selectable()
-						if iconButton(c.Key("copy-cmd"), iconCopy, T.CopyCmd, false).Clicked() {
-							copyText(c, f.Command)
-						}
-					})
-				}
+				ui.Column(c).Gap(6).Children(func() {
+					small(c, T.HealthFix)
+					ui.Text(c, f.Text).Wrap().Selectable()
+					if f.Command != "" {
+						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, "$ "+strings.ReplaceAll(f.Command, "\n", "\n$ ")).Font("monospace").FontSize(12).
+								Padding(8, 10).Radius(plat.controlRadius+2).Background(p.code).Border(1, p.groupLine).Grow(1).Wrap().Selectable()
+							if iconButton(c.Key("copy-cmd"), iconCopy, T.CopyCmd, false).Clicked() {
+								copyText(c, f.Command)
+							}
+						})
+					}
+				})
 			}
 		})
 	})
@@ -228,14 +250,14 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 	default:
 		icon, col, text = iconOK, t.Success, T.PanelHealthOK
 	}
-	row := ui.Row(c.Key("health-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).Radius(6).Cursor(ui.CursorPointer)
+	row := ui.Row(c.Key("health-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).Cursor(ui.CursorPointer)
 	row.Children(func() {
 		ui.Icon(c, icon).FontSize(14).TextColor(col)
-		ui.Text(c, text).FontSize(12).Grow(1).SingleLine()
+		ui.Text(c, text).Grow(1).SingleLine()
 		ui.Icon(c, iconCollapsed).FontSize(12).TextColor(t.TextMuted)
 	})
 	if row.Hovered() {
-		row.Background(t.Border.Alpha(0.5))
+		row.Background(t.Text.Alpha(0.08))
 	}
 	if row.Clicked() {
 		old := a.page

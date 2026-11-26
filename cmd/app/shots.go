@@ -36,6 +36,11 @@ func (a *app) shots(dir string) {
 	}
 	go func() {
 		time.Sleep(6 * time.Second) // let the monitor load, traffic accumulate and the health checks finish
+		if os.Getenv("DUET_SHOTS_FLOW") == "sidebar" {
+			a.sidebarShots(save)
+			mygo.App.Quit()
+			return
+		}
 		if os.Getenv("DUET_SHOTS_FLOW") == "takeover" {
 			a.takeoverE2E(save)
 			mygo.App.Quit()
@@ -55,7 +60,9 @@ func (a *app) shots(dir string) {
 			}
 			save(a.win, "main-"+p)
 		}
-		a.helperShots(dir, save)
+		if os.Getenv("DUET_SHOTS_QUICK") == "" { // quick: the main pages and the panel only
+			a.helperShots(dir, save)
+		}
 		for _, v := range []status.TrayIcon{status.TrayOK, status.TrayWarn, status.TrayError, status.TrayUnknown,
 			status.TrayTSDown, status.TrayMode, status.TrayNoHelper} {
 			if err := os.WriteFile(filepath.Join(dir, "tray-"+string(v)+".png"), trayIcon(v), 0o644); err != nil {
@@ -290,4 +297,29 @@ func (a *app) takeoverShots(save func(*mygo.Window, string), wait func(time.Dura
 // mode when shotSection names another one.
 func (a *app) section(name string) bool {
 	return a.shotSection == "" || a.shotSection == name
+}
+
+// sidebarShots captures the source list's looks: selection in a key and a
+// non-key window, hover, and the count badges on a selected row
+// (DUET_SHOTS_FLOW=sidebar). The key state is forced (shotNav), since a
+// capture does not change which window is key.
+func (a *app) sidebarShots(save func(*mygo.Window, string)) {
+	yes, no := true, false
+	shot := func(name, page, hover string, active *bool) {
+		mygo.RunOnMain(func() {
+			old := a.page
+			a.page = page
+			a.pageChanged(old)
+			a.shotNav.active, a.shotNav.hover = active, hover
+			a.win.Invalidate()
+		})
+		time.Sleep(700 * time.Millisecond)
+		save(a.win, "sidebar-"+name)
+	}
+	shot("key-overview-hover-proxies", pageOverview, pageProxies, &yes)
+	shot("notkey-overview-hover-proxies", pageOverview, pageProxies, &no)
+	shot("key-tailscale", pageTailscale, "", &yes)
+	shot("key-health", pageHealth, pageTailscale, &yes)
+	shot("notkey-health", pageHealth, "", &no)
+	shot("key-settings", pageSettings, pageKernel, &yes)
 }
