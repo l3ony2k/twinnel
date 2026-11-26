@@ -29,3 +29,7 @@ Secrets: the live config contains node credentials and the subscription URL. Nev
 - Commit often on your branch with clear messages. Do not push, do not merge, do not rebase other branches.
 - Do not add dependencies beyond what your brief allows without noting why in `HANDOFF.md`.
 - When done (or blocked), write `HANDOFF.md` at the worktree root: what you built, how to run/test it, what is not done, open questions, and anything other agents must know. Then print a final line `AGENT-DONE` (or `AGENT-BLOCKED: <reason>`).
+
+## Design rules (from the owner)
+
+- **Menu bar icon is monochrome only** (template image; macOS tints it). Never use color to carry state there. States are told apart by shape: a badge, a missing/broken part of the mark, a different glyph. Every state must read at 16 pt in both light and dark menu bars. (Other platforms: follow the native convention, e.g. monochrome tray icons on Windows 11 and GNOME.)
