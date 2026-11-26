@@ -110,11 +110,13 @@ type tunJSON struct {
 	DNSHijack           []string `json:"dns-hijack"`
 	RouteExcludeAddress []string `json:"route-exclude-address"`
 	Inet4Address        []string `json:"inet4-address"`
+	AutoDetectInterface bool     `json:"auto-detect-interface"`
 }
 
 func (t tunJSON) conv() health.TUNConfig {
 	return health.TUNConfig{Enable: t.Enable, Device: t.Device, Stack: t.Stack, AutoRoute: t.AutoRoute,
-		DNSHijack: t.DNSHijack, RouteExcludeAddress: t.RouteExcludeAddress, Inet4Address: t.Inet4Address}
+		DNSHijack: t.DNSHijack, RouteExcludeAddress: t.RouteExcludeAddress, Inet4Address: t.Inet4Address,
+		AutoDetectInterface: t.AutoDetectInterface}
 }
 
 // ParseMihomoConfigs parses GET /configs.
@@ -209,6 +211,8 @@ type fileConfig struct {
 		FakeIPRange      string               `yaml:"fake-ip-range"`
 		FakeIPFilter     []string             `yaml:"fake-ip-filter"`
 		NameserverPolicy map[string]yaml.Node `yaml:"nameserver-policy"`
+		FakeIPFilterMode string               `yaml:"fake-ip-filter-mode"`
+		UseHosts         *bool                `yaml:"use-hosts"`
 	} `yaml:"dns"`
 	TUN struct {
 		Enable              bool     `yaml:"enable"`
@@ -218,9 +222,12 @@ type fileConfig struct {
 		DNSHijack           []string `yaml:"dns-hijack"`
 		RouteExcludeAddress []string `yaml:"route-exclude-address"`
 		Inet4Address        []string `yaml:"inet4-address"`
+		AutoDetectInterface bool     `yaml:"auto-detect-interface"`
 	} `yaml:"tun"`
-	Rules       []string `yaml:"rules"`
-	ProxyGroups []struct {
+	InterfaceName string               `yaml:"interface-name"`
+	Hosts         map[string]yaml.Node `yaml:"hosts"`
+	Rules         []string             `yaml:"rules"`
+	ProxyGroups   []struct {
 		Name    string   `yaml:"name"`
 		Type    string   `yaml:"type"`
 		Proxies []string `yaml:"proxies"`
@@ -241,12 +248,19 @@ func ParseMihomoConfigFile(path string, data []byte) (*health.MihomoConfig, stri
 		DNS: health.MihomoDNSConfig{
 			Enable: f.DNS.Enable, Listen: f.DNS.Listen, EnhancedMode: f.DNS.EnhancedMode,
 			FakeIPRange: f.DNS.FakeIPRange, FakeIPFilter: f.DNS.FakeIPFilter,
+			FakeIPFilterMode: f.DNS.FakeIPFilterMode, UseHosts: f.DNS.UseHosts,
 			NameserverPolicy: map[string][]string{},
 		},
 		TUN: health.TUNConfig{Enable: f.TUN.Enable, Device: f.TUN.Device, Stack: f.TUN.Stack,
 			AutoRoute: f.TUN.AutoRoute, DNSHijack: f.TUN.DNSHijack,
-			RouteExcludeAddress: f.TUN.RouteExcludeAddress, Inet4Address: f.TUN.Inet4Address},
+			RouteExcludeAddress: f.TUN.RouteExcludeAddress, Inet4Address: f.TUN.Inet4Address,
+			AutoDetectInterface: f.TUN.AutoDetectInterface},
+		InterfaceName: f.InterfaceName,
 	}
+	for h := range f.Hosts {
+		c.HostNames = append(c.HostNames, h)
+	}
+	sort.Strings(c.HostNames)
 	secret := ""
 	if f.Secret != nil {
 		secret = *f.Secret

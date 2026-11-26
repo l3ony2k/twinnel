@@ -30,6 +30,8 @@ func runDoctor(args []string) error {
 	only := fs.String("only", "", "comma-separated check IDs to run")
 	timeout := fs.Duration("timeout", 15*time.Second, "per-check timeout")
 	strict := fs.Bool("strict", false, "exit with status 1 when any check fails")
+	egress := fs.Bool("egress", false, "also run the egress test: one HTTPS GET to --egress-url directly and one through mihomo, compared (opt-in, sends no personal data)")
+	egressURL := fs.String("egress-url", health.DefaultEgressURL, "neutral IP-echo `URL` for --egress (Cloudflare trace or a plain-IP body)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -45,6 +47,7 @@ func runDoctor(args []string) error {
 		settings.SensitiveGroups = splitList(*groups)
 	}
 	settings.AllowExitNode = *allowExit
+	settings.Egress, settings.EgressURL = *egress, *egressURL
 
 	env := darwin.New(darwin.Options{
 		Controller: *controller,

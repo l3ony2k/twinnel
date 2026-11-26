@@ -28,6 +28,17 @@ type fakeEnv struct {
 	mihomo   map[string]DNSAnswer
 	system   map[string]DNSAnswer
 	calls    atomic.Int32
+
+	egressDirect, egressProxied netip.Addr
+	egressChain                 []string
+	egressErr                   error
+}
+
+func (f *fakeEnv) DirectEgress(context.Context, string) (netip.Addr, error) {
+	return f.egressDirect, f.egressErr
+}
+func (f *fakeEnv) ProxiedEgress(context.Context, string) (netip.Addr, []string, error) {
+	return f.egressProxied, f.egressChain, f.egressErr
 }
 
 func a(s string) netip.Addr { return netip.MustParseAddr(s) }
@@ -53,8 +64,13 @@ func healthyEnv() *fakeEnv {
 		{8, "GEOSITE", "google", "Google"},
 		{9, "MATCH", "", "PROXY"},
 	}
+	settings := DefaultSettings()
+	settings.Egress = true
 	return &fakeEnv{
-		settings: DefaultSettings(),
+		settings:      settings,
+		egressDirect:  a("198.51.100.7"),
+		egressProxied: a("203.0.113.50"),
+		egressChain:   []string{"node-a", "PROXY", "Final"},
 		routes: map[string]RouteLookup{
 			"100.100.100.100":    {Interface: "utun9"},
 			"100.101.0.7":        {Interface: "utun9"},
@@ -418,7 +434,7 @@ func TestRunner(t *testing.T) {
 	reg.Register(linuxOnly{})
 	env := healthyEnv()
 	rep := (&Runner{Registry: reg, Timeout: 50 * time.Millisecond, Concurrency: 3}).Run(context.Background(), env)
-	if len(rep.Checks) != 13 {
+	if len(rep.Checks) != 16 {
 		t.Fatalf("got %d checks", len(rep.Checks))
 	}
 	by := map[string]CheckReport{}
