@@ -197,18 +197,6 @@ func spinnerIcon(c *ui.Context) ui.Element {
 }
 
 // levelColor is the dot color of a status level.
-// levelMark is the shape of a status level (stateDot), so the level
-// does not rest on its color alone.
-func levelMark(l status.Level) stateMark {
-	switch l {
-	case status.LevelOK:
-		return markOK
-	case status.LevelWarn:
-		return markAttention
-	}
-	return markDown
-}
-
 func levelColor(t *ui.Theme, l status.Level) ui.Color {
 	switch l {
 	case status.LevelOK:
@@ -270,10 +258,10 @@ func kvControl(e ui.Element) ui.Element {
 }
 
 // sectionTitle draws a heading with a status dot and a state on the right.
-func sectionTitle(c *ui.Context, title string, mark stateMark, col ui.Color, right string) {
+func sectionTitle(c *ui.Context, title string, m stateMark, col ui.Color, right string) {
 	t := c.Theme()
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		stateDot(c, mark, col, 8)
+		stateDot(c, m, col, 8)
 		ui.Text(c, title).FontWeight(plat.headingWeight)
 		ui.Spacer(c)
 		if right != "" {
@@ -437,6 +425,20 @@ func emptyState(c *ui.Context, icon *ui.SVG, title, hint string) ui.Element {
 		if hint != "" {
 			ui.Text(c, hint).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().MaxWidth(420)
 		}
+	})
+}
+
+// cardEmpty is the empty state at a card's size (Vibe Design Tips 022,
+// size b): one row of a 40 × 40 tile holding the place's icon at 22, and
+// the title alone, in the muted text; the card's heading stays above it.
+func cardEmpty(c *ui.Context, icon *ui.SVG, title string) ui.Element {
+	t := c.Theme()
+	return ui.Row(c).Gap(12).AlignItems(ui.Center).Role(ui.RoleStatus).Label(title).Children(func() {
+		ui.Box(c).Size(40, 40).Radius(plat.innerRadius).Background(t.TextMuted.Alpha(0.12)).Shrink(0).
+			AlignItems(ui.Center).Justify(ui.Center).AccessHidden(true).Children(func() {
+			ui.Icon(c, icon).FontSize(22).TextColor(t.TextMuted)
+		})
+		ui.Text(c, title).TextColor(t.TextMuted).Grow(1).SingleLine()
 	})
 }
 

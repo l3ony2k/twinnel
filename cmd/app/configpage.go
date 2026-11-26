@@ -406,12 +406,8 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 			col.BorderWidth(edge[0], edge[1], edge[2], edge[3]).BorderColor(t.Accent)
 		}
 		if d, ok := ui.Drop[layerDrag](col); ok && string(d) != l.ID {
-			if from := slices.Index(ids, string(d)); from >= 0 {
-				to := at
-				if from < at {
-					to = at + 1
-				}
-				a.reorderLayers(reorderIDs(ids, []int{from}, to))
+			if next, ok := dropLayer(ids, string(d), at); ok {
+				a.reorderLayers(next)
 			}
 		}
 	}
@@ -556,13 +552,37 @@ func (a *app) setLayerEnabled(l rpc.Layer, on bool) {
 }
 
 func (a *app) moveLayer(ids []string, i, delta int) {
+	if next, ok := stepID(ids, i, delta); ok {
+		a.reorderLayers(next)
+	}
+}
+
+// stepID is ids with the one at i moved delta places (⌥⌘↑ -1, ⌥⌘↓ 1),
+// and false when it would leave the list (ids are not changed).
+func stepID(ids []string, i, delta int) ([]string, bool) {
 	j := i + delta
-	if i < 0 || j < 0 || j >= len(ids) {
-		return
+	if i < 0 || i >= len(ids) || j < 0 || j >= len(ids) || delta == 0 {
+		return nil, false
 	}
 	ids = slices.Clone(ids)
 	ids[i], ids[j] = ids[j], ids[i]
-	a.reorderLayers(ids)
+	return ids, true
+}
+
+// dropLayer is the stored layers' order after the layer dragged is
+// dropped on the row at index at: it takes that row's place, the line
+// drawn above the row when it comes from below and under it when from
+// above (layerRow). false: nothing to send (an unknown or the same ID).
+func dropLayer(ids []string, dragged string, at int) ([]string, bool) {
+	from := slices.Index(ids, dragged)
+	if from < 0 || at < 0 || at >= len(ids) || from == at {
+		return nil, false
+	}
+	to := at
+	if from < at {
+		to = at + 1
+	}
+	return reorderIDs(ids, []int{from}, to), true
 }
 
 // reorderLayers sends the stored layers' new order. The helper's list
@@ -802,7 +822,7 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 		ui.Text(c, T.PreviewApply).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 		a.unappliedNote(c)
 		ui.Spacer(c)
-		if a.opButton(c.Key("preview"), iconSpeed, T.Preview, false, T.Preview).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {
+		if a.opButton(c.Key("preview"), iconPreview, T.Preview, false, T.Preview).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {
 			a.runPreview(s)
 		}
 	}, func() {

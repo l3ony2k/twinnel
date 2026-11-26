@@ -239,6 +239,7 @@ type Strings struct {
 	// not collide here). Fields are promoted: T.X reads them.
 	ControlStrings // controls.go
 	ConfigStrings  // config.go
+	WindowStrings  // window.go
 }
 
 // zh is the Chinese text.
@@ -801,6 +802,7 @@ var zh = Strings{
 	HealthPassed:        "其他检查",
 
 	ConfigStrings: zhConfig,
+	WindowStrings: zhWindow,
 }
 
 // For returns the strings of a language tag; unknown tags get Chinese.

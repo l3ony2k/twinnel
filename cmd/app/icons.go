@@ -33,6 +33,7 @@ var (
 	iconRefresh   = svgIcon("rotate-cw")
 	iconCopy      = svgIcon("copy")
 	iconSpeed     = svgIcon("gauge")
+	iconPreview   = svgIcon("file-diff") // 预览: what an apply would change
 	iconExitNode  = svgIcon("log-out")
 	iconWarning   = svgIcon("triangle-alert")
 	iconOK        = svgIcon("circle-check")

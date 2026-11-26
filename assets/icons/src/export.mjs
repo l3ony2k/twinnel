@@ -27,7 +27,9 @@ export const STOCK = [
   'globe', 'eraser', 'chevron-right', 'chevron-down',
   // added in the design pass
   'layers', 'history', 'undo-2', 'cpu', 'rss', 'square-pen', 'file-lock', 'server', 'map',
-  'app-window', 'import', 'key-round'
+  'app-window', 'import', 'key-round',
+  // added by ui-final
+  'file-diff', 'eye'
 ];
 const DUET = ['duet'];
 const TRAY = ['duet', 'duet-warn', 'duet-error', 'duet-unknown', 'duet-tsdown', 'duet-mode', 'duet-nohelper'];
