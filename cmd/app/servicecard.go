@@ -121,7 +121,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		ui.Text(c, state).FontSize(12).TextColor(t.TextMuted)
 		ui.Spacer(c)
 		if !st.Installed {
-			if name == "mihomo" && iconButton(c.Key("install"), iconOK, T.ServiceInstall, false).Disabled(!w).Clicked() {
+			if name == "mihomo" && a.opButton(c.Key("install"), iconOK, T.ServiceInstall, false, T.ServiceInstall+" "+name).Disabled(!w).Clicked() {
 				a.confirm(fmt.Sprintf(T.ServiceInstallTitle, name), T.ServiceInstallBody, T.ServiceInstall, func() {
 					a.serviceOp(rpc.MethodServiceInstall, name, T.ServiceInstall)
 				})
@@ -247,7 +247,7 @@ func (a *app) accessoryCard(c *ui.Context, s status.Snapshot, k accessoryKind) {
 	v := k.view(a)
 	w := a.helperWrites(s)
 	listCard(c, listHead(c, k.icon, k.title, func() {
-		if iconButton(c.Key("check"), iconRefresh, T.KernelCheck, false).Disabled(d.busy != "").Clicked() {
+		if a.opButton(c.Key("check"), iconRefresh, T.KernelCheck, false, k.title+" · "+T.KernelCheck).Disabled(d.busy != "").Clicked() {
 			a.accessoryCheck(k)
 		}
 	}), func() {
@@ -274,7 +274,7 @@ func (a *app) accessoryCard(c *ui.Context, s status.Snapshot, k accessoryKind) {
 					if updates == 0 && !v.force {
 						label = T.AccessoryUpToDate
 					}
-					if iconButton(c.Key("update"), iconOK, label, updates > 0 || v.force).Disabled(!w || (updates == 0 && !v.force)).Clicked() {
+					if a.opButton(c.Key("update"), iconOK, label, updates > 0 || v.force, k.title+" · "+T.AccessoryUpdate).Disabled(!w || (updates == 0 && !v.force)).Clicked() {
 						a.accessoryUpdate(k, v.force)
 					}
 				})
@@ -308,7 +308,7 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 			tag(c, T.AccessoryUnverifiable)
 		}
 		ui.Spacer(c)
-		ui.Text(c, filepath.Base(f.File)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
+		ui.Text(c, filepath.Base(f.File)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable().Tooltip(f.File)
 	})
 	local := T.AccessoryMissing
 	if f.Installed {
@@ -361,7 +361,7 @@ func (a *app) accessoryResult(c *ui.Context, s status.Snapshot, r *rpc.Accessory
 		if r.ReloadNeeded {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, T.AccessoryReloadNeeded).FontSize(12).TextColor(pal(t).warnText).Grow(1).Wrap()
-				if iconButton(c.Key("apply"), iconRefresh, T.AccessoryApply, true).Disabled(!a.helperWrites(s)).Clicked() {
+				if a.opButton(c.Key("apply"), iconRefresh, T.AccessoryApply, true, T.AccessoryApply).Disabled(!a.helperWrites(s)).Clicked() {
 					a.applyForce(T.AccessoryApplyReason, func() { r.ReloadNeeded = false })
 				}
 			})

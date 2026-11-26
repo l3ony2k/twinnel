@@ -151,7 +151,7 @@ func (a *app) takeoverIntro(c *ui.Context, s status.Snapshot) {
 			// Planning is read-only for the system (the helper writes the
 			// plan into its own state dir), so it needs no write permission.
 			can := (s.Helper.Connected() && d.busy == "" && !v.unsupported) && !v.fixture
-			if iconButton(c.Key("plan"), iconRefresh, T.TakeoverPlan, v.plan == nil).Disabled(!can).Clicked() {
+			if a.opButton(c.Key("plan"), iconRefresh, T.TakeoverPlan, v.plan == nil, T.TakeoverPlan).Disabled(!can).Clicked() {
 				a.takeoverMakePlan("")
 			}
 			if v.loading {
@@ -179,16 +179,17 @@ func (a *app) takeoverPlanRow(c *ui.Context, s status.Snapshot, p rpc.TakeoverPl
 	T := i18n.T
 	v := &a.hd.take
 	sel := v.plan != nil && v.plan.PlanID == p.PlanID
-	row := ui.Row(c.Key(p.PlanID)).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).PaddingY(8)
+	row := ui.Row(c.Key(p.PlanID)).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).PaddingY(8).
+		Transition(rowMotion).Label(p.PlanID).AccessSelected(sel)
 	if sel { // the open plan: a tinted row, as a selected list row
 		row.Background(pal(t).accentSoft).Radius(plat.controlRadius).MarginX(-8).PaddingX(8)
 	}
 	row.Children(func() {
 		num(ui.Text(c, p.CreatedAt.Local().Format("01-02 15:04")).SingleLine().Shrink(0))
 		tag(c, T.PlanState(p.State))
-		ui.Text(c, filepath.Base(p.Base)).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		ui.Text(c, filepath.Base(p.Base)).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(p.Base)
 		ui.Spacer(c)
-		ui.Text(c, p.PlanID).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		ui.Text(c, p.PlanID).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(p.PlanID)
 		if !sel && ui.Button(c.Key("open"), T.TakeoverOpen).Disabled(a.hd.busy != "").Clicked() {
 			a.takeoverSelect(p.PlanID)
 		}
@@ -337,7 +338,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 		}
 		for i, l := range p.Layers {
 			ui.Row(c.Key(fmt.Sprint("l", i))).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, l.Name).FontSize(13).Width(180).Shrink(0).SingleLine()
+				ui.Text(c, l.Name).FontSize(13).Width(180).Shrink(0).SingleLine().Tooltip(l.Name)
 				tag(c, T.StageName(l.Stage))
 				ui.Text(c, l.Kind).FontSize(11).TextColor(t.TextMuted)
 				what := strings.Join(l.Keys, ", ")
@@ -347,7 +348,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 					}
 					what += fmt.Sprintf(T.TakeoverRules, l.Rules)
 				}
-				ui.Text(c, what).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1)
+				ui.Text(c, what).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(what)
 			})
 		}
 	})
@@ -405,7 +406,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 						continue
 					}
 					ui.Text(c, strings.TrimRight(txt, "\n")).Font("monospace").FontSize(11).Wrap().Selectable().
-						Padding(8, 10).Radius(plat.controlRadius+2).Background(pal(t).code).Border(1, pal(t).groupLine)
+						Padding(8, 10).Radius(plat.innerRadius).Background(pal(t).code).Border(1, pal(t).groupLine)
 				}
 			}
 		}
@@ -468,7 +469,7 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 			} else {
 				ui.Spacer(c)
 			}
-			if iconButton(c.Key("adopt"), iconTakeover, T.TakeoverAdopt, true).Disabled(!ok).Clicked() {
+			if a.opButton(c.Key("adopt"), iconTakeover, T.TakeoverAdopt, true, T.TakeoverAdopt).Disabled(!ok).Clicked() {
 				plan := *p
 				a.confirm(T.TakeoverAdoptTitle, fmt.Sprintf(T.TakeoverAdoptBody, plan.LiveConfig), T.TakeoverAdopt, func() {
 					a.takeoverAdopt(plan)
@@ -611,7 +612,7 @@ func healthCompare(c *ui.Context, r *rpc.AdoptResult) {
 			if worse[id] {
 				col = t.Danger
 			}
-			ui.Text(c, name).FontSize(12).TextColor(col).Width(200).Shrink(0).SingleLine()
+			ui.Text(c, name).FontSize(12).TextColor(col).Width(200).Shrink(0).SingleLine().Tooltip(name)
 			b, ok := before[id]
 			cell(b, ok)
 			af, ok := after[id]
@@ -656,7 +657,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 		ui.Row(c).Children(func() {
 			ui.Spacer(c)
 			can := a.helperWrites(s) && !v.unsupported && !v.fixture
-			if iconButton(c.Key("secure"), iconSecure, T.SecureRun, false).Disabled(!can).Clicked() {
+			if a.opButton(c.Key("secure"), iconSecure, T.SecureRun, false, T.SecureRun).Disabled(!can).Clicked() {
 				a.confirm(T.SecureTitle+"？", T.SecureBody, T.SecureRun, a.controllerSecure)
 			}
 		})

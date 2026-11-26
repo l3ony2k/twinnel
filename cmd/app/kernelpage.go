@@ -100,7 +100,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 						num(small(c, kv.Time.Local().Format("2006-01-02")).SingleLine().Shrink(0))
 					}
 				})
-				ui.Text(c, kv.Path).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Selectable()
+				ui.Text(c, kv.Path).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Selectable().Tooltip(kv.Path)
 			})
 		}
 		listRow(c).Children(func() {
@@ -110,10 +110,10 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 					v.release = nil
 				}
 				ui.Spacer(c)
-				if iconButton(c.Key("k-check"), iconRefresh, T.KernelCheck, false).Disabled(d.busy != "").Clicked() {
+				if a.opButton(c.Key("k-check"), iconRefresh, T.KernelCheck, false, T.KernelCheck).Disabled(d.busy != "").Clicked() {
 					a.kernelCheck()
 				}
-				if k.Previous != "" && iconButton(c.Key("k-rollback"), iconRollback, T.KernelRollback, false).Disabled(!w).Clicked() {
+				if k.Previous != "" && a.opButton(c.Key("k-rollback"), iconRollback, T.KernelRollback, false, T.KernelRollback).Disabled(!w).Clicked() {
 					a.confirm(fmt.Sprintf(T.KernelRollbackTitle, k.Previous), T.KernelRollbackBody, T.KernelRollback, func() {
 						a.helperOp(T.KernelRollback, time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
 							return hc.Call(ctx, rpc.MethodKernelRollback, nil, nil)
@@ -136,7 +136,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 					ui.Text(c, head).FontWeight(600).Grow(1).Wrap()
 					if r.UpdateAvailable {
 						rel := *r
-						if iconButton(c.Key("k-install"), iconOK, fmt.Sprintf(T.KernelInstall, r.Version), true).Disabled(!w).Clicked() {
+						if a.opButton(c.Key("k-install"), iconOK, fmt.Sprintf(T.KernelInstall, r.Version), true, fmt.Sprintf(T.KernelInstall, r.Version)).Disabled(!w).Clicked() {
 							a.confirm(fmt.Sprintf(T.KernelInstallTitle, rel.Version), T.KernelInstallBody, T.KernelInstallOK, func() {
 								a.kernelInstall(rel)
 							})
@@ -227,7 +227,7 @@ func (a *app) tailscaleVersionCard(c *ui.Context, s status.Snapshot) {
 					if info.UpdateAvailable {
 						col = t.Accent
 					}
-					ui.Text(c, latest).TextColor(col).SingleLine().Shrink(1)
+					ui.Text(c, latest).TextColor(col).SingleLine().Shrink(1).Tooltip(latest)
 				})
 				if info.UpdateAvailable {
 					hintText(c, T.TSUpdateHint(info.InstallKind))
