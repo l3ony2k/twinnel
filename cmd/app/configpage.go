@@ -45,7 +45,6 @@ type configView struct {
 	subContent, subFile             string
 
 	// Layer list and its inline editor.
-	list      ui.ListState
 	reveal    bool   // scroll the editor into view in the next frame
 	sel       string // open layer ID; "" = none
 	isNew     bool
@@ -303,9 +302,12 @@ func shortHash(h string) string {
 
 // --- layers ---
 
+// layerDrag is a stored layer's ID being dragged to another place.
+type layerDrag string
+
 // layersCard lists the layers in compose order. The stored (user) layers
-// are a list that reorders by dragging, as macOS lists do (a drop line,
-// rows move on drop; review-a 005), by ⌥⌘↑ / ⌥⌘↓ on the open layer, and
+// reorder by dragging, as macOS lists do (an accent drop line, the rows
+// move on drop; review-a 005), by ⌥⌘↑ / ⌥⌘↓ on the open layer, and
 // from each row's context menu. The managed layers (coexist, leak guard)
 // follow, pinned. A layer opens its editor inline, under its row, with
 // a disclosure motion (review-b 015 #1).
@@ -342,23 +344,11 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 		if len(user) == 0 && !v.isNew {
 			listRow(c).Children(func() { ui.Text(c, T.LayersNone).TextColor(t.TextMuted) })
 		}
-		if len(user) > 0 {
-			st := &v.list
-			st.Key = func(i int) any { return ids[i] }
-			st.Label = func(i int) string { return user[i].Name }
-			st.MoveAnimation = &rowMove
-			st.Reorder = nil
-			if w && len(user) > 1 {
-				st.Reorder = func(rows []int, to int) { a.reorderLayers(reorderIDs(ids, rows, to)) }
-			}
-			// The rows reach 8 past the box's padding, so the open row's
-			// tint has room around its text (r = 10 − 4 = 6, review-a 004).
-			ui.List(c.Key("layers"), st, len(user)).Background(ui.Transparent).MarginX(-8).Rows(func(row ui.ListRow) {
-				a.layerRow(row.Context, user[row.Index], ids, s, w, row.Index > 0, false)
-			})
+		for i, l := range user {
+			a.layerRow(c.Key("layer:"+l.ID), l, ids, s, w, i)
 		}
 		for _, l := range managed {
-			a.layerRow(c.Key("layer:"+l.ID), l, nil, s, w, false, true)
+			a.layerRow(c.Key("layer:"+l.ID), l, nil, s, w, -1)
 		}
 		if v.isNew {
 			a.newLayerRow(c.Key("layer-new-row"), s, w)
@@ -371,7 +361,7 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 }
 
 // reorderIDs moves the rows (indices into ids, in order) to before row
-// to (len(ids) for the end), as ListState.Reorder reports a drop.
+// to (len(ids) for the end).
 func reorderIDs(ids []string, rows []int, to int) []string {
 	moving := map[int]bool{}
 	var moved []string
@@ -395,21 +385,38 @@ func reorderIDs(ids []string, rows []int, to int) []string {
 
 // layerRow is one layer: its head (disclosure, switch, name, meta), and
 // its editor under it while it is open. ids are the stored layers' IDs
-// in order (nil for a managed layer); bare draws the row on its own in
-// the list box (pulled out 8 for its tint) rather than inside the list.
-func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapshot, w, divider, bare bool) {
+// in order and at the row's place among them (-1 for a managed layer,
+// which neither drags nor takes drops).
+func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapshot, w bool, at int) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.cfg
 	open := v.sel == l.ID && !v.isNew
-	col := ui.Column(c).Transition(rowMotion).Clip()
-	if bare {
-		col.MarginX(-8)
+	// Pulled out 8 past the box's padding, so the open row's tint has
+	// room around its text (r = 10 − 4 = 6, review-a 004).
+	col := ui.Column(c).Transition(rowMotion).Clip().MarginX(-8)
+	if at >= 0 && w {
+		// A drop on this row puts the dragged layer at its place: the line
+		// shows above when it comes from below, under when from above.
+		if d, over := ui.DragOver[layerDrag](col); over && string(d) != l.ID {
+			from := slices.Index(ids, string(d))
+			edge := []float32{2, 0, 0, 0}
+			if from >= 0 && from < at {
+				edge = []float32{0, 0, 2, 0}
+			}
+			col.BorderWidth(edge[0], edge[1], edge[2], edge[3]).BorderColor(t.Accent)
+		}
+		if d, ok := ui.Drop[layerDrag](col); ok && string(d) != l.ID {
+			if from := slices.Index(ids, string(d)); from >= 0 {
+				to := at
+				if from < at {
+					to = at + 1
+				}
+				a.reorderLayers(reorderIDs(ids, []int{from}, to))
+			}
+		}
 	}
 	col.Children(func() {
-		if divider { // the list's own hairline, as the box draws between its rows
-			ui.Box(c).Height(1).MarginX(8).Background(pal(t).separator).AccessHidden(true)
-		}
 		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).Padding(8).MarginY(4).Radius(plat.controlRadius).
 			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(l.Name)
 		switch {
@@ -419,8 +426,14 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 			head.Background(t.Text.Alpha(0.04))
 		}
 		head.ContextMenu(func(m *ui.Menu) { a.layerMenu(c, m, l, ids, w) })
+		if at >= 0 && w && len(ids) > 1 {
+			head.Drag(layerDrag(l.ID))
+			if head.Dragging() {
+				head.Opacity(0.4)
+			}
+		}
 		head.Children(func() {
-			disclosure(c, open)
+			disclosure(c, open).Shrink(0)
 			on := l.Enabled
 			sw := ui.Switch(c.Key("on"), &on).Label(T.LayerEnabled + " " + l.Name)
 			switch {
@@ -522,7 +535,7 @@ func (a *app) newLayerRow(c *ui.Context, s status.Snapshot, w bool) {
 	ui.Column(c).Transition(rowMotion).Clip().MarginX(-8).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8).MarginY(4).Radius(plat.controlRadius).
 			Background(pal(t).accentSoft).Children(func() {
-			disclosure(c, true)
+			disclosure(c, true).Shrink(0)
 			ui.Text(c, T.LayerNew).FontWeight(600).Grow(1).SingleLine()
 			if ui.Button(c.Key("ed-cancel"), T.Cancel).Clicked() {
 				v.isNew, v.ed = false, nil
@@ -554,7 +567,7 @@ func (a *app) moveLayer(ids []string, i, delta int) {
 }
 
 // reorderLayers sends the stored layers' new order. The helper's list
-// comes back in it, and the rows glide there (rowMove).
+// comes back in it.
 func (a *app) reorderLayers(ids []string) {
 	a.helperOp(i18n.T.LayerReorder, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
 		return hc.Call(ctx, rpc.MethodLayerReorder, rpc.ReorderParams{IDs: ids}, nil)

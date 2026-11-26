@@ -199,7 +199,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 			}
 			ui.Spacer(c)
 			if expandable {
-				disclosure(c, open)
+				disclosure(c, open).Shrink(0)
 			}
 		})
 		if expandable {

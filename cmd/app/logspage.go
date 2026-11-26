@@ -32,10 +32,9 @@ func (a *app) logsPage(c *ui.Context, barH float32) {
 	if a.logs.paused {
 		entries = a.logs.frozen
 	}
-	// The same centered column as the scrolling pages, so the list lines
-	// up under the toolbar's title at every width.
-	outer := ui.Column(c).Grow(1).Padding(barH+4, plat.pagePadX, 20).AlignItems(ui.Center)
-	outer.Children(func() {
+	// Logs fill the pane, and so does their toolbar (window.go): long
+	// lines want the width.
+	ui.Column(c).Grow(1).Padding(barH+4, plat.pagePadX, 20).Children(func() {
 		a.logsBody(c, entries)
 	})
 }
@@ -44,7 +43,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 	t := c.Theme()
 	T := i18n.T
 	p := pal(t)
-	ui.Column(c).Grow(1).FillWidth().MaxWidth(plat.contentMax).Gap(16).Children(func() {
+	ui.Column(c).Grow(1).Gap(16).Children(func() {
 		pageHeader(c, T.PageLogs, func() {
 			small(c, T.LogLevel)
 			if ui.Segmented(c.Key("level"), &a.logs.level, i18n.T.LogLevelNames...).Label(T.LogLevel).Changed() {

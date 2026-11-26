@@ -54,6 +54,12 @@ func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
 // one control: ⌘, opens 设置, as in every Mac app. Built with the
 // sidebar, so they work on every page.
 func (a *app) windowKeys(c *ui.Context) {
+	if a.shotMode {
+		// The hidden shot window gets no display frames to run motion
+		// in: show every change at once, so captures show the end state.
+		// The sidebar is built before the page, so this covers it.
+		c.DisableAnimations()
+	}
 	c.OnWindowShortcut(ui.Cmd, ui.KeyComma, func() {
 		if a.page != pageSettings {
 			old := a.page

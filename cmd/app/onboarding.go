@@ -201,7 +201,7 @@ func (a *app) installPlanCard(c *ui.Context) {
 				head := ui.Row(c.Key("steps")).Gap(8).AlignItems(ui.Center).PaddingY(10).Cursor(ui.CursorPointer).
 					Focusable().Role(ui.RoleDisclosure).Expanded(v.stepsOpen).Label(i18n.F(T.OnboardSteps, len(steps)))
 				head.Children(func() {
-					disclosure(c, v.stepsOpen)
+					disclosure(c, v.stepsOpen).Shrink(0)
 					ui.Text(c, i18n.F(T.OnboardSteps, len(steps))).FontWeight(500)
 				})
 				if head.Clicked() {
