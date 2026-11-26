@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // Credential is a uid/gid pair a command runs as.
@@ -58,6 +59,13 @@ var (
 
 // CheckExec resolves bin and reports who controls it.
 func CheckExec(bin string) (ExecTrust, error) {
+	if !strings.Contains(bin, string(filepath.Separator)) {
+		p, err := exec.LookPath(bin)
+		if err != nil {
+			return ExecTrust{}, err
+		}
+		bin = p
+	}
 	real, err := filepath.EvalSymlinks(bin)
 	if err != nil {
 		return ExecTrust{}, err
