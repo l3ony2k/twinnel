@@ -16,6 +16,8 @@ Especially interesting:
 - Leaks of the mihomo controller secret, subscription URLs or node credentials into logs, history, backups, reports or error messages.
 - Ways a composed config can silently bypass the leak guard or the Tailscale coexist settings.
 
+The latest internal review, with findings and their status, is in `docs/security-review.md`.
+
 Out of scope: vulnerabilities in mihomo or Tailscale themselves (report those upstream), and setups where the attacker already has root.
 
 ## Supported versions
