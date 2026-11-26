@@ -11,3 +11,7 @@ import (
 func planHelperInstall(helperBin, stateDir, socket, label string) ([]service.Step, error) {
 	return nil, errors.New("helper install is only implemented for macOS so far")
 }
+
+func planHelperUninstall(stateDir, socket, label string) ([]service.Step, error) {
+	return nil, errors.New("helper uninstall is only implemented for macOS so far")
+}

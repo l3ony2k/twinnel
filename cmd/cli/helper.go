@@ -17,20 +17,18 @@ import (
 	"time"
 
 	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
 )
 
 func init() {
-	register("kernel", "mihomo kernels: list | check | install | rollback", runKernel)
+	register("kernel", "mihomo kernels: list | check | install | rollback; geo / ui databases and dashboard", runKernel)
 	register("layer", "override layers: list | get | put | rm | enable | disable | order", runLayer)
 	register("sub", "subscriptions: list | put | refresh | activate | rm", runSub)
 	register("history", "composed config history: list | rollback ID", runHistory)
 	register("settings", "show or change helper settings (leak guard, coexist, ...)", runSettings)
 	register("tailnet", "tailnet: refresh (re-read peers, re-apply if they changed)", runTailnet)
-	register("service", "service status NAME (mihomo, tailscaled, helper)", runService)
+	register("service", "services: status | start | stop | restart | install | uninstall NAME", runService)
 	register("events", "print helper events (--follow to keep waiting)", runEvents)
-	register("helper", "helper status | install --dry-run", runHelper)
+	register("helper", "helper status | install | uninstall | health | adopt", runHelper)
 
 	// `duet compose` composes locally; with --apply/--preview it asks the
 	// helper to compose from its own state instead.
@@ -188,6 +186,9 @@ func runHelperStatus(args []string) error {
 		if s.Tailnet.Error != "" {
 			tn += ", last poll error: " + s.Tailnet.Error
 		}
+		if s.Tailnet.Interface != "" {
+			tn += ", resolver via " + s.Tailnet.Interface
+		}
 		fmt.Fprintf(w, "tailnet\t%s\n", tn)
 		k := orNone(s.Kernel.Current)
 		if s.Kernel.External {
@@ -277,10 +278,15 @@ func printApply(w io.Writer, r rpc.ApplyResult) {
 // ---- kernel ----
 
 func runKernel(args []string) error {
+	if len(args) > 0 && (args[0] == "geo" || args[0] == "ui") {
+		return runAccessory(args[0], args[1:])
+	}
 	fs, cf := newFlagSet("kernel", `usage: duet kernel list
        duet kernel check [--channel stable|alpha]
        duet kernel install [--channel stable|alpha] [--version V]
        duet kernel rollback
+       duet kernel geo check|update [--force]
+       duet kernel ui check|update [--force]
 
 `)
 	var channel, version string
@@ -651,14 +657,21 @@ func runTailnet(args []string) error {
 }
 
 func runService(args []string) error {
-	fs, cf := newFlagSet("service", "usage: duet service status mihomo|tailscaled|helper\n\n")
+	fs, cf := newFlagSet("service", `usage: duet service status mihomo|tailscaled|helper
+       duet service start|stop|restart mihomo|tailscaled
+       duet service install|uninstall mihomo   (LaunchDaemon generated from the helper's settings)
+
+`)
 	pos, done, err := parse(fs, args)
 	if done || err != nil {
 		return err
 	}
-	if len(pos) != 2 || pos[0] != "status" {
+	if len(pos) != 2 {
 		fs.Usage()
-		return errors.New("service: want `status NAME`")
+		return errors.New("service: want `OP NAME`")
+	}
+	if pos[0] != "status" {
+		return serviceOp(cf, pos[0], pos[1])
 	}
 	var s rpc.ServiceStatus
 	return cf.callPrint(rpc.MethodServiceStatus, rpc.ServiceParams{Name: pos[1]}, &s, func() {
@@ -727,56 +740,30 @@ func truncate(s string, n int) string {
 	return s[:n] + "…"
 }
 
-// ---- helper install --dry-run ----
+// ---- helper ----
 
 func runHelper(args []string) error {
-	if len(args) > 0 && args[0] == "status" {
-		return runHelperStatus(args[1:])
+	sub := ""
+	if len(args) > 0 {
+		sub, args = args[0], args[1:]
 	}
-	fs := flag.NewFlagSet("helper", flag.ContinueOnError)
-	var dryRun bool
-	var helperBin, stateDir, socket, label string
-	fs.BoolVar(&dryRun, "dry-run", false, "print the LaunchDaemon plist and the commands; change nothing")
-	fs.StringVar(&helperBin, "helper-bin", "", "duet-helper `BINARY` to install (default: next to this duet binary)")
-	fs.StringVar(&stateDir, "state-dir", store.DefaultDir, "helper state `DIR`")
-	fs.StringVar(&socket, "socket", rpc.DefaultSocket, "socket `PATH` the helper will listen on")
-	fs.StringVar(&label, "label", store.DefaultHelperLabel, "launchd `LABEL`")
-	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), "usage: duet helper status [--json] | duet helper install --dry-run [flags]\n\n")
-		fs.PrintDefaults()
+	switch sub {
+	case "status":
+		return runHelperStatus(args)
+	case "install":
+		return runHelperInstall(args)
+	case "uninstall":
+		return runHelperUninstall(args)
+	case "health":
+		return runHelperHealth(args)
+	case "adopt":
+		return runHelperAdopt(args)
 	}
-	pos, done, err := parse(fs, args)
-	if done || err != nil {
-		return err
-	}
-	if len(pos) != 1 || pos[0] != "install" {
-		fs.Usage()
-		return errors.New("helper: want `install --dry-run`")
-	}
-	if !dryRun {
-		return errors.New("helper install: only --dry-run is supported in this version; nothing was changed")
-	}
-	if helperBin == "" {
-		helperBin = defaultHelperBin()
-	}
-	steps, err := planHelperInstall(helperBin, stateDir, socket, label)
-	if err != nil {
-		return err
-	}
-	fmt.Println("# duet helper install --dry-run: nothing below has been run.")
-	fmt.Println("# The real install runs these steps as root (one administrator prompt).")
-	service.FormatPlan(os.Stdout, steps)
-	return nil
-}
-
-func defaultHelperBin() string {
-	if exe, err := os.Executable(); err == nil {
-		p := strings.TrimSuffix(exe, "/duet") + "/duet-helper"
-		if p != exe {
-			if _, err := os.Stat(p); err == nil {
-				return p
-			}
-		}
-	}
-	return "./duet-helper"
+	fmt.Fprint(os.Stderr, `usage: duet helper status [--json]
+       duet helper install [--dry-run] [--yes] [flags]   (asks for the administrator password)
+       duet helper uninstall [--dry-run] [--yes] [flags]
+       duet helper health [--run] [--json]
+       duet helper adopt PLAN_ID
+`)
+	return errors.New("helper: want status, install, uninstall, health or adopt")
 }
