@@ -67,6 +67,7 @@ func Validate(ctx context.Context, mihomoBin string, config []byte, opts ...Vali
 	defer cancel()
 	cmd := exec.CommandContext(ctx, mihomoBin, "-t", "-d", dir, "-f", cfg)
 	cmd.Dir = dir
+	cmd.WaitDelay = 2 * time.Second
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	runErr := cmd.Run()
