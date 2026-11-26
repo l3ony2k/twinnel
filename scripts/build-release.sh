@@ -53,9 +53,48 @@ done
 
 if [ "$build_app" = 1 ]; then
 	if [ "$(uname -s)" = Darwin ]; then
+		# duet.app ships the CLI and the helper in Contents/Resources/bin, so
+		# the first-run 安装后台助手 button works from a packaged app (the app
+		# runs bin/duet helper install --helper-bin bin/duet-helper).
+		# Contents/MacOS/duet is the app itself. mygo copies the project's
+		# resources/<goos>-<goarch>/ into the bundle and signs the binaries.
+		app_platform="darwin/arm64"
+		app_arch="${app_platform#*/}"
+		res="cmd/app/resources"
+		app_json="cmd/app/mygo.json"
+		app_json_orig="$dist/.mygo.json.orig"
+		cp "$app_json" "$app_json_orig"
+		cleanup_app() {
+			cp "$app_json_orig" "$app_json" && rm -f "$app_json_orig"
+			rm -rf "$res"
+		}
+		trap cleanup_app EXIT
+		rm -rf "$res"
+		mkdir -p "$res/darwin-$app_arch/bin"
+		for cmd in cli:duet helper:duet-helper; do
+			CGO_ENABLED=0 GOOS=darwin GOARCH="$app_arch" go build -trimpath -ldflags "$ldflags" \
+				-o "$res/darwin-$app_arch/bin/${cmd#*:}" "./cmd/${cmd%:*}"
+		done
+		# CFBundleShortVersionString wants numbers: 1.2.3 from v1.2.3-4-gabc,
+		# 0.0.0 for an untagged build.
+		bundle_version="$(printf '%s' "$version" | sed -nE 's/^([0-9]+(\.[0-9]+){0,2}).*/\1/p')"
+		bundle_version="${bundle_version:-0.0.0}"
+		awk -v v="$bundle_version" '
+			/^[[:space:]]*"version":/ { next }
+			{ print }
+			/^[[:space:]]*"name":/ && !done { match($0, /^[[:space:]]*/); printf "%s\"version\": \"%s\",\n", substr($0, 1, RLENGTH), v; done = 1 }
+		' "$app_json_orig" >"$app_json"
+		grep -q "\"version\": \"${bundle_version}\"" "$app_json" || { echo "could not set the app version in $app_json" >&2; exit 1; }
 		mygo_version="$(go list -m -f '{{.Version}}' github.com/egoist/mygo)"
-		echo "==> duet.app (mygo $mygo_version)"
-		go run "github.com/egoist/mygo/cmd/mygo@${mygo_version}" build -platform darwin/arm64 -o "$PWD/$dist/app" cmd/app
+		echo "==> duet.app ${bundle_version} (mygo $mygo_version)"
+		go run "github.com/egoist/mygo/cmd/mygo@${mygo_version}" build -platform "$app_platform" -o "$PWD/$dist/app" cmd/app
+		cleanup_app
+		trap - EXIT
+		app_bundle="$(find "$dist/app" -maxdepth 2 -name '*.app' -type d | head -n 1)"
+		for f in duet duet-helper; do
+			[ -x "$app_bundle/Contents/Resources/bin/$f" ] || { echo "missing $f in $app_bundle" >&2; exit 1; }
+		done
+		echo "    bundled: $app_bundle/Contents/Resources/bin/{duet,duet-helper}"
 	else
 		echo "==> skipping duet.app: mygo signs and packages .app bundles on macOS only"
 	fi

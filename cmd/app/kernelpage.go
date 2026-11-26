@@ -25,6 +25,9 @@ type kernelView struct {
 	release   *rpc.KernelRelease
 	ts        *rpc.TailscaleInfo
 	tsLoading bool
+
+	svc     serviceView
+	geo, ui accessoryView
 }
 
 func (a *app) kernelPage(c *ui.Context, s status.Snapshot) {
@@ -42,8 +45,20 @@ func (a *app) kernelPage(c *ui.Context, s status.Snapshot) {
 		}
 	}
 	a.opNotes(c, s)
-	a.kernelCard(c, s)
-	a.tailscaleVersionCard(c, s)
+	if a.section("kernel") {
+		a.kernelCard(c, s)
+	}
+	if a.section("services") {
+		a.servicesCard(c, s)
+	}
+	for _, k := range []accessoryKind{geoKind(), uiKind()} {
+		if a.section(k.check) {
+			ui.Column(c.Key(k.check)).Children(func() { a.accessoryCard(c, s, k) })
+		}
+	}
+	if a.section("kernel") {
+		a.tailscaleVersionCard(c, s)
+	}
 }
 
 func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {

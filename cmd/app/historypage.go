@@ -127,10 +127,10 @@ func (a *app) historyDiff(s status.Snapshot, id string) {
 	var old, live string
 	a.helperOp(T.HistoryDiff, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
 		var err error
-		if old, err = fetchConfig(ctx, hc, cfgPath, "history", id); err != nil {
+		if old, err = fetchConfig(ctx, hc, cfgPath, rpc.ConfigHistory, id); err != nil {
 			return err
 		}
-		live, err = fetchConfig(ctx, hc, cfgPath, "live", "")
+		live, err = fetchConfig(ctx, hc, cfgPath, rpc.ConfigLive, "")
 		return err
 	}, func(err error) {
 		v := &a.hd.hist

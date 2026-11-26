@@ -38,8 +38,17 @@ func (a *app) startHelper() {
 			if a.mon != nil {
 				a.mon.SetHelper(h)
 			}
+			if h.Connected() != wasUp && a.mon != nil {
+				a.runHealth() // switch between the helper's report and local checks
+			}
 			if h.Connected() && !wasUp {
 				a.loadHelperData()
+				switch a.page {
+				case pageKernel:
+					a.loadServices()
+				case pageTakeover:
+					a.loadTakeover()
+				}
 			}
 			if h.State == status.HelperNotInstalled && !a.hd.onb.loaded {
 				a.loadInstallPlan() // for the first-run view
@@ -50,6 +59,15 @@ func (a *app) startHelper() {
 	hc.OnEvents = func(evs []rpc.Event) {
 		mygo.RunOnMain(func() {
 			a.hd.lastEvent = evs[len(evs)-1]
+			if serviceEvent(evs) && a.page == pageKernel {
+				a.loadServices()
+			}
+			if takeoverEvent(evs) && a.page == pageTakeover {
+				a.loadTakeover()
+			}
+			if healthEvent(evs) && a.mon != nil {
+				a.runHealth() // reads health.last; nothing runs locally
+			}
 			a.loadHelperData()
 		})
 	}
@@ -79,6 +97,7 @@ type helperData struct {
 	cfg  configView
 	hist historyView
 	kern kernelView
+	take takeoverView
 	onb  onboardingView
 }
 
@@ -156,6 +175,9 @@ func (a *app) helperOp(label string, timeout time.Duration, fn func(ctx context.
 func helperError(err error) string {
 	var re *rpc.Error
 	if errors.As(err, &re) {
+		if re.Code == rpc.CodeMethodNotFound || re.Code == rpc.CodeNotImplemented {
+			return i18n.T.HelperTooOld
+		}
 		return re.Message
 	}
 	return status.ShortError(err)
@@ -253,32 +275,15 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 
 // --- config text (for the diff views) ---
 
-// methodConfigGet returns a config's text without the controller secret.
-// Mirrors rpc.MethodConfigGet / ConfigGetParams / ConfigText on feat/helper2
-// (not on main when this was written; switch to the rpc names after the
-// merge). Against an older helper, "live" falls back to reading the config
-// file when this user can, and the others say the helper is too old.
-const methodConfigGet = "config.get"
-
-type configGetParams struct {
-	Source string `json:"source"` // "live", "preview", "history"
-	ID     string `json:"id,omitempty"`
-}
-
-type configText struct {
-	Source  string `json:"source"`
-	ID      string `json:"id,omitempty"`
-	Content string `json:"content"`
-	Hash    string `json:"hash"`
-	Size    int    `json:"size"`
-}
-
+// Against an older helper without config.get, "live" falls back to reading
+// the config file when this user can, and the others say the helper is too
+// old.
 var secretLine = regexp.MustCompile(`(?m)^secret:.*\n?`)
 
-// fetchConfig returns the text of a config (see methodConfigGet).
+// fetchConfig returns the text of a config (rpc.MethodConfigGet).
 func fetchConfig(ctx context.Context, hc *status.HelperConn, configPath, source, id string) (string, error) {
-	var r configText
-	err := hc.Call(ctx, methodConfigGet, configGetParams{Source: source, ID: id}, &r)
+	var r rpc.ConfigText
+	err := hc.Call(ctx, rpc.MethodConfigGet, rpc.ConfigGetParams{Source: source, ID: id}, &r)
 	if err == nil {
 		return r.Content, nil
 	}
@@ -286,13 +291,13 @@ func fetchConfig(ctx context.Context, hc *status.HelperConn, configPath, source,
 	if !errors.As(err, &re) {
 		return "", err
 	}
-	if source == "live" && re.Code == rpc.CodeNotFound {
+	if source == rpc.ConfigLive && re.Code == rpc.CodeNotFound {
 		return "", nil // nothing applied yet: the diff shows all lines added
 	}
 	if re.Code != rpc.CodeMethodNotFound {
 		return "", err
 	}
-	if source == "live" && configPath != "" {
+	if source == rpc.ConfigLive && configPath != "" {
 		b, ferr := os.ReadFile(configPath)
 		if ferr == nil {
 			return secretLine.ReplaceAllString(string(b), ""), nil

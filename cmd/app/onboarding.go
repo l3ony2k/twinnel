@@ -32,11 +32,23 @@ type onboardingView struct {
 	outErr  bool
 }
 
-// cliPath finds the duet command line tool: $DUET_CLI, next to the app's
-// executable (the bundle ships it in Contents/MacOS), then $PATH.
+// resourcesDir is the app's resource directory (Contents/Resources in the
+// bundle); a variable for tests.
+var resourcesDir = func() (string, error) { return mygo.App.Path(mygo.PathResources) }
+
+// cliPath finds the duet command line tool: $DUET_CLI, then the bundle's
+// Contents/Resources/bin/duet (scripts/build-release.sh puts duet and
+// duet-helper there; Contents/MacOS/duet is the app itself), then next to
+// the app's executable, then $PATH.
 func cliPath() (string, error) {
 	if p := os.Getenv("DUET_CLI"); p != "" {
 		return p, nil
+	}
+	if dir, err := resourcesDir(); err == nil && dir != "" {
+		p := filepath.Join(dir, "bin", "duet")
+		if fi, err := os.Stat(p); err == nil && fi.Mode().IsRegular() {
+			return p, nil
+		}
 	}
 	if exe, err := os.Executable(); err == nil {
 		p := filepath.Join(filepath.Dir(exe), "duet")

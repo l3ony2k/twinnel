@@ -55,7 +55,17 @@ func copyText(c *ui.Context, text string) {
 	c.Toast(i18n.T.Copied)
 }
 
-// runHealth reruns the checks in the background.
+// rerunHealth runs the checks now: in the helper when connected (instead
+// of only reading its last report), else in-process.
+func (a *app) rerunHealth() {
+	if a.health != nil {
+		a.health.fresh.Store(true)
+	}
+	a.runHealth()
+}
+
+// runHealth refreshes the health report in the background: the helper's
+// last report when connected, else an in-process run.
 func (a *app) runHealth() {
 	mon := a.mon
 	go mon.RunHealth(context.Background())
@@ -71,6 +81,9 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 		if h.Report != nil {
 			ui.Text(c, fmt.Sprintf(T.HealthLastRun, h.Report.Started.Format("15:04:05"),
 				fmt.Sprintf(T.Seconds, h.Report.Duration.Seconds()))).FontSize(12).TextColor(t.TextMuted).SingleLine()
+			if a.health != nil && a.health.FromHelper() {
+				ui.Badge(c, T.HealthFromHelper)
+			}
 			if iconButton(c.Key("copy-report"), iconCopy, T.HealthCopyReport, false).Clicked() {
 				copyText(c, h.Report.Markdown())
 			}
@@ -81,7 +94,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 				label = T.HealthRunning
 			}
 			if iconButton(c.Key("rerun"), iconRefresh, label, true).Disabled(h.Running).Clicked() {
-				a.runHealth()
+				a.rerunHealth()
 			}
 		}
 	})

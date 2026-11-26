@@ -730,9 +730,9 @@ func (a *app) runPreview(s status.Snapshot) {
 		if err := hc.Call(ctx, rpc.MethodComposePreview, nil, &res); err != nil {
 			return err
 		}
-		live, diffErr = fetchConfig(ctx, hc, cfgPath, "live", "")
+		live, diffErr = fetchConfig(ctx, hc, cfgPath, rpc.ConfigLive, "")
 		if diffErr == nil {
-			next, diffErr = fetchConfig(ctx, hc, cfgPath, "preview", "")
+			next, diffErr = fetchConfig(ctx, hc, cfgPath, rpc.ConfigPreview, "")
 		}
 		return nil
 	}, func(err error) {

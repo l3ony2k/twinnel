@@ -38,6 +38,7 @@ type app struct {
 	ts        *tailscale.Client
 	mon       *status.Monitor
 	healthSrc status.HealthSource // nil on platforms without checks
+	health    *helperHealth       // the same source; nil with healthSrc
 
 	// healthVisible is true while the main window shows the health page:
 	// the checks then rerun every HealthRefresh.
@@ -50,23 +51,26 @@ type app struct {
 	unsub func()
 
 	// main thread
-	tray       *mygo.Tray
-	trayTitle  string
-	trayLevel  status.Level
-	trayShape  status.TrayIcon
-	panel      *mygo.Window
-	win        *mygo.Window
-	page       string
-	actionErr  string
-	settings   settingsForm
-	logs       logsView
-	shotMode   bool   // DUET_SHOTS: the panel draws its own background
-	theme      string // DUET_THEME=light|dark forces a theme (development, shots)
-	peers      ui.ListState
-	groupsOpen map[string]bool
-	healthOpen map[string]bool // check ID → expanded, once the user toggled it
-	exitPick   string          // exit node select value (peer name or ExitNodeNone)
-	hd         helperData      // what the helper pages show
+	tray      *mygo.Tray
+	trayTitle string
+	trayLevel status.Level
+	trayShape status.TrayIcon
+	panel     *mygo.Window
+	win       *mygo.Window
+	page      string
+	actionErr string
+	settings  settingsForm
+	logs      logsView
+	shotMode  bool // DUET_SHOTS: the panel draws its own background
+	// shotSection limits a long page to one section in shot mode (MyGo
+	// captures only the top of a page); "" draws everything.
+	shotSection string
+	theme       string // DUET_THEME=light|dark forces a theme (development, shots)
+	peers       ui.ListState
+	groupsOpen  map[string]bool
+	healthOpen  map[string]bool // check ID → expanded, once the user toggled it
+	exitPick    string          // exit node select value (peer name or ExitNodeNone)
+	hd          helperData      // what the helper pages show
 }
 
 func main() {
@@ -137,6 +141,11 @@ func (a *app) ready() {
 	})
 	a.startHelper()
 	a.start()
+	if dir := os.Getenv("DUET_TAKEOVER_FIXTURE"); dir != "" && os.Getenv("DUET_SHOTS") == "" { // development: a recorded plan (shots load it later)
+		if err := a.loadTakeoverFixture(dir); err != nil {
+			log.Printf("takeover fixture: %v", err)
+		}
+	}
 	if dir := os.Getenv("DUET_SHOTS"); dir != "" {
 		a.shotMode = true
 		a.openMain()
@@ -163,7 +172,11 @@ func (a *app) start() {
 		mh, _ = mihomo.New(mihomo.Options{Secret: a.cfg.Secret, AllowWrites: a.cfg.AllowWrites})
 	}
 	a.mh = mh
-	a.healthSrc = newHealthSource(a.cfg)
+	a.health = wrapHealth(a.hc, newHealthSource(a.cfg))
+	a.healthSrc = nil
+	if a.health != nil {
+		a.healthSrc = a.health
+	}
 	a.mon = status.NewMonitor(status.Options{
 		Mihomo:        mh,
 		Health:        a.healthSrc,
