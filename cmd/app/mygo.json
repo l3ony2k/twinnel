@@ -1,0 +1,8 @@
+{
+  "name": "duet",
+  "identifier": "io.github.l3ony2k.duet",
+  "out": "../../dist",
+  "macos": {
+    "infoPlist": { "LSUIElement": true }
+  }
+}
