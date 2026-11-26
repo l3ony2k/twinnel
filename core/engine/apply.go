@@ -305,15 +305,24 @@ func (e *Engine) ensureSecret(st *store.Settings, layerSecret string, current []
 			return false, nil
 		}
 	}
-	b := make([]byte, 24)
-	if _, err := rand.Read(b); err != nil {
+	secret, err := newSecret()
+	if err != nil {
 		return false, err
 	}
-	if err := e.Secrets.Set(store.SecretController, hex.EncodeToString(b)); err != nil {
+	if err := e.Secrets.Set(store.SecretController, secret); err != nil {
 		return false, fmt.Errorf("store the new controller secret: %w", err)
 	}
 	e.log().Info("generated a controller secret")
 	return true, nil
+}
+
+// newSecret returns 24 random bytes in hex.
+func newSecret() (string, error) {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 // managesConfig: the config file is inside the helper's state dir (the

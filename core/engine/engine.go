@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/l3ony2k/duet/core/config"
@@ -22,6 +23,7 @@ import (
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/service"
 	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/duet/core/takeover"
 )
 
 // HelperVersion is reported by status.get.
@@ -75,7 +77,18 @@ type Engine struct {
 	VerifyTimeout time.Duration
 	Now           func() time.Time
 
+	// TakeoverProbe reads the platform for takeover.plan/adopt (nil: not
+	// supported). TakeoverDiscover overrides what discovery finds
+	// (development: a copied config).
+	TakeoverProbe    takeover.Probe
+	TakeoverDiscover takeover.DiscoverOptions
+	// AdoptSettle is the wait before the post-adopt health run (default
+	// 3s; negative: none).
+	AdoptSettle time.Duration
+
 	applyMu   sync.Mutex
+	adoptMu   sync.Mutex
+	adopting  atomic.Bool // suppresses auto-apply while an adopt runs
 	serviceMu sync.Mutex
 	mu        sync.Mutex
 	lastApply *rpc.ApplyResult
@@ -156,13 +169,16 @@ func (e *Engine) controller(addr, secret string) Controller {
 }
 
 // currentController is the controller of the running config, as settings
-// describe it.
+// describe it. The secret is the one in the config file on disk (what the
+// running mihomo loaded); without a file, the stored one. The file wins so
+// that a secret just stored (controller.secure) is not used before mihomo
+// has loaded it.
 func (e *Engine) currentController(st *store.Settings) Controller {
-	secret := e.controllerSecret()
-	if secret == "" {
-		if b, err := os.ReadFile(st.Mihomo.ConfigFile); err == nil {
-			secret, _ = topLevel(b, "secret")
-		}
+	var secret string
+	if b, err := os.ReadFile(st.Mihomo.ConfigFile); err == nil {
+		secret, _ = topLevel(b, "secret")
+	} else {
+		secret = e.controllerSecret()
 	}
 	return e.controller(st.Mihomo.Controller, secret)
 }

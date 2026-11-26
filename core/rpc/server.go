@@ -28,7 +28,8 @@ var AllMethods = []string{
 	MethodHealthLast, MethodHealthRun,
 	MethodConfigGet,
 	MethodGeoCheck, MethodGeoUpdate, MethodUICheck, MethodUIUpdate,
-	MethodTakeoverAdopt,
+	MethodTakeoverPlan, MethodTakeoverPlans, MethodTakeoverDiscard, MethodTakeoverAdopt,
+	MethodControllerSecure,
 	MethodEventsWait,
 }
 

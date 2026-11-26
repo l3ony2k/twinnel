@@ -28,7 +28,7 @@ func init() {
 	register("tailnet", "tailnet: refresh (re-read peers, re-apply if they changed)", runTailnet)
 	register("service", "services: status | start | stop | restart | install | uninstall NAME", runService)
 	register("events", "print helper events (--follow to keep waiting)", runEvents)
-	register("helper", "helper status | install | uninstall | health | adopt", runHelper)
+	register("helper", "helper status | install | uninstall | health | plans | adopt | discard | secure-controller", runHelper)
 
 	// `duet compose` composes locally; with --apply/--preview it asks the
 	// helper to compose from its own state instead.
@@ -758,12 +758,21 @@ func runHelper(args []string) error {
 		return runHelperHealth(args)
 	case "adopt":
 		return runHelperAdopt(args)
+	case "plans":
+		return runHelperPlans(args)
+	case "discard":
+		return runHelperDiscard(args)
+	case "secure-controller":
+		return runHelperSecure(args)
 	}
 	fmt.Fprint(os.Stderr, `usage: duet helper status [--json]
        duet helper install [--dry-run] [--yes] [flags]   (asks for the administrator password)
        duet helper uninstall [--dry-run] [--yes] [flags]
        duet helper health [--run] [--json]
-       duet helper adopt PLAN_ID
+       duet helper plans [PLAN_ID] [--json]
+       duet helper adopt PLAN_ID [--yes] [--skip-health]
+       duet helper discard PLAN_ID [--force]
+       duet helper secure-controller [--yes]
 `)
-	return errors.New("helper: want status, install, uninstall, health or adopt")
+	return errors.New("helper: want status, install, uninstall, health, plans, adopt, discard or secure-controller")
 }
