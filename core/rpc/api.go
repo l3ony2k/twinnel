@@ -156,6 +156,48 @@ type ApplyResult struct {
 	Error      string    `json:"error,omitempty"`
 	Time       time.Time `json:"time"`
 	Duration   string    `json:"duration"`
+	// Impact: what the hot reload did to the running mihomo (set when a
+	// previous config file existed to compare with).
+	Impact *ReloadImpact `json:"impact,omitempty"`
+}
+
+// ReloadImpact says what a hot reload (PUT /configs) of mihomo does to
+// traffic, judged by comparing the old and the new config the way mihomo
+// v1.19 does (see docs/reload-behavior.md).
+//
+// Every hot reload has a short pause (milliseconds): connections opened
+// during it are closed at once and UDP packets are dropped. Open
+// connections, DNS, fake-ip mappings and selected nodes are kept. The fields
+// below list what goes beyond that.
+type ReloadImpact struct {
+	// Disruptive: something below interrupts the network or resets open
+	// connections. The UI shows "会短暂中断网络".
+	Disruptive bool `json:"disruptive"`
+	// TUNRebuild: the tun section (or the fake-ip range it takes its
+	// address from) differs, so mihomo closes the TUN device and creates it
+	// again: routes are removed and re-added and every flow through the TUN
+	// is cut.
+	TUNRebuild bool `json:"tun_rebuild,omitempty"`
+	// DNSListener: dns.listen (or dns.enable) changed, so the DNS server is
+	// closed and bound again.
+	DNSListener bool `json:"dns_listener,omitempty"`
+	// Listeners: inbound settings that changed (port, mixed-port,
+	// allow-lan, ...). They are applied only with force=true, which
+	// re-creates the changed listeners.
+	Listeners []string `json:"listeners,omitempty"`
+	// Force: the reload was (or will be) sent with force=true.
+	Force bool `json:"force"`
+	// ProviderConnsReset: proxy providers whose open connections mihomo
+	// closes on every reload.
+	ProviderConnsReset []string `json:"provider_conns_reset,omitempty"`
+	// SelectionReset: profile.store-selected is off, so the select groups
+	// go back to their first entry.
+	SelectionReset bool `json:"selection_reset,omitempty"`
+	// RestartNeeded: settings a hot reload does not apply (the external
+	// controller and its secret); they take effect when mihomo restarts.
+	RestartNeeded []string `json:"restart_needed,omitempty"`
+	// Notes explain the above in English.
+	Notes []string `json:"notes,omitempty"`
 }
 
 // ---- history ----
@@ -534,6 +576,9 @@ type TakeoverPlan struct {
 	Warnings    []string         `json:"warnings,omitempty"`
 	Summary     string           `json:"summary,omitempty"`
 	SemDiff     string           `json:"semdiff,omitempty"`
+	// Impact of the adopt's reload on the running mihomo (live config →
+	// composed config).
+	Impact *ReloadImpact `json:"impact,omitempty"`
 
 	AdoptedAt time.Time `json:"adopted_at,omitzero"`
 	// Backup is the exact copy of the live config taken before adopt.

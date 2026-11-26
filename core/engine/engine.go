@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -92,9 +93,12 @@ type Engine struct {
 	serviceMu sync.Mutex
 	mu        sync.Mutex
 	lastApply *rpc.ApplyResult
-	tailnet   rpc.TailnetStatus
-	started   time.Time
-	health    healthState
+	// goodSecret is the controller secret the running mihomo last
+	// accepted (in memory only; see secretFallback).
+	goodSecret *string
+	tailnet    rpc.TailnetStatus
+	started    time.Time
+	health     healthState
 }
 
 // New returns an engine with defaults for everything optional.
@@ -169,18 +173,76 @@ func (e *Engine) controller(addr, secret string) Controller {
 }
 
 // currentController is the controller of the running config, as settings
-// describe it. The secret is the one in the config file on disk (what the
-// running mihomo loaded); without a file, the stored one. The file wins so
-// that a secret just stored (controller.secure) is not used before mihomo
-// has loaded it.
+// describe it. mihomo reads its secret only at start (a hot reload does
+// not change it), so the secret it accepts can differ from the one in the
+// file after a reload changed it. Candidates, in order: the secret in the
+// config file on disk, the one the running mihomo last accepted, the stored
+// one, none. A 401 moves on to the next.
 func (e *Engine) currentController(st *store.Settings) Controller {
-	var secret string
-	if b, err := os.ReadFile(st.Mihomo.ConfigFile); err == nil {
-		secret, _ = topLevel(b, "secret")
-	} else {
-		secret = e.controllerSecret()
+	var cands []string
+	add := func(s string) {
+		if !slices.Contains(cands, s) {
+			cands = append(cands, s)
+		}
 	}
-	return e.controller(st.Mihomo.Controller, secret)
+	if b, err := os.ReadFile(st.Mihomo.ConfigFile); err == nil {
+		s, _ := topLevel(b, "secret")
+		add(s)
+	}
+	e.mu.Lock()
+	if e.goodSecret != nil {
+		add(*e.goodSecret)
+	}
+	e.mu.Unlock()
+	add(e.controllerSecret())
+	add("")
+	return &secretFallback{e: e, addr: st.Mihomo.Controller, secrets: cands}
+}
+
+// secretFallback is a Controller that tries several secrets.
+type secretFallback struct {
+	e       *Engine
+	addr    string
+	secrets []string
+	picked  int
+}
+
+func (f *secretFallback) try(fn func(Controller) error) error {
+	var err error
+	for i := 0; i < len(f.secrets); i++ {
+		j := (f.picked + i) % len(f.secrets)
+		err = fn(f.e.controller(f.addr, f.secrets[j]))
+		if errors.Is(err, ErrUnauthorized) {
+			continue
+		}
+		if err == nil {
+			f.picked = j
+			s := f.secrets[j]
+			f.e.mu.Lock()
+			f.e.goodSecret = &s
+			f.e.mu.Unlock()
+		}
+		return err
+	}
+	return err
+}
+
+func (f *secretFallback) Version(ctx context.Context) (string, error) {
+	var v string
+	err := f.try(func(c Controller) error {
+		var err error
+		v, err = c.Version(ctx)
+		return err
+	})
+	return v, err
+}
+
+func (f *secretFallback) Reload(ctx context.Context, path string) error {
+	return f.try(func(c Controller) error { return c.Reload(ctx, path) })
+}
+
+func (f *secretFallback) ReloadWith(ctx context.Context, path string, force bool) error {
+	return f.try(func(c Controller) error { return reloadWith(ctx, c, path, force) })
 }
 
 // mihomoBinary is the binary used for mihomo -t: the adopted external

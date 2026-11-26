@@ -471,3 +471,7 @@ type failReload struct{ *HTTPController }
 func (f failReload) Reload(ctx context.Context, path string) error {
 	return errors.New("reload refused (test)")
 }
+
+func (f failReload) ReloadWith(ctx context.Context, path string, force bool) error {
+	return f.Reload(ctx, path)
+}

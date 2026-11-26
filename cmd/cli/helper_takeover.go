@@ -78,6 +78,25 @@ func printPlanHead(w io.Writer, p rpc.TakeoverPlan) {
 	if p.Backup != "" {
 		fmt.Fprintf(w, "  backup       %s\n", p.Backup)
 	}
+	if p.Impact != nil {
+		fmt.Fprintf(w, "  reload       %s\n", impactLine(p.Impact))
+	}
+}
+
+// impactLine says in one line what the reload does to traffic.
+func impactLine(im *rpc.ReloadImpact) string {
+	force := "force=false"
+	if im.Force {
+		force = "force=true"
+	}
+	if !im.Disruptive {
+		s := "no network interruption: TUN, DNS server and ports unchanged; only connections opened in a pause of a few ms are refused (" + force + ")"
+		if len(im.RestartNeeded) > 0 {
+			s += "; applied at the next mihomo restart: " + strings.Join(im.RestartNeeded, ", ")
+		}
+		return s
+	}
+	return "INTERRUPTS THE NETWORK BRIEFLY (" + force + "): " + strings.Join(im.Notes, "; ")
 }
 
 func setWord(b bool) string {

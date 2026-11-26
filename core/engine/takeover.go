@@ -46,6 +46,8 @@ type planState struct {
 	AdoptedAt  time.Time         `json:"adopted_at,omitzero"`
 	Backup     string            `json:"backup,omitempty"`
 	LastResult *rpc.AdoptResult  `json:"last_result,omitempty"`
+	// Impact of adopt's reload: live config → composed config.
+	Impact *rpc.ReloadImpact `json:"impact,omitempty"`
 }
 
 func sha256Hex(b []byte) string {
@@ -164,6 +166,10 @@ func (e *Engine) TakeoverPlan(ctx context.Context, p rpc.TakeoverPlanParams) (rp
 	case n > 1:
 		plan.Warnings = append(plan.Warnings, fmt.Sprintf("%d subscription profiles found; adopt does not import a subscription URL (set one later with `duet sub put`)", n))
 	}
+	if live, err := os.ReadFile(plan.Live); err == nil && len(plan.Composed()) > 0 {
+		im := ReloadImpact(live, plan.Composed())
+		ps.Impact = &im
+	}
 	if err := plan.WriteFiles(dir); err != nil {
 		return fail(err)
 	}
@@ -206,6 +212,12 @@ func planSummary(p *takeover.Plan, ps *planState, full bool) rpc.TakeoverPlan {
 	}
 	for _, w := range p.Warnings {
 		out.Warnings = append(out.Warnings, config.RedactText(w))
+	}
+	if im := ps.Impact; im != nil {
+		out.Impact = im
+		if im.Disruptive {
+			out.Warnings = append(out.Warnings, "adopt's reload interrupts the network briefly: "+strings.Join(im.Notes, "; "))
+		}
 	}
 	if full {
 		out.Summary = p.Text()
@@ -712,12 +724,16 @@ func (e *Engine) restoreExact(ctx context.Context, path string, data []byte, mod
 	_, verr := ctrl.Version(vctx)
 	cancel()
 	oldInfo, _ := os.Stat(path)
+	force := true
+	if cur, err := os.ReadFile(path); err == nil {
+		force = ReloadImpact(cur, data).Force
+	}
 	if err := store.WriteFileAtomic(path, data, mode); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	keepOwner(path, oldInfo)
 	if verr == nil {
-		if err := e.reloadAndVerify(ctx, ctrl, path, data); err != nil {
+		if err := e.reloadAndVerify(ctx, ctrl, path, force); err != nil {
 			return err
 		}
 	}

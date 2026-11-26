@@ -236,6 +236,20 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 		return e.done(res, start), nil
 	}
 
+	// What the reload will do to traffic. Without a previous file there is
+	// nothing to compare: reload with force.
+	force := true
+	if hadCurrent {
+		im := ReloadImpact(current, final)
+		res.Impact = &im
+		force = im.Force
+		if im.Disruptive {
+			res.Warnings = append(res.Warnings, "this reload interrupts the network briefly: "+strings.Join(im.Notes, "; "))
+		} else if len(im.RestartNeeded) > 0 {
+			res.Warnings = append(res.Warnings, "a hot reload does not apply "+strings.Join(im.RestartNeeded, ", ")+"; the controller keeps its address and secret until mihomo restarts")
+		}
+	}
+
 	// Is mihomo running? If not, the config is written and used at the
 	// next start; there is nothing to reload or verify.
 	oldCtrl := e.currentController(st)
@@ -270,8 +284,8 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 	res.Written = true
 
 	if running {
-		if err := e.reloadAndVerify(ctx, oldCtrl, cfgPath, final); err != nil {
-			e.restore(ctx, oldCtrl, cfgPath, current, hadCurrent, mode)
+		if err := e.reloadAndVerify(ctx, oldCtrl, cfgPath, force); err != nil {
+			e.restore(ctx, oldCtrl, cfgPath, final, current, hadCurrent, mode)
 			res.Written, res.RolledBack = false, true
 			return e.fail(res, start, err)
 		}
@@ -341,17 +355,15 @@ func sameComposed(current []byte, latest store.HistoryEntry) bool {
 	return err == nil && store.Hash(stripped) == latest.Hash
 }
 
-func (e *Engine) reloadAndVerify(ctx context.Context, oldCtrl Controller, path string, final []byte) error {
+// reloadAndVerify asks mihomo to load path and waits until its controller
+// answers again. A hot reload never moves the controller or changes its
+// secret (mihomo reads those only at start), so the same controller is
+// asked before and after.
+func (e *Engine) reloadAndVerify(ctx context.Context, ctrl Controller, path string, force bool) error {
 	rctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	if err := oldCtrl.Reload(rctx, path); err != nil {
+	if err := reloadWith(rctx, ctrl, path, force); err != nil {
 		return fmt.Errorf("reload: %w", err)
-	}
-	// The new config may move the controller or change its secret.
-	newCtrl := oldCtrl
-	if addr, ok := topLevel(final, "external-controller"); ok && addr != "" {
-		secret, _ := topLevel(final, "secret")
-		newCtrl = e.controller(controllerAddr(addr), secret)
 	}
 	timeout := e.VerifyTimeout
 	if timeout <= 0 {
@@ -361,7 +373,7 @@ func (e *Engine) reloadAndVerify(ctx context.Context, oldCtrl Controller, path s
 	var lastErr error
 	for {
 		vctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		_, err := newCtrl.Version(vctx)
+		_, err := ctrl.Version(vctx)
 		cancel()
 		if err == nil {
 			return nil
@@ -375,7 +387,7 @@ func (e *Engine) reloadAndVerify(ctx context.Context, oldCtrl Controller, path s
 }
 
 // restore puts the previous file back and asks mihomo to load it again.
-func (e *Engine) restore(ctx context.Context, ctrl Controller, path string, old []byte, hadOld bool, mode fs.FileMode) {
+func (e *Engine) restore(ctx context.Context, ctrl Controller, path string, failed, old []byte, hadOld bool, mode fs.FileMode) {
 	if !hadOld {
 		os.Remove(path)
 		return
@@ -388,7 +400,7 @@ func (e *Engine) restore(ctx context.Context, ctrl Controller, path string, old 
 	keepOwner(path, oldInfo)
 	rctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if err := ctrl.Reload(rctx, path); err != nil {
+	if err := reloadWith(rctx, ctrl, path, ReloadImpact(failed, old).Force); err != nil {
 		e.log().Error("reload of restored config failed", "err", err)
 	}
 }
