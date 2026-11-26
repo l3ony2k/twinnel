@@ -314,6 +314,18 @@ func splitTop(s string) []string {
 func ParseRuleLine(i int, line string) health.MihomoRule {
 	f := splitTop(line)
 	r := health.MihomoRule{Index: i, Type: health.NormRuleType(f[0])}
+	switch r.Type {
+	case "DOMAINREGEX", "PROCESSNAMEREGEX", "PROCESSPATHREGEX":
+		// Like mihomo: the target is the last field, the regex (which may
+		// contain commas) everything in between.
+		if g := strings.Split(line, ","); len(g) >= 3 {
+			for k := range g {
+				g[k] = strings.TrimSpace(g[k])
+			}
+			r.Payload, r.Target = strings.Join(g[1:len(g)-1], ","), g[len(g)-1]
+			return r
+		}
+	}
 	switch {
 	case r.Type == "MATCH" && len(f) >= 2:
 		r.Target = f[1]
