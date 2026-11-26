@@ -56,7 +56,7 @@ type configView struct {
 	edEnabled bool
 	ed        *editor.State
 	lint      []status.LintNote
-	lintVer   uint64
+	lintKey   lintKey // what lint was computed for
 
 	// Preview and apply.
 	reason  string
@@ -64,6 +64,12 @@ type configView struct {
 	applied *rpc.ApplyResult
 	diff    *editor.DiffState
 	diffErr string
+}
+
+type lintKey struct {
+	buf    *editor.Buffer
+	ver    uint64
+	format int
 }
 
 func yamlBuffer(text string) *editor.Buffer {
@@ -375,6 +381,17 @@ func (a *app) moveLayer(ids []string, i, delta int) {
 	}, nil)
 }
 
+// moveLayerByID moves a stored layer up (-1) or down (1).
+func (a *app) moveLayerByID(id string, delta int) {
+	var ids []string
+	for _, l := range a.hd.layers {
+		if !l.Managed {
+			ids = append(ids, l.ID)
+		}
+	}
+	a.moveLayer(ids, slices.Index(ids, id), delta)
+}
+
 // selectLayer loads a layer into the editor.
 func (a *app) selectLayer(l rpc.Layer) {
 	v := &a.hd.cfg
@@ -408,7 +425,6 @@ func (a *app) loadLayerContent(id string) {
 				return // keep the user's unsaved edits
 			}
 			v.ed = &editor.State{Buffer: yamlBuffer(lc.Content), ReadOnly: lc.Managed, Label: lc.Name}
-			v.lintVer = 0
 			a.invalidate()
 		})
 	}()
@@ -437,7 +453,6 @@ func (a *app) newLayer() {
 	v.sel, v.isNew, v.managed, v.loading = "", true, false, false
 	v.edID, v.edName, v.edStage, v.edFormat, v.edEnabled = "", "", 0, 0, true
 	v.ed = &editor.State{Buffer: yamlBuffer(i18n.T.LayerTemplate)}
-	v.lintVer = 0
 }
 
 func (a *app) layerEditorCard(c *ui.Context, s status.Snapshot) {
@@ -531,14 +546,11 @@ func (a *app) layerEditorCard(c *ui.Context, s status.Snapshot) {
 func (a *app) lintNotes(c *ui.Context) {
 	t := c.Theme()
 	v := &a.hd.cfg
-	if ver := v.ed.Buffer.Version(); ver != v.lintVer || v.lintVer == 0 {
-		v.lint = nil
+	key := lintKey{v.ed.Buffer, v.ed.Buffer.Version(), v.edFormat}
+	if key != v.lintKey {
+		v.lintKey, v.lint = key, nil
 		if layerFormats[v.edFormat] == formatMerge {
 			v.lint = status.LintOverride(v.ed.Buffer.String())
-		}
-		v.lintVer = ver
-		if v.lintVer == 0 {
-			v.lintVer = 1 // an untouched buffer is version 0; don't lint every frame
 		}
 	}
 	for i, n := range v.lint {

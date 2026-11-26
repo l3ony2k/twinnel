@@ -41,6 +41,9 @@ func (a *app) startHelper() {
 			if h.Connected() && !wasUp {
 				a.loadHelperData()
 			}
+			if h.State == status.HelperNotInstalled && !a.hd.onb.loaded {
+				a.loadInstallPlan() // for the first-run view
+			}
 			a.invalidate()
 		})
 	}
@@ -251,9 +254,10 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 // --- config text (for the diff views) ---
 
 // methodConfigGet returns a config's text without the controller secret.
-// Not on main yet: requested from the helper agent (see HANDOFF.md). Until
-// it exists, "live" falls back to reading the config file when this user
-// can, and the others say the helper is too old.
+// Mirrors rpc.MethodConfigGet / ConfigGetParams / ConfigText on feat/helper2
+// (not on main when this was written; switch to the rpc names after the
+// merge). Against an older helper, "live" falls back to reading the config
+// file when this user can, and the others say the helper is too old.
 const methodConfigGet = "config.get"
 
 type configGetParams struct {
@@ -279,7 +283,13 @@ func fetchConfig(ctx context.Context, hc *status.HelperConn, configPath, source,
 		return r.Content, nil
 	}
 	var re *rpc.Error
-	if !errors.As(err, &re) || re.Code != rpc.CodeMethodNotFound {
+	if !errors.As(err, &re) {
+		return "", err
+	}
+	if source == "live" && re.Code == rpc.CodeNotFound {
+		return "", nil // nothing applied yet: the diff shows all lines added
+	}
+	if re.Code != rpc.CodeMethodNotFound {
 		return "", err
 	}
 	if source == "live" && configPath != "" {

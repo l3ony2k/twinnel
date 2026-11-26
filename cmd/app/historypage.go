@@ -39,11 +39,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		card(c, "", func() { ui.Text(c, T.HistoryEmpty).TextColor(t.TextMuted) })
 		return
 	}
-	// Newest first.
-	hist := make([]rpc.HistoryEntry, len(d.history))
-	for i, e := range d.history {
-		hist[len(hist)-1-i] = e
-	}
+	hist := d.history // newest first, as history.list returns it
 	cols := []ui.TableColumn{
 		{Title: T.HistoryTime, Width: 150},
 		{Title: T.HistoryKind, Width: 80},
@@ -152,6 +148,14 @@ func (a *app) historyRollback(e rpc.HistoryEntry) {
 	T := i18n.T
 	when := e.Time.Local().Format("2006-01-02 15:04:05")
 	a.confirm(fmt.Sprintf(T.HistoryRollbackTitle, when), T.HistoryRollbackBody, T.HistoryRollback, func() {
+		a.historyRollbackNow(e)
+	})
+}
+
+// historyRollbackNow rolls back without asking (after the confirm).
+func (a *app) historyRollbackNow(e rpc.HistoryEntry) {
+	T := i18n.T
+	{
 		var res rpc.ApplyResult
 		a.helperOp(T.HistoryRollback, 2*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
 			return hc.Call(ctx, rpc.MethodHistoryRollback, rpc.IDParams{ID: e.ID}, &res)
@@ -163,5 +167,5 @@ func (a *app) historyRollback(e rpc.HistoryEntry) {
 				v.diff, v.diffID = nil, ""
 			}
 		})
-	})
+	}
 }

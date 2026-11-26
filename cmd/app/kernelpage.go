@@ -109,7 +109,10 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 		if r := v.release; r != nil {
 			ui.Column(c).Gap(6).Padding(10, 12).Radius(8).Background(t.Background).Border(1, t.Border).Children(func() {
 				head, col := T.KernelUpToDate, t.Success
-				if r.UpdateAvailable {
+				switch {
+				case r.UpdateAvailable && r.Current == "": // only an external binary so far
+					head, col = fmt.Sprintf(T.KernelFirstInstall, r.Version), t.Accent
+				case r.UpdateAvailable:
 					head, col = fmt.Sprintf(T.KernelUpdate, r.Version), t.Accent
 				}
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -129,11 +132,13 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 				kv(c, T.KernelDigest, digest)
 				if r.UpdateAvailable {
 					rel := *r
-					if iconButton(c.Key("k-install"), iconOK, fmt.Sprintf(T.KernelInstall, r.Version), true).Disabled(!w).Clicked() {
-						a.confirm(fmt.Sprintf(T.KernelInstallTitle, rel.Version), T.KernelInstallBody, T.KernelInstallOK, func() {
-							a.kernelInstall(rel)
-						})
-					}
+					ui.Row(c).Children(func() {
+						if iconButton(c.Key("k-install"), iconOK, fmt.Sprintf(T.KernelInstall, r.Version), true).Disabled(!w).Clicked() {
+							a.confirm(fmt.Sprintf(T.KernelInstallTitle, rel.Version), T.KernelInstallBody, T.KernelInstallOK, func() {
+								a.kernelInstall(rel)
+							})
+						}
+					})
 				}
 			})
 		}

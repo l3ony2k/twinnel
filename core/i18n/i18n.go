@@ -151,14 +151,14 @@ type Strings struct {
 	HistoryKinds                                                     map[string]string
 
 	// Kernel page.
-	KernelMihomo, KernelActive, KernelExternal, KernelRunning, KernelCurrent string
-	KernelPrevious, KernelInstalled, KernelChannel, ChannelStable            string
-	ChannelAlpha, KernelCheck, KernelRollback, KernelRollbackBody            string
-	KernelRollbackTitle, KernelUpdate, KernelInstall, KernelInstallTitle     string // %s: version
-	KernelUpToDate, KernelLatest, KernelAsset, KernelDigest, KernelNoDigest  string
-	KernelInstallBody, KernelInstallOK                                       string
-	TSVersionHint, TSNotInstalled, UpdateAvailable                           string
-	TSInstallKinds, TSUpdateHints                                            map[string]string
+	KernelMihomo, KernelActive, KernelExternal, KernelRunning, KernelCurrent                    string
+	KernelPrevious, KernelInstalled, KernelChannel, ChannelStable                               string
+	ChannelAlpha, KernelCheck, KernelRollback, KernelRollbackBody                               string
+	KernelRollbackTitle, KernelUpdate, KernelInstall, KernelInstallTitle                        string // %s: version
+	KernelFirstInstall, KernelUpToDate, KernelLatest, KernelAsset, KernelDigest, KernelNoDigest string
+	KernelInstallBody, KernelInstallOK                                                          string
+	TSVersionHint, TSNotInstalled, UpdateAvailable                                              string
+	TSInstallKinds, TSUpdateHints                                                               map[string]string
 
 	// First run (helper not installed).
 	OnboardTitle, OnboardIntro, OnboardReadOnly, OnboardPlan, OnboardPlanHint string
@@ -492,6 +492,7 @@ var zh = Strings{
 	KernelRollbackBody:  "切换内核不会重启 mihomo 服务，下次启动时生效。",
 	KernelUpdate:        "有新版本 %s",
 	KernelUpToDate:      "已是最新",
+	KernelFirstInstall:  "可以安装由 duet 管理的内核 %s（现在用的是外部程序）",
 	KernelLatest:        "最新版本",
 	KernelAsset:         "文件",
 	KernelDigest:        "SHA-256",

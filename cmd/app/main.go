@@ -343,7 +343,7 @@ func (a *app) openMain() {
 
 func (a *app) winHeight() int {
 	if a.shotMode {
-		return 1100 // the shots capture the visible part only
+		return 1500 // the shots capture the visible part only
 	}
 	return 660
 }

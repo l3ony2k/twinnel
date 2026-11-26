@@ -50,6 +50,23 @@ func cliPath() (string, error) {
 	return "", errors.New(i18n.T.CLINotFound)
 }
 
+// installArgs are the CLI arguments of `duet helper install`, naming the
+// helper binary shipped next to the CLI (duet-helper) when there is one.
+func installArgs(extra ...string) []string {
+	args := []string{"helper", "install"}
+	if cli, err := cliPath(); err == nil {
+		if p := filepath.Join(filepath.Dir(cli), "duet-helper"); fileExists(p) {
+			args = append(args, "--helper-bin", p)
+		}
+	}
+	return append(args, extra...)
+}
+
+func fileExists(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && !fi.IsDir()
+}
+
 // runCLI runs the CLI with args and returns its combined output.
 func runCLI(ctx context.Context, args ...string) (string, error) {
 	p, err := cliPath()
@@ -72,7 +89,7 @@ func (a *app) loadInstallPlan() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		out, err := runCLI(ctx, "helper", "install", "--dry-run")
+		out, err := runCLI(ctx, installArgs("--dry-run")...)
 		mygo.RunOnMain(func() {
 			v.loading, v.loaded = false, true
 			v.plan, v.planErr = out, ""
@@ -160,7 +177,7 @@ func (a *app) installHelper() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		out, err := runCLI(ctx, "helper", "install")
+		out, err := runCLI(ctx, installArgs()...)
 		mygo.RunOnMain(func() {
 			v.running = false
 			v.out, v.outErr = out, err != nil
