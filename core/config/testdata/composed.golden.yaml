@@ -1,0 +1,70 @@
+# Synthetic subscription for tests. No real nodes.
+port: 7890
+socks-port: 7891
+allow-lan: false
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9090
+mixed-port: 7899
+bind-address: 127.0.0.1
+secret: ""
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  listen: 127.0.0.1:53
+  nameserver:
+    - https://doh.example/dns-query
+  fake-ip-filter:
+    - '+.lan'
+    - '+.ts.net'
+    - '+.tailscale.com'
+    - '+.tailscale.io'
+    - '+.beta.tailscale.net'
+  nameserver-policy:
+    '+.lan': [system]
+    '+.ts.net':
+      - system
+    '+.beta.tailscale.net':
+      - system
+tun:
+  enable: true
+  stack: mixed
+  auto-route: true
+  route-exclude-address:
+    - 192.168.0.0/16
+    - 100.64.0.0/10
+    - fd7a:115c:a1e0::/48
+proxies:
+  - {name: node-a, type: ss, server: 192.0.2.1, port: 8388, cipher: aes-128-gcm, password: example}
+  - {name: node-b, type: ss, server: 192.0.2.2, port: 8388, cipher: aes-128-gcm, password: example}
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies: [Auto, node-a, node-b, DIRECT]
+  - name: Auto
+    type: url-test
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    proxies: [node-a, node-b]
+  - name: Google
+    type: select
+    proxies: [PROXY, node-a, node-b]
+  - name: Domestic
+    type: select
+    proxies: [DIRECT, PROXY]
+rules:
+  - PROCESS-NAME,tailscaled,DIRECT
+  - DOMAIN-SUFFIX,tailscale.com,DIRECT
+  - DOMAIN-SUFFIX,tailscale.io,DIRECT
+  - DOMAIN-SUFFIX,ts.net,DIRECT
+  - DOMAIN-SUFFIX,beta.tailscale.net,DIRECT
+  - DOMAIN,laptop,DIRECT
+  - DOMAIN,nas,DIRECT
+  - DOMAIN,phone,DIRECT
+  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
+  - IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve
+  - DOMAIN,download.example.com,DIRECT
+  - DOMAIN-SUFFIX,google.com,Google
+  - GEOIP,CN,Domestic
+  - MATCH,PROXY
