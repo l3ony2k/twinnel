@@ -128,12 +128,11 @@ func (a *app) selectNode(group, name string) {
 // --- progress on the pressed button (kubai 017 b) ---
 
 // A short wait shows on the button that started it: its icon turns into a
-// spinner after busyDelay and stays at least busyMin, so a quick answer
-// shows no flicker and a slow one no blink.
-const (
-	busyDelay = 300 * time.Millisecond
-	busyMin   = 500 * time.Millisecond
-)
+// spinner after busyDelay and stays at least busyMin (widgets.go), so a
+// quick answer shows no flicker and a slow one no blink. Unlike showBusy,
+// the timing belongs to the operation (a.hd.span), so the spinner also
+// keeps its minimum after the operation ended and frames are scheduled
+// for it.
 
 // busySpan is one operation's run: end is zero while it runs.
 type busySpan struct {
@@ -172,16 +171,16 @@ func (a *app) opButton(c *ui.Context, icon *ui.SVG, label string, primary bool, 
 	if primary {
 		b = ui.PrimaryButton(c, "")
 	} else {
-		b = ui.Button(c, "")
+		b = pushFace(c, ui.Button(c, ""))
 	}
 	return b.Label(label).Busy(spin).Children(func() {
 		if spin {
-			sp := ui.Spinner(c).FontSize(14).Width(14).Height(14)
+			sp := spinnerIcon(c)
 			if primary { // on the accent, in the label's color
 				sp.TextColor(c.Theme().AccentText)
 			}
 		} else {
-			ui.Icon(c, icon).FontSize(14)
+			ui.Icon(c, icon).FontSize(iconInline)
 		}
 		ui.Text(c, label).SingleLine()
 	})

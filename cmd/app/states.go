@@ -37,7 +37,7 @@ func (a *app) unreachableState(c *ui.Context, svc netService, err string) {
 	title, body, _ := svc.texts()
 	groupBox(c, t).Children(func() {
 		ui.Column(c).Gap(6).AlignItems(ui.Center).Padding(28, 16).Children(func() {
-			ui.Icon(c, iconError).FontSize(22).TextColor(t.TextMuted)
+			ui.Icon(c, iconError).FontSize(iconLarge).TextColor(t.TextMuted)
 			ui.Text(c, title).FontWeight(500)
 			ui.Text(c, body).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().MaxWidth(420)
 			if err != "" {
@@ -46,7 +46,7 @@ func (a *app) unreachableState(c *ui.Context, svc netService, err string) {
 			}
 			ui.Row(c).Gap(8).Margin(8, 0, 0, 0).Children(func() {
 				a.retryButton(c.Key("retry-" + title))
-				if ui.Button(c.Key("open-settings"), T.OpenSettings).Clicked() {
+				if pushButton(c.Key("open-settings"), T.OpenSettings).Clicked() {
 					a.openPage(pageSettings)
 				}
 			})
@@ -70,11 +70,11 @@ func unreachableLine(c *ui.Context, svc netService, err string) {
 func (a *app) retryButton(c *ui.Context) {
 	now := time.Now()
 	spin := a.retry.visible(now)
-	b := ui.Button(c, "").Label(i18n.T.Retry).Busy(spin).Children(func() {
+	b := pushFace(c, ui.Button(c, "")).Label(i18n.T.Retry).Busy(spin).Children(func() {
 		if spin {
-			ui.Spinner(c).FontSize(14).Width(14).Height(14)
+			spinnerIcon(c)
 		} else {
-			ui.Icon(c, iconRefresh).FontSize(14)
+			ui.Icon(c, iconRefresh).FontSize(iconInline)
 		}
 		ui.Text(c, i18n.T.Retry).SingleLine()
 	})

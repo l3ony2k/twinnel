@@ -66,7 +66,7 @@ func (a *app) panelView(c *ui.Context) {
 		sep()
 		if !s.WritesAllowed {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, iconSecure).FontSize(12).TextColor(t.TextMuted)
+				ui.Icon(c, iconSecure).FontSize(iconSmall).TextColor(t.TextMuted)
 				small(c, T.ReadOnlyShort).Grow(1).Wrap()
 			})
 		}
@@ -137,7 +137,7 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	}
 	kvWith(c, T.Tun, func() {
 		a.tunSwitch(c, s)
-		ui.Icon(c, iconTun).FontSize(13).TextColor(t.TextMuted)
+		ui.Icon(c, iconTun).FontSize(iconInline).TextColor(t.TextMuted)
 		small(c, tun).SingleLine().Shrink(1)
 	})
 	a.controlError(c, pendTun)
@@ -213,9 +213,9 @@ func (a *app) helperLine(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	row := ui.Row(c.Key("helper-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).Cursor(ui.CursorPointer)
 	row.Children(func() {
-		ui.Icon(c, iconSkip).FontSize(14).TextColor(t.TextMuted)
+		ui.Icon(c, iconSkip).FontSize(iconInline).TextColor(t.TextMuted)
 		ui.Text(c, i18n.T.Helper+"："+h.State.Text()).Grow(1).SingleLine()
-		ui.Icon(c, iconCollapsed).FontSize(12).TextColor(t.TextMuted)
+		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
 	})
 	if row.Hovered() {
 		row.Background(t.Text.Alpha(0.08))
