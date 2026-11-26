@@ -803,7 +803,7 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 		ui.Text(c, T.PreviewApply).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 		a.unappliedNote(c)
 		ui.Spacer(c)
-		if a.opButton(c.Key("preview"), iconSpeed, T.Preview, false, T.Preview).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {
+		if a.opButton(c.Key("preview"), iconPreview, T.Preview, false, T.Preview).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {
 			a.runPreview(s)
 		}
 	}, func() {

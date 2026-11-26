@@ -67,7 +67,7 @@ func (a *app) controlsGallery(c *ui.Context) {
 			ui.Text(c, T.PreviewApply).FontWeight(plat.headingWeight)
 			a.unappliedNote(c)
 			ui.Spacer(c)
-			a.opButton(c.Key("idle"), iconSpeed, T.Preview, false, T.Preview)
+			a.opButton(c.Key("idle"), iconPreview, T.Preview, false, T.Preview)
 			a.opButton(c.Key("busy"), iconOK, T.Apply, true, T.Apply)
 		}, func() {
 			if !a.helperListsLoading(c, 3) {
