@@ -36,6 +36,7 @@ type platformStyle struct {
 	pagePadTop      float32
 	groupRadius     float32 // grouped boxes (cards)
 	controlRadius   float32
+	innerRadius     float32 // boxes inside a group: tiles, code, editors
 	rowMinHeight    float32
 	bodySize        float32 // body text
 	smallSize       float32 // secondary text, captions
@@ -46,6 +47,9 @@ type platformStyle struct {
 	panelPad        float32 // the flyout's padding
 	trayMenuOnly    bool    // the tray opens a menu, not a flyout
 	panelMaterialOK bool    // the flyout shows the popover material
+	pushFace        bool    // plain buttons drawn as NSButton (pushFace)
+	titleBarSize    float32 // the page title in the toolbar
+	titleBarWeight  int
 }
 
 var plat = platformFor(runtime.GOOS)
@@ -56,25 +60,31 @@ func platformFor(goos string) platformStyle {
 		return platformStyle{
 			titleBar: mygo.TitleBarDefault, sidebarMat: mygo.VibrancyMica,
 			sidebarWidth: 240, contentMax: 1000, pagePadX: 32, pagePadTop: 24,
-			groupRadius: 8, controlRadius: 4, rowMinHeight: 40,
+			groupRadius: 8, controlRadius: 4, innerRadius: 6, rowMinHeight: 40,
 			bodySize: 14, smallSize: 12, titleSize: 28, headingSize: 14,
 			titleWeight: 600, headingWeight: 600, panelPad: 16,
+			titleBarSize: 28, titleBarWeight: 600, // Windows 11 Settings: the page title stays large
 		}
 	case "linux":
 		return platformStyle{
 			titleBar:     mygo.TitleBarDefault,
 			sidebarWidth: 220, contentMax: 900, pagePadX: 24, pagePadTop: 24,
-			groupRadius: 12, controlRadius: 6, rowMinHeight: 46,
+			groupRadius: 12, controlRadius: 6, innerRadius: 8, rowMinHeight: 46,
 			bodySize: 14, smallSize: 12, titleSize: 20, headingSize: 14,
 			titleWeight: 700, headingWeight: 700, panelPad: 16, trayMenuOnly: true,
+			titleBarSize: 15, titleBarWeight: 700,
 		}
 	}
 	return platformStyle{ // darwin
 		titleBar: mygo.TitleBarHiddenInset, sidebarMat: mygo.VibrancySidebar,
 		sidebarWidth: 216, contentMax: 920, pagePadX: 28, pagePadTop: 20,
-		groupRadius: 10, controlRadius: 6, rowMinHeight: 24,
+		groupRadius: 10, controlRadius: 6, innerRadius: 8, rowMinHeight: 24,
 		bodySize: 13, smallSize: 11, titleSize: 20, headingSize: 13,
 		titleWeight: 600, headingWeight: 600, panelPad: 14, panelMaterialOK: true,
+		pushFace: true,
+		// A unified toolbar's window title (System Settings, Finder): about
+		// 15 pt bold, not the 20 pt of an in-content heading.
+		titleBarSize: 15, titleBarWeight: 700,
 	}
 }
 

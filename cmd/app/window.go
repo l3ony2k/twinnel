@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -98,18 +100,53 @@ func toolbarHeight(c *ui.Context) float32 {
 
 func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 	t := c.Theme()
-	if scrolled {
+	if scrolled { // fades in and out as macOS 26's scroll edge does
 		ui.Box(c.Key("toolbar-edge")).Absolute().Top(0).Left(0).Right(0).Height(h).PassThrough().
-			Material(glass.ScrollEdge{Hard: true, Background: t.Background})
+			Material(glass.ScrollEdge{Hard: true, Background: t.Background}).Transition(fadeMotion)
 	}
 	spec := pageBar
-	ui.Row(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).PaddingX(plat.pagePadX).
-		Gap(8).AlignItems(ui.Center).DragWindow().Role(ui.RoleToolbar).Label(spec.title).Children(func() {
-		ui.Text(c, spec.title).FontSize(plat.titleSize).FontWeight(plat.titleWeight).SingleLine().Shrink(1)
-		ui.Spacer(c)
-		if spec.trailing != nil {
-			spec.trailing()
+	// The title and the actions line up with the page's column: over its
+	// left and right edges at every width, as the column is centered and
+	// no wider than contentMax. Logs fill the pane, and so does their bar.
+	inner := float32(plat.contentMax)
+	if a.page == pageLogs {
+		inner = 0
+	}
+	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).PaddingX(plat.pagePadX).
+		AlignItems(ui.Center).Justify(ui.Center).DragWindow().Role(ui.RoleToolbar).Label(spec.title).Children(func() {
+		row := ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center)
+		if inner > 0 {
+			row.MaxWidth(inner)
 		}
+		row.Children(func() {
+			ui.Text(c, spec.title).FontSize(plat.titleBarSize).FontWeight(plat.titleBarWeight).SingleLine().Shrink(1)
+			ui.Spacer(c)
+			if spec.trailing != nil {
+				toolbarActions(c, spec.trailing)
+			}
+		})
+	})
+}
+
+// inToolbar is true while the toolbar's actions are built: buttons there
+// keep the toolbar's look, not a push button's (pushFace). Main thread
+// only.
+var inToolbar bool
+
+// toolbarActions builds a page's toolbar actions. Under Liquid Glass
+// (macOS 26+) they are faceless toolbar items on one glass capsule, as
+// Finder's and System Settings'; elsewhere, the controls as built.
+func toolbarActions(c *ui.Context, trailing func()) {
+	if !liquidGlass {
+		trailing()
+		return
+	}
+	inToolbar = true
+	defer func() { inToolbar = false }()
+	g := glass.NewGroup(c)
+	g.Radius = 16
+	g.Shrink(0).Children(func() {
+		g.Pane(ui.Toolbar(c, trailing).Height(32).Padding(0, 6).Gap(4).Shrink(0))
 	})
 }
 
@@ -300,7 +337,7 @@ func (a *app) verdict(c *ui.Context, s status.Snapshot) {
 	}
 	groupBox(c, t).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
-			ui.Icon(c, icon).FontSize(22).TextColor(levelColor(t, s.Level)).Shrink(0)
+			ui.Icon(c, icon).FontSize(iconLarge).TextColor(levelColor(t, s.Level)).Shrink(0)
 			ui.Column(c).Gap(4).Grow(1).Children(func() {
 				ui.Text(c, s.Level.Text()).FontSize(15).FontWeight(600)
 				for _, r := range s.Reasons {
@@ -344,9 +381,7 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	m := s.Mihomo
 	if !m.Reachable {
 		kv(c, T.State, T.Unreachable)
-		if m.Err != "" {
-			errorNote(c, m.Err)
-		}
+		unreachableLine(c, svcMihomo, m.Err)
 		kv(c, T.Controller, a.mh.BaseURL())
 		return
 	}
@@ -361,14 +396,20 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 		a.tunSwitch(c, s)
 		ui.Text(c, tun).TextColor(t.TextMuted).SingleLine().Shrink(1)
 	})
+	a.controlError(c, pendTun)
 	if p := m.Primary; p != nil {
-		kvWith(c, p.Name, func() {
-			ui.Text(c, p.Node).SingleLine().Shrink(1)
+		// One row for where traffic leaves: the primary group, what it
+		// selected down to the node, and the node's delay.
+		// The node keeps its room; the groups before it shrink first.
+		route := strings.Join(append([]string{p.Name}, p.Chain...), " → ")
+		via := strings.Join(append([]string{p.Name}, p.Chain[:max(len(p.Chain)-1, 0)]...), " → ") + " →"
+		kvWith(c, T.Exit, func() {
+			ui.Row(c).Gap(4).Grow(1).Shrink(1).MinWidth(0).Tooltip(route).Children(func() {
+				ui.Text(c, via).TextColor(t.TextMuted).SingleLine().Shrink(100)
+				ui.Text(c, p.Node).SingleLine().Shrink(1)
+			})
 			num(ui.Text(c, status.DelayText(p.Delay, p.Tested)).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
 		})
-		if len(p.Chain) > 1 {
-			kv(c, T.Exit, strings.Join(p.Chain, " → "))
-		}
 	}
 	kv(c, T.Connections, fmt.Sprint(m.Connections))
 }
@@ -379,9 +420,7 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 	st := ts.State
 	if !ts.Reachable {
 		kv(c, T.State, T.Unreachable)
-		if ts.Err != "" {
-			errorNote(c, ts.Err)
-		}
+		unreachableLine(c, svcTailscale, ts.Err)
 		kv(c, T.Install, T.InstallKind(string(ts.Install.Kind)))
 		return
 	}
@@ -392,6 +431,7 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 	}
 	kv(c, T.OnlinePeers, fmt.Sprintf("%d / %d", st.OnlinePeers(), len(st.Peers)))
 	kvWith(c, T.ExitNode, func() { kvControl(a.exitNodePicker(c, s)) })
+	a.controlError(c, pendExit)
 	kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
 	if st.KeyExpiry != nil {
 		kv(c, T.KeyExpiry, st.KeyExpiry.Local().Format("2006-01-02")+" ("+status.Until(s.Time, *st.KeyExpiry)+")")
@@ -457,10 +497,13 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 	for _, h := range hist {
 		hi = max(hi, float64(h.Down), float64(h.Up))
 	}
-	y := chart.NewLinear(0, hi).Nice(3)
+	// The scale is built in the unit the labels use, so its ticks are
+	// round there (200 / 400 / 600 KB/s, not 195.3 / 390.6 / 585.9).
+	unit, unitName := rateUnit(hi)
+	y := chart.NewLinear(0, hi/unit).Nice(3)
 	ticks := y.Ticks(3)
 	for i := range ticks {
-		ticks[i].Label = status.Rate(int64(ticks[i].Value))
+		ticks[i].Label = strconv.FormatFloat(ticks[i].Value, 'f', -1, 64) + " " + unitName
 	}
 	xs := make([]float32, len(hist))
 	down := make([]float32, len(hist))
@@ -471,13 +514,17 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 	span := min(max(len(hist), 2), n)
 	for i, h := range hist {
 		xs[i] = float32(span-len(hist)+i) / float32(span-1)
-		down[i] = y.At(float64(h.Down))
-		upv[i] = y.At(float64(h.Up))
+		down[i] = y.At(float64(h.Down) / unit)
+		upv[i] = y.At(float64(h.Up) / unit)
 	}
 	grid := pal(t).separator
 	axes := chart.Axes{Right: ticks, Label: func(_ chart.Side, tk chart.Tick) {
 		num(ui.Text(c, tk.Label).FontSize(plat.smallSize).TextColor(t.TextMuted).NoWrap())
 	}}
+	describe := func(i int) string {
+		h := hist[i]
+		return fmt.Sprintf("%s %s · %s %s · %s", T.Download, status.Rate(h.Down), T.Upload, status.Rate(h.Up), status.Ago(s.Time, h.Time))
+	}
 	chart.Plot(c, axes, func(area ui.Element) {
 		area.Draw(func(p *ui.Painter, r ui.Rect) {
 			for _, tk := range ticks {
@@ -490,7 +537,68 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 			p.StrokePath(chart.Line(r, xs, upv, chart.CurveMonotone), 1.5, up.Alpha(0.8))
 			p.StrokePath(chart.Line(r, xs, down, chart.CurveMonotone), 2, t.Accent)
 		})
+		// The readout: under the pointer (or the arrow keys), a guide at
+		// the nearest sample, a dot on each line, and the sample's rates
+		// beside it, flipped to the guide's left near the right edge.
+		sel := ui.Local(area, "duet.traffic.sel", func() int { return -1 })
+		if sel == nil || len(xs) < 2 {
+			return
+		}
+		if shotReadout {
+			*sel = len(xs) * 2 / 3
+		}
+		chart.Select(c, area, sel, xs, describe)
+		i := *sel
+		if i < 0 || i >= len(xs) {
+			return
+		}
+		chart.RuleX(c, xs[i], 1).Background(t.Text.Alpha(0.25)).PassThrough()
+		chart.Point(c, xs[i], upv[i], 6, 6).Radius(3).Background(up).PassThrough()
+		chart.Point(c, xs[i], down[i], 6, 6).Radius(3).Background(t.Accent).PassThrough()
+		side := ui.Start
+		if xs[i] > 0.6 {
+			side = ui.End
+		}
+		chart.Anchor(c, xs[i], 1, side, ui.Start, func() {
+			lbl := ui.Column(c).Gap(2).Padding(6, 8).Radius(plat.controlRadius).
+				Background(pal(t).group).Border(1, pal(t).groupLine).
+				Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.12)).PassThrough().Shrink(0)
+			if side == ui.Start {
+				lbl.MarginStart(8)
+			} else {
+				lbl.MarginEnd(8)
+			}
+			lbl.Children(func() {
+				h := hist[i]
+				readout := func(col ui.Color, label string, rate int64) {
+					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+						ui.Box(c).Size(8, 2).Radius(1).Background(col)
+						small(c, label).NoWrap()
+						num(ui.Text(c, status.Rate(rate)).FontSize(plat.bodySize - 1).NoWrap())
+					})
+				}
+				readout(t.Accent, T.Download, h.Down)
+				readout(up, T.Upload, h.Up)
+				num(small(c, status.Ago(s.Time, h.Time)).NoWrap())
+			})
+		})
 	}).Label(T.Traffic).Height(176).Gap(8)
+}
+
+// shotReadout shows the chart's readout in screenshots (DUET_SHOTS_READOUT),
+// where no pointer is over it.
+var shotReadout = os.Getenv("DUET_SHOTS") != "" && os.Getenv("DUET_SHOTS_READOUT") != ""
+
+// rateUnit picks the unit a chart of rates up to hi bytes/s labels its
+// ticks in: KB/s below 1 MB/s, else MB/s (or GB/s).
+func rateUnit(hi float64) (float64, string) {
+	switch {
+	case hi >= 1<<30:
+		return 1 << 30, "GB/s"
+	case hi >= 1<<20:
+		return 1 << 20, "MB/s"
+	}
+	return 1 << 10, "KB/s"
 }
 
 // --- proxies ---
@@ -507,11 +615,19 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 		for _, g := range m.Groups {
 			busy = busy || a.mon.Testing(g.Name)
 		}
-		label := T.TestAllDelay
-		if busy {
-			label = T.TestingDelay
-		}
-		if iconButton(c.Key("test-all"), iconSpeed, label, false).Disabled(busy).Clicked() {
+		// The button keeps its label and width; its icon turns into a
+		// spinner while the groups are tested.
+		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy)
+		spin := showBusy(c, b, busy)
+		b.Children(func() {
+			if spin {
+				spinnerIcon(c)
+			} else {
+				ui.Icon(c, iconSpeed).FontSize(iconInline)
+			}
+			ui.Text(c, T.TestAllDelay).SingleLine()
+		})
+		if b.Clicked() {
 			names, mon := make([]string, 0, len(m.Groups)), a.mon
 			for _, g := range m.Groups {
 				names = append(names, g.Name)
@@ -526,9 +642,7 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 		}
 	})
 	if !m.Reachable {
-		groupBox(c, t).Children(func() {
-			emptyState(c, iconError, T.Unreachable, m.Err)
-		})
+		a.unreachableState(c, svcMihomo, m.Err)
 		return
 	}
 	a.actionNotes(c, s)
@@ -577,27 +691,21 @@ func tileLayout(w float32, n int) (cols int, maxW float32) {
 func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	t := c.Theme()
 	T := i18n.T
-	p := pal(t)
 	open := a.groupsOpen[g.Name]
-	ui.Column(c).Gap(10).PaddingY(8).Clip().Transition(expandMotion).Children(func() {
-		head := ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(28).Cursor(ui.CursorPointer)
+	sel := pendingValue(a, nodeKey(g.Name), g.Now) // the pick shows at once
+	chain := strings.Join(g.Chain, " → ")
+	ui.Column(c).Gap(8).PaddingY(8).Clip().Transition(expandFor(open)).Children(func() {
+		head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).Cursor(ui.CursorPointer).
+			Role(ui.RoleDisclosure).Label(g.Name).Expanded(open)
 		head.Children(func() {
-			chev := iconCollapsed
-			if open {
-				chev = iconExpanded
-			}
-			ui.Icon(c, chev).FontSize(12).TextColor(t.TextMuted).Width(14)
+			disclosure(c, open)
 			ui.Text(c, g.Name).FontWeight(600).SingleLine().Shrink(0)
 			meta(c, g.Type)
-			ui.Text(c, strings.Join(g.Chain, " → ")).TextColor(t.TextMuted).SingleLine().Shrink(1)
+			ui.Text(c, chain).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(chain)
 			ui.Spacer(c)
 			num(ui.Text(c, status.DelayText(g.Delay, g.Tested)).TextColor(delayColor(t, g.Delay, g.Tested)).Shrink(0))
 			testing := a.mon.Testing(g.Name)
-			label := T.TestGroupDelay
-			if testing {
-				label = T.TestingDelay
-			}
-			if iconButton(c.Key("test"), iconSpeed, label, false).Disabled(testing).Clicked() {
+			if toolIcon(c.Key("test"), iconSpeed, T.TestGroupDelay, testing).Clicked() && !testing {
 				name, mon := g.Name, a.mon
 				go func() {
 					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -610,52 +718,65 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 		if head.Clicked() {
 			a.groupsOpen[g.Name] = !open
 		}
+		a.controlError(c, nodeKey(g.Name))
 		if !open {
 			return
 		}
-		// The head row spans the list's width; the grid is 24 in from it.
-		cols, maxW := tileLayout(head.Bounds().W-24, len(g.Members))
+		// The head row spans the list's width; the grid is 22 in from it,
+		// under the name.
+		cols, maxW := tileLayout(head.Bounds().W-22, len(g.Members))
 		if cols != a.tileCols[g.Name] { // the width changed: lay out again with the new count
 			a.tileCols[g.Name] = cols
 			c.Invalidate()
 		}
-		grid := ui.Grid(c.Key("tiles")).Gap(tileGap).MarginStart(24).MarginY(2).Columns(cols)
+		grid := ui.Grid(c.Key("tiles")).Gap(tileGap).MarginStart(22).MarginY(2).Columns(cols).
+			Role(ui.RoleRadioGroup).Label(g.Name)
 		if maxW > 0 {
 			grid.MaxWidth(maxW)
 		}
 		grid.Children(func() {
 			for _, mem := range g.Members {
-				selected := mem.Name == g.Now
-				chip := ui.Column(c.Key(mem.Name)).MinWidth(0).Padding(8, 10).Gap(2).Radius(8).
-					Background(p.code).Border(1, p.groupLine).Transition(ui.ElementTransition{})
-				if selected {
-					chip.Background(p.accentSoft).Border(1, t.Accent.Alpha(0.6))
-				}
-				canSelect := writes && g.Selectable() && !selected
-				if canSelect {
-					chip.Cursor(ui.CursorPointer)
-					if chip.Hovered() {
-						chip.Background(t.SurfaceHover)
-					}
-				}
-				chip.Children(func() {
-					ui.Text(c, mem.Name).SingleLine().FontWeight(map[bool]int{true: 600, false: 400}[selected])
-					ui.Row(c).Gap(6).Children(func() {
-						typ := mem.Type
-						if typ == "" {
-							typ = "?"
-						}
-						meta(c, typ).Grow(1).Shrink(1)
-						num(ui.Text(c, status.DelayText(mem.Delay, mem.Tested)).FontSize(plat.smallSize).TextColor(delayColor(t, mem.Delay, mem.Tested)))
-					})
-				})
-				if chip.Clicked() && canSelect {
-					group, name := g.Name, mem.Name
-					a.do(func(ctx context.Context) error { return a.mh.SelectProxy(ctx, group, name) })
-				}
+				a.nodeTile(c.Key(mem.Name), g, mem, mem.Name == sel, writes)
 			}
 		})
 	})
+}
+
+// nodeTile is one node of an open group: its name, type and delay. The
+// selected one has the accent's soft fill and a quiet accent hairline;
+// only colors animate, quickly, so tiles never slide on a resize.
+func (a *app) nodeTile(c *ui.Context, g status.Group, mem status.Member, selected, writes bool) {
+	t := c.Theme()
+	p := pal(t)
+	typ := mem.Type
+	if typ == "" {
+		typ = "?"
+	}
+	delay := status.DelayText(mem.Delay, mem.Tested)
+	desc := mem.Name + " · " + typ + " · " + delay
+	chip := ui.Column(c).MinWidth(0).Padding(8, 10).Gap(2).Radius(plat.innerRadius).
+		Background(p.code).Border(1, p.groupLine).Transition(colorMotion).
+		Role(ui.RoleRadio).Label(desc).AccessSelected(selected).Tooltip(desc)
+	if selected {
+		chip.Background(p.accentSoft).Border(1, t.Accent.Alpha(0.35))
+	}
+	canSelect := writes && g.Selectable() && !selected
+	if canSelect {
+		chip.Cursor(ui.CursorPointer).Focusable()
+		if chip.Hovered() {
+			chip.Background(t.SurfaceHover)
+		}
+	}
+	chip.Children(func() {
+		ui.Text(c, mem.Name).SingleLine()
+		ui.Row(c).Gap(6).Children(func() {
+			meta(c, typ).Grow(1).Shrink(1)
+			num(ui.Text(c, delay).FontSize(plat.smallSize).TextColor(delayColor(t, mem.Delay, mem.Tested)))
+		})
+	})
+	if chip.Clicked() && canSelect {
+		a.selectNode(g.Name, mem.Name)
+	}
 }
 
 // --- tailscale ---
@@ -671,10 +792,11 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 		}
 	})
 	if !ts.Reachable {
-		groupBox(c, t).Children(func() { emptyState(c, iconError, T.Unreachable, ts.Err) })
+		a.unreachableState(c, svcTailscale, ts.Err)
 		return
 	}
 	a.actionNotes(c, s)
+	a.controlError(c, pendTS)
 	st := ts.State
 	card(c, "", func() {
 		ui.Row(c).Gap(24).Children(func() {
@@ -689,6 +811,7 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 				kvWith(c, T.ExitNode, func() { kvControl(a.exitNodePicker(c, s)) })
 			})
 		})
+		a.controlError(c, pendExit)
 	})
 	peers := st.Peers
 	title := fmt.Sprintf("%s · %d / %d", T.Devices, st.OnlinePeers(), len(peers))
@@ -718,7 +841,7 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 						col = t.Success
 					}
 					dot(c, col, 7)
-					ui.Text(c, p.Name).SingleLine()
+					ui.Text(c, p.Name).SingleLine().Tooltip(p.Name)
 				})
 			case 1:
 				ip := ""
@@ -738,7 +861,7 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 				}
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 					if icon != nil {
-						ui.Icon(c, icon).FontSize(14).TextColor(col)
+						ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
 					}
 					ui.Text(c, T.Path(p.Path())).TextColor(col).SingleLine()
 				})
