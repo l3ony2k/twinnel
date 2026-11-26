@@ -9,11 +9,11 @@ import (
 
 func TestWarningKnown(t *testing.T) {
 	for in, want := range map[string]string{
-		`proxy group "PROXY" not found`:                                                                               "防泄漏：找不到策略组「PROXY」",
-		`leak-guard: proxy group "A B" can still reach DIRECT through [x y]`:                                          "防泄漏：策略组「A B」仍能经由 x、y 走直连",
-		"generated a new controller secret (kept in the helper's secret store)":                                       "已生成新的控制接口密钥，保存在后台助手的密钥库里",
-		"3 subscription profiles found; adopt does not import a subscription URL (set one later with `duet sub put`)": "找到 3 个订阅配置；接管不导入订阅地址，之后用 duet sub put 设置",
-		"external-controller: 0.0.0.0:9090 is reachable from the network (protected by the secret only)":              "external-controller：0.0.0.0:9090 可以从网络访问，只有密钥保护",
+		`proxy group "PROXY" not found`: "防泄漏：找不到策略组「PROXY」",
+		`leak-guard: proxy group "A B" can still reach DIRECT through [x y] (nested groups are not changed: they may carry other traffic)`: "防泄漏：策略组「A B」仍能经由 x、y 走直连（嵌套的策略组可能还承载别的流量，没有改动）",
+		"generated a new controller secret (kept in the helper's secret store)":                                                            "已生成新的控制接口密钥，保存在后台助手的密钥库里",
+		"3 subscription profiles found; adopt does not import a subscription URL (set one later with `duet sub put`)":                      "找到 3 个订阅配置；接管不导入订阅地址，之后用 duet sub put 设置",
+		"external-controller: 0.0.0.0:9090 is reachable from the network (protected by the secret only)":                                   "external-controller：0.0.0.0:9090 可以从网络访问，只有密钥保护",
 		"something new: keep me": "something new: keep me",
 		"clients of the controller (the web dashboard, the app, scripts) need the new secret; it is in the helper's secret store (macOS: sudo security find-generic-password -s duet.controller -w)": "控制接口的客户端（网页面板、本 app、脚本）需要新密钥。它保存在后台助手的密钥库里，可用 sudo security find-generic-password -s duet.controller -w 读取",
 	} {
