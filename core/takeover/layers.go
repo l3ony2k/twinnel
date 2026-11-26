@@ -92,6 +92,7 @@ func newManagedSet(info config.TailnetInfo) (*managedSet, error) {
 		for _, f := range o.DNS.Filter {
 			m.filter[f] = true
 		}
+		m.filter[`DOMAIN-REGEX,^[^.]+$,real-ip`] = true
 		for k := range o.DNS.Policy {
 			m.policy[unwrap(k)] = true
 		}
@@ -108,6 +109,9 @@ func newManagedSet(info config.TailnetInfo) (*managedSet, error) {
 			m.rules = append(m.rules, pr)
 			if pr.Type == "DOMAIN-SUFFIX" {
 				m.domains = append(m.domains, pr.Payload)
+				// The same entry as the layer writes it in
+				// fake-ip-filter-mode: rule.
+				m.filter["DOMAIN-SUFFIX,"+pr.Payload+",real-ip"] = true
 			}
 		}
 	}

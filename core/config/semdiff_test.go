@@ -246,3 +246,21 @@ func TestRealSemDiff(t *testing.T) {
 	}
 	t.Log("\n" + d.Text(60))
 }
+
+func TestSemanticDiffFakeIPFilterRuleModeOrdered(t *testing.T) {
+	a := "dns:\n  fake-ip-filter-mode: rule\n  fake-ip-filter: ['DOMAIN,a.com,real-ip', 'MATCH,fake-ip']\n"
+	b := "dns:\n  fake-ip-filter-mode: rule\n  fake-ip-filter: ['MATCH,fake-ip', 'DOMAIN,a.com,real-ip']\n"
+	d, err := SemanticDiff([]byte(a), []byte(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Equivalent() {
+		t.Fatalf("reordered rule-mode fake-ip-filter reported equivalent: %+v", d.Settings)
+	}
+	// Blacklist mode: a set.
+	a2 := "dns:\n  fake-ip-filter: ['+.a', '+.b']\n"
+	b2 := "dns:\n  fake-ip-filter: ['+.b', '+.a']\n"
+	if d, _ := SemanticDiff([]byte(a2), []byte(b2)); !d.Equivalent() {
+		t.Fatalf("blacklist reorder not equivalent: %+v", d.Settings)
+	}
+}

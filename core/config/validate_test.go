@@ -132,3 +132,36 @@ func TestValidateReal(t *testing.T) {
 		t.Errorf("bad config passed: %+v", v)
 	}
 }
+
+// TestCoexistFakeIPModesReal checks with the real binary that the coexist
+// layer keeps configs valid in every fake-ip-filter-mode.
+func TestCoexistFakeIPModesReal(t *testing.T) {
+	bin := os.Getenv("DUET_MIHOMO")
+	if bin == "" {
+		t.Skip("DUET_MIHOMO not set")
+	}
+	l, err := TailscaleCoexistLayer(TailnetInfo{MagicDNSSuffix: "tn-1.ts.net", PeerShortNames: []string{"nas"},
+		PeerAddrs: map[string][]string{"nas": {"100.64.0.2"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"blacklist", "whitelist", "rule"} {
+		filter := "['+.lan']"
+		if mode == "rule" {
+			filter = "['DOMAIN-SUFFIX,lan,real-ip', 'MATCH,fake-ip']"
+		}
+		sub := "dns:\n  enable: true\n  enhanced-mode: fake-ip\n  fake-ip-range: 198.18.0.1/16\n  nameserver: [223.5.5.5]\n" +
+			"  fake-ip-filter-mode: " + mode + "\n  fake-ip-filter: " + filter + "\nrules: ['MATCH,DIRECT']\n"
+		out, err := Compose([]byte(sub), []Layer{l})
+		if err != nil {
+			t.Fatal(err)
+		}
+		v, err := Validate(context.Background(), bin, out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !v.OK {
+			t.Errorf("%s: composed config invalid: %v\n%s", mode, v.Errors, out)
+		}
+	}
+}

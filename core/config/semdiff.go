@@ -146,7 +146,16 @@ func SemanticDiff(a, b []byte) (*SemDiff, error) {
 			settingsB[k] = v
 		}
 	}
-	diffSettings("", settingsA, settingsB, &d.Settings)
+	sets := setPaths
+	if fakeIPRuleMode(ma) || fakeIPRuleMode(mb) {
+		// In rule mode fake-ip-filter is a first-match rule list.
+		sets = map[string]bool{}
+		for k, v := range setPaths {
+			sets[k] = v
+		}
+		delete(sets, "dns.fake-ip-filter")
+	}
+	diffSettingsIn("", settingsA, settingsB, &d.Settings, sets)
 	d.Proxies = diffNamedList(ma["proxies"], mb["proxies"], true)
 	d.ProxyGroups = diffNamedList(ma["proxy-groups"], mb["proxy-groups"], false)
 	d.ProxyProviders = diffNamedMap(ma["proxy-providers"], mb["proxy-providers"])
@@ -180,7 +189,18 @@ func stringList(v any) []string {
 	return out
 }
 
+// fakeIPRuleMode reports whether dns.fake-ip-filter-mode is "rule".
+func fakeIPRuleMode(top map[string]any) bool {
+	dns, _ := top["dns"].(map[string]any)
+	m, _ := dns["fake-ip-filter-mode"].(string)
+	return strings.EqualFold(strings.TrimSpace(m), "rule")
+}
+
 func diffSettings(path string, a, b any, out *[]SettingChange) {
+	diffSettingsIn(path, a, b, out, setPaths)
+}
+
+func diffSettingsIn(path string, a, b any, out *[]SettingChange, sets map[string]bool) {
 	ma, aok := a.(map[string]any)
 	mb, bok := b.(map[string]any)
 	if aok && bok {
@@ -197,7 +217,7 @@ func diffSettings(path string, a, b any, out *[]SettingChange) {
 			case !inb:
 				*out = append(*out, SettingChange{Path: p, Kind: "removed", A: redactValue(k, va)})
 			default:
-				diffSettings(p, va, vb, out)
+				diffSettingsIn(p, va, vb, out, sets)
 			}
 		}
 		return
@@ -205,7 +225,7 @@ func diffSettings(path string, a, b any, out *[]SettingChange) {
 	key := lastKey(path)
 	la, aok := a.([]any)
 	lb, bok := b.([]any)
-	if aok && bok && setPaths[path] {
+	if aok && bok && sets[path] {
 		sa, sb := stringSet(la), stringSet(lb)
 		var onlyA, onlyB []string
 		for _, x := range sortedKeys(sa) {
