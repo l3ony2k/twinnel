@@ -590,7 +590,9 @@ var zh = Strings{
 	WarningTexts: map[string]string{
 		"group-missing":    "防泄漏：找不到策略组「%s」",
 		"group-empty":      "防泄漏：策略组「%s」去掉直连后没有成员了，已改为 REJECT",
-		"group-direct":     "防泄漏：策略组「%s」仍能经由 %s 走直连",
+		"group-direct":     "防泄漏：策略组「%s」仍能经由 %s 走直连（嵌套的策略组可能还承载别的流量，没有改动）",
+		"nested-shared":    "防泄漏：嵌套策略组「%s」运行时没有成员就会走直连；它也承载别的流量，所以没有改动",
+		"nested-direct":    "防泄漏：嵌套策略组「%s」运行时没有成员就会走直连。打开 leak_guard_nested 后，只被受保护策略组使用的嵌套组会加上 empty-fallback: REJECT",
 		"fakeip-whitelist": "dns.fake-ip-filter-mode 是 whitelist，Tailscale 的 fake-ip-filter 条目没有加入（白名单模式下它们会让 tailnet 名字拿到 fake-ip）。请确认白名单里没有覆盖 ts.net 或单段名字的条目",
 		"fakeip-unknown":   "不认识的 dns.fake-ip-filter-mode「%s」，Tailscale 的 fake-ip-filter 条目没有加入",
 		"new-secret":       "已生成新的控制接口密钥，保存在后台助手的密钥库里",

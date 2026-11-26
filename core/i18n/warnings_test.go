@@ -41,7 +41,8 @@ dns:
 proxies:
   - {name: home, type: direct}
 proxy-groups:
-  - {name: Guarded, type: select, proxies: [Nested, home]}
+  - {name: Guarded, type: select, proxies: [Nested, Dyn, home]}
+  - {name: Dyn, type: select, include-all: true}
   - {name: Nested, type: select, proxies: [DIRECT]}
   - {name: Lonely, type: select, proxies: [home]}
 `
@@ -68,7 +69,7 @@ proxy-groups:
 			got = append(got, w...)
 		}
 	}
-	if len(got) != 5 {
+	if len(got) != 6 {
 		t.Fatalf("warnings: %q", got)
 	}
 	for _, w := range got {

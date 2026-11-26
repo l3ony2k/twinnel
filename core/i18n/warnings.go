@@ -20,7 +20,9 @@ type warnPattern struct {
 var warnPatterns = []warnPattern{
 	{kind: "group-missing", re: regexp.MustCompile(`^proxy group "(.+)" not found$`)},
 	{kind: "group-empty", re: regexp.MustCompile(`^proxy group "(.+)" has no members left; set to REJECT$`)},
-	{kind: "group-direct", re: regexp.MustCompile(`^proxy group "(.+)" can still reach DIRECT through \[(.*)\]$`), list: map[int]bool{2: true}},
+	{kind: "group-direct", re: regexp.MustCompile(`^proxy group "(.+)" can still reach DIRECT through \[(.*)\](?: \(nested groups are not changed.*\))?$`), list: map[int]bool{2: true}},
+	{kind: "nested-shared", re: regexp.MustCompile(`^nested group "(.+)" of a guarded group goes DIRECT when it has no members at run time \(it is used by other traffic too`)},
+	{kind: "nested-direct", re: regexp.MustCompile(`^nested group "(.+)" of a guarded group goes DIRECT when it has no members at run time \(leak_guard_nested`)},
 	{kind: "fakeip-whitelist", re: regexp.MustCompile(`^dns\.fake-ip-filter-mode is whitelist: the Tailscale fake-ip-filter entries were left out`)},
 	{kind: "fakeip-unknown", re: regexp.MustCompile(`^dns\.fake-ip-filter-mode "(.*)" is unknown; the Tailscale fake-ip-filter entries were left out$`)},
 	{kind: "new-secret", re: regexp.MustCompile(`^generated a new controller secret`)},
