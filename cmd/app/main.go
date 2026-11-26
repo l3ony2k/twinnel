@@ -73,6 +73,10 @@ type app struct {
 	hd          helperData      // what the helper pages show
 	creds       credsState      // controller credentials from the helper
 	toast       string          // shown once by the next frame of the main window
+	shotNav     struct {        // shot mode: force the sidebar's key/hover looks
+		active *bool
+		hover  string
+	}
 }
 
 func main() {

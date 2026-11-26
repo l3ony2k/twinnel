@@ -110,32 +110,43 @@ func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 	}
 	side.Padding(max(bar.Bottom+12, 16), 10, 12).Gap(4).Children(func() {
 		old := a.page
-		if ui.Sidebar(c, &a.page, func() {
-			ui.SidebarItem(c, pageOverview, iconOverview, T.PageOverview)
-			ui.SidebarItem(c, pageProxies, iconProxies, T.PageProxies)
-			ui.SidebarItem(c, pageTailscale, iconTailscale, T.PageTailscale).Children(func() {
-				if s.Tailscale.Reachable {
-					num(ui.Text(c, fmt.Sprint(s.Tailscale.State.OnlinePeers())).FontSize(plat.smallSize).TextColor(t.TextMuted))
-				}
-			})
-			ui.SidebarItem(c, pageHealth, iconHealth, T.PageHealth).Children(func() {
-				if w, f := s.Health.Counts(); w+f > 0 {
-					ui.Badge(c, fmt.Sprint(w+f))
-				}
-			})
-			ui.SidebarSection(c, T.SidebarHelper, nil, func() {
-				ui.SidebarItem(c, pageConfig, iconConfig, T.PageConfig)
-				ui.SidebarItem(c, pageHistory, iconHistory, T.PageHistory)
-				ui.SidebarItem(c, pageKernel, iconKernel, T.PageKernel)
-				ui.SidebarItem(c, pageTakeover, iconTakeover, T.PageTakeover)
-			})
-			ui.SidebarSection(c, T.SidebarApp, nil, func() {
-				ui.SidebarItem(c, pageLogs, iconLogs, T.PageLogs)
-				ui.SidebarItem(c, pageSettings, iconSettings, T.PageSettings)
-			})
-		}).Grow(1).Background(ui.Transparent).Label(T.AppName).Changed() {
-			a.pageChanged(old)
+		ts, health := 0, 0
+		if s.Tailscale.Reachable {
+			ts = s.Tailscale.State.OnlinePeers()
 		}
+		w, f := s.Health.Counts()
+		health = w + f
+		healthTone := toneAttention
+		if f > 0 {
+			healthTone = toneAlert
+		}
+		sections := []navSection{
+			{items: []navItem{
+				{id: pageOverview, icon: iconOverview, label: T.PageOverview},
+				{id: pageProxies, icon: iconProxies, label: T.PageProxies},
+				{id: pageTailscale, icon: iconTailscale, label: T.PageTailscale, count: ts},
+				{id: pageHealth, icon: iconHealth, label: T.PageHealth, count: health, tone: healthTone},
+			}},
+			{title: T.SidebarHelper, items: []navItem{
+				{id: pageConfig, icon: iconConfig, label: T.PageConfig},
+				{id: pageHistory, icon: iconHistory, label: T.PageHistory},
+				{id: pageKernel, icon: iconKernel, label: T.PageKernel},
+				{id: pageTakeover, icon: iconTakeover, label: T.PageTakeover},
+			}},
+			{title: T.SidebarApp, items: []navItem{
+				{id: pageLogs, icon: iconLogs, label: T.PageLogs},
+				{id: pageSettings, icon: iconSettings, label: T.PageSettings},
+			}},
+		}
+		active := c.WindowActive()
+		if a.shotNav.active != nil {
+			active = *a.shotNav.active
+		}
+		ui.Scroll(c).Grow(1).Children(func() {
+			if navList(c, &a.page, sections, active, a.shotNav.hover) {
+				a.pageChanged(old)
+			}
+		})
 		a.duetPair(c, s, 6)
 	})
 }
