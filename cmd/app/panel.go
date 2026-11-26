@@ -59,6 +59,7 @@ func (a *app) panelView(c *ui.Context) {
 			})
 		}
 		a.healthLine(c, s)
+		a.helperLine(c, s)
 		ui.Divider(c)
 		a.panelMihomo(c, s)
 		ui.Divider(c)
@@ -170,4 +171,29 @@ func versionSuffix(v string) string {
 		return ""
 	}
 	return " · " + v
+}
+
+// helperLine is the panel's line about the helper, while it is not
+// connected; clicking it opens the 订阅与覆写 page (first-run view).
+func (a *app) helperLine(c *ui.Context, s status.Snapshot) {
+	h := s.Helper
+	if h.State == status.HelperConnected || h.State == status.HelperUnknown {
+		return
+	}
+	t := c.Theme()
+	row := ui.Row(c.Key("helper-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).Radius(6).Cursor(ui.CursorPointer)
+	row.Children(func() {
+		ui.Icon(c, iconSkip).FontSize(14).TextColor(t.TextMuted)
+		ui.Text(c, i18n.T.Helper+"："+h.State.Text()).FontSize(12).Grow(1).SingleLine()
+		ui.Icon(c, iconCollapsed).FontSize(12).TextColor(t.TextMuted)
+	})
+	if row.Hovered() {
+		row.Background(t.Border.Alpha(0.5))
+	}
+	if row.Clicked() {
+		old := a.page
+		a.page = pageConfig
+		a.openMain()
+		a.pageChanged(old)
+	}
 }
