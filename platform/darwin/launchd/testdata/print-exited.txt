@@ -1,0 +1,10 @@
+system/com.example.mihomo = {
+	active count = 0
+	path = /Library/LaunchDaemons/com.example.mihomo.plist
+	type = LaunchDaemon
+	state = not running
+
+	program = /opt/example/bin/mihomo
+	runs = 7
+	last exit code = 1
+}
