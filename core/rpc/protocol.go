@@ -53,10 +53,11 @@ const (
 	CodeInvalidParams  = -32602
 	CodeInternal       = -32603
 
-	CodeUnauthorized = -32001 // peer is not allowed to talk to the helper
-	CodeFailed       = -32002 // the operation ran and failed (validation, reload, download...)
-	CodeNotFound     = -32003 // no such layer / subscription / history entry / version
-	CodeBusy         = -32004 // another apply or install is running
+	CodeUnauthorized   = -32001 // peer is not allowed to talk to the helper
+	CodeFailed         = -32002 // the operation ran and failed (validation, reload, download...)
+	CodeNotFound       = -32003 // no such layer / subscription / history entry / version
+	CodeBusy           = -32004 // another apply or install is running
+	CodeNotImplemented = -32005 // the method exists but does nothing yet (takeover.adopt)
 )
 
 // Errorf builds an *Error.

@@ -96,6 +96,13 @@ func (e *Engine) Register(s *rpc.Server) {
 		return e.UIUpdate(ctx, p)
 	})
 
+	rpc.Typed(s, rpc.MethodConfigGet, func(ctx context.Context, p rpc.ConfigGetParams) (rpc.ConfigText, error) {
+		return e.ConfigText(ctx, p)
+	})
+	rpc.Typed(s, rpc.MethodTakeoverAdopt, func(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult, error) {
+		return e.Adopt(ctx, p)
+	})
+
 	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, _ rpc.Empty) (rpc.HealthReport, error) { return e.HealthLast() })
 	rpc.Typed(s, rpc.MethodHealthRun, func(ctx context.Context, p rpc.HealthRunParams) (rpc.HealthReport, error) {
 		return e.HealthRun(ctx, p.Reason)
