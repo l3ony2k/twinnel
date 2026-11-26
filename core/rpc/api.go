@@ -58,7 +58,12 @@ const (
 	MethodUICheck   = "ui.check"
 	MethodUIUpdate  = "ui.update"
 
-	MethodTakeoverAdopt = "takeover.adopt"
+	MethodTakeoverPlan    = "takeover.plan"
+	MethodTakeoverPlans   = "takeover.plans"
+	MethodTakeoverDiscard = "takeover.discard"
+	MethodTakeoverAdopt   = "takeover.adopt"
+
+	MethodControllerSecure = "controller.secure"
 
 	MethodEventsWait = "events.wait"
 )
@@ -76,6 +81,7 @@ const (
 	EventHealthUpdated    = "health.updated"    // a health run finished (data: HealthSummary)
 	EventAccessoryChanged = "accessory.changed" // geo databases or the external UI were updated
 	EventServiceChanged   = "service.changed"
+	EventTakeoverChanged  = "takeover.changed" // a plan was made, discarded, adopted or rolled back
 	EventHelperStarted    = "helper.started"
 	EventHelperStopping   = "helper.stopping"
 	EventEventsTruncated  = "events.truncated" // the client asked for events older than the buffer
@@ -462,13 +468,145 @@ type AccessoryUpdateResult struct {
 
 // ---- takeover ----
 
+// TakeoverPlanParams asks the helper to inspect the running setup and
+// write a plan under <state>/takeover/<plan_id>/. Base may only name one of
+// the base candidates the helper found itself (default: the best one).
+type TakeoverPlanParams struct {
+	Base string `json:"base,omitempty"`
+}
+
+// TakeoverLayer is one layer the plan would import (contents stay in the
+// helper).
+type TakeoverLayer struct {
+	ID    string   `json:"id"`
+	Name  string   `json:"name"`
+	Kind  string   `json:"kind"`
+	Stage string   `json:"stage"`
+	Keys  []string `json:"keys,omitempty"`
+	Rules int      `json:"rules,omitempty"`
+}
+
+// TakeoverChange is a behavior difference between live and composed.
+type TakeoverChange struct {
+	Area       string `json:"area"`
+	What       string `json:"what"`
+	Deliberate bool   `json:"deliberate"`
+	Why        string `json:"why,omitempty"`
+}
+
+// Plan states.
+const (
+	PlanReady      = "ready"       // made, not adopted
+	PlanAdopted    = "adopted"     // adopted; the plan dir holds the live backup
+	PlanRolledBack = "rolled_back" // adopt ran and was rolled back
+	PlanFailed     = "failed"      // adopt failed before or during apply; nothing changed
+)
+
+// TakeoverPlan is a plan summary. It holds no credentials or subscription
+// URLs. Summary and SemDiff are the plan's own redacted texts (omitted in
+// takeover.plans).
+type TakeoverPlan struct {
+	PlanID    string    `json:"plan_id"`
+	CreatedAt time.Time `json:"created_at"`
+	State     string    `json:"state"`
+	// ConfirmHash must be passed back to takeover.adopt: it proves the
+	// client showed this exact plan.
+	ConfirmHash string `json:"confirm_hash"`
+
+	LiveConfig    string `json:"live_config"`
+	LiveSHA256    string `json:"live_sha256"`
+	Base          string `json:"base,omitempty"`
+	MihomoService string `json:"mihomo_service,omitempty"`
+	MihomoBinary  string `json:"mihomo_binary,omitempty"`
+	MihomoVersion string `json:"mihomo_version,omitempty"`
+	Controller    string `json:"controller,omitempty"`
+	SecretSet     bool   `json:"secret_set"`
+	TailscaleSvc  string `json:"tailscale_service,omitempty"`
+	// SubscriptionURL: a profile index next to the setup names the
+	// subscription URL; adopt stores it in the secret store.
+	SubscriptionURL bool `json:"subscription_url"`
+
+	Layers      []TakeoverLayer  `json:"layers"`
+	Changes     []TakeoverChange `json:"changes,omitempty"`
+	Equivalent  bool             `json:"equivalent"`
+	Validated   bool             `json:"validated"` // mihomo -t ran and passed
+	ValidateErr []string         `json:"validate_errors,omitempty"`
+	Warnings    []string         `json:"warnings,omitempty"`
+	Summary     string           `json:"summary,omitempty"`
+	SemDiff     string           `json:"semdiff,omitempty"`
+
+	AdoptedAt time.Time `json:"adopted_at,omitzero"`
+	// Backup is the exact copy of the live config taken before adopt.
+	Backup string `json:"backup,omitempty"`
+}
+
+// TakeoverPlansParams: with PlanID, only that plan is returned, with its
+// Summary and SemDiff texts.
+type TakeoverPlansParams struct {
+	PlanID string `json:"plan_id,omitempty"`
+}
+
+// TakeoverDiscardParams removes a plan dir. An adopted plan holds the live
+// backup and is kept unless Force.
+type TakeoverDiscardParams struct {
+	PlanID string `json:"plan_id"`
+	Force  bool   `json:"force,omitempty"`
+}
+
 // AdoptParams selects a takeover plan the helper generated itself (via
 // core/takeover); the client never passes paths.
 type AdoptParams struct {
-	PlanID string `json:"plan_id"`
+	PlanID      string `json:"plan_id"`
+	ConfirmHash string `json:"confirm_hash"`
+	// SkipHealth adopts without the before/after health comparison (and so
+	// without automatic rollback on a worse result). For helpers without
+	// health checks.
+	SkipHealth bool `json:"skip_health,omitempty"`
 }
 
+// AdoptStep is one step of takeover.adopt.
+type AdoptStep struct {
+	Name   string `json:"name"`
+	Status string `json:"status"` // ok, failed, skipped, warn
+	Detail string `json:"detail,omitempty"`
+}
+
+// AdoptCheck is one health check result around an adopt.
+type AdoptCheck struct {
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	Summary string `json:"summary,omitempty"`
+}
+
+// AdoptResult reports a takeover.adopt run. OK is false when adopt
+// failed or was rolled back; Error says why. A refusal before any change
+// is an RPC error instead.
 type AdoptResult struct {
 	PlanID string       `json:"plan_id"`
+	OK     bool         `json:"ok"`
+	Steps  []AdoptStep  `json:"steps"`
 	Apply  *ApplyResult `json:"apply,omitempty"`
+	// HistoryID is the applied config in history; BackupHistoryID the
+	// live file as it was (secret stripped). Backup is the exact copy.
+	HistoryID       string `json:"history_id,omitempty"`
+	BackupHistoryID string `json:"backup_history_id,omitempty"`
+	Backup          string `json:"backup,omitempty"`
+
+	HealthBefore        []AdoptCheck `json:"health_before,omitempty"`
+	HealthAfter         []AdoptCheck `json:"health_after,omitempty"`
+	HealthAfterRollback []AdoptCheck `json:"health_after_rollback,omitempty"`
+	// Worse lists checks that got worse after the apply.
+	Worse      []string `json:"worse,omitempty"`
+	RolledBack bool     `json:"rolled_back"`
+	Warnings   []string `json:"warnings,omitempty"`
+	Error      string   `json:"error,omitempty"`
+}
+
+// ControllerSecureResult reports controller.secure: a new controller
+// secret was generated, kept in the secret store and applied. The secret
+// itself is never returned.
+type ControllerSecureResult struct {
+	Replaced bool         `json:"replaced"` // a secret existed before
+	Apply    *ApplyResult `json:"apply,omitempty"`
+	Warnings []string     `json:"warnings,omitempty"`
 }

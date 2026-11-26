@@ -41,6 +41,12 @@ type options struct {
 	tailnetIface   string
 	noHealth       bool
 	healthInterval time.Duration
+
+	// takeover discovery overrides (development against a copied setup)
+	takeoverServices string
+	takeoverConfig   string
+	takeoverMihomo   string
+	takeoverHome     string
 }
 
 func parseFlags(args []string) (*options, error) {
@@ -56,6 +62,10 @@ func parseFlags(args []string) (*options, error) {
 	fs.StringVar(&o.tailnetIface, "tailnet-iface", "auto", "Tailscale interface for the coexist resolver: auto (route to 100.100.100.100), none, or a `NAME`")
 	fs.BoolVar(&o.noHealth, "no-health", false, "do not run the health checks (health.last/run then fail)")
 	fs.DurationVar(&o.healthInterval, "health-interval", 5*time.Minute, "time between scheduled health runs")
+	fs.StringVar(&o.takeoverServices, "takeover-services-dir", "", "development: look for launchd plists only in `DIR` (takeover.plan/adopt)")
+	fs.StringVar(&o.takeoverConfig, "takeover-config", "", "development: live mihomo config `FILE` for takeover discovery")
+	fs.StringVar(&o.takeoverMihomo, "takeover-mihomo", "", "development: mihomo `BIN` for takeover discovery")
+	fs.StringVar(&o.takeoverHome, "takeover-home", "", "home `DIR` of the user whose setup is taken over (default: the console user's)")
 	fs.BoolVar(&o.version, "version", false, "print the version and exit")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -133,6 +143,8 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 		e.ServiceRunner = &engine.ServiceRunner{Exec: service.ExecExecutor{}, Files: service.OSFiles{}}
 	}
 	watch := setupPlatform(e, o)
+	e.TakeoverDiscover.ConfigPath = o.takeoverConfig
+	e.TakeoverDiscover.MihomoBin = o.takeoverMihomo
 
 	tr := rpc.NewUnixTransport()
 	auth, err := rpc.NewGroupAuthorizer(o.group)

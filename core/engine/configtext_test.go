@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 
@@ -32,17 +31,5 @@ func TestConfigText(t *testing.T) {
 		if _, err := h.e.ConfigText(ctx, p); err == nil {
 			t.Errorf("%+v accepted", p)
 		}
-	}
-}
-
-func TestAdoptStub(t *testing.T) {
-	h := newHarness(t)
-	_, err := h.e.Adopt(context.Background(), rpc.AdoptParams{PlanID: "plan-1"})
-	var re *rpc.Error
-	if !errors.As(err, &re) || re.Code != rpc.CodeNotImplemented {
-		t.Errorf("adopt: %v", err)
-	}
-	if _, err := h.e.Adopt(context.Background(), rpc.AdoptParams{PlanID: "../x"}); !errors.As(err, &re) || re.Code != rpc.CodeInvalidParams {
-		t.Errorf("bad id: %v", err)
 	}
 }

@@ -275,18 +275,3 @@ func runHelperHealth(args []string) error {
 	var r rpc.HealthReport
 	return cf.callPrint(method, params, &r, func() { printHealth(stdout, r) })
 }
-
-func runHelperAdopt(args []string) error {
-	fs, cf := newFlagSet("helper adopt", "usage: duet helper adopt PLAN_ID\n\n")
-	pos, done, err := parse(fs, args)
-	if done || err != nil {
-		return err
-	}
-	if err := needArgs(pos, 1, "duet helper adopt PLAN_ID"); err != nil {
-		return err
-	}
-	var r rpc.AdoptResult
-	return cf.callPrint(rpc.MethodTakeoverAdopt, rpc.AdoptParams{PlanID: pos[0]}, &r, func() {
-		fmt.Fprintf(stdout, "adopted plan %s\n", r.PlanID)
-	})
-}

@@ -36,6 +36,9 @@ type Settings struct {
 	AutoApply *bool `json:"auto_apply,omitempty"`
 
 	HelperLabel string `json:"helper_label,omitempty"`
+
+	// Adopted is set when the settings came from takeover.adopt.
+	Adopted *Adoption `json:"adopted,omitempty"`
 }
 
 // MihomoSettings locates the mihomo installation the helper manages.
@@ -55,7 +58,11 @@ type MihomoSettings struct {
 	// from the running config.
 	MixedPort    int    `json:"mixed_port,omitempty"`
 	ServiceLabel string `json:"service_label,omitempty"`
-	LogDir       string `json:"log_dir,omitempty"`
+	// ServiceAdopted: the service definition (plist) under ServiceLabel
+	// was found on the system by takeover.adopt. duet starts/stops it but
+	// never replaces or removes its definition.
+	ServiceAdopted bool   `json:"service_adopted,omitempty"`
+	LogDir         string `json:"log_dir,omitempty"`
 }
 
 // TailscaleSettings controls the managed coexist layer.
@@ -71,6 +78,18 @@ type TailscaleSettings struct {
 	PollSeconds  int    `json:"poll_seconds,omitempty"` // default 60
 	ServiceLabel string `json:"service_label,omitempty"`
 	DaemonBinary string `json:"daemon_binary,omitempty"` // tailscaled, for the service definition
+	// ServiceAdopted: ServiceLabel was found on the system (see
+	// MihomoSettings.ServiceAdopted).
+	ServiceAdopted bool `json:"service_adopted,omitempty"`
+}
+
+// Adoption records the takeover plan the settings came from.
+type Adoption struct {
+	PlanID     string    `json:"plan_id"`
+	At         time.Time `json:"at"`
+	LiveConfig string    `json:"live_config"`
+	// Backup is the exact copy of the live config taken before adopt.
+	Backup string `json:"backup"`
 }
 
 // Subscription is the metadata of one subscription. The URL is a secret

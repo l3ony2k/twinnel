@@ -99,8 +99,27 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodConfigGet, func(ctx context.Context, p rpc.ConfigGetParams) (rpc.ConfigText, error) {
 		return e.ConfigText(ctx, p)
 	})
+	rpc.Typed(s, rpc.MethodTakeoverPlan, func(ctx context.Context, p rpc.TakeoverPlanParams) (rpc.TakeoverPlan, error) {
+		return e.TakeoverPlan(ctx, p)
+	})
+	rpc.Typed(s, rpc.MethodTakeoverPlans, func(ctx context.Context, p rpc.TakeoverPlansParams) ([]rpc.TakeoverPlan, error) {
+		if p.PlanID != "" {
+			pl, err := e.TakeoverGet(p.PlanID)
+			if err != nil {
+				return nil, err
+			}
+			return []rpc.TakeoverPlan{pl}, nil
+		}
+		return e.TakeoverPlans()
+	})
+	rpc.Typed(s, rpc.MethodTakeoverDiscard, func(ctx context.Context, p rpc.TakeoverDiscardParams) (rpc.Empty, error) {
+		return rpc.Empty{}, e.TakeoverDiscard(p)
+	})
 	rpc.Typed(s, rpc.MethodTakeoverAdopt, func(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult, error) {
 		return e.Adopt(ctx, p)
+	})
+	rpc.Typed(s, rpc.MethodControllerSecure, func(ctx context.Context, _ rpc.Empty) (rpc.ControllerSecureResult, error) {
+		return e.SecureController(ctx)
 	})
 
 	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, _ rpc.Empty) (rpc.HealthReport, error) { return e.HealthLast() })

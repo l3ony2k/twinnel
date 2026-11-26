@@ -123,6 +123,16 @@ func TestHelperEndToEnd(t *testing.T) {
 		t.Errorf("history: %+v", hist)
 	}
 
+	// Takeover methods are wired: no plans yet; adopt of a missing plan.
+	var plans []rpc.TakeoverPlan
+	call(rpc.MethodTakeoverPlans, nil, &plans)
+	if len(plans) != 0 {
+		t.Errorf("plans: %+v", plans)
+	}
+	if err := c.Call(context.Background(), rpc.MethodTakeoverAdopt, rpc.AdoptParams{PlanID: "plan-x", ConfirmHash: "x"}, nil); err == nil {
+		t.Error("adopt of a missing plan succeeded")
+	}
+
 	// Allowlist and validation over the wire.
 	var re *rpc.Error
 	if err := c.Call(context.Background(), "system.exec", map[string]string{"cmd": "id"}, nil); !errors.As(err, &re) || re.Code != rpc.CodeMethodNotFound {

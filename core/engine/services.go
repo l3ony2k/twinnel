@@ -81,6 +81,9 @@ func (e *Engine) ServiceOp(ctx context.Context, name string, op service.Op) (rpc
 	switch name {
 	case "mihomo":
 		spec.Label = st.Mihomo.ServiceLabel
+		if st.Mihomo.ServiceAdopted && (op == service.OpInstall || op == service.OpUninstall) {
+			return out, rpc.ErrInvalid("%s was adopted with its own service definition; duet does not replace or remove it", spec.Label)
+		}
 		if op == service.OpInstall {
 			if spec, err = e.mihomoSpec(st); err != nil {
 				return out, rpc.Errorf(rpc.CodeFailed, "%v", err)

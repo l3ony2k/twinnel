@@ -57,20 +57,3 @@ func (e *Engine) ConfigText(ctx context.Context, p rpc.ConfigGetParams) (rpc.Con
 	out.Content, out.Hash, out.Size = string(b), store.Hash(b), len(b)
 	return out, nil
 }
-
-// Adopt will take over an existing installation from a plan the helper
-// generated itself with core/takeover (plan files under
-// <state-dir>/takeover/<plan_id>/, never a path from the client).
-//
-// TODO(takeover): load the plan, re-verify it against the live files
-// (hashes recorded in the plan), import base/layers/subscription into the
-// store, point settings at the adopted binary/config/labels, then
-// compose.apply. Not implemented yet; the method exists so the app can be
-// wired.
-func (e *Engine) Adopt(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult, error) {
-	out := rpc.AdoptResult{PlanID: p.PlanID}
-	if !store.ValidID(p.PlanID) {
-		return out, rpc.ErrInvalid("invalid plan_id %q", p.PlanID)
-	}
-	return out, rpc.Errorf(rpc.CodeNotImplemented, "takeover.adopt is not implemented yet")
-}

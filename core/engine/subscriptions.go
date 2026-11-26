@@ -250,7 +250,7 @@ func (e *Engine) RefreshSubscription(ctx context.Context, id string) (rpc.SubRef
 		return out, err
 	}
 	e.publish(rpc.EventSubUpdated, map[string]any{"id": id, "changed": out.Changed, "via": via})
-	if out.Changed && sub.Active && *st.AutoApply {
+	if out.Changed && sub.Active && *st.AutoApply && !e.adopting.Load() {
 		r, _ := e.Apply(ctx, rpc.ApplyParams{Reason: "subscription " + id + " updated"})
 		out.Apply = r
 	}
