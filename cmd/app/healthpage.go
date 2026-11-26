@@ -126,7 +126,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
 			ui.Icon(c, icon).FontSize(iconLarge).TextColor(col).Shrink(0)
 			ui.Column(c).Gap(4).Grow(1).Children(func() {
-				ui.Text(c, label).FontSize(plat.leadSize).FontWeight(600)
+				ui.Text(c, healthHeadline(label, cnt)).FontSize(plat.leadSize).FontWeight(600)
 				num(small(c, healthCountsText(cnt)))
 				last := fmt.Sprintf(T.HealthLastRun, rep.Started.Format("15:04:05"), fmt.Sprintf(T.Seconds, rep.Duration.Seconds()))
 				if a.health != nil && a.health.FromHelper() {
@@ -288,6 +288,23 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 
 // healthCountsText is the report's counts: 通过 always, the others only
 // when there are some (review-a: no zero counts).
+// healthHeadline is the health report's headline in the words the
+// overview and the flyout use for it (健康检查：2 项失败, 健康检查：全部通过),
+// so one report reads the same everywhere. label is the status word for a
+// report with nothing failed, warned or passed (跳过).
+func healthHeadline(label string, cnt map[health.Status]int) string {
+	T := i18n.T
+	switch {
+	case cnt[health.StatusFail] > 0:
+		return fmt.Sprintf(T.ReasonHealthFail, cnt[health.StatusFail])
+	case cnt[health.StatusWarn] > 0:
+		return fmt.Sprintf(T.ReasonHealthWarn, cnt[health.StatusWarn])
+	case cnt[health.StatusOK] > 0:
+		return T.PanelHealthOK
+	}
+	return label
+}
+
 func healthCountsText(cnt map[health.Status]int) string {
 	T := i18n.T
 	parts := []string{fmt.Sprintf("%s %d", T.HealthOK, cnt[health.StatusOK])}
