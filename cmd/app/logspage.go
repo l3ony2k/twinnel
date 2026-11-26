@@ -47,7 +47,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 	ui.Column(c).Grow(1).FillWidth().MaxWidth(plat.contentMax).Gap(16).Children(func() {
 		pageHeader(c, T.PageLogs, func() {
 			small(c, T.LogLevel)
-			if ui.Segmented(c.Key("level"), &a.logs.level, i18n.M.LogLevelNames...).Label(T.LogLevel).Changed() {
+			if ui.Segmented(c.Key("level"), &a.logs.level, i18n.T.LogLevelNames...).Label(T.LogLevel).Changed() {
 				a.mon.ClearLogs()
 				a.mon.SetLogLevel(a.logs.levelName())
 			}
@@ -59,7 +59,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 			}
 			b := ui.Button(c.Key("pause"), pause).Role(ui.RoleToggleButton).AccessSelected(a.logs.paused).Label(T.LogPause)
 			if a.logs.paused {
-				b.Tooltip(i18n.M.LogPaused)
+				b.Tooltip(i18n.T.LogPaused)
 			}
 			if b.Clicked() {
 				a.logs.paused = !a.logs.paused
@@ -95,7 +95,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 					ui.Text(c, logLevelName(e.Type)).FontSize(11).TextColor(col).Width(32).Shrink(0)
 					ui.Text(c, e.Payload).Font("monospace").FontSize(11).TextColor(col).Grow(1).Wrap().Selectable().
 						ContextMenu(func(m *ui.Menu) {
-							if m.Item(i18n.M.CopyLine).Chosen() {
+							if m.Item(i18n.T.CopyLine).Chosen() {
 								copyText(c, line)
 							}
 							m.Separator()
@@ -111,8 +111,8 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 // show as they come.
 func logLevelName(level string) string {
 	for i, l := range logLevels {
-		if l == level && i < len(i18n.M.LogLevelNames) {
-			return i18n.M.LogLevelNames[i]
+		if l == level && i < len(i18n.T.LogLevelNames) {
+			return i18n.T.LogLevelNames[i]
 		}
 	}
 	return level

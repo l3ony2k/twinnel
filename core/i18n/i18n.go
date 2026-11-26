@@ -234,6 +234,8 @@ type Strings struct {
 	SecretFromEnv, NotificationsSwitch      string
 	AboutApp                                string
 	HealthProblems, HealthPassed            string
+
+	ConfigStrings // config.go
 }
 
 // zh is the Chinese text.
@@ -791,6 +793,8 @@ var zh = Strings{
 	AboutApp:            "关于 duet",
 	HealthProblems:      "需要处理",
 	HealthPassed:        "其他检查",
+
+	ConfigStrings: zhConfig,
 }
 
 // For returns the strings of a language tag; unknown tags get Chinese.

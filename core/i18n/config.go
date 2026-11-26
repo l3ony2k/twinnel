@@ -1,18 +1,18 @@
 package i18n
 
-// Texts added by the ui-config pass (logs, layers, history, health,
-// sidebar state). They live in their own struct so parallel work on
-// Strings does not collide; fold them into Strings when convenient.
+// Texts of the config-side pages (logs, layers, history, health, sidebar
+// state). Their own struct, embedded in Strings, so parallel work on
+// i18n.go does not collide; fields are promoted (T.LogLevelNames).
 
-// MoreStrings holds the texts of the ui-config pass.
-type MoreStrings struct {
+// ConfigStrings holds the texts of the config-side pages.
+type ConfigStrings struct {
 	// Log levels, in the order of the level control (debug, info,
 	// warning, error); the API keeps its English names.
 	LogLevelNames []string
 	LogPaused     string // tooltip of the pause toggle while paused
 
 	// Layers.
-	LayerRemoveBody   string
+	LayerRemoveDetail string
 	LayerOpen         string // context menu: open in the editor
 	LayerEnable       string
 	LayerDisable      string
@@ -33,14 +33,11 @@ type MoreStrings struct {
 	StateLabel string // %s: name, %s: state
 }
 
-// M is the current language's ui-config texts.
-var M = &zhMore
-
-var zhMore = MoreStrings{
+var zhConfig = ConfigStrings{
 	LogLevelNames: []string{"调试", "信息", "警告", "错误"},
 	LogPaused:     "已暂停：新日志不会显示",
 
-	LayerRemoveBody:   "覆写内容会从后台助手里删除，不能恢复。正在使用的配置要等下次应用后才会去掉它。",
+	LayerRemoveDetail: "覆写内容会从后台助手里删除，不能恢复。正在使用的配置要等下次应用后才会去掉它。",
 	LayerOpen:         "打开",
 	LayerEnable:       "启用",
 	LayerDisable:      "停用",
