@@ -2,87 +2,13 @@
 
 package main
 
-// Linux twin of doctor.go (darwin): same flags, the Env from platform/linux.
-
 import (
-	"context"
-	"flag"
-	"fmt"
-	"os"
-	"strings"
-	"time"
-
 	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/platform/linux"
 )
 
-func init() {
-	register("doctor", "run the mihomo + Tailscale coexistence health checks (read-only)", runDoctor)
-}
+const configDiscovery = "discovered from a systemd unit running mihomo, else /etc/mihomo/config.yaml, else ~/.config/mihomo/config.yaml"
 
-func runDoctor(args []string) error {
-	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
-	markdown := fs.Bool("markdown", false, "print the report as Markdown")
-	asJSON := fs.Bool("json", false, "print the report as JSON")
-	controller := fs.String("controller", "", "mihomo controller host:port (default: from the config, else 127.0.0.1:9090)")
-	configPath := fs.String("mihomo-config", "", "mihomo config file (default: discovered from a systemd unit running mihomo)")
-	peers := fs.String("peers", "", "comma-separated Tailscale peers expected to connect directly (default: all online peers)")
-	groups := fs.String("sensitive-groups", "", "comma-separated proxy groups that must never go DIRECT (default: Google,Meta)")
-	allowExit := fs.Bool("allow-exit-node", false, "accept a Tailscale exit node (warn instead of fail)")
-	only := fs.String("only", "", "comma-separated check IDs to run")
-	timeout := fs.Duration("timeout", 15*time.Second, "per-check timeout")
-	strict := fs.Bool("strict", false, "exit with status 1 when any check fails")
-	egress := fs.Bool("egress", false, "also run the egress test: one HTTPS GET to --egress-url directly and one through mihomo, compared (opt-in, sends no personal data)")
-	egressURL := fs.String("egress-url", health.DefaultEgressURL, "neutral IP-echo `URL` for --egress (Cloudflare trace or a plain-IP body)")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if *markdown && *asJSON {
-		return fmt.Errorf("--markdown and --json are exclusive")
-	}
-
-	settings := health.DefaultSettings()
-	if *peers != "" {
-		settings.PreferredPeers = splitList(*peers)
-	}
-	if *groups != "" {
-		settings.SensitiveGroups = splitList(*groups)
-	}
-	settings.AllowExitNode = *allowExit
-	settings.Egress, settings.EgressURL = *egress, *egressURL
-
-	env := linux.New(linux.Options{
-		Controller: *controller,
-		ConfigPath: *configPath,
-		Settings:   &settings,
-	})
-	runner := &health.Runner{Registry: health.DefaultRegistry(), Timeout: *timeout, Only: splitList(*only)}
-	rep := runner.Run(context.Background(), env)
-
-	switch {
-	case *asJSON:
-		b, err := rep.JSON()
-		if err != nil {
-			return err
-		}
-		fmt.Println(string(b))
-	case *markdown:
-		fmt.Print(rep.Markdown())
-	default:
-		fmt.Print(rep.Text())
-	}
-	if *strict && rep.Overall == health.StatusFail {
-		os.Exit(1)
-	}
-	return nil
-}
-
-func splitList(s string) []string {
-	var out []string
-	for _, x := range strings.Split(s, ",") {
-		if x = strings.TrimSpace(x); x != "" {
-			out = append(out, x)
-		}
-	}
-	return out
+func newHealthEnv(o healthEnvOptions) (health.Env, error) {
+	return linux.New(linux.Options{Controller: o.Controller, ConfigPath: o.ConfigPath, Settings: o.Settings}), nil
 }
