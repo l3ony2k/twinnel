@@ -40,9 +40,8 @@ type ExecTrust struct {
 	// Path is the binary after resolving symlinks; run this path, not the
 	// one given, so a link swapped later is not followed.
 	Path string
-	// Trusted: the file and every directory above it are owned by root (or
-	// the helper's own uid) and not writable by group or others (sticky
-	// directories excepted).
+	// Trusted: the file and every directory above it are owned by root and
+	// not writable by group or others (sticky directories excepted).
 	Trusted bool
 	// RunAs is the user to run as when not Trusted.
 	RunAs Credential
@@ -68,7 +67,6 @@ func CheckExec(bin string) (ExecTrust, error) {
 		return ExecTrust{}, err
 	}
 	t := ExecTrust{Path: real, Trusted: true}
-	self := trustGeteuid()
 	owners := map[int]string{}
 	worldWritable, groupWritable := "", ""
 	for p := real; ; p = filepath.Dir(p) {
@@ -80,7 +78,7 @@ func CheckExec(bin string) (ExecTrust, error) {
 		if !ok {
 			return ExecTrust{}, fmt.Errorf("%s: no owner information", p)
 		}
-		if uid != 0 && uid != self {
+		if uid != 0 {
 			if _, seen := owners[uid]; !seen {
 				owners[uid] = p
 			}

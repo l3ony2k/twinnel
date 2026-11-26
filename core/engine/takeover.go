@@ -129,6 +129,14 @@ func (e *Engine) TakeoverPlan(ctx context.Context, p rpc.TakeoverPlanParams) (rp
 	if err != nil {
 		return rpc.TakeoverPlan{}, rpc.Errorf(rpc.CodeFailed, "takeover plan: %v", err)
 	}
+	if m := plan.Discovery.Mihomo; m != nil {
+		if _, err := adoptDirOwner(probe, m); err != nil {
+			plan.Warnings = append(plan.Warnings, "adopt will refuse this setup: "+err.Error())
+		}
+		if w := binaryWarning(m.Binary); w != "" {
+			plan.Warnings = append(plan.Warnings, w)
+		}
+	}
 
 	stamp := e.now().UTC().Format("20060102-150405")
 	var dir, id string
@@ -430,6 +438,10 @@ func (e *Engine) Adopt(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult,
 		return res, rpc.Errorf(rpc.CodeFailed, "%v", err)
 	}
 	liveMode := fi.Mode().Perm()
+	dirUID, err := adoptDirOwner(probe, m)
+	if err != nil {
+		return res, rpc.ErrInvalid("%v", err)
+	}
 	step("verify", "ok", fmt.Sprintf("live config %s unchanged since the plan (sha256 %s)", plan.Live, short(plan.LiveHash)))
 
 	e.adopting.Store(true)
@@ -457,7 +469,7 @@ func (e *Engine) Adopt(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult,
 
 	// ---- 3. import ----
 	undo := &storeUndo{settings: st}
-	imported, err := e.importPlan(plan, ps, disc, base, liveSecret, backup, undo)
+	imported, err := e.importPlan(plan, ps, disc, base, liveSecret, backup, dirUID, undo)
 	if err != nil {
 		step("import", "failed", err.Error())
 		if uerr := e.undoStore(undo); uerr != nil {
@@ -557,6 +569,9 @@ func (e *Engine) Adopt(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult,
 	}
 
 	res.OK = true
+	if w := binaryWarning(m.Binary); w != "" {
+		res.Warnings = append(res.Warnings, w)
+	}
 	ps.AdoptedAt, ps.Backup = e.now().UTC(), backup
 	e.triggerHealth("adopted")
 	return finish(rpc.PlanAdopted)
@@ -564,7 +579,7 @@ func (e *Engine) Adopt(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult,
 
 // importPlan writes the subscription, the layers, secrets and settings.
 // Everything it creates is recorded in undo.
-func (e *Engine) importPlan(plan *takeover.Plan, ps *planState, disc *takeover.Discovery, base []byte, liveSecret, backup string, undo *storeUndo) (string, error) {
+func (e *Engine) importPlan(plan *takeover.Plan, ps *planState, disc *takeover.Discovery, base []byte, liveSecret, backup string, dirUID *int, undo *storeUndo) (string, error) {
 	m := disc.Mihomo
 	if err := e.Store.WriteSubscription(AdoptedSubscriptionID, base); err != nil {
 		return "", err
@@ -614,6 +629,7 @@ func (e *Engine) importPlan(plan *takeover.Plan, ps *planState, disc *takeover.D
 		st.Mihomo.Binary = m.Binary
 		st.Mihomo.ConfigDir = m.Dir
 		st.Mihomo.ConfigFile = m.Config
+		st.Mihomo.ConfigDirUID = dirUID
 		if m.Controller != "" {
 			st.Mihomo.Controller = controllerAddr(m.Controller)
 		}

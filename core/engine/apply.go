@@ -168,6 +168,12 @@ func (e *Engine) check(ctx context.Context, st *store.Settings, cfg []byte, appl
 	}
 	cr.Valid = v.OK
 	cr.ValidateErrors = v.Errors
+	warn, errs := exposureCheck(final, st)
+	cr.Warnings = append(cr.Warnings, warn...)
+	if len(errs) > 0 {
+		cr.Valid = false
+		cr.ValidateErrors = append(cr.ValidateErrors, errs...)
+	}
 	return cr, final, nil
 }
 

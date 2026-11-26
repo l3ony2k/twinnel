@@ -45,12 +45,48 @@ func Open(dir string) (*Store, error) {
 	if err := os.MkdirAll(abs, 0o755); err != nil {
 		return nil, err
 	}
+	if err := checkStateDir(abs); err != nil {
+		return nil, err
+	}
 	for _, sub := range []string{"subscriptions", "layers", "history", "kernels"} {
-		if err := os.MkdirAll(filepath.Join(abs, sub), 0o700); err != nil {
+		p := filepath.Join(abs, sub)
+		if err := os.MkdirAll(p, 0o700); err != nil {
+			return nil, err
+		}
+		// MkdirAll keeps the mode of a dir that already exists: these hold
+		// node credentials, so tighten them every start.
+		if err := os.Chmod(p, 0o700); err != nil {
 			return nil, err
 		}
 	}
 	return &Store{Dir: abs}, nil
+}
+
+// geteuid is replaceable in tests.
+var geteuid = os.Geteuid
+
+// checkStateDir refuses, for a root helper, a state dir that is a symlink,
+// is not owned by root, or is writable by group or others: whoever could
+// write there could replace settings.json (which names the binaries the
+// helper runs) or the kernels.
+func checkStateDir(dir string) error {
+	if geteuid() != 0 {
+		return nil
+	}
+	fi, err := os.Lstat(dir)
+	if err != nil {
+		return err
+	}
+	if fi.Mode()&fs.ModeSymlink != 0 || !fi.IsDir() {
+		return fmt.Errorf("state dir %s must be a directory, not a symlink", dir)
+	}
+	if uid, ok := ownerUID(fi); ok && uid != 0 {
+		return fmt.Errorf("state dir %s is owned by uid %d, not root", dir, uid)
+	}
+	if fi.Mode().Perm()&0o022 != 0 {
+		return fmt.Errorf("state dir %s is writable by group or others (%v)", dir, fi.Mode().Perm())
+	}
+	return nil
 }
 
 // Path joins elements onto the state dir.
