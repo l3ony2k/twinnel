@@ -24,7 +24,15 @@ import (
 //     replacements) are resolved too, so the output never contains marker keys;
 //   - "+key"/"key+" with a null value is a no-op instead of creating a literal
 //     key;
-//   - when a mapping is merged onto a non-mapping, the old value is discarded.
+//   - when a mapping is merged onto a non-mapping, the old value is discarded
+//     (Clash Party keeps a list and throws on a scalar);
+//   - "<key>" unwraps for every value type (Clash Party keeps the brackets on
+//     scalar values and drops the value of a wrapped mapping key);
+//   - "+key"/"key+" with a non-list value is an error (Clash Party writes a
+//     literal "+key").
+//
+// TestMergeMatchesClashParty checks all of this against a port of
+// Clash Party's merge.ts.
 //
 // The patch is not modified; values are deep-copied into dst.
 func Merge(dst, patch *yaml.Node) error {
