@@ -13,6 +13,8 @@ func TestParseRule(t *testing.T) {
 		{"MATCH,PROXY", "MATCH,PROXY", "PROXY"},
 		{"AND,((DOMAIN,a.com),(NETWORK,UDP)),REJECT", "AND,((DOMAIN,a.com),(NETWORK,UDP)),REJECT", "REJECT"},
 		{"GEOIP,CN,DIRECT,no-resolve", "GEOIP,CN,DIRECT,no-resolve", "DIRECT"},
+		{"DIRECT", "DIRECT,,", ""}, // malformed: kept, no panic
+		{"", ",,", ""},
 	}
 	for _, c := range cases {
 		r := ParseRule(c.in)

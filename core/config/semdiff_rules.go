@@ -39,8 +39,10 @@ func ParseRule(line string) Rule {
 	if len(f) > 2 {
 		r.Target = f[2]
 	}
-	for _, o := range f[3:] {
-		r.Opts = append(r.Opts, strings.ToLower(o))
+	if len(f) > 3 {
+		for _, o := range f[3:] {
+			r.Opts = append(r.Opts, strings.ToLower(o))
+		}
 	}
 	switch r.Type {
 	case "IP-CIDR6":
@@ -168,13 +170,13 @@ func domainUnder(d, suffix string) bool {
 
 // DeadRule is a rule that can never fire.
 type DeadRule struct {
-	Index     int    // position in the original list
-	Rule      string // the line
-	CoveredBy int    // index of the rule that shadows it (-1 for exact duplicates of a removed line)
-	Duplicate bool   // exact repeat of an earlier line
+	Index     int    `json:"index"`               // position in the original list
+	Rule      string `json:"rule"`                // the line
+	CoveredBy int    `json:"covered_by"`          // index of the rule that shadows it (-1 for exact duplicates of a removed line)
+	Duplicate bool   `json:"duplicate,omitempty"` // exact repeat of an earlier line
 	// Redundant: covered by another rule of the same same-target block
 	// (possibly a later one), so removing it changes nothing.
-	Redundant bool
+	Redundant bool `json:"redundant,omitempty"`
 }
 
 // ruleIndex answers "is r covered by any rule seen so far" quickly.
@@ -341,18 +343,22 @@ func (e RuleEdit) String() string { return e.Op + " " + e.Rule }
 
 // RuleDiff compares two rule lists by meaning.
 type RuleDiff struct {
-	CountA, CountB int
-	DupA, DupB     int        // exact duplicate lines
-	DeadA, DeadB   []DeadRule // shadowed rules (duplicates excluded)
-	LiveA, LiveB   int        // rules that can fire
+	CountA int        `json:"count_a"`
+	CountB int        `json:"count_b"`
+	DupA   int        `json:"dup_a"` // exact duplicate lines
+	DupB   int        `json:"dup_b"`
+	DeadA  []DeadRule `json:"dead_a,omitempty"` // shadowed or redundant rules (duplicates excluded)
+	DeadB  []DeadRule `json:"dead_b,omitempty"`
+	LiveA  int        `json:"live_a"` // rules that can fire
+	LiveB  int        `json:"live_b"`
 	// Identical: the lists are equal as written.
-	Identical bool
+	Identical bool `json:"identical"`
 	// Equivalent: after removing dead rules and ignoring the order inside
 	// same-target blocks, the lists are equal.
-	Equivalent bool
+	Equivalent bool `json:"equivalent"`
 	// Reordered: equivalent, but the live rules are in a different order.
-	Reordered bool
-	Edits     []RuleEdit // diff of the canonical forms (empty when equivalent)
+	Reordered bool       `json:"reordered"`
+	Edits     []RuleEdit `json:"edits,omitempty"` // diff of the canonical forms (empty when equivalent)
 }
 
 func flatten(blocks []RuleBlock) []string {
