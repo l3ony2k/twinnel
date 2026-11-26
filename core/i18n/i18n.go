@@ -72,6 +72,7 @@ type Strings struct {
 	// Health page.
 	HealthSummary                       string // %d ok, warn, fail, skip
 	HealthLastRun                       string // %s: time, %s: duration
+	HealthFromHelper                    string
 	HealthRunning, HealthRerun          string
 	HealthCopyReport, Copied            string
 	HealthEvidence, HealthFix, CopyCmd  string
@@ -292,6 +293,7 @@ var zh = Strings{
 
 	HealthSummary:      "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
 	HealthLastRun:      "上次检查 %s · 用时 %s",
+	HealthFromHelper:   "来自后台助手",
 	HealthRunning:      "正在检查…",
 	HealthRerun:        "重新检查",
 	HealthCopyReport:   "复制报告",

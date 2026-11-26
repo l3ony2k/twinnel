@@ -38,6 +38,9 @@ func (a *app) startHelper() {
 			if a.mon != nil {
 				a.mon.SetHelper(h)
 			}
+			if h.Connected() != wasUp && a.mon != nil {
+				a.runHealth() // switch between the helper's report and local checks
+			}
 			if h.Connected() && !wasUp {
 				a.loadHelperData()
 			}
@@ -50,6 +53,9 @@ func (a *app) startHelper() {
 	hc.OnEvents = func(evs []rpc.Event) {
 		mygo.RunOnMain(func() {
 			a.hd.lastEvent = evs[len(evs)-1]
+			if healthEvent(evs) && a.mon != nil {
+				a.runHealth() // reads health.last; nothing runs locally
+			}
 			a.loadHelperData()
 		})
 	}

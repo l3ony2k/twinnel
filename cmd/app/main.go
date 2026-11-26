@@ -38,6 +38,7 @@ type app struct {
 	ts        *tailscale.Client
 	mon       *status.Monitor
 	healthSrc status.HealthSource // nil on platforms without checks
+	health    *helperHealth       // the same source; nil with healthSrc
 
 	// healthVisible is true while the main window shows the health page:
 	// the checks then rerun every HealthRefresh.
@@ -163,7 +164,11 @@ func (a *app) start() {
 		mh, _ = mihomo.New(mihomo.Options{Secret: a.cfg.Secret, AllowWrites: a.cfg.AllowWrites})
 	}
 	a.mh = mh
-	a.healthSrc = newHealthSource(a.cfg)
+	a.health = wrapHealth(a.hc, newHealthSource(a.cfg))
+	a.healthSrc = nil
+	if a.health != nil {
+		a.healthSrc = a.health
+	}
 	a.mon = status.NewMonitor(status.Options{
 		Mihomo:        mh,
 		Health:        a.healthSrc,
