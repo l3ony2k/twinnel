@@ -96,3 +96,77 @@ func TestResolverDefault(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// The first refresh of a new helper always reports a change (no cache yet).
+// Before anything was applied it must not apply on its own: that apply
+// raced the user's setup (seen as a stray "tailnet changed" history entry
+// composed from half the layers).
+func TestTailnetFirstRefreshDoesNotApplyBeforeAnyApply(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	r, err := h.e.RefreshTailnet(ctx)
+	if err != nil || !r.Changed || r.Apply != nil {
+		t.Fatalf("first refresh: %+v %v", r, err)
+	}
+	if hist, _ := h.history(); len(hist) != 0 {
+		t.Errorf("history: %+v", hist)
+	}
+	// A second refresh of the same tailnet is not a change.
+	if r, err := h.e.RefreshTailnet(ctx); err != nil || r.Changed {
+		t.Errorf("second refresh: %+v %v", r, err)
+	}
+}
+
+// After an apply composed without tailnet data (tailscaled unreadable, so
+// no cache was written), the first successful refresh re-applies.
+func TestTailnetFirstRefreshAfterApplyReapplies(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	status, _ := h.tailnet.Status(ctx)
+	h.tailnet.mu.Lock()
+	h.tailnet.err = errors.New("tailscaled not running")
+	h.tailnet.mu.Unlock()
+	h.apply("initial")
+	if bytes.Contains(h.disk(), []byte("DOMAIN,nas,DIRECT")) {
+		t.Fatal("peers composed although tailscale was unreadable")
+	}
+	h.tailnet.mu.Lock()
+	h.tailnet.raw, h.tailnet.err = status, nil
+	h.tailnet.mu.Unlock()
+	r, err := h.e.RefreshTailnet(ctx)
+	if err != nil || !r.Changed || r.Apply == nil || !r.Apply.Reloaded {
+		t.Fatalf("refresh: %+v %v", r, err)
+	}
+	if !bytes.Contains(h.disk(), []byte("DOMAIN,nas,DIRECT")) {
+		t.Error("peers not added")
+	}
+}
+
+// Concurrent refreshes (poll, network change, tailnet.refresh) of a new
+// helper report the first sight once, not once each.
+func TestTailnetConcurrentRefreshOneChange(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	changed := 0
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r, err := h.e.RefreshTailnet(ctx)
+			if err != nil {
+				t.Error(err)
+			}
+			if r.Changed {
+				mu.Lock()
+				changed++
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	if changed != 1 {
+		t.Errorf("%d refreshes reported a change", changed)
+	}
+}

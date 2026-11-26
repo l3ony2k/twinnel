@@ -95,6 +95,9 @@ type Engine struct {
 	adoptMu   sync.Mutex
 	adopting  atomic.Bool // suppresses auto-apply while an adopt runs
 	serviceMu sync.Mutex
+	// tailnetMu makes reading, comparing and saving the tailnet cache one
+	// step (tailnet poll, network-change refresh, tailnet.refresh, compose).
+	tailnetMu sync.Mutex
 	mu        sync.Mutex
 	lastApply *rpc.ApplyResult
 	// goodSecret is the controller secret the running mihomo last

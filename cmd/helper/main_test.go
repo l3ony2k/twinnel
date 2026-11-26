@@ -83,8 +83,20 @@ func TestHelperEndToEnd(t *testing.T) {
 		}
 	}
 
+	// The tailnet loop polls once at start, then every poll_seconds (60).
+	// Wait for that first poll so it cannot land in the middle of the
+	// setup below; the next one is a minute away.
 	var status rpc.Status
-	call(rpc.MethodStatus, nil, &status)
+	for deadline := time.Now().Add(10 * time.Second); ; {
+		call(rpc.MethodStatus, nil, &status)
+		if !status.Tailnet.LastPoll.IsZero() {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("tailnet loop did not poll")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	if !status.Mihomo.Reachable || status.Mihomo.Version != "v1.19.34" || status.UID != os.Getuid() {
 		t.Errorf("status: %+v", status)
 	}
