@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -162,7 +163,7 @@ func (a *app) helperOp(label string, timeout time.Duration, fn func(ctx context.
 			d.busy = ""
 			if err != nil {
 				d.msg, d.msgErr = i18n.T.ErrorPrefix+helperError(err), true
-			} else {
+			} else if !readOnlyOp(label) {
 				a.toast = fmt.Sprintf(i18n.T.OpDone, label)
 			}
 			if done != nil {
@@ -172,6 +173,17 @@ func (a *app) helperOp(label string, timeout time.Duration, fn func(ctx context.
 			a.invalidate()
 		})
 	}()
+}
+
+// readOnlyOp reports whether an operation only reads (a preview, a diff, a
+// check): its result shows on the page, so it gets no toast.
+func readOnlyOp(label string) bool {
+	T := i18n.T
+	switch label {
+	case T.Preview, T.HistoryDiff, T.TakeoverOpen, T.KernelCheck:
+		return true
+	}
+	return strings.HasSuffix(label, " · "+T.KernelCheck)
 }
 
 // helperError shortens an RPC error for the UI: the helper's message

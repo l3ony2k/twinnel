@@ -445,7 +445,7 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 		a.groupsOpen[m.Primary.Name] = true
 	}
 	// One list: a row per group, its nodes under it while open.
-	groupBox(c, t).Padding(4, groupPadX).Gap(1).Dividers(1, pal(t).separator).Children(func() {
+	listBox(c, t).Children(func() {
 		for _, g := range m.Groups {
 			a.groupRow(c.Key("group:"+g.Name), g, s.WritesAllowed)
 		}
@@ -457,7 +457,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	T := i18n.T
 	p := pal(t)
 	open := a.groupsOpen[g.Name]
-	ui.Column(c).Gap(10).PaddingY(8).Children(func() {
+	ui.Column(c).Gap(10).PaddingY(8).Clip().Transition(expandMotion).Children(func() {
 		head := ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(28).Cursor(ui.CursorPointer)
 		head.Children(func() {
 			chev := iconCollapsed

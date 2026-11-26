@@ -141,8 +141,12 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			return
 		}
 		ui.Column(c).Gap(8).Children(func() {
-			ui.Text(c, title).FontWeight(plat.headingWeight).PaddingX(4)
-			groupBox(c, t).Padding(4, groupPadX).Gap(1).Dividers(1, pal(t).separator).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Height(28).Children(func() {
+				ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
+				ui.Spacer(c)
+				num(small(c, fmt.Sprint(len(crs))))
+			})
+			listBox(c, t).Children(func() {
 				for _, cr := range crs {
 					a.healthCheckRow(c.Key("check:"+cr.ID), cr)
 				}
@@ -163,7 +167,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 	}
 	expandable := len(cr.Evidence) > 0 || cr.Fix != nil
 	icon, col, _ := healthStatusLook(t, cr.Status)
-	ui.Column(c).PaddingY(10).Gap(8).Children(func() {
+	ui.Column(c).PaddingY(10).Gap(8).Clip().Transition(expandMotion).Children(func() {
 		head := ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(20)
 		head.Children(func() {
 			ui.Icon(c, icon).FontSize(16).TextColor(col).Shrink(0)

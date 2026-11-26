@@ -237,7 +237,7 @@ var zh = Strings{
 	StatusUnknown: "正在检测",
 
 	ReasonMihomoDown:     "连不上 mihomo 控制接口：%s",
-	ReasonMihomoAuth:     "mihomo 控制接口 secret 不对",
+	ReasonMihomoAuth:     "mihomo 控制接口的密钥不对",
 	ReasonTunOff:         "mihomo TUN 未开启",
 	ReasonPrimaryDead:    "策略组 %s 当前节点测速失败",
 	ReasonTSDown:         "连不上 Tailscale：%s",
@@ -386,10 +386,10 @@ var zh = Strings{
 	LogClear:  "清空",
 	LogPause:  "暂停",
 	LogResume: "继续",
-	LogEmpty:  "暂无日志",
+	LogEmpty:  "还没有日志",
 
 	Controller:               "控制接口地址",
-	Secret:                   "Secret",
+	Secret:                   "密钥",
 	SecretHint:               "也可用环境变量 DUET_MIHOMO_SECRET 提供",
 	ControllerFromHelper:     "已连接后台助手：控制接口地址和密钥由它提供，这里的设置只在没有后台助手时使用。",
 	ConfigFile:               "配置文件",
@@ -626,7 +626,7 @@ var zh = Strings{
 	AccessorySkipped:      "跳过：%s",
 	AccessoryReloadNeeded: "mihomo 重新加载配置后才会使用新数据。",
 	AccessoryApply:        "应用以生效",
-	AccessoryApplyReason:  "geo update",
+	AccessoryApplyReason:  "更新 GEO 数据",
 	HelperTooOld:          "后台助手版本较旧，不支持这个操作，请更新后台助手",
 
 	PageTakeover:          "接管",
@@ -701,7 +701,7 @@ var zh = Strings{
 	SecureTitle:    "加固控制接口",
 	SecureHint:     "为 mihomo 控制接口生成新的随机密钥，存进系统钥匙串并应用。duet app 会自动从后台助手取得新密钥；网页面板、脚本等其他客户端需要填新密钥（可以用 sudo security find-generic-password -a duet -s duet.controller-secret -w /Library/Keychains/System.keychain 查看）。",
 	SecureRun:      "生成密钥并应用",
-	SecureBody:     "mihomo 会重载，旧密钥立即失效。duet app 会自动改用新密钥，其他客户端要手动更新。",
+	SecureBody:     "新密钥写入配置后，要等 mihomo 下次启动才生效，在那之前旧密钥仍然可用。duet app 会自动改用新密钥，网页面板、脚本等其他客户端要手动更新。",
 	SecureDone:     "已设置新的控制接口密钥",
 	SecureReplaced: "已替换控制接口密钥",
 
@@ -744,6 +744,8 @@ var zh = Strings{
 	SecretFromEnv:       "已从环境变量 DUET_MIHOMO_SECRET 读取",
 	NotificationsSwitch: "出现故障时发通知",
 	AboutApp:            "关于 duet",
+	HealthProblems:      "需要处理",
+	HealthPassed:        "其他检查",
 }
 
 // For returns the strings of a language tag; unknown tags get Chinese.

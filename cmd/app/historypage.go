@@ -36,7 +36,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 	}
 	a.opNotes(c, s)
 	if len(d.history) == 0 {
-		card(c, "", func() { ui.Text(c, T.HistoryEmpty).TextColor(t.TextMuted) })
+		groupBox(c, t).Children(func() { emptyState(c, iconHistory, T.HistoryEmpty, "") })
 		return
 	}
 	hist := d.history // newest first, as history.list returns it
@@ -48,34 +48,36 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		{Title: T.HistoryReason},
 	}
 	v.list.RowHeight = 30
-	ui.Table(c, &v.list, cols, len(hist), func(row, col int) {
-		e := hist[row]
-		cell := ui.Text
-		sel := e.ID == v.sel
-		var el ui.Element
-		switch col {
-		case 0:
-			el = cell(c, e.Time.Local().Format("01-02 15:04:05"))
-		case 1:
-			el = cell(c, T.HistoryKindName(e.Kind))
-		case 2:
-			el = cell(c, status.Bytes(int64(e.Size)))
-		case 3:
-			el = cell(c, shortHash(e.Hash)).Font("monospace").FontSize(12)
-		case 4:
-			el = cell(c, e.Reason)
+	card(c, "", func() {
+		ui.Table(c, &v.list, cols, len(hist), func(row, col int) {
+			e := hist[row]
+			cell := ui.Text
+			sel := e.ID == v.sel
+			var el ui.Element
+			switch col {
+			case 0:
+				el = cell(c, e.Time.Local().Format("01-02 15:04:05"))
+			case 1:
+				el = cell(c, T.HistoryKindName(e.Kind))
+			case 2:
+				el = cell(c, status.Bytes(int64(e.Size)))
+			case 3:
+				el = cell(c, shortHash(e.Hash)).Font("monospace").FontSize(12)
+			case 4:
+				el = cell(c, e.Reason)
+			}
+			el.SingleLine()
+			if sel {
+				el.FontWeight(600)
+			}
+			if el.Clicked() {
+				v.sel = e.ID
+			}
+		}).Height(float32(min(len(hist), 10)*30 + 40)).Background(ui.Transparent).MarginX(-8)
+		if v.sel == "" {
+			small(c, T.HistoryPick)
 		}
-		el.SingleLine()
-		if sel {
-			el.FontWeight(600)
-		}
-		if el.Clicked() {
-			v.sel = e.ID
-		}
-	}).Height(float32(min(len(hist), 10)*30 + 40))
-	if v.sel == "" {
-		ui.Text(c, T.HistoryPick).FontSize(12).TextColor(t.TextMuted)
-	}
+	})
 	var entry *rpc.HistoryEntry
 	for i := range hist {
 		if hist[i].ID == v.sel {

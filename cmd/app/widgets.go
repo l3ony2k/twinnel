@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/duet/core/status"
@@ -59,6 +61,10 @@ const (
 	groupPadY  = 12
 	labelWidth = 96 // the label column of kv rows
 )
+
+// expandMotion is the one motion of the app: a row that opens or closes
+// grows to its new height in 200 ms, easing out (ui's default curve).
+var expandMotion = ui.ElementTransition{Duration: 200 * time.Millisecond}
 
 // levelColor is the dot color of a status level.
 func levelColor(t *ui.Theme, l status.Level) ui.Color {
@@ -166,6 +172,11 @@ func groupBox(c *ui.Context, t *ui.Theme) ui.Element {
 	p := pal(t)
 	return ui.Column(c).Padding(groupPadY, groupPadX).Gap(gapRow).Radius(plat.groupRadius).
 		Background(p.group).Border(1, p.groupLine)
+}
+
+// listBox is a group box whose children are rows split by hairlines.
+func listBox(c *ui.Context, t *ui.Theme) ui.Element {
+	return groupBox(c, t).Padding(4, groupPadX).Gap(1).Dividers(1, pal(t).separator)
 }
 
 // pageHeader draws a page's title with actions at the right.
