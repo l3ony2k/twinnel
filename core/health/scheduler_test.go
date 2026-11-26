@@ -1,97 +1,14 @@
-package health
+package health_test
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	. "github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/duet/core/health/healthtest"
 )
-
-// fakeClock fires timers only when Advance is called.
-type fakeClock struct {
-	mu     sync.Mutex
-	now    time.Time
-	timers []*fakeTimer
-}
-
-type fakeTimer struct {
-	c        *fakeClock
-	ch       chan time.Time
-	deadline time.Time
-	active   bool
-}
-
-func newFakeClock() *fakeClock {
-	return &fakeClock{now: time.Date(2026, 11, 26, 12, 0, 0, 0, time.UTC)}
-}
-
-func (c *fakeClock) Now() time.Time {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.now
-}
-
-func (c *fakeClock) NewTimer(d time.Duration) Timer {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	t := &fakeTimer{c: c, ch: make(chan time.Time, 1), deadline: c.now.Add(d), active: true}
-	c.timers = append(c.timers, t)
-	return t
-}
-
-func (t *fakeTimer) C() <-chan time.Time { return t.ch }
-func (t *fakeTimer) Stop() bool {
-	t.c.mu.Lock()
-	defer t.c.mu.Unlock()
-	was := t.active
-	t.active = false
-	return was
-}
-func (t *fakeTimer) Reset(d time.Duration) {
-	t.c.mu.Lock()
-	defer t.c.mu.Unlock()
-	t.deadline, t.active = t.c.now.Add(d), true
-}
-
-// Advance moves time forward and fires due timers.
-func (c *fakeClock) Advance(d time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.now = c.now.Add(d)
-	for _, t := range c.timers {
-		if t.active && !t.deadline.After(c.now) {
-			t.active = false
-			select {
-			case t.ch <- c.now:
-			default:
-			}
-		}
-	}
-}
-
-// armed reports whether an active timer is due exactly d from now.
-func (c *fakeClock) armed(d time.Duration) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, t := range c.timers {
-		if t.active && t.deadline.Equal(c.now.Add(d)) {
-			return true
-		}
-	}
-	return false
-}
-
-func waitUntil(t *testing.T, what string, cond func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for !cond() {
-		if time.Now().After(deadline) {
-			t.Fatalf("timed out waiting for %s", what)
-		}
-		time.Sleep(time.Millisecond)
-	}
-}
 
 type varCheck struct {
 	id     string
@@ -117,12 +34,12 @@ type platformEnv struct{ Env }
 
 func (platformEnv) Platform() string { return Darwin }
 
-func newTestScheduler(checks ...Check) (*Scheduler, *fakeClock) {
+func newTestScheduler(checks ...Check) (*Scheduler, *healthtest.FakeClock) {
 	reg := NewRegistry()
 	for _, c := range checks {
 		reg.Register(c)
 	}
-	clk := newFakeClock()
+	clk := healthtest.NewFakeClock()
 	return &Scheduler{
 		Runner:   &Runner{Registry: reg, Now: clk.Now},
 		Env:      platformEnv{},
@@ -166,7 +83,7 @@ func TestSchedulerLifecycle(t *testing.T) {
 	go func() { done <- s.Run(ctx) }()
 
 	// Initial run: every check is a change from "".
-	waitUntil(t, "start timer", func() bool { return clk.armed(0) })
+	healthtest.WaitUntil(t, "start timer", func() bool { return clk.Armed(0) })
 	clk.Advance(0)
 	ev := recv(t, events)
 	if ev.Reason != "start" || len(ev.Changes) != 2 || ev.Changes[0].From != "" || ev.Changes[1].To != StatusWarn {
@@ -180,7 +97,7 @@ func TestSchedulerLifecycle(t *testing.T) {
 	}
 
 	// Interval run without changes: event with no Changes.
-	waitUntil(t, "interval timer", func() bool { return clk.armed(time.Minute) })
+	healthtest.WaitUntil(t, "interval timer", func() bool { return clk.Armed(time.Minute) })
 	clk.Advance(time.Minute)
 	ev = recv(t, events)
 	if ev.Reason != "interval" || len(ev.Changes) != 0 {
@@ -192,7 +109,7 @@ func TestSchedulerLifecycle(t *testing.T) {
 	s.Trigger("network")
 	s.Trigger("network")
 	s.Trigger("dns")
-	waitUntil(t, "debounce timer", func() bool { return clk.armed(2 * time.Second) })
+	healthtest.WaitUntil(t, "debounce timer", func() bool { return clk.Armed(2 * time.Second) })
 	clk.Advance(time.Second)
 	noEvent(t, events)
 	clk.Advance(time.Second)
@@ -206,7 +123,7 @@ func TestSchedulerLifecycle(t *testing.T) {
 	noEvent(t, events)
 
 	// The triggered run restarted the interval.
-	waitUntil(t, "interval restart", func() bool { return clk.armed(time.Minute) })
+	healthtest.WaitUntil(t, "interval restart", func() bool { return clk.Armed(time.Minute) })
 	clk.Advance(59 * time.Second)
 	noEvent(t, events)
 	clk.Advance(time.Second)
@@ -250,7 +167,7 @@ func TestSchedulerExternalTriggerAndNewEnv(t *testing.T) {
 	go s.Run(ctx)
 
 	net <- "route changed"
-	waitUntil(t, "debounce timer", func() bool { return clk.armed(2 * time.Second) })
+	healthtest.WaitUntil(t, "debounce timer", func() bool { return clk.Armed(2 * time.Second) })
 	clk.Advance(2 * time.Second)
 	if ev := recv(t, events); ev.Reason != "route changed" {
 		t.Errorf("reason = %q", ev.Reason)
