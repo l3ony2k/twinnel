@@ -22,7 +22,6 @@ import (
 )
 
 func init() {
-	register("status", "show the helper's view: mihomo, subscription, last apply, tailnet, kernel", runStatus)
 	register("kernel", "mihomo kernels: list | check | install | rollback", runKernel)
 	register("layer", "override layers: list | get | put | rm | enable | disable | order", runLayer)
 	register("sub", "subscriptions: list | put | refresh | activate | rm", runSub)
@@ -31,7 +30,7 @@ func init() {
 	register("tailnet", "tailnet: refresh (re-read peers, re-apply if they changed)", runTailnet)
 	register("service", "service status NAME (mihomo, tailscaled, helper)", runService)
 	register("events", "print helper events (--follow to keep waiting)", runEvents)
-	register("helper", "helper install --dry-run: print the LaunchDaemon and the commands", runHelper)
+	register("helper", "helper status | install --dry-run", runHelper)
 
 	// `duet compose` composes locally; with --apply/--preview it asks the
 	// helper to compose from its own state instead.
@@ -154,7 +153,7 @@ func needArgs(pos []string, n int, usage string) error {
 
 // ---- status ----
 
-func runStatus(args []string) error {
+func runHelperStatus(args []string) error {
 	fs, cf := newFlagSet("status", "usage: duet status [--json]\n\n")
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
@@ -731,6 +730,9 @@ func truncate(s string, n int) string {
 // ---- helper install --dry-run ----
 
 func runHelper(args []string) error {
+	if len(args) > 0 && args[0] == "status" {
+		return runHelperStatus(args[1:])
+	}
 	fs := flag.NewFlagSet("helper", flag.ContinueOnError)
 	var dryRun bool
 	var helperBin, stateDir, socket, label string
@@ -740,7 +742,7 @@ func runHelper(args []string) error {
 	fs.StringVar(&socket, "socket", rpc.DefaultSocket, "socket `PATH` the helper will listen on")
 	fs.StringVar(&label, "label", store.DefaultHelperLabel, "launchd `LABEL`")
 	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), "usage: duet helper install --dry-run [flags]\n\n")
+		fmt.Fprint(fs.Output(), "usage: duet helper status [--json] | duet helper install --dry-run [flags]\n\n")
 		fs.PrintDefaults()
 	}
 	pos, done, err := parse(fs, args)
