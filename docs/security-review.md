@@ -115,7 +115,7 @@ The binary path comes from a plist, possibly a user-written agent. Adopt now req
 - The engine's HTTP client refuses https→http redirects and stops after 10 redirects.
 - `store.Open`: as root, refuses a state dir that is a symlink, not root-owned, or group/world-writable. It re-applies `0700` to `subscriptions/`, `layers/`, `history/` and `kernels/` on every start.
 
-### 13. Reads as root in other packages (Low, TODO)
+### 13. Reads as root in other packages (Low, fixed)
 
 `platform/darwin` (health env) reads `ConfigPath`, and `core/takeover` reads the live config and the base candidates next to it, both with `os.ReadFile`, so they follow a planted symlink. What leaks is limited: health only reports parsed controller and DNS settings; takeover keeps a candidate only if it parses as a config with `proxies`, and plan texts are redacted. **TODO:** use `os.OpenRoot` / `O_NOFOLLOW` there too. Both packages are outside this review's edit scope.
 
