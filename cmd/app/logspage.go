@@ -46,7 +46,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 	ui.Column(c).Grow(1).Gap(16).Children(func() {
 		pageHeader(c, T.PageLogs, func() {
 			small(c, T.LogLevel)
-			if ui.Segmented(c.Key("level"), &a.logs.level, i18n.T.LogLevelNames...).Label(T.LogLevel).Changed() {
+			if segmented(c.Key("level"), &a.logs.level, i18n.T.LogLevelNames...).Label(T.LogLevel).Changed() {
 				a.mon.ClearLogs()
 				a.mon.SetLogLevel(a.logs.levelName())
 			}

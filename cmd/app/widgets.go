@@ -493,6 +493,18 @@ func pushFace(c *ui.Context, b ui.Element) ui.Element {
 	return b
 }
 
+// segmented is ui.Segmented that fits where it stands: in the Liquid Glass
+// toolbar its track is faceless (no fill, no outline), so only the chosen
+// segment's fill shows on the capsule, as Finder's and System Settings'
+// toolbar groups; elsewhere it keeps the theme's track.
+func segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
+	e := ui.Segmented(c, selected, labels...)
+	if inToolbar {
+		e.Background(ui.Transparent).Border(0, ui.Transparent)
+	}
+	return e
+}
+
 // pushButton is a plain button with the native push-button face.
 func pushButton(c *ui.Context, label string) ui.Element {
 	return pushFace(c, ui.Button(c, label))

@@ -63,6 +63,9 @@ type app struct {
 	settings  settingsForm
 	logs      logsView
 	shotMode  bool // DUET_SHOTS: the panel draws its own background
+	// panelShotH is the content height shot mode's panel was last sized
+	// to (fitShotPanel).
+	panelShotH int
 	// shotSection limits a long page to one section in shot mode (MyGo
 	// captures only the top of a page); "" draws everything.
 	shotSection string
@@ -103,7 +106,10 @@ func main() {
 		_, err := os.Stat(p)
 		return err == nil
 	})
-	a.ts = tailscale.New(tailscale.LocalAPI(nil), a.cfg.AllowWrites)
+	a.ts = tailscale.New(tailscale.DefaultAPI(), a.cfg.AllowWrites)
+	if f := os.Getenv(tailscale.StatusFileEnv); f != "" { // development: shots use a synthetic tailnet
+		log.Printf("tailscale: reading %s instead of tailscaled (%s)", f, tailscale.StatusFileEnv)
+	}
 	a.notes = newNotifier()
 	a.theme = os.Getenv("DUET_THEME")
 	// Shot mode never takes the owner's focus: no tray, no notifications,
@@ -325,6 +331,9 @@ func (a *app) invalidate() {
 	}
 }
 
+// panelWidth is the flyout's width (it grows to 380 for long names).
+const panelWidth = 340
+
 func (a *app) togglePanel() {
 	if a.panel != nil {
 		a.panel.Close()
@@ -332,20 +341,20 @@ func (a *app) togglePanel() {
 	}
 	if a.shotMode { // a hidden window of the flyout's width, captured from memory
 		a.panel = mygo.NewWindow(mygo.WindowOptions{
-			Title: i18n.T.AppName, Hidden: true, Width: 340, Height: 620, // the flyout fits its content; this is its usual height
+			Title: i18n.T.AppName, Hidden: true, Width: panelWidth, Height: 620, // fitShotPanel then fits it to the content
 			Content: ui.View(a.panelView),
 		})
-		a.panel.OnClosed(func() { a.panel = nil })
+		a.panel.OnClosed(func() { a.panel, a.panelShotH = nil, 0 })
 		return
 	}
 	a.panel = mygo.NewFlyout(mygo.FlyoutOptions{
 		Tray:       a.tray,
 		Placement:  mygo.PlacementBottom,
 		Gap:        4,
-		Width:      340,
+		Width:      panelWidth,
 		Height:     420,
 		FitContent: true,
-		MinWidth:   340,
+		MinWidth:   panelWidth,
 		MaxWidth:   380,
 		MaxHeight:  720,
 		Focusable:  true,
