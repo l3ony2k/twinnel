@@ -435,7 +435,7 @@ var zh = Strings{
 	HelperNotRunningHint:  "后台助手已安装，但现在连不上。它由 launchd 守护，通常几秒后会自动恢复；一直这样请看日志 /Library/Application Support/duet/logs/helper.log。",
 	HelperDeniedHint:      "后台助手拒绝了当前用户：只有管理员组（admin）的用户可以管理网络配置。",
 	HelperRetry:           "重新连接",
-	HelperSocket:          "Socket",
+	HelperSocket:          "套接字",
 	Subscription:          "订阅",
 	LastApply:             "上次应用",
 	OpDone:                "已完成：%s",
