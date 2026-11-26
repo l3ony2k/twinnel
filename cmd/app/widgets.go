@@ -56,16 +56,127 @@ func pal(t *ui.Theme) palette {
 
 // Spacing steps (4 px grid).
 const (
-	gapRow     = 10 // between rows inside a group
+	gapRow     = 8  // between rows inside a group (System Settings' rhythm)
 	gapGroup   = 20 // between groups on a page
-	groupPadX  = 16
+	groupPadX  = 16 // a group's side padding; its heading lines up with it
 	groupPadY  = 12
 	labelWidth = 96 // the label column of kv rows
 )
 
-// expandMotion is the one motion of the app: a row that opens or closes
-// grows to its new height in 200 ms, easing out (ui's default curve).
-var expandMotion = ui.ElementTransition{Duration: 200 * time.Millisecond}
+// Icon sizes: one per role.
+const (
+	iconNav    = 16 // sidebar
+	iconInline = 14 // in buttons, headings, notices, rows
+	iconSmall  = 12 // disclosure chevrons, tiny keys
+	iconLarge  = 22 // the verdict and empty states
+)
+
+// Motion tokens (vibedesign 011). One curve per role; no call site picks
+// its own. Transitions stop by themselves under Reduce Motion (MyGo).
+var (
+	easeOut       = ui.CubicBezier(0, 0, .58, 1)   // things entering, hover
+	easeOutStrong = ui.CubicBezier(.22, 1, .36, 1) // small parts settling after a click
+	easeIn        = ui.CubicBezier(.42, 0, 1, 1)   // things leaving
+	easeInOut     = ui.CubicBezier(.42, 0, .58, 1) // size or place changes of something on screen
+)
+
+const (
+	durHover  = 100 * time.Millisecond // hover and selection fills: about instant, as Mac lists
+	durSmall  = 180 * time.Millisecond // closing, small parts
+	durMedium = 240 * time.Millisecond // opening a row
+)
+
+// Transitions built from the tokens.
+var (
+	// expandOpen and expandClose: a row that opens grows to its new
+	// height in 240 ms, one that closes shrinks in 180, both easing in
+	// and out (the row stays on screen). Use expandFor(open).
+	expandOpen  = ui.ElementTransition{Duration: durMedium, Ease: easeInOut}
+	expandClose = ui.ElementTransition{Duration: durSmall, Ease: easeInOut}
+	// expandMotion is expandOpen, for callers that do not know the state.
+	expandMotion = expandOpen
+	// colorMotion animates only colors (hover and selection fills), never
+	// position or size: tiles must not slide behind a window resize.
+	colorMotion = ui.ElementTransition{Colors: true, Duration: durHover, Ease: easeOut}
+	// fadeMotion fades an element in and out (the toolbar's scroll edge).
+	fadeMotion = ui.ElementTransition{
+		Duration: 150 * time.Millisecond, Ease: easeOut,
+		ExitDuration: 120 * time.Millisecond, ExitEase: easeIn,
+		Enter: &ui.Motion{Opacity: 0}, Exit: &ui.Motion{Opacity: 0},
+	}
+	// turnMotion turns a disclosure chevron.
+	turnMotion = ui.ElementTransition{Duration: 200 * time.Millisecond, Ease: easeOutStrong}
+)
+
+// expandFor is the transition of a row whose open state is open in this
+// frame: the frame that flips it builds the row with the new value.
+func expandFor(open bool) ui.ElementTransition {
+	if open {
+		return expandOpen
+	}
+	return expandClose
+}
+
+// disclosure draws the chevron of a row that opens in place: one
+// chevron-right turned 90° while open, as NSOutlineView's triangle.
+func disclosure(c *ui.Context, open bool) ui.Element {
+	var turn float32
+	if open {
+		turn = 90
+	}
+	return ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(c.Theme().TextMuted).
+		Width(14).Rotate(turn).Transition(turnMotion)
+}
+
+// Busy feedback (vibedesign 017): work shows on the control that started
+// it, only once it took longer than busyDelay, and then for at least
+// busyMin, so a quick answer never flashes a spinner.
+const (
+	busyDelay = 300 * time.Millisecond
+	busyMin   = 500 * time.Millisecond
+)
+
+type busyState struct {
+	since time.Time // when the work began; zero while idle
+	shown time.Time // when the spinner appeared; zero while hidden
+}
+
+// showBusy says whether e should show a spinner now for work that is
+// running when busy is true; e keeps the timing (ui.Local), so each
+// control has its own.
+func showBusy(c *ui.Context, e ui.Element, busy bool) bool {
+	st := ui.Local(e, "duet.busy", func() *busyState { return &busyState{} })
+	if st == nil {
+		return false
+	}
+	b, now := *st, c.Now()
+	switch {
+	case busy && b.since.IsZero():
+		b.since = now
+	case !busy:
+		b.since = time.Time{}
+	}
+	if b.shown.IsZero() && busy && now.Sub(b.since) >= busyDelay {
+		b.shown = now
+	}
+	if !b.shown.IsZero() && !busy && now.Sub(b.shown) >= busyMin {
+		b.shown = time.Time{}
+	}
+	switch {
+	case busy && b.shown.IsZero():
+		c.After(busyDelay - now.Sub(b.since))
+	case !busy && !b.shown.IsZero():
+		c.After(busyMin - now.Sub(b.shown))
+	}
+	*st = b
+	return !b.shown.IsZero()
+}
+
+// spinnerIcon is a spinner the size of an inline icon, to stand in for
+// one while its control works.
+func spinnerIcon(c *ui.Context) ui.Element {
+	return ui.Spinner(c).Size(iconInline, iconInline)
+}
 
 // levelColor is the dot color of a status level.
 func levelColor(t *ui.Theme, l status.Level) ui.Color {
@@ -153,7 +264,7 @@ func cardWith(c *ui.Context, title string, trailing func(), body func()) ui.Elem
 	t := c.Theme()
 	return ui.Column(c).Gap(8).Children(func() {
 		if title != "" || trailing != nil {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Height(28).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).Height(28).Children(func() {
 				ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine()
 				ui.Spacer(c)
 				if trailing != nil {
@@ -169,7 +280,7 @@ func cardWith(c *ui.Context, title string, trailing func(), body func()) ui.Elem
 func iconCard(c *ui.Context, icon *ui.SVG, title string, body func()) ui.Element {
 	t := c.Theme()
 	return headedCard(c, func() {
-		ui.Icon(c, icon).FontSize(15).TextColor(t.TextMuted)
+		ui.Icon(c, icon).FontSize(iconInline).TextColor(t.TextMuted)
 		ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine()
 	}, body)
 }
@@ -179,7 +290,7 @@ func iconCard(c *ui.Context, icon *ui.SVG, title string, body func()) ui.Element
 func headedCard(c *ui.Context, head func(), body func()) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Gap(8).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).MinHeight(28).Children(head)
+		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(28).Children(head)
 		groupBox(c, t).Children(body)
 	})
 }
@@ -203,7 +314,7 @@ func listCard(c *ui.Context, head func(), body func()) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Gap(8).Children(func() {
 		if head != nil {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).MinHeight(28).Children(head)
+			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(28).Children(head)
 		}
 		listBox(c, t).Children(body)
 	})
@@ -215,7 +326,7 @@ func listHead(c *ui.Context, icon *ui.SVG, title string, trailing func()) func()
 	return func() {
 		t := c.Theme()
 		if icon != nil {
-			ui.Icon(c, icon).FontSize(15).TextColor(t.TextMuted)
+			ui.Icon(c, icon).FontSize(iconInline).TextColor(t.TextMuted)
 		}
 		ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine()
 		ui.Spacer(c)
@@ -252,7 +363,7 @@ func meta(c *ui.Context, s string) ui.Element {
 // 托管): quieter than a filled badge.
 func tag(c *ui.Context, s string) ui.Element {
 	t := c.Theme()
-	return ui.Row(c).Padding(1, 6).Radius(4).Border(1, t.Border).Shrink(0).Children(func() {
+	return ui.Row(c).Padding(1, 6).Radius(plat.controlRadius-2).Border(1, t.Border).Shrink(0).Children(func() {
 		ui.Text(c, s).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine()
 	})
 }
@@ -261,9 +372,9 @@ func tag(c *ui.Context, s string) ui.Element {
 // such as read-only mode. Errors use errorNote.
 func notice(c *ui.Context, icon *ui.SVG, text string) ui.Element {
 	t := c.Theme()
-	return ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 12).Radius(plat.controlRadius+2).
+	return ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 12).Radius(plat.groupRadius).
 		Background(pal(t).group).Border(1, pal(t).groupLine).Children(func() {
-		ui.Icon(c, icon).FontSize(14).TextColor(t.TextMuted)
+		ui.Icon(c, icon).FontSize(iconInline).TextColor(t.TextMuted)
 		ui.Text(c, text).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).Grow(1).Wrap()
 	})
 }
@@ -272,7 +383,7 @@ func notice(c *ui.Context, icon *ui.SVG, text string) ui.Element {
 func errorNote(c *ui.Context, text string) ui.Element {
 	t := c.Theme()
 	return ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-		ui.Icon(c, iconError).FontSize(14).TextColor(t.Danger).MarginY(1)
+		ui.Icon(c, iconError).FontSize(iconInline).TextColor(t.Danger).MarginY(1)
 		ui.Text(c, text).FontSize(plat.bodySize - 1).TextColor(pal(t).badText).Grow(1).Wrap().Selectable()
 	})
 }
@@ -282,7 +393,7 @@ func errorNote(c *ui.Context, text string) ui.Element {
 func warningNote(c *ui.Context, w string) ui.Element {
 	t := c.Theme()
 	return ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-		ui.Icon(c, iconWarning).FontSize(14).TextColor(pal(t).warnText).MarginY(1)
+		ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText).MarginY(1)
 		ui.Text(c, i18n.T.Warning(w)).FontSize(plat.bodySize - 1).Grow(1).Wrap().Selectable()
 	})
 }
@@ -291,7 +402,7 @@ func warningNote(c *ui.Context, w string) ui.Element {
 func emptyState(c *ui.Context, icon *ui.SVG, title, hint string) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Gap(6).AlignItems(ui.Center).Padding(28, 16).Children(func() {
-		ui.Icon(c, icon).FontSize(22).TextColor(t.TextMuted)
+		ui.Icon(c, icon).FontSize(iconLarge).TextColor(t.TextMuted)
 		ui.Text(c, title).FontWeight(500)
 		if hint != "" {
 			ui.Text(c, hint).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().MaxWidth(420)
@@ -314,4 +425,64 @@ func delayColor(t *ui.Theme, ms int, tested bool) ui.Color {
 		return p.warnText
 	}
 	return p.badText
+}
+
+// pushFace gives a plain ui.Button the face of a macOS push button
+// (NSButton) instead of MyGo's outlined one: in light, a hairline at 10%
+// with a 0.5 pt contact shadow (none while pressed); in dark, a face one
+// step above the controls', no outline, a top highlight and a contact
+// shadow. Other platforms keep MyGo's look. Use it on every plain button
+// that sits on a page; primary buttons keep theirs.
+func pushFace(c *ui.Context, b ui.Element) ui.Element {
+	if !plat.pushFace || inToolbar {
+		return b
+	}
+	t := c.Theme()
+	pressed := b.Pressed()
+	if t.Dark {
+		face := ui.Hex("#4a4a4c")
+		if pressed {
+			face = ui.Hex("#5a5a5c")
+		}
+		b.Background(face).BorderWidth(0).
+			InsetShadow(0, 0.5, 0, 0, ui.RGBA(255, 255, 255, 0.10)).
+			Shadow(0, 0.5, 1, 0, ui.RGBA(0, 0, 0, 0.30))
+		return b
+	}
+	b.Border(1, ui.RGBA(0, 0, 0, 0.10))
+	if !pressed {
+		b.Shadow(0, 0.5, 1, 0, ui.RGBA(0, 0, 0, 0.12))
+	}
+	return b
+}
+
+// pushButton is a plain button with the native push-button face.
+func pushButton(c *ui.Context, label string) ui.Element {
+	return pushFace(c, ui.Button(c, label))
+}
+
+// toolIcon is a small faceless icon button for an action repeated on
+// every row (测速 on a group, moving a layer): about 24 × 24, the muted
+// icon, a faint fill on hover and press, its name as tooltip and for
+// assistive technology. While busy (after busyDelay, for busyMin) the
+// icon turns into a spinner in place; the button keeps its size.
+func toolIcon(c *ui.Context, icon *ui.SVG, label string, busy bool) ui.Element {
+	t := c.Theme()
+	b := ui.Button(c, "").Label(label).Tooltip(label).Padding(5, 5).Size(24, 24).
+		Background(ui.Transparent).BorderWidth(0).Radius(plat.controlRadius).Shrink(0)
+	switch {
+	case b.Pressed():
+		b.Background(t.Text.Alpha(0.12))
+	case b.Hovered():
+		b.Background(t.Text.Alpha(0.07))
+	}
+	spin := showBusy(c, b, busy)
+	b.Children(func() {
+		if spin {
+			spinnerIcon(c)
+			return
+		}
+		ui.Icon(c, icon).FontSize(iconInline).TextColor(t.TextMuted)
+	})
+	return b
 }
