@@ -119,6 +119,24 @@ func expandFor(open bool) ui.ElementTransition {
 
 // disclosure draws the chevron of a row that opens in place: one
 // chevron-right turned 90° while open, as NSOutlineView's triangle.
+// linkDisclosure is a small accent link with a turning chevron that shows
+// or hides more text under it (a file's content, a full report). It is
+// focusable and spoken as a disclosure; the caller checks Clicked.
+func linkDisclosure(c *ui.Context, open bool, label string) ui.Element {
+	t := c.Theme()
+	var turn float32
+	if open {
+		turn = 90
+	}
+	d := ui.Row(c).Gap(4).AlignItems(ui.Center).Cursor(ui.CursorPointer).
+		Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(label)
+	d.Children(func() {
+		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.Accent).Rotate(turn).Transition(turnMotion)
+		ui.Text(c, label).FontSize(plat.smallSize).TextColor(t.Accent)
+	})
+	return d
+}
+
 func disclosure(c *ui.Context, open bool) ui.Element {
 	var turn float32
 	if open {

@@ -340,7 +340,9 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 			ui.Row(c.Key(fmt.Sprint("l", i))).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, l.Name).FontSize(13).Width(180).Shrink(0).SingleLine().Tooltip(l.Name)
 				tag(c, T.StageName(l.Stage))
-				ui.Text(c, l.Kind).FontSize(11).TextColor(t.TextMuted)
+				if l.Kind == "managed" { // as the 订阅与覆写 page marks it; "user" needs no mark
+					tag(c, T.LayerManaged)
+				}
 				what := strings.Join(l.Keys, ", ")
 				if l.Rules > 0 {
 					if what != "" {
@@ -391,15 +393,13 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 			warningNote(c, w)
 		}
 		if p.Summary != "" || p.SemDiff != "" {
-			chev, label := iconCollapsed, T.TakeoverShowText
+			label := T.TakeoverShowText
 			if v.showText {
-				chev, label = iconExpanded, T.TakeoverHideText
+				label = T.TakeoverHideText
 			}
-			ui.Row(c).Children(func() {
-				if iconButton(c.Key("text"), chev, label, false).Clicked() {
-					v.showText = !v.showText
-				}
-			})
+			if linkDisclosure(c.Key("text"), v.showText, label).Clicked() {
+				v.showText = !v.showText
+			}
 			if v.showText {
 				for _, txt := range []string{p.Summary, p.SemDiff} {
 					if txt == "" {
