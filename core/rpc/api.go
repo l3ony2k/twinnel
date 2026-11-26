@@ -263,6 +263,8 @@ type Subscription struct {
 	Hash            string    `json:"hash,omitempty"`
 	Size            int       `json:"size"`
 	LastError       string    `json:"last_error,omitempty"`
+	// Warnings are set by subscription.put only (e.g. a plain-http URL).
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type SubPutParams struct {

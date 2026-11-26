@@ -505,6 +505,9 @@ Use --url - to read it from stdin (keeps it out of the process list).
 		var s rpc.Subscription
 		return cf.callPrint(rpc.MethodSubPut, p, &s, func() {
 			fmt.Printf("stored subscription %s (active=%v, url=%v, %d bytes)\n", s.ID, s.Active, s.HasURL, s.Size)
+			for _, w := range s.Warnings {
+				fmt.Println("warning:", w)
+			}
 		})
 	case "refresh":
 		if err := needArgs(pos, 2, "duet sub refresh ID"); err != nil {
