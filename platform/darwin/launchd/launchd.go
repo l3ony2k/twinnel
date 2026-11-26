@@ -201,6 +201,12 @@ func (l *Launchd) Plan(op service.Op, s service.Spec) ([]service.Step, error) {
 		return []service.Step{run(false, "bootout", target)}, nil
 	case service.OpRestart:
 		return []service.Step{run(false, "kickstart", "-k", target)}, nil
+	case service.OpDisable:
+		// Persists in launchd's override database: the plist stays in
+		// place but is not loaded at boot (`launchctl enable` undoes it).
+		return []service.Step{run(false, "disable", target)}, nil
+	case service.OpEnable:
+		return []service.Step{run(false, "enable", target)}, nil
 	}
 	return nil, fmt.Errorf("unknown operation %q", op)
 }

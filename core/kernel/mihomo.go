@@ -158,6 +158,35 @@ func (m *Manager) Check(ctx context.Context, channel string) (Release, error) {
 	default:
 		return Release{}, fmt.Errorf("unknown channel %q", channel)
 	}
+	return m.release(ctx, channel, path)
+}
+
+// CheckVersion looks up the stable release tagged version (e.g. v1.19.34)
+// for this platform: used to install the version that already runs.
+func (m *Manager) CheckVersion(ctx context.Context, version string) (Release, error) {
+	if !ValidVersion(version) || !strings.HasPrefix(version, "v") {
+		return Release{}, fmt.Errorf("invalid release version %q", version)
+	}
+	r, err := m.release(ctx, ChannelStable, "/repos/"+m.repo()+"/releases/tags/"+version)
+	if err != nil {
+		return Release{}, err
+	}
+	if r.Version != version {
+		return Release{}, fmt.Errorf("release %s has an asset for %s, not %s", r.Tag, r.Version, version)
+	}
+	return r, nil
+}
+
+// Has reports whether version is installed.
+func (m *Manager) Has(version string) bool {
+	if !ValidVersion(version) {
+		return false
+	}
+	fi, err := os.Stat(filepath.Join(m.Dir, version, binName))
+	return err == nil && fi.Mode().IsRegular()
+}
+
+func (m *Manager) release(ctx context.Context, channel, path string) (Release, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, m.api()+path, nil)
 	if err != nil {
 		return Release{}, err

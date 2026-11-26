@@ -140,6 +140,8 @@ func TestPlans(t *testing.T) {
 		service.OpStart:     "/bin/launchctl bootstrap system " + dir + "/com.example.helper.plist  # errors ignored",
 		service.OpStop:      "/bin/launchctl bootout system/com.example.helper",
 		service.OpRestart:   "/bin/launchctl kickstart -k system/com.example.helper",
+		service.OpDisable:   "/bin/launchctl disable system/com.example.helper",
+		service.OpEnable:    "/bin/launchctl enable system/com.example.helper",
 	} {
 		steps, err := l.Plan(op, service.Spec{Label: "com.example.helper"})
 		if err != nil || steps[0].String() != first {
