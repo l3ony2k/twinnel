@@ -20,10 +20,10 @@ const (
 	pendExit = "exit"
 )
 
-type svcKind int
+type netService int
 
 const (
-	svcMihomo svcKind = iota
+	svcMihomo netService = iota
 	svcTailscale
 )
 
@@ -37,11 +37,11 @@ func (a *app) selectNode(group, name string) {
 
 func (a *app) controlError(*ui.Context, string) {}
 
-func (a *app) unreachableState(c *ui.Context, _ svcKind, err string) {
+func (a *app) unreachableState(c *ui.Context, _ netService, err string) {
 	groupBox(c, c.Theme()).Children(func() { emptyState(c, iconError, i18n.T.Unreachable, err) })
 }
 
-func unreachableLine(c *ui.Context, _ svcKind, err string) {
+func unreachableLine(c *ui.Context, _ netService, err string) {
 	if err != "" {
 		errorNote(c, err)
 	}

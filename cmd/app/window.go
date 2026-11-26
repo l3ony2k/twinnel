@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -399,9 +400,14 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	if p := m.Primary; p != nil {
 		// One row for where traffic leaves: the primary group, what it
 		// selected down to the node, and the node's delay.
+		// The node keeps its room; the groups before it shrink first.
 		route := strings.Join(append([]string{p.Name}, p.Chain...), " → ")
+		via := strings.Join(append([]string{p.Name}, p.Chain[:max(len(p.Chain)-1, 0)]...), " → ") + " →"
 		kvWith(c, T.Exit, func() {
-			ui.Text(c, route).SingleLine().Shrink(1).Grow(1).Tooltip(route)
+			ui.Row(c).Gap(4).Grow(1).Shrink(1).MinWidth(0).Tooltip(route).Children(func() {
+				ui.Text(c, via).TextColor(t.TextMuted).SingleLine().Shrink(100)
+				ui.Text(c, p.Node).SingleLine().Shrink(1)
+			})
 			num(ui.Text(c, status.DelayText(p.Delay, p.Tested)).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
 		})
 	}
@@ -538,6 +544,9 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 		if sel == nil || len(xs) < 2 {
 			return
 		}
+		if shotReadout {
+			*sel = len(xs) * 2 / 3
+		}
 		chart.Select(c, area, sel, xs, describe)
 		i := *sel
 		if i < 0 || i >= len(xs) {
@@ -553,7 +562,7 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 		chart.Anchor(c, xs[i], 1, side, ui.Start, func() {
 			lbl := ui.Column(c).Gap(2).Padding(6, 8).Radius(plat.controlRadius).
 				Background(pal(t).group).Border(1, pal(t).groupLine).
-				Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.12)).PassThrough()
+				Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.12)).PassThrough().Shrink(0)
 			if side == ui.Start {
 				lbl.MarginStart(8)
 			} else {
@@ -564,7 +573,7 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 				readout := func(col ui.Color, label string, rate int64) {
 					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 						ui.Box(c).Size(8, 2).Radius(1).Background(col)
-						small(c, label)
+						small(c, label).NoWrap()
 						num(ui.Text(c, status.Rate(rate)).FontSize(plat.bodySize - 1).NoWrap())
 					})
 				}
@@ -575,6 +584,10 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 		})
 	}).Label(T.Traffic).Height(176).Gap(8)
 }
+
+// shotReadout shows the chart's readout in screenshots (DUET_SHOTS_READOUT),
+// where no pointer is over it.
+var shotReadout = os.Getenv("DUET_SHOTS") != "" && os.Getenv("DUET_SHOTS_READOUT") != ""
 
 // rateUnit picks the unit a chart of rates up to hi bytes/s labels its
 // ticks in: KB/s below 1 MB/s, else MB/s (or GB/s).
