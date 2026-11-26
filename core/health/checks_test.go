@@ -346,6 +346,19 @@ func TestSystemDNS(t *testing.T) {
 	e = healthyEnv()
 	e.ifs[0].Active = false
 	want(t, SystemDNS{}, e, StatusWarn, msgDNSNoActive)
+
+	// No dns.listen: no empty parentheses in the summary.
+	e = healthyEnv()
+	e.cfg.DNS.Listen = ""
+	for i := range e.svcs {
+		if len(e.svcs[i].DNS) > 0 {
+			e.svcs[i].DNS = []string{"127.0.0.1"}
+		}
+	}
+	r := want(t, SystemDNS{}, e, StatusOK, msgDNSOKNoListen)
+	if strings.Contains(r.Summary, "（）") {
+		t.Fatal(r.Summary)
+	}
 }
 
 func TestVPNConflict(t *testing.T) {

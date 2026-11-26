@@ -167,7 +167,7 @@ Linux differences, in the checks themselves:
 | | macOS (`platform/darwin/launchd`) | Linux (`platform/linux/systemd`) |
 |---|---|---|
 | definition | `/Library/LaunchDaemons/<label>.plist` | `/etc/systemd/system/<label>.service` |
-| install | `bootout` (ignored), write, `bootstrap system`, `enable` | write, `daemon-reload`, `enable`, `restart` |
+| install | `bootout` (ignored), write, `enable`, `bootstrap system` | write, `daemon-reload`, `enable`, `restart` |
 | stop | `bootout` (KeepAlive would restart a killed process) | `stop` |
 | status | `launchctl print system/<label>` | `systemctl show <unit> --property=...` |
 | keep alive | `KeepAlive`, `ThrottleInterval` | `Restart=always`, `RestartSec` |
@@ -175,7 +175,7 @@ Linux differences, in the checks themselves:
 The helper uses launchd on macOS and systemd on Linux, for its service RPCs and for `duet helper install`. Real `launchctl`/`systemctl` calls and file writes happen only when the helper runs as root.
 
 **`duet helper install` / `uninstall`.** The plan is printed first (with the full plist or unit file), then confirmed (`--yes` without a terminal); `--dry-run` only prints.
-- macOS: copy the binary to `/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper`, create the state, socket and log dirs, `bootout` (ignored), write `/Library/LaunchDaemons/com.l3ony2k.duet.helper.plist`, `bootstrap`, `enable`. As a normal user duet re-runs itself as root through `osascript … with administrator privileges` (one password dialog; arguments quoted for the shell and for AppleScript, control characters refused).
+- macOS: copy the binary to `/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper`, create the state, socket and log dirs, `bootout` (ignored), write `/Library/LaunchDaemons/com.l3ony2k.duet.helper.plist`, `enable` (a label disabled earlier cannot be bootstrapped), `bootstrap`. As a normal user duet re-runs itself as root through `osascript … with administrator privileges` (one password dialog; arguments quoted for the shell and for AppleScript, control characters refused).
 - Linux: see [Linux](#linux). Run it with `sudo`; the non-root path tries macOS's `osascript` and fails.
 - Uninstall removes the service definition, the binary and the socket; the state dir is kept.
 

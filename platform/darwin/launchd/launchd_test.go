@@ -23,10 +23,17 @@ type fakeExec struct {
 		out []byte
 		err error
 	}
+	// hook, when set, answers first (ok=true) and may keep state.
+	hook func(argv string) (out []byte, err error, ok bool)
 }
 
 func (f *fakeExec) Run(ctx context.Context, argv []string) ([]byte, error) {
 	f.calls = append(f.calls, argv)
+	if f.hook != nil {
+		if out, err, ok := f.hook(strings.Join(argv, " ")); ok {
+			return out, err
+		}
+	}
 	a := f.answers[strings.Join(argv, " ")]
 	return a.out, a.err
 }
@@ -98,8 +105,8 @@ func TestPlans(t *testing.T) {
 		"install -d -m 0755 /x/state/logs",
 		"/bin/launchctl bootout system/com.example.helper  # errors ignored",
 		"write " + dir + "/com.example.helper.plist (mode 0644, ",
-		"/bin/launchctl bootstrap system " + dir + "/com.example.helper.plist",
 		"/bin/launchctl enable system/com.example.helper",
+		"/bin/launchctl bootstrap system " + dir + "/com.example.helper.plist",
 	}
 	if len(lines) != len(want) {
 		t.Fatalf("install plan:\n%s", strings.Join(lines, "\n"))
@@ -131,8 +138,26 @@ func TestPlans(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "Input/output error") {
 		t.Errorf("bootstrap failure: %v", err)
 	}
-	if len(ex.calls) != 2 {
+	if len(ex.calls) != 3 {
 		t.Errorf("ran past the failure: %v", ex.calls)
+	}
+
+	// A label disabled earlier: launchd refuses bootstrap until it is
+	// enabled, so the plan enables first and the bootstrap succeeds.
+	disabled := true
+	ex = &fakeExec{hook: func(argv string) ([]byte, error, bool) {
+		switch argv {
+		case "/bin/launchctl enable system/com.example.helper":
+			disabled = false
+		case "/bin/launchctl bootstrap system " + dir + "/com.example.helper.plist":
+			if disabled {
+				return []byte("Bootstrap failed: 5: Input/output error"), errors.New("exit status 5"), true
+			}
+		}
+		return nil, nil, false
+	}}
+	if err := service.Apply(context.Background(), steps, ex, files); err != nil {
+		t.Errorf("disabled label: %v", err)
 	}
 
 	for op, first := range map[service.Op]string{

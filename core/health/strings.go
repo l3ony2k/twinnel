@@ -173,6 +173,7 @@ const (
 const (
 	msgMihomoDNSOff   = "mihomo DNS 未启用"
 	msgDNSOK          = "所有活动网络服务的 DNS 都指向 mihomo（%s）"
+	msgDNSOKNoListen  = "所有活动网络服务的 DNS 都指向 127.0.0.1（mihomo 没有设置 dns.listen）"
 	msgDNSBad         = "这些网络服务的 DNS 没有指向 mihomo：%s"
 	msgDNSHijack      = "这些网络服务的 DNS 没有指向 mihomo，靠 dns-hijack 兜底：%s"
 	msgDNSNoActive    = "没有活动的网络服务"
