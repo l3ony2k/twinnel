@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -139,15 +140,21 @@ func (f *Fetcher) api() string {
 	return defaultAPI
 }
 
-// checkURL allows https only (http for loopback test servers).
+// checkURL allows https only. The URLs come from the running config
+// (geox-url, external-ui-url), which a subscription can set: plain http
+// would let a network attacker swap the bundle, and http to loopback would
+// let a subscription make the root helper send requests to local services.
 func checkURL(raw string) (*url.URL, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("bad URL: %w", err)
 	}
+	h := u.Hostname()
+	ip := net.ParseIP(h)
 	switch {
+	case strings.EqualFold(h, "localhost") || (ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified())):
+		return nil, fmt.Errorf("refusing URL %q: downloads from local or private addresses are not allowed", redact(raw))
 	case u.Scheme == "https" && u.Host != "":
-	case u.Scheme == "http" && (u.Hostname() == "127.0.0.1" || u.Hostname() == "localhost"):
 	default:
 		return nil, fmt.Errorf("refusing URL %q: only https downloads are allowed", redact(raw))
 	}

@@ -200,3 +200,17 @@ func TestExtractZipSizeLimit(t *testing.T) {
 		t.Fatalf("too many files: %v", err)
 	}
 }
+
+func TestCheckURL(t *testing.T) {
+	for _, u := range []string{"https://github.com/a/b", "https://example.com/x.dat?t=1"} {
+		if _, err := checkURL(u); err != nil {
+			t.Errorf("%s: %v", u, err)
+		}
+	}
+	for _, u := range []string{"http://example.com/x", "http://127.0.0.1:9090/configs", "https://127.0.0.1/x",
+		"https://localhost/x", "https://[::1]/x", "https://192.168.1.1/x", "https://169.254.169.254/x", "file:///etc/passwd", "ftp://x/y"} {
+		if _, err := checkURL(u); err == nil {
+			t.Errorf("%s accepted", u)
+		}
+	}
+}
