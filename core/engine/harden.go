@@ -1025,7 +1025,10 @@ func (e *Engine) HardenApply(ctx context.Context, p rpc.HardenApplyParams) (rpc.
 
 	if err := run(hs.stopOld); err != nil {
 		// bootout failed: if the old one still answers, nothing changed.
-		if _, verr := oldFixed.Version(ctx); verr == nil {
+		vctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		_, verr := oldFixed.Version(vctx)
+		cancel()
+		if verr == nil {
 			step("stop old", "failed", err.Error())
 			unprepare()
 			res.Error = "stop old: " + err.Error() + " (the old mihomo still runs; nothing changed)"
