@@ -555,7 +555,7 @@ func (e *Engine) HardenPlan(ctx context.Context, p rpc.HardenPlanParams) (rpc.Ha
 		}
 	}
 	if stripped, _, err := withoutSecret(current); err == nil {
-		if rel, _, err := relocatePaths(stripped, st.Mihomo.ConfigDir); err == nil && store.Hash(rel) != store.Hash(composed) {
+		if rel, _, err := relocatePaths(stripped, st.Mihomo.ConfigDir); err == nil && !sameYAML(rel, composed) {
 			plan.ConfigChanges = append(plan.ConfigChanges, "the composed config differs from the running file in more than paths (subscription, layers or tailnet changed since the last apply; see `duet compose --preview`)")
 		}
 	}
@@ -1233,4 +1233,21 @@ func (e *Engine) RecoverHarden(ctx context.Context) {
 		hs.LastResult.Error = msg
 		writeHardenState(dir, hs)
 	}
+}
+
+// sameYAML compares two configs after a parse and encode round trip
+// (formatting and comments aside).
+func sameYAML(a, b []byte) bool {
+	norm := func(x []byte) []byte {
+		root, err := config.Parse(x)
+		if err != nil {
+			return x
+		}
+		out, err := config.Encode(root)
+		if err != nil {
+			return x
+		}
+		return out
+	}
+	return string(norm(a)) == string(norm(b))
 }
