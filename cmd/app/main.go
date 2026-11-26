@@ -70,6 +70,7 @@ type app struct {
 	peers       ui.ListState
 	groupsOpen  map[string]bool
 	tileCols    map[string]int             // node tile columns per group, from the last layout
+	tileFocus   tileRef                    // the node tile ↑/↓ moved the focus to, until it is built
 	pageScroll  map[string]*ui.ScrollState // each page's scroll place; the toolbar's edge shows once scrolled
 	healthOpen  map[string]bool            // check ID → expanded, once the user toggled it
 	exitPick    string                     // exit node select value (peer name or ExitNodeNone)
@@ -143,6 +144,9 @@ func (a *app) ready() {
 		mygo.Separator(),
 		{Label: i18n.T.Quit, Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	})
+	if runtime.GOOS == "darwin" {
+		mygo.App.SetMenu(a.appMenu())
+	}
 	if runtime.GOOS == "linux" {
 		a.tray.SetMenu(menu)
 	} else {
@@ -451,4 +455,41 @@ func (a *app) sidebarMaterial() mygo.Vibrancy {
 		return mygo.VibrancyNone
 	}
 	return plat.sidebarMat
+}
+
+// appMenu is the macOS menu bar's menus: the standard ones, and 显示
+// (View) listing the pages with their ⌘1…⌘9 (the window takes the same
+// keys itself, pageKeys, on every platform). As an accessory app duet
+// shows no menu bar of its own, but the menu's key equivalents work while
+// it is active, and the menus show if it ever runs as a regular app.
+func (a *app) appMenu() *mygo.Menu {
+	var pages []*mygo.MenuItem
+	for i, sec := range navSections(0, 0, toneNeutral) {
+		if i > 0 {
+			pages = append(pages, mygo.Separator())
+		}
+		for _, it := range sec.items {
+			item := &mygo.MenuItem{Label: it.label}
+			switch {
+			case it.digit > 0:
+				item.Accelerator = "CmdOrCtrl+" + strconv.Itoa(it.digit)
+			case it.id == pageSettings:
+				item.Accelerator = "CmdOrCtrl+,"
+			}
+			id := it.id
+			item.Click = func(*mygo.MenuItem, *mygo.Window) {
+				a.openMain()
+				a.showPage(id)
+			}
+			pages = append(pages, item)
+		}
+	}
+	pages = append(pages, mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen})
+	return mygo.NewMenu([]*mygo.MenuItem{
+		{Role: mygo.RoleAppMenu},
+		{Role: mygo.RoleFileMenu},
+		{Role: mygo.RoleEditMenu},
+		{Label: i18n.T.ViewMenu, Submenu: pages},
+		{Role: mygo.RoleWindowMenu},
+	})
 }

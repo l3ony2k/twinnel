@@ -40,6 +40,8 @@ type navItem struct {
 	label string
 	count int // shown when > 0
 	tone  navTone
+	digit int    // 1…9: the page's ⌘ digit (key), 0 for none
+	key   ui.Key // the digit's key
 }
 
 // navSection is a titled group of rows; an empty title draws none.
@@ -104,6 +106,9 @@ func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 	iconCol, textCol := t.Accent, t.Text
 	row := ui.Row(c.Key("nav:" + it.id)).Height(navRowHeight).PaddingX(10).Gap(8).AlignItems(ui.Center).
 		Radius(plat.controlRadius).Cursor(ui.CursorPointer).Role(ui.RoleTreeItem).Label(it.label).AccessSelected(chosen)
+	if it.digit > 0 { // VoiceOver reads the row's ⌘ digit
+		row.KeyShortcuts(ui.Cmd, it.key)
+	}
 	onAccent := false
 	switch {
 	case chosen && active:
