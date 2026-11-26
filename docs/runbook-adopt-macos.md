@@ -67,7 +67,7 @@ It prints the plan, the deliberate changes and the six steps it will run, then a
 2. **backup**: an exact copy goes to `/Library/Application Support/duet/takeover/<plan id>/live-backup.yaml`.
 3. **import**: the subscription `adopted` (base `backup/raw-sub-original.yaml`, its URL from `backup/index.json` into the System keychain, manual refresh only), and the layers `base`, `user-1` and `user-2`. Settings point at `~/mihomo-migration/bin/mihomo`, the conf dir, `127.0.0.1:9090`, and the labels `com.mihomo.proxy` / `sh.brew.tailscale`, marked adopted. Coexist is on; the leak guard is off.
 4. **health before**: `magicdns`, `tailnet-resolver-binding`, `tailscale-direct-rules`, `tailnet-route` and `system-dns`.
-5. **apply**: `mihomo -t`, a history backup, the write (owner and mode kept), `PUT /configs?force=true`, and a wait for `/version`.
+5. **apply**: `mihomo -t`, a history backup, the write (owner and mode kept), a hot reload `PUT /configs` (with `force=false`, because the ports are unchanged), and a wait for `/version`. The plan head shows a `reload` line with what the reload does to traffic; for this setup it must say "no network interruption". See "Network impact" below and `docs/reload-behavior.md`.
 6. **health after**: if any of the five checks is worse than before (ok → skip/warn/fail, and so on), it is re-checked once after 3 s. If it is still worse, the backup is written back byte for byte, mihomo reloads it, and the import is undone. The output then says `result: ROLLED BACK: …` and the exit status is 1.
 
 Expected result: `result: adopted`. `tailnet-resolver-binding` should go from skip to ok and `magicdns` from warn to ok. On a copy of this setup, skip → ok was seen; warn → ok can only show on the real mihomo, which is the one that answers on :53.
@@ -116,13 +116,28 @@ Adopt keeps the empty secret on purpose. When you are ready:
 duet helper secure-controller
 ```
 
-It asks y/N, generates a secret, stores it in the System keychain (`duet.controller-secret`), applies it and reloads. Afterwards zashboard and any scripts need the secret:
+It asks y/N, generates a secret, stores it in the System keychain (`duet.controller-secret`), writes it into the config and reloads. A hot reload does **not** change the controller's secret: mihomo reads it only when it starts. The secret takes effect at the next start of `com.mihomo.proxy` (reboot, or `sudo launchctl kickstart -k system/com.mihomo.proxy`, which restarts the TUN and cuts the network for a few seconds, so do it when nothing important runs). Until then the controller still answers without a secret. The helper copes with both states. Afterwards zashboard and any scripts need the secret:
 
 ```sh
 sudo security find-generic-password -s duet.controller-secret -w /Library/Keychains/System.keychain
 ```
 
 To undo it, roll back to the history entry before it (`duet history list`, then `duet history rollback <id>`). Then delete the keychain item; otherwise the next apply puts the secret back.
+
+## Network impact (when to do what)
+
+Measured and read from the mihomo v1.19.34 source; details in `docs/reload-behavior.md`.
+
+| Step | Touches the network path? |
+|---|---|
+| 1 rehearse, 3 plan | No. Reads files, `tailscale status`, `route get`, controller `GET /version`, `mihomo -t` on temp files. |
+| 2 install the helper | No. It starts a LaunchDaemon that only reads (controller GETs, health checks: DNS queries to 127.0.0.1:53, `scutil`, `netstat`, `route get`). With no subscription it applies nothing. |
+| 4 adopt | One hot reload (two if it rolls back). TUN, DNS server and ports stay as they are; open connections, fake-ip mappings and the selected nodes are kept. Connections **opened** during a pause of about 1–15 ms are closed at once, and UDP packets in that pause are dropped. A program that opens a connection at that instant gets one connection error; most retry. |
+| 7 secure the controller | One more hot reload (same as above); the secret needs a restart of mihomo, which does cut the network. |
+
+Safest moment for step 4: when no agent or download is starting new connections (e.g. between tasks). Steps 1–3 can be done any time.
+
+After the adopt, the helper reloads mihomo again only when the composed config changes: a Tailscale peer joins or leaves the tailnet, its MagicDNS name or IP changes, or tailscaled restarts on a new utun. Each such reload is the same short pause.
 
 ## Notes
 
