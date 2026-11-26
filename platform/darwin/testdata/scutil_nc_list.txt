@@ -1,0 +1,4 @@
+Available network connection services in the current set (*=enabled):
+* (Disconnected)   3A41D055-FF86-48DB-9F4D-000000000001 VPN (com.example.vpn) "Example VPN"                      [VPN:com.example.vpn]
+* (Connected)      CA529DC6-94FB-43DB-A8D8-000000000002 VPN (io.tailscale.ipn.macsys) "Tailscale"                   [VPN:io.tailscale.ipn.macsys]
+  (Disconnected)   11111111-2222-3333-4444-555555555555 PPP --> L2TP  "Office L2TP"                                [PPP:L2TP]

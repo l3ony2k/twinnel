@@ -1,0 +1,138 @@
+// Package health defines the coexistence health checks of duet and runs them.
+//
+// A Check reads facts through an Env (implemented per platform, faked in
+// tests) and returns a Result. Checks never change the system.
+package health
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"sync"
+)
+
+// Status is the outcome of a check.
+type Status string
+
+const (
+	StatusOK   Status = "ok"
+	StatusWarn Status = "warn"
+	StatusFail Status = "fail"
+	StatusSkip Status = "skip"
+)
+
+// severity orders statuses from best to worst; skip counts as best.
+func (s Status) severity() int {
+	switch s {
+	case StatusOK:
+		return 1
+	case StatusWarn:
+		return 2
+	case StatusFail:
+		return 3
+	}
+	return 0
+}
+
+// Worse returns the worse of two statuses.
+func Worse(a, b Status) Status {
+	if b.severity() > a.severity() {
+		return b
+	}
+	return a
+}
+
+// Platform names, matching runtime.GOOS.
+const (
+	Darwin  = "darwin"
+	Linux   = "linux"
+	Windows = "windows"
+)
+
+// AllPlatforms is a convenience for checks that apply everywhere.
+var AllPlatforms = []string{Darwin, Linux, Windows}
+
+// FixHint tells the user how to fix a problem. AutoFix names an automatic
+// fix the helper may offer later (empty if none).
+type FixHint struct {
+	Text    string `json:"text"`
+	Command string `json:"command,omitempty"`
+	AutoFix string `json:"autoFix,omitempty"`
+}
+
+// Result is what a check reports.
+type Result struct {
+	Status   Status   `json:"status"`
+	Summary  string   `json:"summary"`
+	Evidence []string `json:"evidence,omitempty"`
+	Fix      *FixHint `json:"fix,omitempty"`
+}
+
+// Check is one health check.
+type Check interface {
+	ID() string
+	Title() string // Chinese, user-facing
+	Platforms() []string
+	Run(ctx context.Context, env Env) Result
+}
+
+// Registry holds checks in registration order.
+type Registry struct {
+	mu     sync.Mutex
+	checks []Check
+	ids    map[string]bool
+}
+
+// NewRegistry returns an empty registry.
+func NewRegistry() *Registry { return &Registry{ids: map[string]bool{}} }
+
+// Register adds a check. It panics on a duplicate ID.
+func (r *Registry) Register(c Check) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.ids[c.ID()] {
+		panic("health: duplicate check " + c.ID())
+	}
+	r.ids[c.ID()] = true
+	r.checks = append(r.checks, c)
+}
+
+// Checks returns the registered checks in order.
+func (r *Registry) Checks() []Check {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]Check(nil), r.checks...)
+}
+
+// Get returns a check by ID.
+func (r *Registry) Get(id string) (Check, bool) {
+	for _, c := range r.Checks() {
+		if c.ID() == id {
+			return c, true
+		}
+	}
+	return nil, false
+}
+
+// IDs returns the sorted IDs of registered checks.
+func (r *Registry) IDs() []string {
+	var ids []string
+	for _, c := range r.Checks() {
+		ids = append(ids, c.ID())
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+func supports(c Check, platform string) bool {
+	for _, p := range c.Platforms() {
+		if p == platform {
+			return true
+		}
+	}
+	return false
+}
+
+func skip(format string, a ...any) Result {
+	return Result{Status: StatusSkip, Summary: fmt.Sprintf(format, a...)}
+}

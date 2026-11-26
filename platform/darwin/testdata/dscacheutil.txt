@@ -1,0 +1,6 @@
+name: peer-a.tailnet-example.ts.net
+ip_address: 100.101.0.7
+
+name: peer-a.tailnet-example.ts.net
+ipv6_address: fd7a:115c:a1e0::7
+
