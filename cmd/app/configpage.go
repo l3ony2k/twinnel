@@ -112,7 +112,7 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 			a.subscriptionRow(c.Key("sub:"+sub.ID), sub, s, w)
 		}
 		if v.subOpen {
-			listRow(c).Children(func() { a.subscriptionForm(c, w) })
+			listRow(c.Key("sub-form")).Transition(rowMotion).Children(func() { a.subscriptionForm(c, w) })
 		}
 	})
 }
@@ -120,32 +120,58 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snapshot, w bool) {
 	t := c.Theme()
 	T := i18n.T
-	ui.Column(c).Gap(4).PaddingY(10).Children(func() {
+	id := sub.ID
+	refresh := func() {
+		a.helperOp(T.SubRefresh+" "+id, 2*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
+			var r rpc.SubRefreshResult
+			return hc.Call(ctx, rpc.MethodSubRefresh, rpc.IDParams{ID: id}, &r)
+		}, nil)
+	}
+	activate := func() {
+		a.helperOp(T.SubActivate+" "+id, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
+			return hc.Call(ctx, rpc.MethodSubActivate, rpc.IDParams{ID: id}, nil)
+		}, nil)
+	}
+	remove := func() {
+		a.confirm(fmt.Sprintf(T.SubRemoveTitle, sub.Name), T.SubRemoveBody, T.Remove, func() {
+			a.helperOp(T.Remove+" "+id, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
+				return hc.Call(ctx, rpc.MethodSubDelete, rpc.IDParams{ID: id}, nil)
+			}, nil)
+		})
+	}
+	row := ui.Column(c).Gap(4).PaddingY(10).Transition(rowMotion).Label(sub.Name)
+	row.ContextMenu(func(m *ui.Menu) {
+		if sub.HasURL && m.Item(T.SubRefresh).Disabled(!w).Chosen() {
+			refresh()
+		}
+		if m.Item(T.SubActivate).Disabled(!w || sub.Active).Chosen() {
+			activate()
+		}
+		m.Separator()
+		if m.Item(T.CopyID).Chosen() {
+			copyText(c, id)
+		}
+		m.Separator()
+		if m.Item(T.Remove + "…").Danger().Disabled(!w).Chosen() {
+			remove()
+		}
+	})
+	row.Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Height(28).Children(func() {
-			ui.Text(c, sub.Name).FontWeight(600).SingleLine().Shrink(1)
+			ui.Text(c, sub.Name).FontWeight(600).SingleLine().Shrink(1).Tooltip(sub.Name)
 			ui.Text(c, sub.ID).Font("monospace").FontSize(11).TextColor(t.TextMuted).SingleLine()
 			if sub.Active {
 				tag(c, T.SubActive)
 			}
 			ui.Spacer(c)
-			id := sub.ID
 			if sub.HasURL && iconButton(c.Key("refresh"), iconRefresh, T.SubRefresh, false).Disabled(!w).Clicked() {
-				a.helperOp(T.SubRefresh+" "+id, 2*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
-					var r rpc.SubRefreshResult
-					return hc.Call(ctx, rpc.MethodSubRefresh, rpc.IDParams{ID: id}, &r)
-				}, nil)
+				refresh()
 			}
 			if !sub.Active && ui.Button(c.Key("activate"), T.SubActivate).Disabled(!w).Clicked() {
-				a.helperOp(T.SubActivate+" "+id, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
-					return hc.Call(ctx, rpc.MethodSubActivate, rpc.IDParams{ID: id}, nil)
-				}, nil)
+				activate()
 			}
 			if ui.Button(c.Key("remove"), T.Remove).Disabled(!w).Clicked() {
-				a.confirm(fmt.Sprintf(T.SubRemoveTitle, sub.Name), T.SubRemoveBody, T.Remove, func() {
-					a.helperOp(T.Remove+" "+id, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
-						return hc.Call(ctx, rpc.MethodSubDelete, rpc.IDParams{ID: id}, nil)
-					}, nil)
-				})
+				remove()
 			}
 		})
 		src := T.SubFromFile
