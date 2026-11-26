@@ -642,7 +642,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 	v := &a.hd.take
 	card(c, T.SecureTitle, func() {
 		ui.Text(c, T.SecureHint).FontSize(12).TextColor(t.TextMuted).Wrap()
-		if p := v.plan; p != nil && !p.SecretSet {
+		if p := v.plan; p != nil && !p.SecretSet && v.secure == nil {
 			ui.Text(c, T.TakeoverNoSecret).FontSize(12).TextColor(t.Warning)
 		}
 		ui.Row(c).Children(func() {

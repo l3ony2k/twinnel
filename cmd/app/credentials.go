@@ -92,8 +92,9 @@ func (a *app) refreshCredentials() {
 				// Not connected: keep the last known credentials (a helper
 				// restart should not flip the app to a stale cfg.Secret).
 			default:
-				if !sameCreds(cs.cur, c) {
-					cs.cur = c
+				changed := !sameCreds(cs.cur, c)
+				cs.cur = c
+				if changed {
 					a.start()
 				}
 			}

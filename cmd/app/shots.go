@@ -36,6 +36,11 @@ func (a *app) shots(dir string) {
 	}
 	go func() {
 		time.Sleep(6 * time.Second) // let the monitor load, traffic accumulate and the health checks finish
+		if os.Getenv("DUET_SHOTS_FLOW") == "takeover" {
+			a.takeoverE2E(save)
+			mygo.App.Quit()
+			return
+		}
 		for _, p := range []string{pageOverview, pageProxies, pageTailscale, pageHealth, pageLogs, pageSettings} {
 			mygo.RunOnMain(func() {
 				old := a.page
