@@ -1,0 +1,25 @@
+{
+  "Version": "1.104.7-tabc",
+  "TUN": true,
+  "BackendState": "Running",
+  "TailscaleIPs": ["100.101.0.6", "fd7a:115c:a1e0::aa:bb"],
+  "Self": {
+    "HostName": "Laptop", "DNSName": "laptop.tailnet-example.ts.net.", "OS": "macOS",
+    "TailscaleIPs": ["100.101.0.6", "fd7a:115c:a1e0::aa:bb"],
+    "Addrs": ["203.0.113.5:41641", "198.18.0.1:41641"], "Relay": "nue", "Online": true
+  },
+  "MagicDNSSuffix": "tailnet-example.ts.net",
+  "CurrentTailnet": {"Name": "example", "MagicDNSSuffix": "tailnet-example.ts.net", "MagicDNSEnabled": true},
+  "Health": [],
+  "Peer": {
+    "nodekey:2": {"HostName": "server", "DNSName": "server.tailnet-example.ts.net.", "OS": "linux",
+      "TailscaleIPs": ["100.101.0.7", "fd7a:115c:a1e0::7"], "Online": true, "Active": true,
+      "CurAddr": "203.0.113.9:41641", "Relay": "hkg", "ExitNode": false},
+    "nodekey:1": {"HostName": "localhost", "DNSName": "phone.tailnet-example.ts.net.", "OS": "iOS",
+      "TailscaleIPs": ["100.101.0.8"], "Online": false, "Relay": "sea",
+      "LastSeen": "2026-11-01T11:10:01Z"},
+    "nodekey:3": {"HostName": "router", "DNSName": "router.tailnet-example.ts.net.", "OS": "linux",
+      "TailscaleIPs": ["100.101.0.9"], "Online": true, "Active": true, "CurAddr": "",
+      "Relay": "tok", "ExitNode": true}
+  }
+}

@@ -1,0 +1,31 @@
+mixed-port: 7899
+external-controller: 127.0.0.1:9090
+secret: ''
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  listen: 127.0.0.1:53
+  fake-ip-filter:
+    - '+.ts.net'
+  nameserver-policy:
+    '+.ts.net':
+      - system
+    '+.lan': 'system, 192.168.1.1'
+tun:
+  enable: true
+  device: utun
+  dns-hijack:
+    - any:53
+  route-exclude-address:
+    - 100.64.0.0/10
+    - fd7a:115c:a1e0::/48
+proxies:
+  - {name: node-a, type: ss, server: 192.0.2.1, port: 443, cipher: aes-128-gcm, password: not-a-real-password}
+proxy-groups:
+  - {name: PROXY, type: select, proxies: [node-a, REJECT]}
+rules:
+  - PROCESS-NAME,tailscaled,DIRECT
+  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
+  - AND,((DOMAIN-SUFFIX,example.com),(NETWORK,UDP)),REJECT
+  - MATCH,PROXY
