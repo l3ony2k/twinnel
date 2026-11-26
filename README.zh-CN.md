@@ -1,0 +1,101 @@
+# duet
+
+[English](README.md)
+
+duet 在桌面上同时跑**官方的** [mihomo](https://github.com/MetaCubeX/mihomo) 内核和 [Tailscale](https://tailscale.com)，并持续检查两者是否还能和平共处：tailnet 流量交给 Tailscale，其余流量按 mihomo 的规则走，每个域名都由该负责的一方来解析。
+
+它管理的是你本来就信任的官方内核，**不是**又一个 Clash 客户端：
+
+- 不内置、不魔改 mihomo 或 Tailscale。用的都是官方二进制：机器上已经装好的，或者从 GitHub 下载并校验过的 mihomo 正式发布版。
+- 两个内核都以系统服务运行（macOS 上是 LaunchDaemon，Linux 上是 systemd unit）。App 只是控制面板，退出或崩溃都不影响网络。
+- **谁都不占系统 VPN 通道。** mihomo 用自己的 TUN，开源版 `tailscaled` 用自己的 tun 设备；duet 负责生成让两者共存的设置（排除 tailnet 网段、Tailscale 相关流量直连、MagicDNS 的解析路径），并用健康检查持续核对。
+- 订阅保持只读。本机的改动（端口、DNS、自己的规则、Tailscale 共存设置）都写成覆写层，叠加在订阅之上，订阅更新时不会丢。
+
+> **现状：早期开发中。** 首先支持 macOS（arm64）。Linux 上已经能跑健康检查和接管分析；systemd 服务管理的代码已经写好，但还没接进 helper。Windows 能编译，但还没有平台层。接口和文件格式都可能变。
+
+## 目前能做什么
+
+| 功能 | 状态 |
+|---|---|
+| `duet doctor`：13 项共存健康检查，输出纯文本 / Markdown / JSON | macOS、Linux |
+| `duet takeover plan`：读取手工搭好的 mihomo + Tailscale，推导出能还原现有配置的覆写层，并用 `mihomo -t` 和语义 diff 证明等价 | macOS、Linux（只读，还没有"应用"这一步） |
+| `duet compose`：订阅 + 覆写层 → 配置，用 `mihomo -t` 校验 | 全平台 |
+| root helper（`duet-helper`）：合成 → 校验 → 备份 → 写入 → 热重载 → 验证，失败自动回滚；订阅、覆写层、历史版本，mihomo 内核下载 / 切换 / 回滚 | 能在 macOS 上运行；`duet helper install` 目前只打印安装计划（`--dry-run`） |
+| 菜单栏 App：状态图标和弹出面板，主窗口（总览、策略组、Tailscale 设备、健康检查、日志、设置） | macOS；会改动系统的控件默认禁用，设置 `DUET_ALLOW_WRITES=1` 才可用 |
+| 凭证存系统钥匙串 | 还没做：helper 目前把它们存在状态目录里一个 0600 权限的文件中 |
+
+## 从源码安装
+
+需要 Go（版本见 `go.mod`），不需要 cgo，也不需要其他工具链。
+
+```sh
+git clone https://github.com/l3ony2k/duet && cd duet
+go build -o bin/duet ./cmd/cli            # 命令行
+go build -o bin/duet-helper ./cmd/helper  # root helper 守护进程
+go run ./cmd/app                          # 菜单栏 App（macOS），开发模式运行
+```
+
+发布包（macOS 和 Linux 的 CLI + helper；在 Mac 上构建时另有 `duet.app` 和磁盘映像）用这个脚本生成：
+
+```sh
+scripts/build-release.sh            # 输出到 dist/，附 SHA256SUMS
+scripts/build-release.sh --no-app   # 只构建 CLI 和 helper（任何系统都能跑）
+```
+
+`.app` 只做了 ad hoc 签名，没有公证。第一次打开时右键选"打开"。
+
+## 命令行速览
+
+除了 helper 相关的命令，下面的都是只读的。
+
+```sh
+duet doctor                      # 对当前机器跑健康检查
+duet doctor --markdown           # 生成可以贴进 issue 的报告（里面有 tailnet 设备名，贴之前看一眼）
+duet doctor --only magicdns,system-dns --json
+duet doctor --egress             # 可选：直连和经 mihomo 各发一次 HTTPS 请求，对比出口
+
+duet takeover plan --out ./plan  # 找到正在运行的服务，判断现有配置来自哪份订阅，
+                                 # 把覆写层、合成结果和语义 diff 写进 ./plan
+
+duet compose --sub sub.yaml --base base.yaml --layer my-rules.yaml \
+  --tailnet-from-status --leak-guard Google,Meta \
+  --validate /path/to/mihomo -o config.yaml
+
+duet status                      # mihomo + Tailscale 状态快照（菜单栏显示的就是这些）
+```
+
+helper 相关的命令通过 Unix socket 和 `duet-helper` 通信（`$DUET_SOCKET`，默认 `/var/run/duet/helper.sock`）：
+
+```sh
+duet helper status
+duet helper install --dry-run    # 打印服务定义和每一步操作，不做任何改动
+duet sub put main --url ...      # 订阅：list | put | refresh | activate | rm
+duet layer put rules rules.yaml  # 覆写层：list | get | put | rm | enable | disable | order
+duet compose --preview           # 在 helper 里合成并校验，不写入
+duet compose --apply             # 校验、备份、写入、重载、验证（失败自动回滚）
+duet history                     # 合成历史；duet history rollback ID 回滚
+duet kernel check                # mihomo 内核：list | check | install | rollback
+duet events --follow
+```
+
+## 健康检查
+
+`tailnet-route`、`tun-route-exclude`、`tailscale-direct-rules`、`magicdns`、`peer-short-names`、`tailnet-resolver-binding`、`fake-ip-filter-mode`、`system-dns`、`vpn-conflict`、`peer-direct`、`leak-guard`、`leak-guard-egress`（需手动开启）、`controller-security`。每一项都给出状态、读到的证据和修复建议。各项具体查什么，见 [docs/architecture.md](docs/architecture.md#health-checks)。
+
+## 安全设计
+
+- 只有 helper 以 root 运行，所有改动系统、mihomo 配置或二进制文件的操作都经过它。它的 RPC 方法是固定的白名单，没有一个接受客户端传来的文件路径或命令：路径只存在 helper 自己的 root 设置文件里；客户端能传的 URL 只有订阅地址；安装内核时只能指定发布通道。
+- socket 权限是 0660，属于 `admin` 组；每个请求都通过内核提供的对端凭证核对调用方的 uid。
+- 配置写入前必须通过官方 `mihomo -t` 校验。写入前先备份旧文件；如果重载失败或重载后的检查不通过，会恢复旧配置。
+- mihomo 内核只从官方 GitHub Release 下载，切换前校验 SHA-256，并保留上一个版本用于回滚。
+- controller secret 和订阅地址不会出现在历史版本、日志或错误信息里。出口测试会遮盖报告里的公网 IP；报告里的其他证据（tailnet 设备名、peer 的地址）按原样显示，分享之前请检查。仓库里没有任何个人数据，`scripts/check-no-personal-data.sh` 会用放在仓库外的特征列表检查这一点。
+
+详见 [docs/architecture.md](docs/architecture.md)。报告安全问题请看 [SECURITY.md](SECURITY.md)。
+
+## 参与开发
+
+见 [CONTRIBUTING.md](CONTRIBUTING.md)。产品需求和技术方案在 `docs/requirements.md`、`docs/tech.md`。
+
+## 许可证
+
+MIT，见 [LICENSE](LICENSE)。内置图标的许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

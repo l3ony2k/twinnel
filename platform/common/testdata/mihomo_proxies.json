@@ -1,0 +1,8 @@
+{"proxies":{
+ "DIRECT":{"name":"DIRECT","type":"Direct","history":[]},
+ "REJECT":{"name":"REJECT","type":"Reject","history":[]},
+ "node-a":{"name":"node-a","type":"Shadowsocks","history":[]},
+ "PROXY":{"name":"PROXY","type":"Selector","now":"node-a","all":["node-a","REJECT"]},
+ "Google":{"name":"Google","type":"Selector","now":"PROXY","all":["PROXY","REJECT","node-a"]},
+ "Auto":{"name":"Auto","type":"Fallback","now":"node-a","all":["node-a","DIRECT"]}
+}}

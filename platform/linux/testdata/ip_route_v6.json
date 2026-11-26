@@ -1,0 +1,2 @@
+[{"dst":"fd7a:115c:a1e0::/48","dev":"tailscale0","table":"52","metric":1024,"pref":"medium","flags":[]},
+{"type":"multicast","dst":"ff00::/8","table":"local","dev":"wlan0","protocol":"kernel","metric":256,"pref":"medium","flags":[]}]

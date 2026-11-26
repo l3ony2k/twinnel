@@ -1,0 +1,8 @@
+{"rules":[
+ {"index":0,"type":"ProcessName","payload":"tailscaled","proxy":"DIRECT","size":-1},
+ {"index":1,"type":"DomainSuffix","payload":"tailscale.com","proxy":"DIRECT","size":-1},
+ {"index":2,"type":"IPCIDR","payload":"100.64.0.0/10","proxy":"DIRECT","size":-1},
+ {"index":3,"type":"Domain","payload":"server","proxy":"DIRECT","size":-1},
+ {"index":4,"type":"GeoSite","payload":"google","proxy":"Google","size":-1},
+ {"index":5,"type":"Match","payload":"","proxy":"PROXY","size":-1}
+]}

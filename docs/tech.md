@@ -121,3 +121,7 @@ assets/icons/ SVG 图标源文件 + 菜单栏 template PNG
 3. 把现有的手工补丁拆成两份覆写，在临时目录里合成，用 `mihomo -t` 校验，和现在线上的 `config.yaml` 做 diff。期望除了顺序和注释外完全一致。**这一步不动线上配置。**
 
 spike 通过后进入 v0.1：写 helper、接管现有安装、做健康检查。
+
+## 更新记录
+
+- 2026-11-26：Linux 平台层落地。`platform/linux` 实现了健康检查的 `Env`（`ip -j`、`resolvectl` / `resolv.conf`、`nmcli`、`getent`）、接管用的 systemd `Probe`，以及 `platform/linux/systemd` 服务管理（unit 渲染、`systemctl` 计划、`systemctl show` 解析）；`duet doctor`、`duet takeover plan` 可以在 Linux 上运行。共用的解析代码移到 `platform/common`。helper 还没有接入 systemd。整体结构见 `docs/architecture.md`。

@@ -1,0 +1,2 @@
+[Service]
+ExecStart=/usr/bin/mihomo -d /should/be/hidden
