@@ -1,0 +1,38 @@
+system/com.example.mihomo = {
+	active count = 1
+	path = /Library/LaunchDaemons/com.example.mihomo.plist
+	type = LaunchDaemon
+	state = running
+
+	program = /opt/example/bin/mihomo
+	arguments = {
+		/opt/example/bin/mihomo
+		-d
+		/opt/example/conf
+	}
+
+	stdout path = /opt/example/logs/mihomo.out.log
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		XPC_SERVICE_NAME => com.example.mihomo
+	}
+
+	domain = system
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 2
+	pid = 4242
+	immediate reason = inefficient
+	last exit code = 0
+	last terminating signal = Killed: 9
+
+	resource coalition = {
+		ID = 1001
+		type = resource
+		state = active
+		name = com.example.mihomo
+	}
+}
