@@ -1,8 +1,12 @@
 # Third-party notices
 
-## Kubai Icons (assets/icons/*.svg except duet.svg)
+## Kubai Icons (assets/icons/*.svg)
 
-Source: https://github.com/kubai087/kubai-icons
+Source: https://github.com/kubai087/kubai-icons (line style, `icons-line/`).
+
+Covers every `assets/icons/*.svg` except the ones drawn for duet: `duet.svg`,
+`shield-droplet.svg`, `tunnel.svg`, `nodes-direct.svg`, `nodes-relay.svg` (and `drawn/`),
+the tray marks and the app icon, which are ours under the repo's licence.
 
 ```
 MIT License

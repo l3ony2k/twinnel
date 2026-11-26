@@ -1,0 +1,22 @@
+product: duet, a macOS menu bar app that runs mihomo (rule-based proxy) and Tailscale side by side, for one technical owner
+personality: [calm, precise, native]
+sizes: [14, 16, 20, 24]
+dir: drawn
+avoid: [letters or numbers inside icons, colour carrying meaning, padlock for anything that is not a lock]
+
+# Matched to the Kubai line style the stock icons come from: their keylines are
+# measured on the outer ink edge (circle 20, square 18), so the centrelines here
+# are one stroke smaller, with 2 units of padding.
+dna:
+  style: outline
+  stroke: 2
+  grid: 24
+  padding: 2
+  keylines: { circle: 18, square: 16, portrait: [14, 18], landscape: [18, 14] }
+  corners: { family: squircle, radius: { large: 3.25, small: 1.5 }, largeThreshold: 8 }
+  caps: round
+  joins: round
+  angles: [0, 30, 45, 60, 90]
+  detail: low
+  minGap: 1.75   # Kubai line style: 1.5-1.75 between separate parts at stroke 2
+  badge: { position: bottom-right, size: 8, gap: 1.75 }

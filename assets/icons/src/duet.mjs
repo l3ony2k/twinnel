@@ -6,10 +6,10 @@
 //   duet            all fine
 //   duet-warn       "!" in the notch
 //   duet-error      "x" in the notch
-//   duet-unknown    both rings dashed: still connecting / not known yet
-//   duet-tsdown     right ring (Tailscale) dashed, left ring (mihomo) whole: Tailscale is down
+//   duet-unknown    two rings side by side, not linked: still connecting / not known yet
+//   duet-tsdown     the linked pair with a slash over the right (Tailscale) ring: Tailscale is down
 //   duet-mode       "→" in the notch: mihomo is not in rule mode (direct or global)
-//   duet-nohelper   a small hollow ring in the notch: the helper is not installed / not connected
+//   duet-nohelper   "–" in the notch: the helper is not installed / not connected
 import { n, P, shell, line, solid } from '../parts.mjs';
 import { gapOf } from '../kit.mjs';
 import { circ } from '../smooth.mjs';
@@ -53,6 +53,7 @@ const MARKS = {
 function marked(mark, label) {
   return {
     ...duet, label, name: `duet-${mark}`, base: 'duet', kind: 'badge', weights: null,
+    allow: { ...duet.allow, keyline: '角标在右下角的缺口里，伸出圆环的外框是有意的' },
     draw(g, ctx) {
       const x = BX, y = BY;
       const parts = MARKS[mark](g, x, y);
@@ -62,37 +63,33 @@ function marked(mark, label) {
   };
 }
 
-// dashed draws a ring as short arcs with round ends: n dashes, each `on` of its share of the turn.
-function dashed(g, cx, cy, { n: count = 7, on = 0.55, start = -90 } = {}) {
-  const r = R - g.h, step = 360 / count, len = step * on;
-  let d = '';
-  for (let i = 0; i < count; i++) {
-    const a = start + i * step;
-    d += g.arc(cx, cy, r, a, a + len);
-  }
-  return d;
-}
-
-// The interlocked pair with one or both rings dashed (no cuts: a dashed ring has its own gaps).
-function broken(which, label) {
-  return {
-    ...duet, label, name: `duet-${which}`, base: 'duet', weights: null,
-    allow: { ...duet.allow, open: '虚线环表示“未连接 / 未知”，短弧端点是有意留的开口' },
-    draw(g) {
-      // Few, wide gaps: they must still read as gaps at 16 px (1x).
-      const left = which === 'unknown'
-        ? line(dashed(g, LX, CY, { n: 5, on: 0.5, start: -54 }), { n: 'left', role: P, part: 'left' })
-        : shell(g.ring(LX, CY, R), { n: 'left', role: P, part: 'left' });
-      const right = which === 'unknown' ? { n: 5, on: 0.5, start: -126 } : { n: 3, on: 0.42, start: -150 };
-      return [left, line(dashed(g, RX, CY, right), { n: 'right', role: P, part: 'right' })];
-    },
-    fx: [{ t: 'keys', on: ['right'], o: [RX, CY], r: [0, 120], ms: 900 }]
-  };
-}
-
+// Tailscale down: the pair stays linked, a slash lies over the right (Tailscale) ring only.
+const slashed = (label, k = 4.6) => ({
+  ...duet, label, name: 'duet-tsdown', base: 'duet', weights: null,
+  allow: { ...duet.allow, keyline: '斜线只盖住右环' },
+  plan: '主体：两个扣在一起的圆环；右环（Tailscale）上压一条斜线，表示它关着',
+  draw(g, ctx) {
+    const d = g.seg(RX + k, CY - k, RX - k, CY + k);
+    return [...duet.draw(g, ctx), line(d, { n: 'slash', role: P, part: 'slash', cut: { d, w: g.s + 2 * gapOf(g.s) } })];
+  },
+  fx: { t: 'draw', on: ['slash'] }
+});
+// Two whole rings side by side, not linked: nothing is connected yet.
+const apart = (label) => ({
+  ...duet, label, name: 'duet-unknown', base: 'duet', weights: null,
+  allow: { ...duet.allow },
+  plan: '主体：两个分开、没有扣上的圆环：还没连上',
+  draw(g) {
+    const r = 4.5;
+    return [shell(g.ring(2 + r, CY, r), { n: 'left', role: P, part: 'left' }), shell(g.ring(22 - r, CY, r), { n: 'right', role: P, part: 'right' })];
+  },
+  fx: [{ t: 'keys', on: ['left'], x: [1, 0] }, { t: 'keys', on: ['right'], x: [-1, 0] }]
+});
 // Extra notch marks (same notch as warn/error).
-MARKS.nohelper = (g, x, y) => [line(circ(x, y, MARK * 0.78 - g.h * 0.2))];
+// horizontal marks sit on a whole unit (17, half a unit above the notch centre) so their edges are crisp
+MARKS.minus = (g, x, y) => { const k = MARK * 0.95 - g.h * 0.5; y = Math.floor(y); return [line(g.seg(x - k, y, x + k, y))]; };
 MARKS.mode = (g, x, y) => {
+  y = Math.floor(y);
   const k = MARK * 0.95 - g.h * 0.5, a = MARK * 0.7;
   return [line(`${g.seg(x - k, y, x + k, y)}M${n(x + k - a)} ${n(y - a)}L${n(x + k)} ${n(y)}L${n(x + k - a)} ${n(y + a)}`)];
 };
@@ -101,8 +98,9 @@ export default {
   duet,
   'duet-warn': marked('warn', '双核（警告）'),
   'duet-error': marked('error', '双核（错误）'),
-  'duet-unknown': broken('unknown', '双核（连接中）'),
-  'duet-tsdown': broken('tsdown', '双核（Tailscale 断开）'),
+  'duet-unknown': apart('双核（连接中）'),
+  'duet-tsdown': slashed('双核（Tailscale 断开）'),
+
   'duet-mode': marked('mode', '双核（非规则模式）'),
-  'duet-nohelper': marked('nohelper', '双核（后台助手未连接）')
+  'duet-nohelper': marked('minus', '双核（后台助手未连接）')
 };
