@@ -29,6 +29,7 @@ type fakeGitHub struct {
 	digests map[string][]byte // asset name -> content the digest is computed from
 	tag     string
 	srv     *httptest.Server
+	apiHits int
 }
 
 func newFakeGitHub(t *testing.T) *fakeGitHub {
@@ -64,6 +65,9 @@ func (g *fakeGitHub) serve(w http.ResponseWriter, r *http.Request) {
 			as = append(as, asset{n, int64(len(g.digests[n])), "sha256:" + hex.EncodeToString(sum[:])})
 		}
 		json.NewEncoder(w).Encode(map[string]any{"tag_name": g.tag, "assets": as})
+	}
+	if strings.HasPrefix(r.URL.Path, "/repos/") {
+		g.apiHits++
 	}
 	switch p := r.URL.Path; {
 	case p == "/repos/MetaCubeX/meta-rules-dat/releases/tags/latest":
@@ -123,6 +127,9 @@ func TestGeoCheckAndUpdate(t *testing.T) {
 	c, err := h.e.GeoCheck(ctx)
 	if err != nil || len(c.Files) != 4 {
 		t.Fatalf("check: %+v %v", c, err)
+	}
+	if g.apiHits != 1 {
+		t.Errorf("%d API requests for one check, want 1", g.apiHits)
 	}
 	for _, f := range c.Files {
 		if f.Installed || !f.UpdateAvailable || !f.Verifiable || f.Error != "" {
@@ -204,6 +211,21 @@ func TestGeoCustomURLsAndExistingNames(t *testing.T) {
 	gs := c.Files[1]
 	if gs.URL != "https://example.com/custom/geosite.dat?…" || gs.Verifiable {
 		t.Errorf("custom geosite %+v", gs)
+	}
+}
+
+func TestRateLimitMessage(t *testing.T) {
+	h, _ := accessoryHarness(t)
+	limited := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", "1795680000")
+		http.Error(w, "rate limited", http.StatusForbidden)
+	}))
+	defer limited.Close()
+	h.e.HTTPClient = func(*url.URL) *http.Client { return &http.Client{Transport: rewrite{limited.Listener.Addr().String()}} }
+	c, _ := h.e.GeoCheck(context.Background())
+	if !strings.Contains(c.Files[0].Error, "rate limit") || c.Files[0].UpdateAvailable {
+		t.Errorf("%+v", c.Files[0])
 	}
 }
 

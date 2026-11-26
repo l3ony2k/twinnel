@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/service"
@@ -96,10 +95,6 @@ func (e *Engine) ServiceOp(ctx context.Context, name string, op service.Op) (rpc
 		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
 	}
 	if op == service.OpInstall {
-		// The log dir must exist before launchd opens the log files.
-		if spec.StdoutPath != "" {
-			steps = append([]service.Step{{Kind: service.StepMkdir, Path: filepath.Dir(spec.StdoutPath), Mode: 0o755}}, steps...)
-		}
 		if _, err := os.Stat(st.Mihomo.ConfigFile); err != nil {
 			e.log().Warn("installing mihomo service without a config file yet", "config", st.Mihomo.ConfigFile)
 		}

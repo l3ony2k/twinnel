@@ -80,7 +80,7 @@ func TestServiceOps(t *testing.T) {
 	}
 	st, _ := h.e.Store.Settings()
 	want := "write /defs/com.l3ony2k.duet.mihomo.plist: com.l3ony2k.duet.mihomo " + st.Mihomo.Binary + " -d " + h.confDir + " -f " + h.cfgPath
-	if len(files.ops) != 2 || files.ops[0] != "mkdir "+h.e.Store.Path("logs") || files.ops[1] != want {
+	if len(files.ops) != 1 || files.ops[0] != want {
 		t.Errorf("files %q\nwant %q", files.ops, want)
 	}
 	if len(ex.runs) != 1 || ex.runs[0][1] != "bootstrap" {

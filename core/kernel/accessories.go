@@ -27,7 +27,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 // Default geo database URLs (mihomo's own defaults for geox-url).
@@ -109,6 +112,12 @@ type Remote struct {
 type Fetcher struct {
 	HTTP *http.Client
 	API  string // GitHub API base, default https://api.github.com
+
+	// Release lookups are cached for the life of the Fetcher: the four
+	// geo databases share one release, and the unauthenticated GitHub API
+	// allows only 60 requests an hour.
+	mu       sync.Mutex
+	releases map[string]*ghRelease
 }
 
 func (f *Fetcher) client() *http.Client {
@@ -183,8 +192,8 @@ func (f *Fetcher) Resolve(ctx context.Context, raw string) (Remote, error) {
 	if tag != "" {
 		api = f.api() + "/repos/" + repo + "/releases/tags/" + url.PathEscape(tag)
 	}
-	var rel ghRelease
-	if err := getJSON(ctx, f.client(), api, &rel); err != nil {
+	rel, err := f.release(ctx, api)
+	if err != nil {
 		return r, err
 	}
 	for _, a := range rel.Assets {
@@ -198,6 +207,23 @@ func (f *Fetcher) Resolve(ctx context.Context, raw string) (Remote, error) {
 		return r, nil
 	}
 	return r, fmt.Errorf("release %s of %s has no asset %q", orStr(rel.TagName, "latest"), repo, name)
+}
+
+func (f *Fetcher) release(ctx context.Context, api string) (*ghRelease, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if rel, ok := f.releases[api]; ok {
+		return rel, nil
+	}
+	rel := &ghRelease{}
+	if err := getJSON(ctx, f.client(), api, rel); err != nil {
+		return nil, err
+	}
+	if f.releases == nil {
+		f.releases = map[string]*ghRelease{}
+	}
+	f.releases[api] = rel
+	return rel, nil
 }
 
 func orStr(s, d string) string {
@@ -218,6 +244,13 @@ func getJSON(ctx context.Context, c *http.Client, u string, v any) error {
 		return err
 	}
 	defer resp.Body.Close()
+	if (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests) && resp.Header.Get("X-RateLimit-Remaining") == "0" {
+		reset := ""
+		if t, err := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil {
+			reset = " until " + time.Unix(t, 0).Format("15:04")
+		}
+		return fmt.Errorf("GitHub API rate limit reached (60 requests an hour without a token); try again%s", reset)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("GET %s: %s", u, resp.Status)
 	}
