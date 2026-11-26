@@ -151,6 +151,16 @@ func cardWith(c *ui.Context, title string, trailing func(), body func()) ui.Elem
 	})
 }
 
+// headedCard is card with a heading row the caller builds (title, hints,
+// buttons), above the box.
+func headedCard(c *ui.Context, head func(), body func()) ui.Element {
+	t := c.Theme()
+	return ui.Column(c).Gap(8).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).MinHeight(28).Children(head)
+		groupBox(c, t).Children(body)
+	})
+}
+
 // groupBox is the box of a group, without heading.
 func groupBox(c *ui.Context, t *ui.Theme) ui.Element {
 	p := pal(t)

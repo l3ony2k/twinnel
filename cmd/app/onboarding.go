@@ -123,7 +123,7 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 	card(c, "", func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, iconDuet).FontSize(22).TextColor(t.Accent)
-			ui.Text(c, T.OnboardTitle).FontSize(16).Bold()
+			ui.Text(c, T.OnboardTitle).FontSize(15).FontWeight(600)
 		})
 		ui.Text(c, T.OnboardIntro).FontSize(13).Wrap()
 		for _, line := range T.OnboardPoints {
@@ -143,12 +143,12 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 				ui.Text(c, T.Loading).FontSize(12).TextColor(t.TextMuted)
 			})
 		case v.plan != "":
-			ui.Scroll(c).Height(260).Radius(6).Background(t.Background).Border(1, t.Border).Children(func() {
+			ui.Scroll(c).Height(260).Radius(plat.controlRadius+2).Background(pal(t).code).Border(1, pal(t).groupLine).Children(func() {
 				ui.Text(c, v.plan).Font("monospace").FontSize(11).Padding(10, 12).Wrap().Selectable()
 			})
 		}
 		if v.planErr != "" {
-			ui.Text(c, v.planErr).FontSize(12).TextColor(t.Danger).Wrap().Selectable()
+			ui.Text(c, v.planErr).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
 		}
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			canInstall := s.WritesAllowed && !v.running && v.planErr == "" && v.plan != ""

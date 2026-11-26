@@ -101,14 +101,13 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 	d := &a.hd
 	v := &d.cfg
 	w := a.helperWrites(s)
-	card(c, "", func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, T.Subscriptions).FontSize(14).Bold()
-			ui.Spacer(c)
-			if !v.subOpen && ui.Button(c.Key("sub-add"), T.SubAdd).Disabled(!w).Clicked() {
-				v.subOpen, v.subMins = true, "1440"
-			}
-		})
+	headedCard(c, func() {
+		ui.Text(c, T.Subscriptions).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
+		ui.Spacer(c)
+		if !v.subOpen && ui.Button(c.Key("sub-add"), T.SubAdd).Disabled(!w).Clicked() {
+			v.subOpen, v.subMins = true, "1440"
+		}
+	}, func() {
 		if len(d.subs) == 0 {
 			ui.Text(c, T.SubNone).FontSize(13).TextColor(t.TextMuted)
 		}
@@ -125,12 +124,12 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snapshot, w bool) {
 	t := c.Theme()
 	T := i18n.T
-	ui.Column(c).Gap(4).Padding(10, 12).Radius(8).Background(t.Background).Border(1, t.Border).Children(func() {
+	ui.Column(c).Gap(4).Padding(10, 12).Radius(plat.controlRadius+2).Background(pal(t).code).Border(1, pal(t).groupLine).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, sub.Name).FontSize(13).Bold().SingleLine().Shrink(1)
+			ui.Text(c, sub.Name).FontWeight(600).SingleLine().Shrink(1)
 			ui.Text(c, sub.ID).Font("monospace").FontSize(11).TextColor(t.TextMuted).SingleLine()
 			if sub.Active {
-				ui.Badge(c, T.SubActive)
+				tag(c, T.SubActive)
 			}
 			ui.Spacer(c)
 			id := sub.ID
@@ -175,7 +174,7 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 		}
 		ui.Text(c, fetched).FontSize(12).TextColor(t.TextMuted).SingleLine()
 		if sub.LastError != "" {
-			ui.Text(c, T.ErrorPrefix+sub.LastError).FontSize(12).TextColor(t.Danger).Wrap().Selectable()
+			ui.Text(c, T.ErrorPrefix+sub.LastError).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
 		}
 	})
 }
@@ -290,15 +289,14 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 			stored = append(stored, l.ID)
 		}
 	}
-	card(c, "", func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, T.Layers).FontSize(14).Bold()
-			ui.Text(c, T.LayersHint).FontSize(12).TextColor(t.TextMuted).Shrink(1).SingleLine()
-			ui.Spacer(c)
-			if ui.Button(c.Key("layer-new"), T.LayerNew).Disabled(!w).Clicked() {
-				a.newLayer()
-			}
-		})
+	headedCard(c, func() {
+		ui.Text(c, T.Layers).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
+		ui.Text(c, T.LayersHint).FontSize(12).TextColor(t.TextMuted).Shrink(1).SingleLine()
+		ui.Spacer(c)
+		if ui.Button(c.Key("layer-new"), T.LayerNew).Disabled(!w).Clicked() {
+			a.newLayer()
+		}
+	}, func() {
 		for _, l := range d.layers {
 			a.layerRow(c.Key("layer:"+l.ID), l, stored, w)
 		}
@@ -331,10 +329,10 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, stored []string, w bool) {
 		}
 		ui.Column(c).Gap(2).Grow(1).Shrink(1).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, l.Name).FontSize(13).Bold().SingleLine().Shrink(1)
-				ui.Badge(c, T.StageName(l.Stage))
+				ui.Text(c, l.Name).FontWeight(600).SingleLine().Shrink(1)
+				tag(c, T.StageName(l.Stage))
 				if l.Managed {
-					ui.Badge(c, T.LayerManaged)
+					tag(c, T.LayerManaged)
 				}
 			})
 			info := l.ID + " · " + l.Format
@@ -460,24 +458,23 @@ func (a *app) layerEditorCard(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	v := &a.hd.cfg
 	w := a.helperWrites(s)
-	card(c, "", func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			title := T.LayerEdit
-			switch {
-			case v.isNew:
-				title = T.LayerNew
-			case v.managed:
-				title = T.LayerGenerated
-			}
-			ui.Text(c, title).FontSize(14).Bold()
-			if !v.isNew {
-				ui.Text(c, v.edID).Font("monospace").FontSize(12).TextColor(t.TextMuted)
-			}
-			ui.Spacer(c)
-			if ui.Button(c.Key("ed-close"), T.Close).Clicked() {
-				v.sel, v.isNew, v.ed = "", false, nil
-			}
-		})
+	headedCard(c, func() {
+		title := T.LayerEdit
+		switch {
+		case v.isNew:
+			title = T.LayerNew
+		case v.managed:
+			title = T.LayerGenerated
+		}
+		ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
+		if !v.isNew {
+			ui.Text(c, v.edID).Font("monospace").FontSize(12).TextColor(t.TextMuted)
+		}
+		ui.Spacer(c)
+		if ui.Button(c.Key("ed-close"), T.Close).Clicked() {
+			v.sel, v.isNew, v.ed = "", false, nil
+		}
+	}, func() {
 		if v.managed {
 			ui.Text(c, T.LayerManagedHint).FontSize(12).TextColor(t.TextMuted).Wrap()
 		} else {
@@ -510,7 +507,7 @@ func (a *app) layerEditorCard(c *ui.Context, s status.Snapshot) {
 			})
 			return
 		}
-		editor.View(c.Key("ed:"+v.sel), v.ed).Height(320).Radius(8).Border(1, t.Border)
+		editor.View(c.Key("ed:"+v.sel), v.ed).Height(320).Radius(plat.controlRadius+2).Border(1, pal(t).groupLine)
 		if !v.managed {
 			a.lintNotes(c)
 		}
@@ -523,7 +520,7 @@ func (a *app) layerEditorCard(c *ui.Context, s status.Snapshot) {
 				a.saveLayer()
 			}
 			if v.ed.Buffer.Modified() {
-				ui.Text(c, T.Unsaved).FontSize(12).TextColor(t.Warning)
+				ui.Text(c, T.Unsaved).FontSize(12).TextColor(pal(t).warnText)
 			}
 			ui.Spacer(c)
 			if !v.isNew && ui.Button(c.Key("ed-delete"), T.Remove).Disabled(!w).Clicked() {
@@ -611,14 +608,13 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	v := &a.hd.cfg
 	w := a.helperWrites(s)
-	card(c, "", func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, T.PreviewApply).FontSize(14).Bold()
-			ui.Spacer(c)
-			if iconButton(c.Key("preview"), iconSpeed, T.Preview, false).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {
-				a.runPreview(s)
-			}
-		})
+	headedCard(c, func() {
+		ui.Text(c, T.PreviewApply).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
+		ui.Spacer(c)
+		if iconButton(c.Key("preview"), iconSpeed, T.Preview, false).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {
+			a.runPreview(s)
+		}
+	}, func() {
 		ui.Text(c, T.PreviewHint).FontSize(12).TextColor(t.TextMuted).Wrap()
 		if p := v.preview; p != nil {
 			composeSummary(c, *p)
@@ -630,7 +626,7 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 			add, del := v.diff.Stats()
 			ui.Text(c, fmt.Sprintf(T.DiffStats, add, del)).FontSize(12).TextColor(t.TextMuted)
 			if add+del > 0 {
-				editor.DiffView(c.Key("preview-diff"), v.diff).Height(380).Radius(8).Border(1, t.Border)
+				editor.DiffView(c.Key("preview-diff"), v.diff).Height(380).Radius(plat.controlRadius+2).Border(1, pal(t).groupLine)
 			}
 		}
 		ui.Divider(c)
@@ -666,11 +662,11 @@ func composeSummary(c *ui.Context, r rpc.ComposeResult) {
 	}
 	kv(c, T.ComposeChanged, changed)
 	for _, e := range r.ValidateErrors {
-		ui.Text(c, e).Font("monospace").FontSize(11).TextColor(t.Danger).Wrap().Selectable()
+		ui.Text(c, e).Font("monospace").FontSize(11).TextColor(pal(t).badText).Wrap().Selectable()
 	}
 	for _, wn := range r.Warnings {
 		ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-			ui.Icon(c, iconWarning).FontSize(14).TextColor(t.Warning).MarginY(1)
+			ui.Icon(c, iconWarning).FontSize(14).TextColor(pal(t).warnText).MarginY(1)
 			ui.Text(c, wn).FontSize(12).Grow(1).Wrap().Selectable()
 		})
 	}
@@ -689,7 +685,7 @@ func applySummary(c *ui.Context, r rpc.ApplyResult) {
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		dot(c, col, 8)
-		ui.Text(c, head).FontSize(13).Bold()
+		ui.Text(c, head).FontWeight(600)
 		ui.Text(c, r.Time.Local().Format("15:04:05")+" · "+r.Duration).FontSize(12).TextColor(t.TextMuted)
 	})
 	flags := []string{
@@ -703,9 +699,41 @@ func applySummary(c *ui.Context, r rpc.ApplyResult) {
 		flags = append(flags, T.HistoryEntry+" "+r.HistoryID)
 	}
 	ui.Text(c, strings.Join(flags, " · ")).FontSize(12).TextColor(t.TextMuted).Wrap().Selectable()
+	impactRow(c, r.Impact)
 	if r.Error != "" {
-		ui.Text(c, r.Error).FontSize(12).TextColor(t.Danger).Wrap().Selectable()
+		ui.Text(c, r.Error).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
 	}
+}
+
+// impactRow says what a mihomo hot reload does (or did) to the network:
+// a few milliseconds of pause, or a short interruption, plus what only a
+// restart applies. Nothing when the helper did not judge it.
+func impactRow(c *ui.Context, im *rpc.ReloadImpact) {
+	if im == nil {
+		return
+	}
+	t := c.Theme()
+	T := i18n.T
+	text, icon, col := T.ImpactGentle, iconOK, t.TextMuted
+	if im.Disruptive {
+		text, icon, col = T.ImpactDisruptive, iconWarning, pal(t).warnText
+	}
+	kvWith(c, T.ImpactLabel, func() {
+		ui.Column(c).Gap(4).Grow(1).Children(func() {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, icon).FontSize(14).TextColor(col)
+				ui.Text(c, text).TextColor(map[bool]ui.Color{true: col, false: t.Text}[im.Disruptive]).Wrap()
+			})
+			if len(im.RestartNeeded) > 0 {
+				small(c, T.ImpactRestart+"："+strings.Join(im.RestartNeeded, "、")).Wrap()
+			}
+			if im.Disruptive {
+				for _, n := range im.Notes {
+					small(c, n).Wrap().Selectable()
+				}
+			}
+		})
+	})
 }
 
 func yesNo(b bool) string {

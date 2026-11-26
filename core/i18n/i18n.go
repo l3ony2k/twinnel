@@ -224,6 +224,7 @@ type Strings struct {
 	ReadOnlyShort, TSConnect, Devices       string
 	SecretFromEnv, NotificationsSwitch      string
 	AboutApp                                string
+	HealthProblems, HealthPassed            string
 }
 
 // zh is the Chinese text.

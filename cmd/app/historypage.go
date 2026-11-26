@@ -67,7 +67,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		}
 		el.SingleLine()
 		if sel {
-			el.Bold()
+			el.FontWeight(600)
 		}
 		if el.Clicked() {
 			v.sel = e.ID
@@ -85,18 +85,17 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 	if entry == nil {
 		return
 	}
-	card(c, "", func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, T.HistoryEntry).FontSize(14).Bold()
-			ui.Text(c, entry.ID).Font("monospace").FontSize(12).TextColor(t.TextMuted).Selectable()
-			ui.Spacer(c)
-			if ui.Button(c.Key("hist-diff"), T.HistoryDiff).Disabled(a.hd.busy != "").Clicked() {
-				a.historyDiff(s, entry.ID)
-			}
-			if iconButton(c.Key("hist-rollback"), iconRefresh, T.HistoryRollback, true).Disabled(!a.helperWrites(s)).Clicked() {
-				a.historyRollback(*entry)
-			}
-		})
+	headedCard(c, func() {
+		ui.Text(c, T.HistoryEntry).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
+		ui.Text(c, entry.ID).Font("monospace").FontSize(12).TextColor(t.TextMuted).Selectable()
+		ui.Spacer(c)
+		if ui.Button(c.Key("hist-diff"), T.HistoryDiff).Disabled(a.hd.busy != "").Clicked() {
+			a.historyDiff(s, entry.ID)
+		}
+		if iconButton(c.Key("hist-rollback"), iconRefresh, T.HistoryRollback, true).Disabled(!a.helperWrites(s)).Clicked() {
+			a.historyRollback(*entry)
+		}
+	}, func() {
 		kv(c, T.HistoryTime, entry.Time.Local().Format("2006-01-02 15:04:05"))
 		kv(c, T.HistoryKind, T.HistoryKindName(entry.Kind))
 		if entry.Reason != "" {
@@ -109,7 +108,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 			add, del := v.diff.Stats()
 			ui.Text(c, T.HistoryDiffHint+" · "+fmt.Sprintf(T.DiffStats, add, del)).FontSize(12).TextColor(t.TextMuted)
 			if add+del > 0 {
-				editor.DiffView(c.Key("hist-diff-view"), v.diff).Height(380).Radius(8).Border(1, t.Border)
+				editor.DiffView(c.Key("hist-diff-view"), v.diff).Height(380).Radius(plat.controlRadius+2).Border(1, pal(t).groupLine)
 			}
 		}
 		if r := v.result; r != nil {

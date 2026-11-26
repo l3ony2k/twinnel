@@ -93,7 +93,7 @@ func (a *app) servicesCard(c *ui.Context, s status.Snapshot) {
 			return
 		}
 		for _, name := range serviceNames {
-			ui.Column(c.Key("svc-"+name)).Gap(6).Padding(10, 12).Radius(8).Background(t.Background).Border(1, t.Border).Children(func() {
+			ui.Column(c.Key("svc-"+name)).Gap(6).Padding(10, 12).Radius(plat.controlRadius+2).Background(pal(t).code).Border(1, pal(t).groupLine).Children(func() {
 				a.serviceRow(c, s, name)
 			})
 		}
@@ -112,15 +112,15 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 	if !ok {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			dot(c, t.TextMuted, 8)
-			ui.Text(c, name).FontSize(13).Bold()
-			ui.Text(c, v.errs[name]).FontSize(12).TextColor(t.Danger).Wrap().Shrink(1)
+			ui.Text(c, name).FontWeight(600)
+			ui.Text(c, v.errs[name]).FontSize(12).TextColor(pal(t).badText).Wrap().Shrink(1)
 		})
 		return
 	}
 	state, col := serviceState(t, st)
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		dot(c, col, 8)
-		ui.Text(c, name).FontSize(13).Bold()
+		ui.Text(c, name).FontWeight(600)
 		ui.Text(c, state).FontSize(12).TextColor(t.TextMuted)
 		ui.Spacer(c)
 		if !st.Installed {
@@ -165,7 +165,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		kv(c, T.ServiceDefinition, st.Definition)
 	}
 	if st.Error != "" {
-		ui.Text(c, T.ErrorPrefix+st.Error).FontSize(12).TextColor(t.Danger).Wrap().Selectable()
+		ui.Text(c, T.ErrorPrefix+st.Error).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
 	}
 }
 
@@ -192,9 +192,9 @@ func serviceOpResult(c *ui.Context, r *rpc.ServiceOpResult) {
 		if r.DryRun {
 			head += " · " + T.ServiceDryRun
 		}
-		ui.Text(c, head).FontSize(12).Bold()
+		ui.Text(c, head).FontWeight(600)
 		if r.DryRun {
-			ui.Text(c, T.ServiceDryRunHint).FontSize(12).TextColor(t.Warning).Wrap()
+			ui.Text(c, T.ServiceDryRunHint).FontSize(12).TextColor(pal(t).warnText).Wrap()
 		}
 		for i, step := range r.Steps {
 			ui.Text(c.Key(fmt.Sprint("step", i)), step).Font("monospace").FontSize(11).TextColor(t.TextMuted).Wrap().Selectable()
@@ -265,7 +265,7 @@ func (a *app) accessoryCard(c *ui.Context, s status.Snapshot, k accessoryKind) {
 				if f.UpdateAvailable || !f.Installed {
 					updates++
 				}
-				ui.Column(c.Key(fmt.Sprint("f", i))).Gap(3).Padding(8, 12).Radius(8).Background(t.Background).Border(1, t.Border).Children(func() {
+				ui.Column(c.Key(fmt.Sprint("f", i))).Gap(3).Padding(8, 12).Radius(plat.controlRadius+2).Background(pal(t).code).Border(1, pal(t).groupLine).Children(func() {
 					accessoryFile(c, f)
 				})
 			}
@@ -302,12 +302,12 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		dot(c, col, 8)
-		ui.Text(c, f.Name).FontSize(13).Bold().Width(70).Shrink(0)
+		ui.Text(c, f.Name).FontWeight(600).Width(70).Shrink(0)
 		ui.Text(c, state).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(0)
 		if f.Verifiable {
-			ui.Badge(c, T.AccessoryVerifiable)
+			tag(c, T.AccessoryVerifiable)
 		} else {
-			ui.Badge(c, T.AccessoryUnverifiable)
+			tag(c, T.AccessoryUnverifiable)
 		}
 		ui.Spacer(c)
 		ui.Text(c, filepath.Base(f.File)).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
@@ -328,7 +328,7 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 		kv(c, T.AccessoryRemote, remote)
 	}
 	if f.Error != "" {
-		ui.Text(c, T.ErrorPrefix+f.Error).FontSize(12).TextColor(t.Danger).Wrap().Selectable()
+		ui.Text(c, T.ErrorPrefix+f.Error).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
 	}
 }
 
@@ -347,7 +347,7 @@ func (a *app) accessoryResult(c *ui.Context, s status.Snapshot, r *rpc.Accessory
 	T := i18n.T
 	ui.Column(c).Gap(4).Children(func() {
 		if len(r.Updated) > 0 {
-			ui.Text(c, fmt.Sprintf(T.AccessoryUpdated, strings.Join(r.Updated, ", "))).FontSize(12).TextColor(t.Success).Wrap()
+			ui.Text(c, fmt.Sprintf(T.AccessoryUpdated, strings.Join(r.Updated, ", "))).FontSize(12).TextColor(pal(t).okText).Wrap()
 		} else if r.Error == "" {
 			ui.Text(c, T.AccessoryNothing).FontSize(12).TextColor(t.TextMuted)
 		}
@@ -355,14 +355,14 @@ func (a *app) accessoryResult(c *ui.Context, s status.Snapshot, r *rpc.Accessory
 			ui.Text(c, fmt.Sprintf(T.AccessorySkipped, strings.Join(r.Skipped, ", "))).FontSize(12).TextColor(t.TextMuted).Wrap()
 		}
 		if r.RolledBack {
-			ui.Text(c, T.AccessoryRolledBack).FontSize(12).TextColor(t.Warning).Wrap()
+			ui.Text(c, T.AccessoryRolledBack).FontSize(12).TextColor(pal(t).warnText).Wrap()
 		}
 		if r.Error != "" {
-			ui.Text(c, T.ErrorPrefix+r.Error).FontSize(12).TextColor(t.Danger).Wrap().Selectable()
+			ui.Text(c, T.ErrorPrefix+r.Error).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
 		}
 		if r.ReloadNeeded {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, T.AccessoryReloadNeeded).FontSize(12).TextColor(t.Warning).Grow(1).Wrap()
+				ui.Text(c, T.AccessoryReloadNeeded).FontSize(12).TextColor(pal(t).warnText).Grow(1).Wrap()
 				if iconButton(c.Key("apply"), iconRefresh, T.AccessoryApply, true).Disabled(!a.helperWrites(s)).Clicked() {
 					a.applyForce(T.AccessoryApplyReason, func() { r.ReloadNeeded = false })
 				}

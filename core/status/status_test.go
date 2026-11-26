@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,7 +43,9 @@ func (f *fakeMihomo) Configs(context.Context) (mihomo.Config, error) {
 func (f *fakeMihomo) Proxies(context.Context) (map[string]mihomo.Proxy, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.proxies, f.err
+	// A copy, as a real client decodes a new map per call: GroupDelay
+	// writes f.proxies while the monitor reads the last answer.
+	return maps.Clone(f.proxies), f.err
 }
 func (f *fakeMihomo) Connections(context.Context) (mihomo.Connections, error) {
 	return mihomo.Connections{Connections: make([]mihomo.Connection, 3)}, nil
