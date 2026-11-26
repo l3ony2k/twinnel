@@ -3,13 +3,20 @@ package config
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 // LeakGuard returns a transform that keeps the named proxy groups from ever
-// sending traffic out of the real IP: DIRECT is removed from their member
-// list, and a group left with no members is set to REJECT.
+// sending traffic out of the real IP: DIRECT and proxies of "type: direct"
+// are removed from their member list, a group left with no members is set
+// to REJECT, and "empty-fallback" is set to REJECT. Without that, mihomo
+// falls back to COMPATIBLE (a direct dialer) whenever a group has no members
+// at run time: a provider that failed to load or is empty, or filters that
+// match nothing. Groups that take members from providers or include-all also
+// get "Direct" in exclude-type, so direct-type proxies brought in that way
+// are dropped.
 //
 // It warns (does not fail) when a named group does not exist, and when a
 // guarded group still reaches DIRECT through a nested group, since changing
@@ -29,6 +36,7 @@ func LeakGuard(groups []string) Transform {
 				}
 			}
 		}
+		direct := directNames(root)
 		var warns []string
 		for _, name := range names {
 			g := byName[name]
@@ -40,7 +48,7 @@ func LeakGuard(groups []string) Transform {
 			if members != nil && members.Kind == yaml.SequenceNode {
 				out := members.Content[:0]
 				for _, m := range members.Content {
-					if m.Kind == yaml.ScalarNode && m.Value == "DIRECT" {
+					if m.Kind == yaml.ScalarNode && direct[m.Value] {
 						continue
 					}
 					out = append(out, m)
@@ -52,7 +60,13 @@ func LeakGuard(groups []string) Transform {
 				warns = append(warns, fmt.Sprintf("proxy group %q has no members left; set to REJECT", name))
 				continue
 			}
-			if via := reachesDirect(g, byName, map[string]bool{name: true}); len(via) > 0 {
+			if ef := lookup(g, "empty-fallback"); ef == nil || direct[ef.Value] || ef.Value == "COMPATIBLE" {
+				set(g, "empty-fallback", newStr("REJECT"))
+			}
+			if takesDynamicMembers(g) {
+				addExcludeType(g, "Direct")
+			}
+			if via := reachesDirect(g, byName, direct, map[string]bool{name: true}); len(via) > 0 {
 				sort.Strings(via)
 				warns = append(warns, fmt.Sprintf("proxy group %q can still reach DIRECT through %v", name, via))
 			}
@@ -67,6 +81,50 @@ func LeakGuardLayer(groups []string) Layer {
 		ID: "leak-guard", Name: "Leak guard", Kind: KindManaged,
 		Stage: StageGuard, Enabled: true, Transform: LeakGuard(groups),
 	}
+}
+
+// directNames is DIRECT plus the names of proxies of type direct.
+func directNames(root *yaml.Node) map[string]bool {
+	out := map[string]bool{"DIRECT": true}
+	if px := lookup(root, "proxies"); px != nil && px.Kind == yaml.SequenceNode {
+		for _, p := range px.Content {
+			n, t := lookup(p, "name"), lookup(p, "type")
+			if n != nil && t != nil && strings.EqualFold(t.Value, "direct") {
+				out[n.Value] = true
+			}
+		}
+	}
+	return out
+}
+
+// takesDynamicMembers reports whether a group gets members from providers or
+// include-all, which can bring in direct-type proxies by type rather than
+// by name.
+func takesDynamicMembers(g *yaml.Node) bool {
+	if u := lookup(g, "use"); u != nil && u.Kind == yaml.SequenceNode && len(u.Content) > 0 {
+		return true
+	}
+	for _, k := range []string{"include-all", "include-all-proxies", "include-all-providers"} {
+		if v := lookup(g, k); v != nil && v.Value == "true" {
+			return true
+		}
+	}
+	return false
+}
+
+// addExcludeType adds t to the group's "|"-separated exclude-type.
+func addExcludeType(g *yaml.Node, t string) {
+	cur := lookup(g, "exclude-type")
+	if cur == nil || cur.Kind != yaml.ScalarNode || strings.TrimSpace(cur.Value) == "" {
+		set(g, "exclude-type", newStr(t))
+		return
+	}
+	for _, x := range strings.Split(cur.Value, "|") {
+		if strings.EqualFold(strings.TrimSpace(x), t) {
+			return
+		}
+	}
+	set(g, "exclude-type", newStr(cur.Value+"|"+t))
 }
 
 func groupEmpty(g *yaml.Node) bool {
@@ -86,7 +144,7 @@ func groupEmpty(g *yaml.Node) bool {
 
 // reachesDirect returns the nested groups through which g reaches DIRECT.
 // stack holds the groups on the current path, to stop at cycles.
-func reachesDirect(g *yaml.Node, byName map[string]*yaml.Node, stack map[string]bool) []string {
+func reachesDirect(g *yaml.Node, byName map[string]*yaml.Node, direct, stack map[string]bool) []string {
 	members := lookup(g, "proxies")
 	if members == nil || members.Kind != yaml.SequenceNode {
 		return nil
@@ -98,7 +156,7 @@ func reachesDirect(g *yaml.Node, byName map[string]*yaml.Node, stack map[string]
 			continue
 		}
 		stack[m.Value] = true
-		if hasDirect(sub) || len(reachesDirect(sub, byName, stack)) > 0 {
+		if hasDirect(sub, direct) || len(reachesDirect(sub, byName, direct, stack)) > 0 {
 			via = append(via, m.Value)
 		}
 		delete(stack, m.Value)
@@ -106,13 +164,13 @@ func reachesDirect(g *yaml.Node, byName map[string]*yaml.Node, stack map[string]
 	return via
 }
 
-func hasDirect(g *yaml.Node) bool {
+func hasDirect(g *yaml.Node, direct map[string]bool) bool {
 	members := lookup(g, "proxies")
 	if members == nil {
 		return false
 	}
 	for _, m := range members.Content {
-		if m.Value == "DIRECT" {
+		if direct[m.Value] {
 			return true
 		}
 	}
