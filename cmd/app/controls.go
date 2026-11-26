@@ -14,13 +14,22 @@ import (
 )
 
 // The v0.2 controls. Every one is disabled unless DUET_ALLOW_WRITES=1, and
-// the clients refuse writes on their own as well.
+// the clients refuse writes on their own as well. The switches and selects
+// are optimistic (pending.go): they show the new value at once and go back,
+// with controlError's note by them, if the change fails. Callers draw
+// a.controlError(c, key) after the row that holds the control.
+
+// tunOn is TUN's state as the controls show it (pending value first).
+func (a *app) tunOn(s status.Snapshot) bool {
+	return pendingValue(a, pendTun, s.Mihomo.Config.Tun.Enable)
+}
 
 // tunSwitch turns mihomo's TUN on or off.
 func (a *app) tunSwitch(c *ui.Context, s status.Snapshot) {
-	on := s.Mihomo.Config.Tun.Enable
+	on := a.tunOn(s)
 	if ui.Switch(c.Key("tun"), &on).Label(i18n.T.Tun).Disabled(!s.WritesAllowed || !s.Mihomo.Reachable).Changed() {
-		a.do(func(ctx context.Context) error { return a.mh.SetTun(ctx, on) })
+		v := on
+		a.optimistic(pendTun, v, i18n.T.TunFailed, func(ctx context.Context) error { return a.mh.SetTun(ctx, v) })
 	}
 }
 
@@ -59,13 +68,13 @@ func (a *app) reloadMihomo(s status.Snapshot) {
 
 // tsPowerSwitch connects or disconnects Tailscale: on is "wants to run".
 func (a *app) tsPowerSwitch(c *ui.Context, s status.Snapshot) {
-	on := s.Tailscale.State.Prefs.WantRunning
+	on := pendingValue(a, pendTS, s.Tailscale.State.Prefs.WantRunning)
 	if ui.Switch(c.Key("ts-power"), &on).Label(i18n.T.TSConnect).Disabled(!s.WritesAllowed || !s.Tailscale.Reachable).Changed() {
 		fn := a.ts.Down
 		if on {
 			fn = a.ts.Up
 		}
-		a.do(fn)
+		a.optimistic(pendTS, on, i18n.T.TSPowerFailed, fn)
 	}
 }
 
@@ -90,6 +99,7 @@ func (a *app) exitNodePicker(c *ui.Context, s status.Snapshot) ui.Element {
 	if st.ExitNode != nil {
 		sel = st.ExitNode.Name
 	}
+	sel = pendingValue(a, pendExit, sel)
 	opts := exitNodeOptions(st)
 	e := ui.Select(c.Key("exit-node"), &sel, opts).Label(T.ExitNode).
 		Disabled(!s.WritesAllowed || !s.Tailscale.Reachable || len(opts) < 2)
@@ -107,7 +117,9 @@ func (a *app) chooseExitNode(st tailscale.State, name string, tunOn bool) {
 			id = p.ID
 		}
 	}
-	set := func() { a.do(func(ctx context.Context) error { return a.ts.SetExitNode(ctx, id) }) }
+	set := func() {
+		a.optimistic(pendExit, name, T.ExitNodeFailed, func(ctx context.Context) error { return a.ts.SetExitNode(ctx, id) })
+	}
 	if id == "" || !tunOn {
 		set()
 		return

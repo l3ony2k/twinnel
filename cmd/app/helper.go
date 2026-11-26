@@ -45,6 +45,7 @@ func (a *app) startHelper() {
 			if h.Connected() && !wasUp {
 				a.refreshCredentials()
 				a.loadHelperData()
+				a.checkUnapplied()
 				switch a.page {
 				case pageKernel:
 					a.loadServices()
@@ -73,6 +74,9 @@ func (a *app) startHelper() {
 			if healthEvent(evs) && a.mon != nil {
 				a.runHealth() // reads health.last; nothing runs locally
 			}
+			if composeInputEvent(evs) {
+				a.checkUnapplied()
+			}
 			a.loadHelperData()
 		})
 	}
@@ -93,11 +97,29 @@ type helperData struct {
 	kernels  *rpc.KernelList
 	settings *rpc.Settings
 
+	// loaded turns true once the first load answered (until then the
+	// lists are unknown, not empty); loadStart is when the app first
+	// waited for it.
+	loaded    bool
+	loadStart time.Time
+
 	// busy names the running operation; helper buttons are disabled
-	// meanwhile. msg is the last operation's outcome.
+	// meanwhile. msg is the last operation's outcome, warns its warnings.
 	busy   string
 	msg    string
 	msgErr bool
+	warns  []string
+	// span times the last operation (spanOp) for opButton's spinner;
+	// busyOnButton is set once an opButton showed the running operation.
+	span         busySpan
+	spanOp       string
+	busyOnButton bool
+
+	// unapplied: the composed config differs from the file mihomo runs
+	// (compose.preview's Changed), so 应用 has something to do.
+	unapplied      bool
+	unappliedCheck bool // a check runs
+	unappliedAgain bool // something changed during it: check again
 
 	cfg  configView
 	hist historyView
@@ -133,7 +155,7 @@ func (a *app) loadHelperData() {
 		)
 		mygo.RunOnMain(func() {
 			d := &a.hd
-			d.loading = false
+			d.loading, d.loaded = false, true
 			d.subs, d.layers, d.history, d.kernels, d.settings = subs, layers, hist, &kernels, &set
 			d.loadErr = ""
 			if err != nil {
@@ -146,26 +168,41 @@ func (a *app) loadHelperData() {
 }
 
 // helperOp runs one helper operation off the main thread: label names it
-// (shown while busy), fn does the calls, done (optional) runs on the main
-// thread with fn's error. Reloads the lists afterwards.
+// (shown while busy; opButton(…, label) shows it on the button), fn does
+// the calls, done (optional) runs on the main thread with fn's error.
+// Reloads the lists afterwards.
 func (a *app) helperOp(label string, timeout time.Duration, fn func(ctx context.Context, hc *status.HelperConn) error, done func(error)) {
+	a.helperOpW(label, timeout, func(ctx context.Context, hc *status.HelperConn) ([]string, error) {
+		return nil, fn(ctx, hc)
+	}, done)
+}
+
+// helperOpW is helperOp for an operation that returns warnings (e.g.
+// subscription.put's plain-http warning): opNotes shows them, in the UI
+// language, until the next operation.
+func (a *app) helperOpW(label string, timeout time.Duration, fn func(ctx context.Context, hc *status.HelperConn) ([]string, error), done func(error)) {
 	d := &a.hd
 	if d.busy != "" {
 		return
 	}
-	d.busy, d.msg, d.msgErr = label, "", false
-	hc := a.hc
+	d.busy, d.msg, d.msgErr, d.warns = label, "", false, nil
+	a.beginOp(label)
+	hc, page, start := a.hc, a.page, time.Now()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
-		err := fn(ctx, hc)
+		warns, err := fn(ctx, hc)
 		mygo.RunOnMain(func() {
 			d.busy = ""
+			a.endOp()
+			d.warns = warns
+			text, quiet := opResult(label)
 			if err != nil {
 				d.msg, d.msgErr = i18n.T.ErrorPrefix+helperError(err), true
-			} else if !readOnlyOp(label) {
-				a.toast = fmt.Sprintf(i18n.T.OpDone, label)
+			} else if !quiet && a.win != nil {
+				a.toast = text
 			}
+			a.notifyOpEnd(label, err, time.Since(start), page)
 			if done != nil {
 				done(err)
 			}
@@ -173,6 +210,80 @@ func (a *app) helperOp(label string, timeout time.Duration, fn func(ctx context.
 			a.invalidate()
 		})
 	}()
+}
+
+// opResult words an operation's success toast and reports whether it
+// needs none: a read shows its result on the page, and a switch, an order
+// or a 使用中 tag already shows it where the person is looking (kubai 016).
+func opResult(label string) (text string, quiet bool) {
+	T := i18n.T
+	if readOnlyOp(label) {
+		return "", true
+	}
+	toggle, _, _ := strings.Cut(T.LayerToggle, "%s")
+	switch {
+	case label == T.LayerReorder, strings.HasPrefix(label, toggle), strings.HasPrefix(label, T.SubActivate+" "):
+		return "", true
+	case label == T.Apply:
+		return T.DoneApplied, false
+	case label == T.HistoryRollback:
+		return T.DoneRolledBack, false
+	}
+	for _, p := range []struct{ prefix, done string }{
+		{T.SubRefresh + " ", T.DoneSubRefreshed},
+		{T.SubSave + " ", T.DoneSubSaved},
+		{T.Remove + " ", T.DoneDeleted},
+		{T.Save + " ", T.DoneLayerSaved},
+	} {
+		if item, ok := strings.CutPrefix(label, p.prefix); ok && item != "" {
+			return fmt.Sprintf(p.done, item), false
+		}
+	}
+	return fmt.Sprintf(T.OpDone, label), false
+}
+
+// checkUnapplied asks the helper whether the composed config differs from
+// the one mihomo runs (compose.preview, read-only), for unappliedNote.
+// One check at a time; a change meanwhile asks again. Main thread.
+func (a *app) checkUnapplied() {
+	d := &a.hd
+	if !d.connected {
+		return
+	}
+	if d.unappliedCheck {
+		d.unappliedAgain = true
+		return
+	}
+	d.unappliedCheck = true
+	hc := a.hc
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		var r rpc.ComposeResult
+		err := hc.Call(ctx, rpc.MethodComposePreview, nil, &r)
+		mygo.RunOnMain(func() {
+			d.unappliedCheck = false
+			d.unapplied = err == nil && r.Changed // unknown reads as nothing to apply
+			if d.unappliedAgain {
+				d.unappliedAgain = false
+				a.checkUnapplied()
+			}
+			a.invalidate()
+		})
+	}()
+}
+
+// composeInputEvent reports whether events change what compose builds, or
+// what mihomo runs: the unapplied mark is then checked again.
+func composeInputEvent(evs []rpc.Event) bool {
+	for _, e := range evs {
+		switch e.Type {
+		case rpc.EventStateChanged, rpc.EventSubUpdated, rpc.EventTailnetChanged,
+			rpc.EventComposeApplied, rpc.EventComposeFailed, rpc.EventTakeoverChanged:
+			return true
+		}
+	}
+	return false
 }
 
 // readOnlyOp reports whether an operation only reads (a preview, a diff, a
@@ -225,19 +336,24 @@ func (a *app) helperWrites(s status.Snapshot) bool {
 	return s.Helper.Connected() && s.WritesAllowed && a.hd.busy == ""
 }
 
-// opNotes shows the read-only notice, the running operation and the last
-// error of the helper pages. Successes go to a toast (helperOp).
+// opNotes shows the read-only notice, the running operation (when no
+// opButton shows it), and the last error and warnings of the helper
+// pages. Successes go to a toast (helperOp).
 func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	d := &a.hd
 	if !s.WritesAllowed {
 		notice(c, iconSecure, i18n.T.WritesDisabledHint)
 	}
-	if d.busy != "" {
+	if d.busy != "" && !d.busyOnButton && d.span.visible(time.Now()) {
+		// No opButton shows this operation: say it here (after busyDelay).
 		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Children(func() {
 			ui.Spinner(c)
 			small(c, d.busy+"…")
 		})
+	}
+	for i, w := range d.warns {
+		warningNote(c.Key(fmt.Sprint("op-warn-", i)), w)
 	}
 	if d.msg != "" {
 		if d.msgErr {

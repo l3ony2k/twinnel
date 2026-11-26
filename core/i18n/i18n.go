@@ -235,11 +235,16 @@ type Strings struct {
 	AboutApp                                string
 	HealthProblems, HealthPassed            string
 
-	ConfigStrings // config.go
+	// Texts kept in their own files (one per area, so parallel work does
+	// not collide here). Fields are promoted: T.X reads them.
+	ControlStrings // controls.go
+	ConfigStrings  // config.go
 }
 
 // zh is the Chinese text.
 var zh = Strings{
+	ControlStrings: zhControls,
+
 	AppName: "duet",
 
 	StatusOK:      "一切正常",
@@ -609,6 +614,7 @@ var zh = Strings{
 		"adopt-disrupts":   "接管时的重载会短暂中断网络：%s",
 		"adopt-differs":    "应用的配置和计划里的 composed.yaml 不同：做计划之后 tailnet 设备或网卡变了",
 		"binary-writable":  "mihomo 程序 %s 不需要 root 就能被替换（%s），而服务以 root 运行它：能以那个用户运行的程序都能拿到 root。要消除这个风险，安装一个由 duet 管理的内核（duet kernel install），并让服务改用它",
+		"plain-http":       "订阅地址用的是明文 http：网络上的任何一方都能读到它，也能替换返回的配置。服务商支持的话请改用 https",
 		"secret-clients":   "控制接口的客户端（网页面板、本 app、脚本）需要新密钥。它保存在后台助手的密钥库里，可用 %s 读取",
 	},
 	ListSep: "、",

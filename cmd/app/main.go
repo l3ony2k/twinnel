@@ -76,6 +76,9 @@ type app struct {
 	hd          helperData                 // what the helper pages show
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
+	pend        pendingState               // optimistic control values and their errors (pending.go)
+	retry       busySpan                   // the unreachable states' 重试 press (states.go)
+	loadingSeen map[string][2]time.Time    // loadingBox: first and last frame per key
 	shotNav     struct {                   // shot mode: force the sidebar's key/hover looks
 		active *bool
 		hover  string
@@ -324,7 +327,7 @@ func (a *app) togglePanel() {
 	}
 	if a.shotMode { // a hidden window of the flyout's width, captured from memory
 		a.panel = mygo.NewWindow(mygo.WindowOptions{
-			Title: i18n.T.AppName, Hidden: true, Width: 340, Height: 500,
+			Title: i18n.T.AppName, Hidden: true, Width: 340, Height: 620, // the flyout fits its content; this is its usual height
 			Content: ui.View(a.panelView),
 		})
 		a.panel.OnClosed(func() { a.panel = nil })
