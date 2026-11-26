@@ -26,18 +26,18 @@ import (
 // rollback when worse). 加固控制接口 runs controller.secure.
 
 type takeoverView struct {
-	plans   []takeoverPlan // takeover.plans, newest first
+	plans   []rpc.TakeoverPlan // takeover.plans, newest first
 	loaded  bool
 	loading bool
 	// unsupported: the helper has no takeover.* yet.
 	unsupported bool
 	listErr     string
 
-	plan     *takeoverPlan // the selected plan, full (summary + semdiff)
-	showText bool          // summary and semdiff texts expanded
+	plan     *rpc.TakeoverPlan // the selected plan, full (summary + semdiff)
+	showText bool              // summary and semdiff texts expanded
 
-	adopt  *adoptResult
-	secure *controllerSecureResult
+	adopt  *rpc.AdoptResult
+	secure *rpc.ControllerSecureResult
 
 	// fixture: the plan and result come from DUET_TAKEOVER_FIXTURE (a
 	// recorded plan.json / adopt.json, for screenshots); nothing is sent.
@@ -61,8 +61,8 @@ func (a *app) loadTakeover() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		var plans []takeoverPlan
-		err := hc.Call(ctx, methodTakeoverPlans, takeoverPlansParams{}, &plans)
+		var plans []rpc.TakeoverPlan
+		err := hc.Call(ctx, rpc.MethodTakeoverPlans, rpc.TakeoverPlansParams{}, &plans)
 		mygo.RunOnMain(func() {
 			v.loading, v.loaded = false, true
 			v.unsupported = isTooOld(err)
@@ -88,7 +88,7 @@ func (a *app) loadTakeover() {
 // dir/adopt.json when present). Development aid.
 func (a *app) loadTakeoverFixture(dir string) error {
 	v := &a.hd.take
-	var p takeoverPlan
+	var p rpc.TakeoverPlan
 	b, err := os.ReadFile(filepath.Join(dir, "plan.json"))
 	if err != nil {
 		return err
@@ -97,10 +97,10 @@ func (a *app) loadTakeoverFixture(dir string) error {
 		return fmt.Errorf("plan.json: %w", err)
 	}
 	v.fixture, v.loaded, v.unsupported, v.listErr = true, true, false, ""
-	v.plans = []takeoverPlan{p}
+	v.plans = []rpc.TakeoverPlan{p}
 	v.plan = &p
 	if b, err := os.ReadFile(filepath.Join(dir, "adopt.json")); err == nil {
-		var r adoptResult
+		var r rpc.AdoptResult
 		if err := json.Unmarshal(b, &r); err != nil {
 			return fmt.Errorf("adopt.json: %w", err)
 		}
@@ -176,7 +176,7 @@ func (a *app) takeoverIntro(c *ui.Context, s status.Snapshot) {
 	})
 }
 
-func (a *app) takeoverPlanRow(c *ui.Context, s status.Snapshot, p takeoverPlan) {
+func (a *app) takeoverPlanRow(c *ui.Context, s status.Snapshot, p rpc.TakeoverPlan) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.take
@@ -195,11 +195,11 @@ func (a *app) takeoverPlanRow(c *ui.Context, s status.Snapshot, p takeoverPlan) 
 		if !sel && ui.Button(c.Key("open"), T.TakeoverOpen).Disabled(a.hd.busy != "").Clicked() {
 			a.takeoverSelect(p.PlanID)
 		}
-		if p.State != planAdopted && !v.fixture && ui.Button(c.Key("discard"), T.Remove).Disabled(!a.helperWrites(s)).Clicked() {
+		if p.State != rpc.PlanAdopted && !v.fixture && ui.Button(c.Key("discard"), T.Remove).Disabled(!a.helperWrites(s)).Clicked() {
 			id := p.PlanID
 			a.confirm(fmt.Sprintf(T.TakeoverDiscardTitle, id), T.TakeoverDiscardBody, T.Remove, func() {
 				a.helperOp(T.Remove, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
-					return hc.Call(ctx, methodTakeoverDiscard, takeoverDiscardParams{PlanID: id}, nil)
+					return hc.Call(ctx, rpc.MethodTakeoverDiscard, rpc.TakeoverDiscardParams{PlanID: id}, nil)
 				}, func(err error) {
 					if err == nil && v.plan != nil && v.plan.PlanID == id {
 						v.plan, v.adopt = nil, nil
@@ -216,9 +216,9 @@ func (a *app) takeoverPlanRow(c *ui.Context, s status.Snapshot, p takeoverPlan) 
 func (a *app) takeoverMakePlan(base string) {
 	T := i18n.T
 	v := &a.hd.take
-	var p takeoverPlan
+	var p rpc.TakeoverPlan
 	a.helperOp(T.TakeoverPlan, 3*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
-		return hc.Call(ctx, methodTakeoverPlan, takeoverPlanParams{Base: base}, &p)
+		return hc.Call(ctx, rpc.MethodTakeoverPlan, rpc.TakeoverPlanParams{Base: base}, &p)
 	}, func(err error) {
 		if isTooOld(err) {
 			v.unsupported = true
@@ -234,9 +234,9 @@ func (a *app) takeoverMakePlan(base string) {
 func (a *app) takeoverSelect(id string) {
 	T := i18n.T
 	v := &a.hd.take
-	var ps []takeoverPlan
+	var ps []rpc.TakeoverPlan
 	a.helperOp(T.TakeoverOpen, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
-		return hc.Call(ctx, methodTakeoverPlans, takeoverPlansParams{PlanID: id}, &ps)
+		return hc.Call(ctx, rpc.MethodTakeoverPlans, rpc.TakeoverPlansParams{PlanID: id}, &ps)
 	}, func(err error) {
 		if err == nil && len(ps) == 1 {
 			v.plan, v.adopt, v.showText = &ps[0], nil, false
@@ -244,7 +244,7 @@ func (a *app) takeoverSelect(id string) {
 	})
 }
 
-func (a *app) takeoverPlanCards(c *ui.Context, s status.Snapshot, p *takeoverPlan) {
+func (a *app) takeoverPlanCards(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 	if a.section("plan") {
 		a.takeoverFoundCards(c, p)
 	}
@@ -253,7 +253,7 @@ func (a *app) takeoverPlanCards(c *ui.Context, s status.Snapshot, p *takeoverPla
 	}
 }
 
-func (a *app) takeoverFoundCards(c *ui.Context, p *takeoverPlan) {
+func (a *app) takeoverFoundCards(c *ui.Context, p *rpc.TakeoverPlan) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.take
@@ -309,7 +309,7 @@ func (a *app) takeoverFoundCards(c *ui.Context, p *takeoverPlan) {
 				})
 				if cd.Chosen || cd.Path == p.Base {
 					ui.Badge(c, T.TakeoverBaseChosen)
-				} else if cd.Error == "" && !v.fixture && p.State == planReady {
+				} else if cd.Error == "" && !v.fixture && p.State == rpc.PlanReady {
 					if ui.Button(c.Key("use"), T.TakeoverUseBase).Disabled(a.hd.busy != "").Clicked() {
 						a.takeoverMakePlan(cd.Path)
 					}
@@ -320,7 +320,7 @@ func (a *app) takeoverFoundCards(c *ui.Context, p *takeoverPlan) {
 
 }
 
-func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *takeoverPlan) {
+func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.take
@@ -362,7 +362,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *takeover
 		for _, e := range p.ValidateErr {
 			ui.Text(c, e).FontSize(12).TextColor(t.Danger).Wrap().Selectable()
 		}
-		var deliberate, other []takeoverChange
+		var deliberate, other []rpc.TakeoverChange
 		for _, ch := range p.Changes {
 			if ch.Deliberate {
 				deliberate = append(deliberate, ch)
@@ -406,7 +406,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *takeover
 	a.adoptCard(c, s, p)
 }
 
-func changeList(c *ui.Context, key, title string, list []takeoverChange, col ui.Color) {
+func changeList(c *ui.Context, key, title string, list []rpc.TakeoverChange, col ui.Color) {
 	if len(list) == 0 {
 		return
 	}
@@ -427,13 +427,13 @@ func changeList(c *ui.Context, key, title string, list []takeoverChange, col ui.
 	})
 }
 
-func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *takeoverPlan) {
+func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.take
 	card(c, T.TakeoverAdopt, func() {
 		switch p.State {
-		case planAdopted:
+		case rpc.PlanAdopted:
 			at := ""
 			if !p.AdoptedAt.IsZero() {
 				at = p.AdoptedAt.Local().Format("2006-01-02 15:04")
@@ -443,7 +443,7 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *takeoverPlan) {
 				kv(c, T.TakeoverBackup, p.Backup)
 			}
 			return
-		case planRolledBack, planFailed:
+		case rpc.PlanRolledBack, rpc.PlanFailed:
 			ui.Text(c, T.PlanState(p.State)+" · "+T.TakeoverReplan).FontSize(13).TextColor(t.Warning).Wrap()
 			return
 		}
@@ -470,12 +470,12 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *takeoverPlan) {
 	})
 }
 
-func (a *app) takeoverAdopt(p takeoverPlan) {
+func (a *app) takeoverAdopt(p rpc.TakeoverPlan) {
 	T := i18n.T
 	v := &a.hd.take
-	var r adoptResult
+	var r rpc.AdoptResult
 	a.helperOp(T.TakeoverAdopt, 10*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
-		return hc.Call(ctx, methodTakeoverAdopt, adoptParams{PlanID: p.PlanID, ConfirmHash: p.ConfirmHash}, &r)
+		return hc.Call(ctx, rpc.MethodTakeoverAdopt, rpc.AdoptParams{PlanID: p.PlanID, ConfirmHash: p.ConfirmHash}, &r)
 	}, func(err error) {
 		if err == nil {
 			v.adopt = &r
@@ -484,11 +484,12 @@ func (a *app) takeoverAdopt(p takeoverPlan) {
 			}
 		}
 		a.loadTakeover()
+		a.refreshCredentials()
 		a.runHealth()
 	})
 }
 
-func (a *app) adoptResultCard(c *ui.Context, r *adoptResult) {
+func (a *app) adoptResultCard(c *ui.Context, r *rpc.AdoptResult) {
 	t := c.Theme()
 	T := i18n.T
 	card(c, T.TakeoverResult, func() {
@@ -546,15 +547,15 @@ func stepIcon(t *ui.Theme, s string) (*ui.SVG, ui.Color) {
 }
 
 // healthCompare is a table of the checks: before, after, after rollback.
-func healthCompare(c *ui.Context, r *adoptResult) {
+func healthCompare(c *ui.Context, r *rpc.AdoptResult) {
 	t := c.Theme()
 	T := i18n.T
 	worse := map[string]bool{}
 	for _, id := range r.Worse {
 		worse[id] = true
 	}
-	index := func(list []adoptCheck) map[string]adoptCheck {
-		m := map[string]adoptCheck{}
+	index := func(list []rpc.AdoptCheck) map[string]rpc.AdoptCheck {
+		m := map[string]rpc.AdoptCheck{}
 		for _, ch := range list {
 			m[ch.ID] = ch
 		}
@@ -563,7 +564,7 @@ func healthCompare(c *ui.Context, r *adoptResult) {
 	before, after, back := index(r.HealthBefore), index(r.HealthAfter), index(r.HealthAfterRollback)
 	var ids []string
 	seen := map[string]bool{}
-	for _, list := range [][]adoptCheck{r.HealthBefore, r.HealthAfter, r.HealthAfterRollback} {
+	for _, list := range [][]rpc.AdoptCheck{r.HealthBefore, r.HealthAfter, r.HealthAfterRollback} {
 		for _, ch := range list {
 			if !seen[ch.ID] {
 				seen[ch.ID] = true
@@ -582,7 +583,7 @@ func healthCompare(c *ui.Context, r *adoptResult) {
 			ui.Text(c, h).FontSize(11).TextColor(t.TextMuted).Width(90).Shrink(0)
 		}
 	})
-	cell := func(ch adoptCheck, ok bool) {
+	cell := func(ch rpc.AdoptCheck, ok bool) {
 		if !ok {
 			ui.Text(c, "—").FontSize(12).TextColor(t.TextMuted).Width(90).Shrink(0)
 			return
@@ -673,9 +674,9 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 func (a *app) controllerSecure() {
 	T := i18n.T
 	v := &a.hd.take
-	var r controllerSecureResult
+	var r rpc.ControllerSecureResult
 	a.helperOp(T.SecureRun, 2*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
-		return hc.Call(ctx, methodControllerSecure, nil, &r)
+		return hc.Call(ctx, rpc.MethodControllerSecure, nil, &r)
 	}, func(err error) {
 		if isTooOld(err) {
 			v.unsupported = true
@@ -684,13 +685,14 @@ func (a *app) controllerSecure() {
 		if err == nil {
 			v.secure = &r
 		}
+		a.refreshCredentials() // the new secret, without waiting for the event
 	})
 }
 
 // takeoverEvent reports whether a batch changes the plan list.
 func takeoverEvent(evs []rpc.Event) bool {
 	for _, e := range evs {
-		if e.Type == eventTakeoverChanged || e.Type == rpc.EventComposeApplied {
+		if e.Type == rpc.EventTakeoverChanged || e.Type == rpc.EventComposeApplied {
 			return true
 		}
 	}

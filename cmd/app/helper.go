@@ -42,6 +42,7 @@ func (a *app) startHelper() {
 				a.runHealth() // switch between the helper's report and local checks
 			}
 			if h.Connected() && !wasUp {
+				a.refreshCredentials()
 				a.loadHelperData()
 				switch a.page {
 				case pageKernel:
@@ -59,6 +60,9 @@ func (a *app) startHelper() {
 	hc.OnEvents = func(evs []rpc.Event) {
 		mygo.RunOnMain(func() {
 			a.hd.lastEvent = evs[len(evs)-1]
+			if credentialsEvent(evs) {
+				a.refreshCredentials()
+			}
 			if serviceEvent(evs) && a.page == pageKernel {
 				a.loadServices()
 			}

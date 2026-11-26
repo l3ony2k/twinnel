@@ -95,6 +95,7 @@ type Strings struct {
 
 	// Settings page.
 	Controller, Secret, SecretHint, ConfigFile, Save, Saved, SaveFailed string
+	ControllerFromHelper                                                string
 	MihomoBinary, MihomoConfigDir, TailscaleSocket, AllowWrites         string
 	SettingsRestartHint                                                 string
 	Notifications, NotificationsHint, NotificationsUnsupported          string
@@ -380,6 +381,7 @@ var zh = Strings{
 	Controller:               "控制接口地址",
 	Secret:                   "Secret",
 	SecretHint:               "也可用环境变量 DUET_MIHOMO_SECRET 提供",
+	ControllerFromHelper:     "已连接后台助手：控制接口地址和密钥由它提供，这里的设置只在没有后台助手时使用。",
 	ConfigFile:               "配置文件",
 	Save:                     "保存",
 	Saved:                    "已保存",
@@ -687,9 +689,9 @@ var zh = Strings{
 		"failed":      "失败",
 	},
 	SecureTitle:    "加固控制接口",
-	SecureHint:     "为 mihomo 控制接口生成新的随机密钥，存进系统钥匙串并应用。之后网页面板、脚本等其他客户端需要填新密钥（可以用 sudo security find-generic-password -a duet -s duet.controller-secret -w /Library/Keychains/System.keychain 查看）。",
+	SecureHint:     "为 mihomo 控制接口生成新的随机密钥，存进系统钥匙串并应用。duet app 会自动从后台助手取得新密钥；网页面板、脚本等其他客户端需要填新密钥（可以用 sudo security find-generic-password -a duet -s duet.controller-secret -w /Library/Keychains/System.keychain 查看）。",
 	SecureRun:      "生成密钥并应用",
-	SecureBody:     "mihomo 会重载，旧密钥立即失效。duet app 和其他客户端要改用新密钥。",
+	SecureBody:     "mihomo 会重载，旧密钥立即失效。duet app 会自动改用新密钥，其他客户端要手动更新。",
 	SecureDone:     "已设置新的控制接口密钥",
 	SecureReplaced: "已替换控制接口密钥",
 

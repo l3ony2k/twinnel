@@ -257,7 +257,7 @@ func (a *app) takeoverShots(save func(*mygo.Window, string), wait func(time.Dura
 	if dir == "" {
 		return
 	}
-	var adopt *adoptResult
+	var adopt *rpc.AdoptResult
 	on(func() {
 		if err := a.loadTakeoverFixture(dir); err != nil {
 			log.Print(err)
