@@ -2,6 +2,7 @@ package takeover
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -338,5 +339,18 @@ func TestNeedsReplaceUsesBang(t *testing.T) {
 	}
 	if !sd.Equivalent() {
 		t.Fatalf("not equivalent:\n%s", sd.Text(0))
+	}
+}
+
+func TestScoreExplainsNeedsSameProviders(t *testing.T) {
+	cfg := "proxies:\n  - {name: a, type: ss}\nproxy-groups:\n  - {name: G, type: select, proxies: [a]}\nrule-providers:\n  r: {type: http, url: 'https://example.invalid/%s'}\nrules: ['RULE-SET,r,G', 'MATCH,G']\n"
+	live, _ := decodeDoc([]byte(fmt.Sprintf(cfg, "new")))
+	same, _ := decodeDoc([]byte(fmt.Sprintf(cfg, "new")))
+	old, _ := decodeDoc([]byte(fmt.Sprintf(cfg, "old")))
+	var c1, c2 Candidate
+	scoreDoc(live, same, &c1)
+	scoreDoc(live, old, &c2)
+	if !c1.Explains || c2.Explains {
+		t.Fatalf("explains: same %v, old provider %v", c1.Explains, c2.Explains)
 	}
 }

@@ -23,6 +23,9 @@ type DerivedLayer struct {
 	Comment string       `json:"comment,omitempty"`
 	stage   config.Stage `json:"-"`
 	data    []byte
+	// transform is the layer's transform, if any (the coexist layer adapts
+	// fake-ip-filter to fake-ip-filter-mode).
+	transform config.Transform
 }
 
 // Data is the layer's override YAML (may contain credentials of the live
@@ -31,7 +34,9 @@ func (l DerivedLayer) Data() []byte { return l.data }
 
 // Layer converts to a compose layer.
 func (l DerivedLayer) Layer() config.Layer {
-	return config.OverrideLayer(l.ID, l.Name, l.Kind, l.stage, l.data)
+	cl := config.OverrideLayer(l.ID, l.Name, l.Kind, l.stage, l.data)
+	cl.Transform = l.transform
+	return cl
 }
 
 // Replaced is a live item that the managed Tailscale coexist layer replaces.

@@ -30,6 +30,9 @@ func Parse(data []byte) (*yaml.Node, error) {
 		m.HeadComment = doc.HeadComment
 		return m, nil
 	}
+	if err := checkDupKeys(root); err != nil {
+		return nil, err
+	}
 	root = expand(root)
 	if root.Kind != yaml.MappingNode {
 		return nil, fmt.Errorf("top level must be a mapping, got %s", kindName(root.Kind))
@@ -38,6 +41,33 @@ func Parse(data []byte) (*yaml.Node, error) {
 		root.HeadComment = doc.HeadComment
 	}
 	return root, nil
+}
+
+// checkDupKeys rejects a mapping that defines a key twice. yaml.v3 only
+// checks that when decoding into Go values, and mihomo would refuse such a
+// config; merging into it would update one copy and leave the other.
+func checkDupKeys(n *yaml.Node) error {
+	if n == nil {
+		return nil
+	}
+	if n.Kind == yaml.MappingNode {
+		seen := map[string]bool{}
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			k := n.Content[i]
+			if k.Kind == yaml.ScalarNode && k.Tag != "!!merge" {
+				if seen[k.Value] {
+					return fmt.Errorf("line %d: mapping key %q already defined", k.Line, k.Value)
+				}
+				seen[k.Value] = true
+			}
+		}
+	}
+	for _, c := range n.Content {
+		if err := checkDupKeys(c); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Encode writes a root mapping node as a YAML document with 2-space indent.

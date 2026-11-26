@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/l3ony2k/duet/core/config"
 )
@@ -169,7 +172,7 @@ func BuildPlan(ctx context.Context, probe Probe, opt Options) (*Plan, error) {
 	p.Layers, p.Replaced = der.Layers, der.Replaced
 	p.Warnings = append(p.Warnings, der.Warnings...)
 	p.Layers = append(p.Layers, DerivedLayer{ID: coexist.ID, Name: coexist.Name, Kind: coexist.Kind,
-		Stage: coexist.Stage.String(), stage: coexist.Stage, data: coexist.Override})
+		Stage: coexist.Stage.String(), stage: coexist.Stage, data: coexist.Override, transform: coexist.Transform})
 
 	var layers []config.Layer
 	for _, l := range p.Layers {
@@ -195,7 +198,7 @@ func BuildPlan(ctx context.Context, probe Probe, opt Options) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.Changes = classify(sd, ms, p.Coexist)
+	p.Changes = classify(sd, ms, p.Coexist, coexistPrefixEquivalent(liveData, res.Config, coexist.Override))
 	p.Equivalent = true
 	for _, c := range p.Changes {
 		if !c.Deliberate {
@@ -262,7 +265,35 @@ const whyCoexist = "managed tailscale-coexist layer"
 
 // classify turns the semantic diff into changes and marks the ones the
 // coexist layer makes on purpose.
-func classify(sd *config.SemDiff, ms *managedSet, cx Coexist) []Change {
+// coexistPrefixEquivalent reports whether the composed rules route like the
+// live rules with the coexist layer's rules put in front. Then every rule
+// edit is the coexist layer's doing, even when it makes a live rule
+// redundant and so reshapes the same-target blocks DiffRules compares.
+func coexistPrefixEquivalent(live, composed, coexistOverride []byte) bool {
+	l, err1 := decodeDoc(live)
+	c, err2 := decodeDoc(composed)
+	var o struct {
+		Rules []string `yaml:"+rules"`
+	}
+	err3 := yaml.Unmarshal(coexistOverride, &o)
+	if err1 != nil || err2 != nil || err3 != nil {
+		return false
+	}
+	withPrefix := append(append([]string(nil), o.Rules...), l.rules...)
+	// The prefix must not take over a live rule that went elsewhere than
+	// DIRECT (e.g. "DOMAIN-SUFFIX,funnel.ts.net,PROXY"): that is a real
+	// change the plan has to show as unexpected.
+	_, _, dead := config.LiveRules(withPrefix)
+	for _, d := range dead {
+		if d.Index >= len(o.Rules) && d.CoveredBy >= 0 && d.CoveredBy < len(o.Rules) &&
+			config.ParseRule(d.Rule).Target != "DIRECT" {
+			return false
+		}
+	}
+	return config.DiffRules(withPrefix, c.rules).Equivalent
+}
+
+func classify(sd *config.SemDiff, ms *managedSet, cx Coexist, rulesCoexistOnly bool) []Change {
 	var out []Change
 	type agg struct{ added, removed, changed int }
 	groups := map[string]*agg{}
@@ -284,8 +315,19 @@ func classify(sd *config.SemDiff, ms *managedSet, cx Coexist) []Change {
 		}
 	}
 	for _, c := range sd.EffectiveSettings() {
-		if area, ok := coexistSetting(c, ms); ok {
-			note(area, c.Kind)
+		// A whole section added or removed ("tun: added {...}") is
+		// classified entry by entry: deliberate only if every entry is.
+		parts := expandSetting(c)
+		var areas []string
+		for _, pc := range parts {
+			if area, ok := coexistSetting(pc, ms); ok {
+				areas = append(areas, area)
+			}
+		}
+		if len(areas) == len(parts) {
+			for i, area := range areas {
+				note(area, parts[i].Kind)
+			}
 			continue
 		}
 		out = append(out, Change{Area: c.Path, What: strings.TrimPrefix(c.String(), c.Path+": ")})
@@ -327,7 +369,7 @@ func classify(sd *config.SemDiff, ms *managedSet, cx Coexist) []Change {
 	var coexistEdits, other []string
 	for _, e := range r.Edits {
 		pr := config.ParseRule(e.Rule)
-		if ok, _ := ms.ruleExplained(pr); ok {
+		if ok, _ := ms.ruleExplained(pr); ok || rulesCoexistOnly {
 			coexistEdits = append(coexistEdits, e.String())
 		} else {
 			other = append(other, e.String())
@@ -365,12 +407,31 @@ func coexistSetting(c config.SettingChange, ms *managedSet) (string, bool) {
 		if ms.policy[key] || ms.tailscaleDomain(key) {
 			return "dns.nameserver-policy", true
 		}
+	case c.Path == "dns.fake-ip-filter" && c.Kind == "changed":
+		// Rule mode: the list is ordered, so it changes as a whole. It is
+		// the coexist layer's change if both sides are equal once its
+		// entries are taken out.
+		var a, b []string
+		if json.Unmarshal([]byte(c.A), &a) == nil && json.Unmarshal([]byte(c.B), &b) == nil {
+			strip := func(l []string) []string {
+				var out []string
+				for _, x := range l {
+					if !ms.filter[x] {
+						out = append(out, x)
+					}
+				}
+				return out
+			}
+			if slices.Equal(strip(a), strip(b)) {
+				return c.Path, true
+			}
+		}
 	case c.Path == "dns.fake-ip-filter":
-		if ms.filter[val] || ms.tailscaleDomain(val) {
+		if allItems(val, func(v string) bool { return ms.filter[v] || ms.tailscaleDomain(v) }) {
 			return c.Path, true
 		}
 	case c.Path == "tun.route-exclude-address":
-		if ms.inTailnet(val) {
+		if allItems(val, ms.inTailnet) {
 			return c.Path, true
 		}
 	case c.Path == "hosts" || strings.HasPrefix(c.Path, "hosts."):
@@ -382,6 +443,53 @@ func coexistSetting(c config.SettingChange, ms *managedSet) (string, bool) {
 		return c.Path, true
 	}
 	return "", false
+}
+
+// expandSetting splits an added or removed mapping into one change per
+// entry, recursively; other changes are returned as is.
+func expandSetting(c config.SettingChange) []config.SettingChange {
+	val := c.B
+	if c.Kind == "removed" {
+		val = c.A
+	}
+	if c.Kind != "added" && c.Kind != "removed" || !strings.HasPrefix(val, "{") {
+		return []config.SettingChange{c}
+	}
+	var m map[string]json.RawMessage
+	if json.Unmarshal([]byte(val), &m) != nil || len(m) == 0 {
+		return []config.SettingChange{c}
+	}
+	var out []config.SettingChange
+	for k, raw := range m {
+		v := string(raw)
+		var str string
+		if json.Unmarshal(raw, &str) == nil {
+			v = str
+		}
+		sub := config.SettingChange{Path: c.Path + "." + k, Kind: c.Kind}
+		if c.Kind == "added" {
+			sub.B = v
+		} else {
+			sub.A = v
+		}
+		out = append(out, expandSetting(sub)...)
+	}
+	return out
+}
+
+// allItems applies ok to a set entry, or to every item when the whole list
+// was added or removed (val is then its JSON rendering).
+func allItems(val string, ok func(string) bool) bool {
+	var items []string
+	if strings.HasPrefix(val, "[") && json.Unmarshal([]byte(val), &items) == nil && len(items) > 0 {
+		for _, it := range items {
+			if !ok(it) {
+				return false
+			}
+		}
+		return true
+	}
+	return ok(val)
 }
 
 func coexistWhy(area string, cx Coexist) string {
