@@ -1,0 +1,13 @@
+An asterisk (*) denotes that a network service is disabled.
+(1) Thunderbolt Bridge
+(Hardware Port: Thunderbolt Bridge, Device: bridge0)
+
+(2) Wi-Fi
+(Hardware Port: Wi-Fi, Device: en0)
+
+(*) USB LAN
+(Hardware Port: USB 10/100/1000 LAN, Device: en7)
+
+(3) Example VPN
+(Hardware Port: com.example.vpn, Device: )
+

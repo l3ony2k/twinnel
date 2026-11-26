@@ -1,0 +1,6 @@
+   route to: 100.100.100.100
+destination: 100.100.100.100
+  interface: utun9
+      flags: <UP,HOST,DONE,WASCLONED,IFSCOPE,IFREF>
+ recvpipe  sendpipe  ssthresh  rtt,msec    rttvar  hopcount      mtu     expire
+       0         0         0         0         0         0      1280         0 
