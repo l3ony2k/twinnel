@@ -129,6 +129,23 @@ func TestNmcli(t *testing.T) {
 	}
 }
 
+func TestParseNmcliDNSSource(t *testing.T) {
+	cases := map[string]string{
+		"auto\n192.0.2.1\nyes\n\nno\n":          health.DNSSourceManual,
+		"manual\n192.0.2.1\nno\n\nno\n":         health.DNSSourceManual,
+		"auto\n\nno\n2001\\:db8\\:\\:1\nyes\n":  health.DNSSourceManual,
+		"auto\n192.0.2.1,192.0.2.2\nno\n\nno\n": health.DNSSourceMixed,
+		"auto\n\nno\n\nno\n":                    health.DNSSourceAuto,
+		"manual\n\nno\n\nno\n":                  health.DNSSourceGlobal,
+		"auto\n":                                "",
+	}
+	for in, want := range cases {
+		if got := ParseNmcliDNSSource(in); got != want {
+			t.Errorf("%q: got %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestParseGetent(t *testing.T) {
 	a := ParseGetent("server", string(fixture(t, "getent_peer.txt")))
 	if a.Rcode != "NOERROR" || len(a.Addrs) != 1 || a.Addrs[0].String() != "100.101.0.7" {
@@ -181,6 +198,8 @@ func fakeRunner(t *testing.T) CommandRunner {
 			return fixture(t, "resolvectl_status.txt"), nil
 		case "nmcli -t -f NAME,UUID,TYPE,DEVICE,STATE connection show":
 			return fixture(t, "nmcli_con.txt"), nil
+		case "nmcli -g " + NMCLIDNSFields + " connection show uuid 7d4c1b8e-0000-4000-8000-000000000001":
+			return fixture(t, "nmcli_dns_wlan0.txt"), nil
 		case "/usr/bin/tailscale status --json":
 			return fixture(t, "tailscale_status.json"), nil
 		}
@@ -240,7 +259,8 @@ func TestEnvWithFakes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(svcs) != 2 || svcs[0].Device != "eth0" || svcs[1].Name != "Home: 5 GHz" || svcs[1].Order != 2 ||
-		!reflect.DeepEqual(svcs[1].DNS, []string{"192.0.2.1", "2001:db8::1"}) || len(svcs[0].DNS) != 0 {
+		!reflect.DeepEqual(svcs[1].DNS, []string{"192.0.2.1", "2001:db8::1"}) || len(svcs[0].DNS) != 0 ||
+		svcs[1].DNSSource != health.DNSSourceMixed || svcs[0].DNSSource != health.DNSSourceGlobal {
 		t.Fatalf("services: %+v", svcs)
 	}
 	cfg, err := env.MihomoConfig(ctx)

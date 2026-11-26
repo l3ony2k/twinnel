@@ -127,7 +127,20 @@ type NetworkService struct {
 	Enabled bool
 	Order   int      // 1-based service order
 	DNS     []string // manually configured DNS servers; empty means DHCP
+	// DNSSource tells where DNS came from when the platform knows better
+	// than "set means manual" (Linux: NetworkManager's ipv4.dns and
+	// ipv4.ignore-auto-dns). Empty keeps the macOS meaning of DNS.
+	DNSSource string
 }
+
+// NetworkService.DNSSource values.
+const (
+	DNSSourceManual  = "manual"  // static servers only
+	DNSSourceAuto    = "auto"    // DHCP / router advertisement
+	DNSSourceMixed   = "mixed"   // static servers plus the DHCP ones
+	DNSSourceUnknown = "unknown" // per-link servers, origin not known (resolved without NetworkManager)
+	DNSSourceGlobal  = "global"  // no per-link servers: resolv.conf / the global resolver
+)
 
 // VPN is a system VPN or NetworkExtension configuration.
 type VPN struct {
