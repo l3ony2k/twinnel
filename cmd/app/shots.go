@@ -55,7 +55,9 @@ func (a *app) shots(dir string) {
 			}
 			save(a.win, "main-"+p)
 		}
-		a.helperShots(dir, save)
+		if os.Getenv("DUET_SHOTS_QUICK") == "" { // quick: the main pages and the panel only
+			a.helperShots(dir, save)
+		}
 		for _, v := range []status.TrayIcon{status.TrayOK, status.TrayWarn, status.TrayError, status.TrayUnknown,
 			status.TrayTSDown, status.TrayMode, status.TrayNoHelper} {
 			if err := os.WriteFile(filepath.Join(dir, "tray-"+string(v)+".png"), trayIcon(v), 0o644); err != nil {

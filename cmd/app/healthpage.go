@@ -228,14 +228,14 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 	default:
 		icon, col, text = iconOK, t.Success, T.PanelHealthOK
 	}
-	row := ui.Row(c.Key("health-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).Radius(6).Cursor(ui.CursorPointer)
+	row := ui.Row(c.Key("health-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).Cursor(ui.CursorPointer)
 	row.Children(func() {
 		ui.Icon(c, icon).FontSize(14).TextColor(col)
-		ui.Text(c, text).FontSize(12).Grow(1).SingleLine()
+		ui.Text(c, text).Grow(1).SingleLine()
 		ui.Icon(c, iconCollapsed).FontSize(12).TextColor(t.TextMuted)
 	})
 	if row.Hovered() {
-		row.Background(t.Border.Alpha(0.5))
+		row.Background(t.Text.Alpha(0.08))
 	}
 	if row.Clicked() {
 		old := a.page

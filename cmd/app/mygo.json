@@ -2,7 +2,9 @@
   "name": "duet",
   "identifier": "io.github.l3ony2k.duet",
   "out": "../../dist",
+  "icon": "../../assets/appicon/duet-1024.png",
   "macos": {
+    "icon": "../../assets/appicon/macos/duet.icns",
     "infoPlist": { "LSUIElement": true }
   }
 }

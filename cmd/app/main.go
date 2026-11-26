@@ -72,6 +72,7 @@ type app struct {
 	exitPick    string          // exit node select value (peer name or ExitNodeNone)
 	hd          helperData      // what the helper pages show
 	creds       credsState      // controller credentials from the helper
+	toast       string          // shown once by the next frame of the main window
 }
 
 func main() {
@@ -337,13 +338,15 @@ func (a *app) openMain() {
 	}
 	a.settings.load(a.cfg)
 	a.win = mygo.NewWindow(mygo.WindowOptions{
-		Title:     i18n.T.AppName,
-		Width:     980,
-		Height:    a.winHeight(),
-		MinWidth:  760,
-		MinHeight: 480,
-		StateKey:  a.stateKey(),
-		Content:   ui.View(a.mainView),
+		Title:         i18n.T.AppName,
+		TitleBarStyle: plat.titleBar,
+		Vibrancy:      a.sidebarMaterial(),
+		Width:         980,
+		Height:        a.winHeight(),
+		MinWidth:      760,
+		MinHeight:     480,
+		StateKey:      a.stateKey(),
+		Content:       ui.View(a.mainView),
 	})
 	a.win.OnClosed(func() {
 		a.win = nil
@@ -367,13 +370,25 @@ func (a *app) winHeight() int {
 	return 660
 }
 
-// applyTheme forces DUET_THEME's theme on a view. Main thread.
+// applyTheme sets the app's theme (platform.go) for the system's
+// appearance, or DUET_THEME's when set. Main thread.
 func (a *app) applyTheme(c *ui.Context) {
+	dark := c.Theme().Dark
 	switch a.theme {
 	case "dark":
-		c.SetTheme(ui.DarkTheme().WithPreferences(c.Preferences()))
+		dark = true
 	case "light":
-		c.SetTheme(ui.LightTheme().WithPreferences(c.Preferences()))
+		dark = false
+	}
+	c.SetTheme(systemTheme(dark, c.Preferences()))
+}
+
+// flushToast shows the pending outcome message as a toast: a success
+// that needs no answer goes away by itself (errors stay on the page).
+func (a *app) flushToast(c *ui.Context) {
+	if a.toast != "" {
+		c.Toast(a.toast)
+		a.toast = ""
 	}
 }
 
@@ -384,4 +399,14 @@ func (a *app) stateKey() string {
 		return ""
 	}
 	return "main"
+}
+
+// sidebarMaterial is the window's material, none in shot mode: a capture
+// cannot show what the system draws behind the window, so the sidebar
+// draws an opaque stand-in.
+func (a *app) sidebarMaterial() mygo.Vibrancy {
+	if a.shotMode {
+		return mygo.VibrancyNone
+	}
+	return plat.sidebarMat
 }

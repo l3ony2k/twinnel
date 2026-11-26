@@ -215,6 +215,15 @@ type Strings struct {
 	// Units and time.
 	JustNow, SecondsAgo, MinutesAgo, HoursAgo, DaysAgo string // %d
 	InDays, InHours                                    string // %d
+
+	// Sidebar sections, empty states, reload impact.
+	SidebarHelper, SidebarApp               string
+	LogEmptyHint, NoPeersHint, NoGroupsHint string
+	ImpactGentle, ImpactDisruptive          string
+	ImpactRestart, ImpactLabel              string
+	ReadOnlyShort, TSConnect, Devices       string
+	SecretFromEnv, NotificationsSwitch      string
+	AboutApp                                string
 }
 
 // zh is the Chinese text.
@@ -290,7 +299,7 @@ var zh = Strings{
 	TSDown:             "断开",
 	OpenMainWindow:     "打开主窗口",
 	Quit:               "退出",
-	WritesDisabledHint: "只读模式：设置 DUET_ALLOW_WRITES=1 后才能操作",
+	WritesDisabledHint: "只读模式：设置 DUET_ALLOW_WRITES=1 后再打开 duet 才能操作",
 	ErrorPrefix:        "错误：",
 
 	TSStates: map[string]string{
@@ -408,7 +417,7 @@ var zh = Strings{
 	HelperSocket:          "Socket",
 	Subscription:          "订阅",
 	LastApply:             "上次应用",
-	OpDone:                "%s：完成",
+	OpDone:                "已完成：%s",
 	Loading:               "正在加载…",
 	Close:                 "关闭",
 	Remove:                "删除",
@@ -718,6 +727,22 @@ var zh = Strings{
 	DaysAgo:    "%d 天前",
 	InDays:     "%d 天后",
 	InHours:    "%d 小时后",
+
+	SidebarHelper:       "配置",
+	SidebarApp:          "应用",
+	LogEmptyHint:        "mihomo 有新日志时会显示在这里，可以调低日志级别看到更多",
+	NoPeersHint:         "这台设备的 tailnet 里还没有其他设备",
+	NoGroupsHint:        "当前配置里没有策略组，或者 mihomo 还没加载配置",
+	ImpactGentle:        "不会中断网络（重载时有几毫秒暂停）",
+	ImpactDisruptive:    "会短暂中断网络",
+	ImpactRestart:       "需要重启 mihomo 才生效",
+	ImpactLabel:         "网络影响",
+	ReadOnlyShort:       "只读模式，设置 DUET_ALLOW_WRITES=1 后可操作",
+	TSConnect:           "连接 Tailscale",
+	Devices:             "设备",
+	SecretFromEnv:       "已从环境变量 DUET_MIHOMO_SECRET 读取",
+	NotificationsSwitch: "出现故障时发通知",
+	AboutApp:            "关于 duet",
 }
 
 // For returns the strings of a language tag; unknown tags get Chinese.

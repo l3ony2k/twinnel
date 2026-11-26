@@ -30,76 +30,159 @@ const (
 func (a *app) mainView(c *ui.Context) {
 	a.applyTheme(c)
 	t := c.Theme()
-	T := i18n.T
 	if c.Shortcut(ui.Cmd, ui.KeyW) {
 		a.win.Close()
 		return
 	}
+	a.flushToast(c)
 	s := a.mon.Snapshot()
+	if c.Vibrancy() {
+		c.Root().Background(ui.Transparent)
+	}
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		ui.Column(c).Width(200).PaddingY(16).Background(t.Surface).Shrink(0).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(4, 20, 10).Children(func() {
-				ui.Icon(c, iconDuet).FontSize(20).TextColor(levelColor(t, s.Level))
-				ui.Text(c, T.AppName).FontSize(15).Bold()
-			})
-			old := a.page
-			if ui.Sidebar(c, &a.page, func() {
-				ui.SidebarItem(c, pageOverview, iconOverview, T.PageOverview)
-				ui.SidebarItem(c, pageProxies, iconProxies, T.PageProxies)
-				ui.SidebarItem(c, pageTailscale, iconTailscale, T.PageTailscale).Children(func() {
-					if s.Tailscale.Reachable {
-						ui.Badge(c, fmt.Sprint(s.Tailscale.State.OnlinePeers()))
-					}
-				})
-				ui.SidebarItem(c, pageHealth, iconHealth, T.PageHealth).Children(func() {
-					if w, f := s.Health.Counts(); w+f > 0 {
-						ui.Badge(c, fmt.Sprint(w+f))
-					}
-				})
-				ui.SidebarItem(c, pageConfig, iconConfig, T.PageConfig)
-				ui.SidebarItem(c, pageHistory, iconHistory, T.PageHistory)
-				ui.SidebarItem(c, pageKernel, iconKernel, T.PageKernel)
-				ui.SidebarItem(c, pageTakeover, iconTakeover, T.PageTakeover)
-				ui.SidebarItem(c, pageLogs, iconLogs, T.PageLogs)
-				ui.SidebarItem(c, pageSettings, iconSettings, T.PageSettings)
-			}).Grow(1).Label(T.AppName).Changed() {
-				a.pageChanged(old)
-			}
-			ui.Text(c, s.Level.Text()).FontSize(12).TextColor(t.TextMuted).Padding(0, 20)
-			ui.Text(c, T.Helper+" · "+s.Helper.State.Text()).FontSize(11).TextColor(t.TextMuted).Padding(2, 20, 0)
-		})
-		ui.Column(c).Grow(1).Children(func() {
+		a.sidebar(c, s)
+		content := ui.Column(c).Grow(1).Background(t.Background)
+		if c.Vibrancy() {
+			content.BorderWidth(0, 0, 0, 1).BorderColor(pal(t).separator)
+		}
+		content.Children(func() {
 			switch a.page {
 			case pageLogs:
 				a.logsPage(c) // has its own scrolling list
 			default:
 				ui.Scroll(c).Grow(1).Children(func() {
-					ui.Column(c).Padding(24).Gap(16).Children(func() {
-						switch a.page {
-						case pageOverview:
-							a.overviewPage(c, s)
-						case pageProxies:
-							a.proxiesPage(c, s)
-						case pageTailscale:
-							a.tailscalePage(c, s)
-						case pageHealth:
-							a.healthPage(c, s)
-						case pageSettings:
-							a.settingsPage(c, s)
-						case pageConfig:
-							a.configPage(c, s)
-						case pageHistory:
-							a.historyPage(c, s)
-						case pageKernel:
-							a.kernelPage(c, s)
-						case pageTakeover:
-							a.takeoverPage(c, s)
-						}
+					ui.Column(c).Padding(pagePadTop(c), plat.pagePadX, 32).AlignItems(ui.Center).Children(func() {
+						ui.Column(c).Gap(gapGroup).FillWidth().MaxWidth(plat.contentMax).Children(func() {
+							a.pageBody(c, s)
+						})
 					})
 				})
 			}
 		})
 	})
+}
+
+// pagePadTop is the room above a page's title. Under a hidden title bar
+// the title row (32 high) sits on the traffic lights' line, as the title of
+// a unified toolbar does, and drags the window (pageHeader).
+func pagePadTop(c *ui.Context) float32 {
+	if bar := c.TitleBar(); bar.Height > 0 {
+		return max((bar.Height-32)/2, 4)
+	}
+	return plat.pagePadTop
+}
+
+func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
+	switch a.page {
+	case pageOverview:
+		a.overviewPage(c, s)
+	case pageProxies:
+		a.proxiesPage(c, s)
+	case pageTailscale:
+		a.tailscalePage(c, s)
+	case pageHealth:
+		a.healthPage(c, s)
+	case pageSettings:
+		a.settingsPage(c, s)
+	case pageConfig:
+		a.configPage(c, s)
+	case pageHistory:
+		a.historyPage(c, s)
+	case pageKernel:
+		a.kernelPage(c, s)
+	case pageTakeover:
+		a.takeoverPage(c, s)
+	}
+}
+
+// sidebar is the window's source list over the platform's sidebar
+// material, with the duet pair's state at its foot.
+func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	T := i18n.T
+	bar := c.TitleBar()
+	side := ui.Column(c).Width(plat.sidebarWidth).Shrink(0).DragWindow()
+	if !c.Vibrancy() { // an opaque stand-in for the material
+		side.Background(ui.Hex("#ebebeb"))
+		if t.Dark {
+			side.Background(ui.Hex("#2a2a2c"))
+		}
+	}
+	side.Padding(max(bar.Bottom+12, 16), 10, 12).Gap(4).Children(func() {
+		old := a.page
+		if ui.Sidebar(c, &a.page, func() {
+			ui.SidebarItem(c, pageOverview, iconOverview, T.PageOverview)
+			ui.SidebarItem(c, pageProxies, iconProxies, T.PageProxies)
+			ui.SidebarItem(c, pageTailscale, iconTailscale, T.PageTailscale).Children(func() {
+				if s.Tailscale.Reachable {
+					num(ui.Text(c, fmt.Sprint(s.Tailscale.State.OnlinePeers())).FontSize(plat.smallSize).TextColor(t.TextMuted))
+				}
+			})
+			ui.SidebarItem(c, pageHealth, iconHealth, T.PageHealth).Children(func() {
+				if w, f := s.Health.Counts(); w+f > 0 {
+					ui.Badge(c, fmt.Sprint(w+f))
+				}
+			})
+			ui.SidebarSection(c, T.SidebarHelper, nil, func() {
+				ui.SidebarItem(c, pageConfig, iconConfig, T.PageConfig)
+				ui.SidebarItem(c, pageHistory, iconHistory, T.PageHistory)
+				ui.SidebarItem(c, pageKernel, iconKernel, T.PageKernel)
+				ui.SidebarItem(c, pageTakeover, iconTakeover, T.PageTakeover)
+			})
+			ui.SidebarSection(c, T.SidebarApp, nil, func() {
+				ui.SidebarItem(c, pageLogs, iconLogs, T.PageLogs)
+				ui.SidebarItem(c, pageSettings, iconSettings, T.PageSettings)
+			})
+		}).Grow(1).Background(ui.Transparent).Label(T.AppName).Changed() {
+			a.pageChanged(old)
+		}
+		a.duetPair(c, s, 6)
+	})
+}
+
+// duetPair is the signature: the two networks side by side, each with its
+// state dot, and the helper under them.
+func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
+	t := c.Theme()
+	T := i18n.T
+	mcol := t.Danger
+	if s.Mihomo.Reachable {
+		mcol = t.Success
+	}
+	ui.Column(c).Gap(6).Padding(8, padX).Children(func() {
+		pair := func(name string, col ui.Color) {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				dot(c, col, 7)
+				ui.Text(c, name).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine()
+			})
+		}
+		ui.Row(c).Gap(14).Children(func() {
+			pair(T.Mihomo, mcol)
+			pair(T.Tailscale, tsColor(t, s))
+		})
+		hcol := t.TextMuted
+		switch s.Helper.State {
+		case status.HelperConnected:
+			hcol = t.Success
+		case status.HelperNotRunning, status.HelperDenied, status.HelperNotInstalled:
+			hcol = t.Warning
+		}
+		pair(T.Helper+" · "+s.Helper.State.Text(), hcol)
+	})
+}
+
+// tsColor is the dot color of Tailscale's state.
+func tsColor(t *ui.Theme, s status.Snapshot) ui.Color {
+	ts := s.Tailscale
+	switch {
+	case !ts.Reachable:
+		return t.Danger
+	case ts.State.Running():
+		return t.Success
+	case ts.State.BackendState == "Stopped" || ts.State.BackendState == "Starting":
+		return t.Warning
+	}
+	return t.Danger
 }
 
 func (a *app) pageChanged(old string) {
@@ -133,34 +216,47 @@ func (a *app) pageChanged(old string) {
 }
 
 func pageTitle(c *ui.Context, title string) {
-	ui.Text(c, title).FontSize(22).Bold()
+	pageHeader(c, title, nil)
 }
 
 // --- overview ---
 
 func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
-	t := c.Theme()
 	T := i18n.T
 	pageTitle(c, T.PageOverview)
-	card(c, "", func() {
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			dot(c, levelColor(t, s.Level), 12)
-			ui.Text(c, s.Level.Text()).FontSize(16).Bold()
-		})
-		for _, r := range s.Reasons {
-			ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-				dot(c, levelColor(t, r.Level), 6).MarginY(5)
-				ui.Text(c, r.Text).FontSize(13).Grow(1).Wrap()
-			})
-		}
-	})
+	a.verdict(c, s)
 	a.actionNotes(c, s)
-	ui.Row(c).Gap(16).AlignItems(ui.Stretch).Children(func() {
-		card(c, T.Mihomo, func() { a.mihomoSummary(c, s) }).Basis(0).Grow(1)
+	card(c, T.Traffic, func() { a.trafficChart(c, s) })
+	ui.Row(c).Gap(gapGroup).AlignItems(ui.Stretch).Children(func() {
+		cardWith(c, T.Mihomo, func() { a.mihomoMenu(c, s) }, func() { a.mihomoSummary(c, s) }).Basis(0).Grow(1)
 		card(c, T.Tailscale, func() { a.tailscaleSummary(c, s) }).Basis(0).Grow(1)
 	})
 	card(c, T.Helper, func() { a.helperSummary(c, s) })
-	card(c, T.Traffic, func() { a.trafficChart(c, s) })
+}
+
+// verdict is the overall state in one line, with what makes it so.
+func (a *app) verdict(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	icon := iconOK
+	switch s.Level {
+	case status.LevelWarn:
+		icon = iconWarning
+	case status.LevelError:
+		icon = iconError
+	case status.LevelUnknown:
+		icon = iconSkip
+	}
+	groupBox(c, t).Children(func() {
+		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
+			ui.Icon(c, icon).FontSize(22).TextColor(levelColor(t, s.Level)).Shrink(0)
+			ui.Column(c).Gap(4).Grow(1).Children(func() {
+				ui.Text(c, s.Level.Text()).FontSize(15).FontWeight(600)
+				for _, r := range s.Reasons {
+					ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().Selectable()
+				}
+			})
+		})
+	})
 }
 
 // helperSummary is the overview's helper card.
@@ -197,7 +293,7 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	if !m.Reachable {
 		kv(c, T.State, T.Unreachable)
 		if m.Err != "" {
-			ui.Text(c, m.Err).FontSize(12).TextColor(t.Danger).Wrap()
+			errorNote(c, m.Err)
 		}
 		kv(c, T.Controller, a.mh.BaseURL())
 		return
@@ -211,32 +307,28 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	}
 	kvWith(c, T.Tun, func() {
 		a.tunSwitch(c, s)
-		ui.Text(c, tun).FontSize(13).SingleLine().Shrink(1)
+		ui.Text(c, tun).TextColor(t.TextMuted).SingleLine().Shrink(1)
 	})
 	if p := m.Primary; p != nil {
 		kvWith(c, p.Name, func() {
-			ui.Text(c, p.Node).FontSize(13).SingleLine().Shrink(1)
-			ui.Text(c, status.DelayText(p.Delay, p.Tested)).FontSize(12).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0)
+			ui.Text(c, p.Node).SingleLine().Shrink(1)
+			num(ui.Text(c, status.DelayText(p.Delay, p.Tested)).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
 		})
 		if len(p.Chain) > 1 {
 			kv(c, T.Exit, strings.Join(p.Chain, " → "))
 		}
 	}
 	kv(c, T.Connections, fmt.Sprint(m.Connections))
-	kv(c, T.Total, fmt.Sprintf("↓ %s  ↑ %s", status.Bytes(m.Traffic.DownTotal), status.Bytes(m.Traffic.UpTotal)))
-	ui.Divider(c)
-	a.mihomoActions(c, s)
 }
 
 func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
-	t := c.Theme()
 	T := i18n.T
 	ts := s.Tailscale
 	st := ts.State
 	if !ts.Reachable {
 		kv(c, T.State, T.Unreachable)
 		if ts.Err != "" {
-			ui.Text(c, ts.Err).FontSize(12).TextColor(t.Danger).Wrap()
+			errorNote(c, ts.Err)
 		}
 		kv(c, T.Install, T.InstallKind(string(ts.Install.Kind)))
 		return
@@ -269,20 +361,30 @@ func onOff(b bool) string {
 	return i18n.T.Off
 }
 
-// trafficChart draws the last two minutes of download and upload rates.
+// trafficChart draws the last two minutes of download and upload rates:
+// the overview's one rich element. Download carries the accent; upload is
+// a quiet second line.
 func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	hist := a.mon.TrafficHistory()
-	ui.Row(c).Gap(16).Children(func() {
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			dot(c, t.Accent, 8)
-			ui.Text(c, T.Download+" "+status.Rate(s.Mihomo.Traffic.Down)).FontSize(12)
-		})
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			dot(c, t.Success, 8)
-			ui.Text(c, T.Upload+" "+status.Rate(s.Mihomo.Traffic.Up)).FontSize(12)
-		})
+	up := t.TextMuted
+	ui.Row(c).Gap(28).AlignItems(ui.End).Children(func() {
+		figure := func(label string, col ui.Color, rate int64) {
+			ui.Column(c).Gap(2).Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					ui.Box(c).Size(10, 2).Radius(1).Background(col)
+					small(c, label)
+				})
+				num(ui.Text(c, status.Rate(rate)).FontSize(20).FontWeight(500))
+			})
+		}
+		figure(T.Download, t.Accent, s.Mihomo.Traffic.Down)
+		figure(T.Upload, up, s.Mihomo.Traffic.Up)
+		ui.Spacer(c)
+		if s.Mihomo.Reachable {
+			num(small(c, fmt.Sprintf("%s ↓ %s  ↑ %s", T.Total, status.Bytes(s.Mihomo.Traffic.DownTotal), status.Bytes(s.Mihomo.Traffic.UpTotal))))
+		}
 	})
 	const n = 120
 	var hi float64 = 1024
@@ -296,28 +398,29 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 	}
 	xs := make([]float32, len(hist))
 	down := make([]float32, len(hist))
-	up := make([]float32, len(hist))
+	upv := make([]float32, len(hist))
 	for i, h := range hist {
 		xs[i] = float32(n-len(hist)+i) / float32(n-1)
 		down[i] = y.At(float64(h.Down))
-		up[i] = y.At(float64(h.Up))
+		upv[i] = y.At(float64(h.Up))
 	}
-	axes := chart.Axes{Left: ticks, Label: func(_ chart.Side, tk chart.Tick) {
-		ui.Text(c, tk.Label).FontSize(11).TextColor(t.TextMuted).NoWrap()
+	grid := pal(t).separator
+	axes := chart.Axes{Right: ticks, Label: func(_ chart.Side, tk chart.Tick) {
+		num(ui.Text(c, tk.Label).FontSize(plat.smallSize).TextColor(t.TextMuted).NoWrap())
 	}}
 	chart.Plot(c, axes, func(area ui.Element) {
 		area.Draw(func(p *ui.Painter, r ui.Rect) {
 			for _, tk := range ticks {
-				p.Line(r.X, chart.Y(r, tk.At), r.X+r.W, chart.Y(r, tk.At), 1, t.Border)
+				p.Line(r.X, chart.Y(r, tk.At), r.X+r.W, chart.Y(r, tk.At), 1, grid)
 			}
 			if len(xs) < 2 {
 				return
 			}
-			p.FillPath(chart.Area(r, xs, nil, down, chart.CurveMonotone), t.Accent.Alpha(0.15))
+			p.FillPath(chart.Area(r, xs, nil, down, chart.CurveMonotone), t.Accent.Alpha(0.14))
+			p.StrokePath(chart.Line(r, xs, upv, chart.CurveMonotone), 1.5, up.Alpha(0.8))
 			p.StrokePath(chart.Line(r, xs, down, chart.CurveMonotone), 2, t.Accent)
-			p.StrokePath(chart.Line(r, xs, up, chart.CurveMonotone), 1.5, t.Success)
 		})
-	}).Label(T.Traffic).Height(160).Gap(8)
+	}).Label(T.Traffic).Height(176).Gap(8)
 }
 
 // --- proxies ---
@@ -328,40 +431,45 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 	pageTitle(c, T.PageProxies)
 	m := s.Mihomo
 	if !m.Reachable {
-		ui.Text(c, T.Unreachable+" "+m.Err).TextColor(t.Danger)
+		groupBox(c, t).Children(func() {
+			emptyState(c, iconError, T.Unreachable, m.Err)
+		})
 		return
 	}
+	a.actionNotes(c, s)
 	if len(m.Groups) == 0 {
-		ui.Text(c, T.NoGroups).TextColor(t.TextMuted)
-	}
-	if a.actionErr != "" {
-		ui.Text(c, a.actionErr).FontSize(12).TextColor(t.Danger)
+		groupBox(c, t).Children(func() { emptyState(c, iconProxies, T.NoGroups, T.NoGroupsHint) })
+		return
 	}
 	if len(a.groupsOpen) == 0 && m.Primary != nil {
 		a.groupsOpen[m.Primary.Name] = true
 	}
-	for _, g := range m.Groups {
-		a.groupCard(c.Key("group:"+g.Name), c, g, s.WritesAllowed)
-	}
+	// One list: a row per group, its nodes under it while open.
+	groupBox(c, t).Padding(4, groupPadX).Gap(1).Dividers(1, pal(t).separator).Children(func() {
+		for _, g := range m.Groups {
+			a.groupRow(c.Key("group:"+g.Name), g, s.WritesAllowed)
+		}
+	})
 }
 
-func (a *app) groupCard(_ *ui.Context, c *ui.Context, g status.Group, writes bool) {
+func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	t := c.Theme()
 	T := i18n.T
+	p := pal(t)
 	open := a.groupsOpen[g.Name]
-	ui.Column(c.Key("group:"+g.Name)).Padding(14).Gap(12).Radius(10).Background(t.Surface).Border(1, t.Border).Children(func() {
-		head := ui.Row(c).Gap(10).AlignItems(ui.Center).Cursor(ui.CursorPointer)
+	ui.Column(c).Gap(10).PaddingY(8).Children(func() {
+		head := ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(28).Cursor(ui.CursorPointer)
 		head.Children(func() {
 			chev := iconCollapsed
 			if open {
 				chev = iconExpanded
 			}
-			ui.Icon(c, chev).FontSize(14).TextColor(t.TextMuted)
-			ui.Text(c, g.Name).FontSize(14).Bold().SingleLine()
-			ui.Badge(c, g.Type)
-			ui.Text(c, strings.Join(g.Chain, " → ")).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(1)
+			ui.Icon(c, chev).FontSize(12).TextColor(t.TextMuted).Width(14)
+			ui.Text(c, g.Name).FontWeight(600).SingleLine().Shrink(0)
+			meta(c, g.Type)
+			ui.Text(c, strings.Join(g.Chain, " → ")).TextColor(t.TextMuted).SingleLine().Shrink(1)
 			ui.Spacer(c)
-			ui.Text(c, status.DelayText(g.Delay, g.Tested)).FontSize(12).TextColor(delayColor(t, g.Delay, g.Tested)).Shrink(0)
+			num(ui.Text(c, status.DelayText(g.Delay, g.Tested)).TextColor(delayColor(t, g.Delay, g.Tested)).Shrink(0))
 			testing := a.mon.Testing(g.Name)
 			label := T.TestGroupDelay
 			if testing {
@@ -383,30 +491,32 @@ func (a *app) groupCard(_ *ui.Context, c *ui.Context, g status.Group, writes boo
 		if !open {
 			return
 		}
-		ui.Row(c).Gap(8).Wrap().Children(func() {
+		ui.Row(c).Gap(8).Wrap().PaddingStart(24).PaddingY(2).Children(func() {
 			for _, mem := range g.Members {
 				selected := mem.Name == g.Now
-				border := t.Border
+				chip := ui.Column(c.Key(mem.Name)).Width(176).Padding(8, 10).Gap(2).Radius(8).
+					Background(p.code).Border(1, p.groupLine).Transition(ui.ElementTransition{})
 				if selected {
-					border = t.Accent
+					chip.Background(p.accentSoft).Border(1, t.Accent.Alpha(0.6))
 				}
-				chip := ui.Column(c.Key(mem.Name)).Width(168).Padding(8, 10).Gap(4).Radius(8).
-					Background(t.Background).Border(1.5, border)
+				canSelect := writes && g.Selectable() && !selected
+				if canSelect {
+					chip.Cursor(ui.CursorPointer)
+					if chip.Hovered() {
+						chip.Background(t.SurfaceHover)
+					}
+				}
 				chip.Children(func() {
-					ui.Text(c, mem.Name).FontSize(12).SingleLine()
+					ui.Text(c, mem.Name).SingleLine().FontWeight(map[bool]int{true: 600, false: 400}[selected])
 					ui.Row(c).Gap(6).Children(func() {
 						typ := mem.Type
 						if typ == "" {
 							typ = "?"
 						}
-						ui.Text(c, typ).FontSize(11).TextColor(t.TextMuted).Grow(1).SingleLine()
-						ui.Text(c, status.DelayText(mem.Delay, mem.Tested)).FontSize(11).TextColor(delayColor(t, mem.Delay, mem.Tested))
+						meta(c, typ).Grow(1).Shrink(1)
+						num(ui.Text(c, status.DelayText(mem.Delay, mem.Tested)).FontSize(plat.smallSize).TextColor(delayColor(t, mem.Delay, mem.Tested)))
 					})
 				})
-				canSelect := writes && g.Selectable() && !selected
-				if canSelect {
-					chip.Cursor(ui.CursorPointer)
-				}
 				if chip.Clicked() && canSelect {
 					group, name := g.Name, mem.Name
 					a.do(func(ctx context.Context) error { return a.mh.SelectProxy(ctx, group, name) })
@@ -421,92 +531,97 @@ func (a *app) groupCard(_ *ui.Context, c *ui.Context, g status.Group, writes boo
 func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
-	pageTitle(c, T.PageTailscale)
 	ts := s.Tailscale
+	pageHeader(c, T.PageTailscale, func() {
+		if ts.Reachable {
+			small(c, T.TSState(ts.State.BackendState))
+			a.tsPowerSwitch(c, s)
+		}
+	})
 	if !ts.Reachable {
-		ui.Text(c, T.Unreachable+" "+ts.Err).TextColor(t.Danger)
+		groupBox(c, t).Children(func() { emptyState(c, iconError, T.Unreachable, ts.Err) })
 		return
 	}
+	a.actionNotes(c, s)
 	st := ts.State
 	card(c, "", func() {
 		ui.Row(c).Gap(24).Children(func() {
-			ui.Column(c).Gap(8).Basis(0).Grow(1).Children(func() {
-				kv(c, T.State, T.TSState(st.BackendState))
+			ui.Column(c).Gap(gapRow).Basis(0).Grow(1).Children(func() {
 				kv(c, T.Account, st.User)
 				kv(c, T.Version, st.Version)
-			})
-			ui.Column(c).Gap(8).Basis(0).Grow(1).Children(func() {
-				kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
-				kv(c, T.ShieldsUp, onOff(st.Prefs.ShieldsUp))
 				kv(c, T.Install, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source))
 			})
-		})
-		ui.Divider(c)
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconExitNode).FontSize(16).TextColor(t.TextMuted)
-			ui.Text(c, T.ExitNode).FontSize(12).TextColor(t.TextMuted).Shrink(0)
-			a.exitNodePicker(c, s).Width(220)
-			ui.Spacer(c)
-			a.tsPowerButton(c, s)
+			ui.Column(c).Gap(gapRow).Basis(0).Grow(1).Children(func() {
+				kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
+				kv(c, T.ShieldsUp, onOff(st.Prefs.ShieldsUp))
+				kvWith(c, T.ExitNode, func() { a.exitNodePicker(c, s).Grow(1) })
+			})
 		})
 	})
-	a.actionNotes(c, s)
-	if len(st.Peers) == 0 {
-		ui.Text(c, T.NoPeers).TextColor(t.TextMuted)
-		return
-	}
 	peers := st.Peers
-	a.peers.RowHeight = 32
-	cols := []ui.TableColumn{
-		{Title: T.PeerName, Width: 180},
-		{Title: T.PeerIP, Width: 160},
-		{Title: T.PeerOS, Width: 80},
-		{Title: T.PeerPath, Width: 110},
-		{Title: T.PeerRelay, Width: 70},
-		{Title: T.PeerLastSeen},
-	}
-	ui.Table(c, &a.peers, cols, len(peers), func(row, col int) {
-		p := peers[row]
-		switch col {
-		case 0:
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				col := t.TextMuted
-				if p.Online {
-					col = t.Success
-				}
-				dot(c, col, 8)
-				ui.Text(c, p.Name).SingleLine()
-			})
-		case 1:
-			ip := ""
-			if v4 := p.IPv4(); v4.IsValid() {
-				ip = v4.String()
-			}
-			ui.Text(c, ip).Font("monospace").FontSize(12).SingleLine().Selectable()
-		case 2:
-			ui.Text(c, p.OS).SingleLine()
-		case 3:
-			col := t.TextMuted
-			switch p.Path() {
-			case "direct":
-				col = t.Success
-			case "derp", "peer-relay":
-				col = t.Warning
-			}
-			ui.Text(c, T.Path(p.Path())).TextColor(col).SingleLine()
-		case 4:
-			ui.Text(c, p.Relay).SingleLine()
-		case 5:
-			seen := T.Online
-			if !p.Online {
-				seen = T.Offline
-				if !p.LastSeen.IsZero() {
-					seen = status.Ago(s.Time, p.LastSeen)
-				}
-			}
-			ui.Text(c, seen).SingleLine()
+	title := fmt.Sprintf("%s · %d / %d", T.Devices, st.OnlinePeers(), len(peers))
+	card(c, title, func() {
+		if len(peers) == 0 {
+			emptyState(c, iconTailscale, T.NoPeers, T.NoPeersHint)
+			return
 		}
-	}).Height(float32(min(len(peers), 14)*32 + 40))
+		a.peers.RowHeight = 32
+		cols := []ui.TableColumn{
+			{Title: T.PeerName, Width: 170},
+			{Title: T.PeerIP, Width: 140},
+			{Title: T.PeerOS, Width: 80},
+			{Title: T.PeerPath, Width: 120},
+			{Title: T.PeerRelay, Width: 70},
+			{Title: T.PeerLastSeen},
+		}
+		ui.Table(c, &a.peers, cols, len(peers), func(row, col int) {
+			p := peers[row]
+			switch col {
+			case 0:
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					col := t.TextMuted.Alpha(0.6)
+					if p.Online {
+						col = t.Success
+					}
+					dot(c, col, 7)
+					ui.Text(c, p.Name).SingleLine()
+				})
+			case 1:
+				ip := ""
+				if v4 := p.IPv4(); v4.IsValid() {
+					ip = v4.String()
+				}
+				num(ui.Text(c, ip).SingleLine().Selectable())
+			case 2:
+				ui.Text(c, p.OS).TextColor(t.TextMuted).SingleLine()
+			case 3:
+				icon, col := (*ui.SVG)(nil), t.TextMuted
+				switch p.Path() {
+				case "direct":
+					icon, col = iconPathDirect, t.Text
+				case "derp", "peer-relay":
+					icon, col = iconPathRelay, pal(t).warnText
+				}
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					if icon != nil {
+						ui.Icon(c, icon).FontSize(14).TextColor(col)
+					}
+					ui.Text(c, T.Path(p.Path())).TextColor(col).SingleLine()
+				})
+			case 4:
+				ui.Text(c, p.Relay).TextColor(t.TextMuted).SingleLine()
+			case 5:
+				seen := T.Online
+				if !p.Online {
+					seen = T.Offline
+					if !p.LastSeen.IsZero() {
+						seen = status.Ago(s.Time, p.LastSeen)
+					}
+				}
+				ui.Text(c, seen).TextColor(t.TextMuted).SingleLine()
+			}
+		}).Height(float32(min(len(peers), 14)*32 + 36)).Background(ui.Transparent).MarginX(-8)
+	})
 }
 
 // --- logs ---
@@ -531,16 +646,15 @@ func (l *logsView) levelName() string {
 func (a *app) logsPage(c *ui.Context) {
 	t := c.Theme()
 	T := i18n.T
+	p := pal(t)
 	a.logs.levelName()
 	entries := a.mon.Logs()
 	if a.logs.paused {
 		entries = a.logs.frozen
 	}
-	ui.Column(c).Grow(1).Padding(24).Gap(12).Children(func() {
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			pageTitle(c, T.PageLogs)
-			ui.Spacer(c)
-			ui.Text(c, T.LogLevel).FontSize(12).TextColor(t.TextMuted)
+	ui.Column(c).Grow(1).Padding(pagePadTop(c), plat.pagePadX, 20).Gap(16).Children(func() {
+		pageHeader(c, T.PageLogs, func() {
+			small(c, T.LogLevel)
 			if ui.Segmented(c.Key("level"), &a.logs.level, logLevels...).Changed() {
 				a.mon.ClearLogs()
 				a.mon.SetLogLevel(a.logs.levelName())
@@ -558,27 +672,32 @@ func (a *app) logsPage(c *ui.Context) {
 				a.logs.frozen = nil
 			}
 		})
-		if len(entries) == 0 {
-			ui.Text(c, T.LogEmpty).TextColor(t.TextMuted)
-			return
-		}
-		ui.List(c, &a.logs.list, len(entries), func(i int) {
-			e := entries[i]
-			col := t.Text
-			switch e.Type {
-			case "warning":
-				col = t.Warning
-			case "error":
-				col = t.Danger
-			case "debug":
-				col = t.TextMuted
+		box := ui.Column(c).Grow(1).Radius(plat.groupRadius).Background(p.group).Border(1, p.groupLine).Clip()
+		box.Children(func() {
+			if len(entries) == 0 {
+				ui.Column(c).Grow(1).Justify(ui.Center).Children(func() {
+					emptyState(c, iconLogs, T.LogEmpty, T.LogEmptyHint)
+				})
+				return
 			}
-			ui.Row(c).Gap(10).PaddingX(4).AlignItems(ui.Start).Children(func() {
-				ui.Text(c, e.Time.Format("15:04:05")).Font("monospace").FontSize(11).TextColor(t.TextMuted).Shrink(0)
-				ui.Text(c, e.Type).Font("monospace").FontSize(11).TextColor(col).Width(56).Shrink(0)
-				ui.Text(c, e.Payload).Font("monospace").FontSize(11).Grow(1).Wrap().Selectable()
-			})
-		}).Grow(1).Border(1, t.Border).Radius(8)
+			ui.List(c, &a.logs.list, len(entries), func(i int) {
+				e := entries[i]
+				col := t.Text
+				switch e.Type {
+				case "warning":
+					col = p.warnText
+				case "error":
+					col = p.badText
+				case "debug":
+					col = t.TextMuted
+				}
+				ui.Row(c).Gap(12).Padding(3, 12).AlignItems(ui.Start).Children(func() {
+					ui.Text(c, e.Time.Format("15:04:05")).Font("monospace").FontSize(11).TextColor(t.TextMuted).Shrink(0)
+					ui.Text(c, e.Type).Font("monospace").FontSize(11).TextColor(col).Width(56).Shrink(0)
+					ui.Text(c, e.Payload).Font("monospace").FontSize(11).TextColor(col).Grow(1).Wrap().Selectable()
+				})
+			}).Grow(1).Background(ui.Transparent).PaddingY(6)
+		})
 	})
 }
 
@@ -607,44 +726,56 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 	f := &a.settings
 	pageTitle(c, T.PageSettings)
 	field := func(key, label, hint string, v *string, password bool) {
-		ui.Column(c).Gap(4).Children(func() {
-			ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
-			in := ui.TextInput(c.Key(key), v).Label(label)
-			if password {
-				in.Password()
-			}
-			if hint != "" {
-				ui.Text(c, hint).FontSize(11).TextColor(t.TextMuted)
-			}
+		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
+			ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth + 24).Shrink(0).MarginY(5)
+			ui.Column(c).Gap(4).Grow(1).Children(func() {
+				in := ui.TextInput(c.Key(key), v).Label(label)
+				if password {
+					in.Password()
+				}
+				if hint != "" {
+					small(c, hint).Wrap()
+				}
+			})
 		})
 	}
 	card(c, T.Mihomo, func() {
 		if a.creds.cur != nil {
-			ui.Text(c, T.ControllerFromHelper).FontSize(12).TextColor(t.TextMuted).Wrap()
+			small(c, T.ControllerFromHelper).Wrap()
 		}
 		field("controller", T.Controller, "", &f.controller, false)
 		secretHint := T.SecretHint
 		if a.cfg.SecretFromEnv {
-			secretHint = "DUET_MIHOMO_SECRET ✓"
+			secretHint = T.SecretFromEnv
 		}
 		field("secret", T.Secret, secretHint, &f.secret, true)
 		field("primary", T.PrimaryGroup, "", &f.primary, false)
 		field("binary", T.MihomoBinary, "", &f.mihomoBinary, false)
 		field("confdir", T.MihomoConfigDir, "", &f.mihomoConfigDir, false)
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(12).AlignItems(ui.Center).PaddingStart(labelWidth + 36).Children(func() {
 			if ui.PrimaryButton(c.Key("save"), T.Save).Clicked() {
 				a.saveSettings()
 			}
-			if f.msg != "" {
-				col := t.Success
-				if f.failed {
-					col = t.Danger
-				}
-				ui.Text(c, f.msg).FontSize(12).TextColor(col)
-			}
-			ui.Spacer(c)
-			ui.Text(c, T.SettingsRestartHint).FontSize(11).TextColor(t.TextMuted)
+			small(c, T.SettingsRestartHint).Grow(1).Wrap()
 		})
+		if f.msg != "" && f.failed {
+			errorNote(c, f.msg)
+		}
+	})
+	card(c, T.Notifications, func() {
+		on := !a.cfg.NotificationsOff
+		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+			ui.Column(c).Gap(2).Grow(1).Children(func() {
+				ui.Text(c, T.NotificationsSwitch)
+				small(c, T.NotificationsHint).Wrap()
+			})
+			if ui.Switch(c.Key("notify"), &on).Label(T.Notifications).Disabled(!notificationsSupported()).Changed() {
+				a.setNotifications(on)
+			}
+		})
+		if !notificationsSupported() {
+			small(c, T.NotificationsUnsupported).Wrap()
+		}
 	})
 	card(c, T.Tailscale, func() {
 		in := s.Tailscale.Install
@@ -653,19 +784,7 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 			kv(c, "tailscaled", in.Daemon)
 		}
 	})
-	card(c, T.Notifications, func() {
-		on := !a.cfg.NotificationsOff
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			if ui.Switch(c.Key("notify"), &on).Label(T.Notifications).Changed() {
-				a.setNotifications(on)
-			}
-			ui.Text(c, T.NotificationsHint).FontSize(12).TextColor(t.TextMuted).Grow(1).Wrap()
-		})
-		if !notificationsSupported() {
-			ui.Text(c, T.NotificationsUnsupported).FontSize(11).TextColor(t.TextMuted).Wrap()
-		}
-	})
-	card(c, T.AppName, func() {
+	card(c, T.AboutApp, func() {
 		kv(c, T.ConfigFile, a.cfgPath)
 		kv(c, T.AllowWrites, onOff(a.cfg.AllowWrites))
 	})
@@ -681,14 +800,13 @@ func (a *app) setNotifications(on bool) {
 	a.cfg = cfg
 }
 
-// actionNotes shows the read-only hint and the last action's error.
+// actionNotes shows the read-only notice and the last action's error.
 func (a *app) actionNotes(c *ui.Context, s status.Snapshot) {
-	t := c.Theme()
 	if !s.WritesAllowed {
-		ui.Text(c, i18n.T.WritesDisabledHint).FontSize(12).TextColor(t.TextMuted)
+		notice(c, iconSecure, i18n.T.WritesDisabledHint)
 	}
 	if a.actionErr != "" {
-		ui.Text(c, a.actionErr).FontSize(12).TextColor(t.Danger).Wrap()
+		errorNote(c, a.actionErr)
 	}
 }
 
@@ -715,7 +833,8 @@ func (a *app) saveSettings() {
 		return
 	}
 	a.cfg = cfg
-	f.msg, f.failed = i18n.T.Saved, false
+	f.msg, f.failed = "", false
+	a.toast = i18n.T.Saved
 	a.groupsOpen = map[string]bool{}
 	a.start()
 }
