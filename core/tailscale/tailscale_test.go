@@ -57,7 +57,7 @@ func fixture() *fakeAPI {
 	self := &ipnstate.PeerStatus{
 		ID: "nSelf", HostName: "laptop", DNSName: "laptop.example-tailnet.ts.net.", OS: "macOS",
 		TailscaleIPs: []netip.Addr{netip.MustParseAddr("fd7a:115c:a1e0::1"), netip.MustParseAddr("100.64.0.1")},
-		Online: true, UserID: 7, KeyExpiry: &exp,
+		Online:       true, UserID: 7, KeyExpiry: &exp,
 	}
 	peers := map[key.NodePublic]*ipnstate.PeerStatus{
 		nodeKey(): {ID: "nB", HostName: "box", DNSName: "box.example-tailnet.ts.net.", OS: "linux",
