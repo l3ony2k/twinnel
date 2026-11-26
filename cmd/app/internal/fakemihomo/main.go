@@ -120,7 +120,7 @@ var logLines = []struct{ typ, msg string }{
 	{"warning", "[TCP] dial 新加坡 02 (match RuleSet(telegram)) 192.168.1.20:52170 --> 149.154.167.51:443 error: i/o timeout"},
 	{"info", "[TCP] 192.168.1.20:52181 --> mirrors.tuna.tsinghua.edu.cn:443 match GeoSite(cn) using DIRECT"},
 	{"debug", "[DNS] resolve example.org A from https://1.1.1.1/dns-query"},
-	{"info", "[TCP] redacted:50221 --> 100.64.0.7:22 match IPCIDR(100.64.0.0/10) using DIRECT"},
+	{"info", "[TCP] 100.64.0.2:50221 --> 100.64.0.7:22 match IPCIDR(100.64.0.0/10) using DIRECT"},
 }
 
 func (s *server) handler() http.Handler {

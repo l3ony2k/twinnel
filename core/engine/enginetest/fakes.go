@@ -117,6 +117,16 @@ func (c *Controller) Restart() {
 	}
 }
 
+// Start emulates a fresh mihomo process that loaded cfg: its secret takes
+// effect and the controller answers.
+func (c *Controller) Start(cfg []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Loaded = append([]byte(nil), cfg...)
+	c.Secret = topSecret(cfg)
+	c.Down = false
+}
+
 // ForceFlags returns the force flag of each reload so far.
 func (c *Controller) ForceFlags() []bool {
 	c.mu.Lock()

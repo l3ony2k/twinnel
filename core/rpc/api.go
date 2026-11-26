@@ -65,6 +65,12 @@ const (
 
 	MethodControllerSecure = "controller.secure"
 
+	// Moving an adopted mihomo to the managed kernel, a root-owned config
+	// dir and a duet LaunchDaemon (security review finding 5).
+	MethodHardenPlan  = "service.harden.plan"
+	MethodHardenApply = "service.harden.apply"
+	MethodHardenPlans = "service.harden.plans" // read: stored plans
+
 	MethodEventsWait = "events.wait"
 )
 
@@ -263,6 +269,8 @@ type Subscription struct {
 	Hash            string    `json:"hash,omitempty"`
 	Size            int       `json:"size"`
 	LastError       string    `json:"last_error,omitempty"`
+	// Warnings are set by subscription.put only (e.g. a plain-http URL).
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type SubPutParams struct {
@@ -656,4 +664,118 @@ type ControllerSecureResult struct {
 	Replaced bool         `json:"replaced"` // a secret existed before
 	Apply    *ApplyResult `json:"apply,omitempty"`
 	Warnings []string     `json:"warnings,omitempty"`
+}
+
+// ---- service.harden ----
+
+// Harden plan states (besides PlanReady, PlanRolledBack, PlanFailed).
+const PlanApplied = "applied"
+
+type HardenPlanParams struct {
+	// KernelVersion of the managed kernel to run (a stable release such as
+	// v1.19.34). Default: the version that runs now.
+	KernelVersion string `json:"kernel_version,omitempty"`
+	// NewSecret generates a new controller secret that the restarted
+	// mihomo starts with. Without it the stored secret (if any) is used,
+	// which also activates one controller.secure wrote but mihomo has not
+	// loaded yet.
+	NewSecret bool `json:"new_secret,omitempty"`
+}
+
+type HardenPlansParams struct {
+	PlanID string `json:"plan_id,omitempty"` // empty: all, newest first
+}
+
+type HardenApplyParams struct {
+	PlanID      string `json:"plan_id"`
+	ConfirmHash string `json:"confirm_hash"`
+	// SkipHealth skips the before/after health comparison (only /version
+	// is verified).
+	SkipHealth bool `json:"skip_health,omitempty"`
+}
+
+// HardenService is one side of the move.
+type HardenService struct {
+	Label      string `json:"label"`
+	Plist      string `json:"plist"`
+	Binary     string `json:"binary"`
+	Version    string `json:"version,omitempty"`
+	ConfigDir  string `json:"config_dir"`
+	ConfigFile string `json:"config_file"`
+	// Owner of the config dir ("root" or "uid 501").
+	Owner string `json:"owner,omitempty"`
+}
+
+type HardenKernel struct {
+	Version   string `json:"version"`
+	Installed bool   `json:"installed"` // already in the managed kernel dir
+	Asset     string `json:"asset,omitempty"`
+	Size      int64  `json:"size,omitempty"` // download size when not installed
+	Binary    string `json:"binary"`
+}
+
+// HardenFile is a file or dir copied into the new config dir.
+type HardenFile struct {
+	Path string `json:"path"` // relative to the config dir
+	Size int64  `json:"size"`
+	Dir  bool   `json:"dir,omitempty"`
+}
+
+// HardenStep is one step of the plan. Network marks the steps during
+// which mihomo is not running.
+type HardenStep struct {
+	Phase   string `json:"phase"` // prepare, cut, verify, finish, rollback
+	Text    string `json:"text"`
+	Network bool   `json:"network_down,omitempty"`
+}
+
+type HardenDowntime struct {
+	MinSeconds int    `json:"min_seconds"`
+	MaxSeconds int    `json:"max_seconds"`
+	Note       string `json:"note"`
+}
+
+// HardenPlan holds no secrets.
+type HardenPlan struct {
+	PlanID      string    `json:"plan_id"`
+	CreatedAt   time.Time `json:"created_at"`
+	State       string    `json:"state"`
+	ConfirmHash string    `json:"confirm_hash"`
+
+	From   HardenService `json:"from"`
+	To     HardenService `json:"to"`
+	Kernel HardenKernel  `json:"kernel"`
+
+	Copy      []HardenFile `json:"copy"`
+	CopyBytes int64        `json:"copy_bytes"`
+	Skipped   []string     `json:"skipped,omitempty"`
+	// ConfigChanges are the differences of the new config from the
+	// running one (paths relocated, secret).
+	ConfigChanges []string `json:"config_changes,omitempty"`
+	// Secret: "keep" (no change), "activate" (the stored secret differs
+	// from the running one and takes effect), "new" or "none".
+	Secret   string         `json:"secret"`
+	Plist    string         `json:"plist"`
+	Steps    []HardenStep   `json:"steps"`
+	Downtime HardenDowntime `json:"downtime"`
+	Warnings []string       `json:"warnings,omitempty"`
+	// DryRun: this helper does not run as root; apply only reports the
+	// launchctl steps.
+	DryRun bool `json:"dry_run"`
+}
+
+type HardenResult struct {
+	PlanID     string      `json:"plan_id"`
+	OK         bool        `json:"ok"`
+	DryRun     bool        `json:"dry_run"`
+	RolledBack bool        `json:"rolled_back"`
+	Steps      []AdoptStep `json:"steps"`
+	// DowntimeMS is measured from the bootout of the old service until the
+	// new (or, after a rollback, the old) controller answered.
+	DowntimeMS   int64        `json:"downtime_ms,omitempty"`
+	HealthBefore []AdoptCheck `json:"health_before,omitempty"`
+	HealthAfter  []AdoptCheck `json:"health_after,omitempty"`
+	Worse        []string     `json:"worse,omitempty"`
+	Warnings     []string     `json:"warnings,omitempty"`
+	Error        string       `json:"error,omitempty"`
 }

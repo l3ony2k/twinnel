@@ -121,6 +121,15 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodControllerSecure, func(ctx context.Context, _ rpc.Empty) (rpc.ControllerSecureResult, error) {
 		return e.SecureController(ctx)
 	})
+	rpc.Typed(s, rpc.MethodHardenPlan, func(ctx context.Context, p rpc.HardenPlanParams) (rpc.HardenPlan, error) {
+		return e.HardenPlan(ctx, p)
+	})
+	rpc.Typed(s, rpc.MethodHardenPlans, func(ctx context.Context, p rpc.HardenPlansParams) ([]rpc.HardenPlan, error) {
+		return e.HardenPlans(p.PlanID)
+	})
+	rpc.Typed(s, rpc.MethodHardenApply, func(ctx context.Context, p rpc.HardenApplyParams) (rpc.HardenResult, error) {
+		return e.HardenApply(ctx, p)
+	})
 	e.registerCredentials(s)
 
 	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, _ rpc.Empty) (rpc.HealthReport, error) { return e.HealthLast() })

@@ -59,6 +59,10 @@ const (
 	OpStart     Op = "start"
 	OpStop      Op = "stop"
 	OpRestart   Op = "restart"
+	// OpDisable keeps a service from loading at boot without removing its
+	// definition; OpEnable undoes it. Not exposed over RPC.
+	OpDisable Op = "disable"
+	OpEnable  Op = "enable"
 )
 
 // StepKind says what a Step does.

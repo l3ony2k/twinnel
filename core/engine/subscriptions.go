@@ -128,6 +128,9 @@ func (e *Engine) PutSubscription(ctx context.Context, p rpc.SubPutParams) (rpc.S
 	e.publish(rpc.EventStateChanged, map[string]string{"subscription": p.ID})
 	for _, s := range e.subscriptionInfos(st) {
 		if s.ID == p.ID {
+			if w := plainHTTPWarning(p.URL); w != "" {
+				s.Warnings = append(s.Warnings, w)
+			}
 			return s, nil
 		}
 	}
@@ -350,4 +353,16 @@ func (e *Engine) refreshDue(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// plainHTTPWarning warns about a subscription URL without TLS (security
+// review finding 14): anyone on the network path can read the URL (often a
+// credential) and serve a config of their choosing. Such a config is still
+// bounded by exposureCheck and mihomo -t, so it is a warning, not a refusal.
+func plainHTTPWarning(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || !strings.EqualFold(u.Scheme, "http") {
+		return ""
+	}
+	return "the subscription URL uses plain http: anyone on the network path can read it and replace the config it returns; use https if the provider offers it"
 }

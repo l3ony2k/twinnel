@@ -262,3 +262,28 @@ func TestNoDowngrade(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+// Finding 14: a plain-http subscription URL is stored, with a warning.
+func TestSubscriptionPutWarnsOnPlainHTTP(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	s, err := h.e.PutSubscription(ctx, rpc.SubPutParams{ID: "plain", URL: "http://sub.example.invalid/x?token=t"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Warnings) != 1 || !strings.Contains(s.Warnings[0], "plain http") {
+		t.Fatalf("warnings = %q", s.Warnings)
+	}
+	if strings.Contains(strings.Join(s.Warnings, " "), "token") {
+		t.Fatal("the warning leaks the URL")
+	}
+	for _, u := range []string{"https://sub.example.invalid/x", ""} {
+		s, err = h.e.PutSubscription(ctx, rpc.SubPutParams{ID: "plain", URL: u, Name: "n"})
+		if err != nil || len(s.Warnings) != 0 {
+			t.Fatalf("%q: warnings %q err %v", u, s.Warnings, err)
+		}
+	}
+	if l, _ := h.e.Subscriptions(); len(l) == 0 || l[0].Warnings != nil {
+		t.Fatalf("list carries warnings: %+v", l)
+	}
+}

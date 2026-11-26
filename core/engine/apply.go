@@ -104,6 +104,13 @@ func (e *Engine) compose(ctx context.Context, st *store.Settings) (*config.Resul
 	if err != nil {
 		return nil, "", err
 	}
+	// After service.harden, paths into the old config dir (kept in layers
+	// that adopt derived from the live config) point into the new one.
+	if h := st.Hardened; h != nil && h.OldConfigDir != "" {
+		if cfg, _, err = relocatePaths(cfg, h.OldConfigDir); err != nil {
+			return nil, "", err
+		}
+	}
 	res.Config = cfg
 	return res, secret, nil
 }
