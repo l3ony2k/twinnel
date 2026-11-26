@@ -749,6 +749,10 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 				line += "  ← " + evNotMihomoTUN
 				fail(st, msg)
 			}
+		} else if tun.Device == "utun" {
+			// A bare "utun" (read from the config file when the controller
+			// does not answer) lets macOS pick the number: the real name
+			// is unknown, so there is nothing to compare.
 		} else if terr == nil && tun.Enable && tun.Device != "" && rl.Interface != tun.Device && strings.HasPrefix(rl.Interface, "utun") {
 			line += "  ← " + evNotMihomoTUN
 			fail(StatusFail, fmt.Sprintf(msgOtherTUN, rl.Interface))

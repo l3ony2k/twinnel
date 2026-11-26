@@ -56,7 +56,7 @@ func runTakeover(args []string) error {
 	fs.StringVar(&opt.MihomoBin, "mihomo", "", "mihomo `BIN` for validation (default: the service's binary)")
 	fs.BoolVar(&opt.NoValidate, "no-validate", false, "skip mihomo -t")
 	fs.BoolVar(&asJSON, "json", false, "print plan.json instead of the summary")
-	fs.BoolVar(&viaHelper, "via-helper", false, "let the helper make the plan and keep it under its state dir (for `duet helper adopt`)")
+	fs.BoolVar(&viaHelper, "via-helper", false, "let the helper make the plan and keep it under its state dir (for 'duet helper adopt')")
 	fs.StringVar(&socket, "socket", rpc.SocketFromEnv(), "helper socket `PATH` (with --via-helper)")
 	if err := fs.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {

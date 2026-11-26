@@ -61,6 +61,10 @@ func newInstallFlags(name string, withBin bool) (*flag.FlagSet, *installFlags) {
 	fs.StringVar(&f.stateDir, "state-dir", store.DefaultDir, "helper state `DIR`")
 	fs.StringVar(&f.socket, "socket", rpc.DefaultSocket, "socket `PATH` the helper listens on")
 	fs.StringVar(&f.label, "label", store.DefaultHelperLabel, "launchd `LABEL`")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "usage: duet %s [flags]\n\nflags:\n", name)
+		fs.PrintDefaults()
+	}
 	return fs, f
 }
 

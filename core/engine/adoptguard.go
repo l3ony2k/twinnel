@@ -99,5 +99,5 @@ func binaryWarning(bin string) string {
 	if err != nil || t.Trusted {
 		return ""
 	}
-	return fmt.Sprintf("the mihomo binary %s can be replaced without root (%s), and the service runs it as root: anything running as that user can become root. duet runs it only without root for its own checks; to close this, install a managed kernel (duet kernel install) and point the service at it", bin, t.Why)
+	return fmt.Sprintf("the mihomo binary %s can be replaced without root (%s), and the service runs it as root: anything running as that user can become root. duet runs it only without root for its own checks; to close this after the adopt, move the service to the managed kernel and a root-owned config dir (duet helper harden plan)", bin, t.Why)
 }

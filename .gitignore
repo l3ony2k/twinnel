@@ -5,3 +5,11 @@
 /scratch/
 HANDOFF.md
 /cmd/app/resources/
+
+# go build outputs in the repo root (go build ./cmd/app etc.)
+/app
+/app.exe
+/cli
+/helper
+/duet
+/duet-helper

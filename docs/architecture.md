@@ -24,10 +24,10 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | Path | Role |
 |---|---|
 | `cmd/app` | Menu bar app (MyGo native UI): tray icon, flyout panel, main window. Reads mihomo and Tailscale directly and runs the health checks in process; the subscriptions and overrides, history and kernel pages, and 重载配置 when the helper is connected, go through the helper. No business logic. |
-| `cmd/cli` | `duet`: local commands (`doctor`, `takeover`, `compose`, `status`) and the helper client commands. |
+| `cmd/cli` | `duet`: local commands (`doctor`, `takeover plan`, `compose`, `status`) and the helper client commands (including `helper install`, `helper adopt`, `helper secure-controller`, `helper harden`). |
 | `cmd/helper` | The root daemon. Thin: wires `core/engine` to `core/rpc`, the secret store, the platform service manager, the Tailscale interface lookup and the health scheduler (`platform_darwin.go`, `platform_linux.go`). |
 | `core/config` | YAML node-level merge, Clash Verge import, compose, Tailscale coexist generator, leak guard, `mihomo -t` validation, semantic diff. |
-| `core/engine` | The helper's logic, platform-free: apply pipeline, subscriptions, layers, settings, tailnet refresh, kernels, status. |
+| `core/engine` | The helper's logic, platform-free: apply pipeline, subscriptions, layers, settings, tailnet refresh, kernels, status, takeover plans and adopt, controller secret, harden. |
 | `core/rpc` | JSON-RPC 2.0 server/client, method allowlist, peer credential check, event bus. `core/rpc/healthsrc`: the helper's health reports as a `status.HealthSource`. |
 | `core/store` | The helper's state directory and the `Secrets` interface (file store; migration into another store). |
 | `core/kernel` | mihomo release check, verified download, atomic switch and rollback. |
@@ -63,8 +63,10 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | health | `health.last` (the last report, no run), `health.run {reason}` (runs now, 2 min cap) |
 | config | `config.get {source: live\|preview\|history, id}`: the config text with the top-level `secret` stripped |
 | info | `tailscale.info` |
-| takeover | `takeover.adopt {plan_id}`: a stub, always error -32005 |
-| events | `events.wait {after, timeout_ms}`: long-poll on a ring buffer. Types: `compose.applied/failed`, `state.changed`, `subscription.updated/failed`, `tailnet.changed`, `kernel.changed`, `check.changed`, `health.updated`, `accessory.changed`, `service.changed`, `helper.started/stopping`, `events.truncated`. |
+| controller | `controller.credentials` (the controller address and the secret mihomo loaded, for the app; any authorized peer can already reconfigure mihomo), `controller.secure` (generate a secret, store it, write it into the config and reload; it takes effect at mihomo's next start) |
+| takeover | `takeover.plan` (discover, plan and keep the plan under `<state>/takeover/<id>/`), `takeover.plans`, `takeover.discard`, `takeover.adopt {plan_id, confirm_hash}` (see [Takeover](#takeover)) |
+| harden | `service.harden.plan`, `service.harden.plans`, `service.harden.apply`: move an adopted mihomo to the managed kernel, a root-owned config dir and duet's LaunchDaemon in one restart (macOS; see [Takeover](#takeover)) |
+| events | `events.wait {after, timeout_ms}`: long-poll on a ring buffer. Types: `compose.applied/failed`, `state.changed`, `subscription.updated/failed`, `tailnet.changed`, `kernel.changed`, `check.changed`, `health.updated`, `accessory.changed`, `service.changed`, `takeover.changed`, `helper.started/stopping`, `events.truncated`. |
 
 No method takes a filesystem path or a command. Paths (mihomo binary, config dir and file, controller address, service labels) live only in the helper's `settings.json`. Error codes besides JSON-RPC's own: -32001 unauthorized, -32002 failed, -32003 not found, -32004 busy, -32005 not implemented.
 
@@ -78,7 +80,7 @@ No method takes a filesystem path or a command. Paths (mihomo binary, config dir
 4. Unchanged bytes are a no-op unless forced. If mihomo is not running, the file is written and used at the next start (with a warning).
 5. **Back up** the file on disk if it is not already the latest history entry (its `secret:` line removed).
 6. **Write** atomically, re-inserting the controller secret (from the secret store, a layer, or the file being replaced), keeping the file mode. When there is no secret anywhere and the helper manages the config (no file yet, or the file lives in the state dir), it generates one into the secret store and says so in a warning.
-7. **Reload** with `PUT /configs?force=true`, then poll `GET /version` for up to 10 s.
+7. **Reload** with `PUT /configs`, then poll `GET /version` for up to 10 s. `force=true` only when inbound listeners change (or there was no file to compare); `ReloadImpact` (`core/engine/reloadimpact.go`) also warns when the reload rebuilds the TUN or when a setting (controller address, secret) needs a restart. See `docs/reload-behavior.md`.
 8. On a reload or verify failure, **restore** the old bytes and reload them; the result says `rolled_back`.
 9. Record history (`applied` or `rollback`) and publish an event.
 
@@ -148,11 +150,15 @@ Linux differences, in the checks themselves:
 - `system-dns` labels each link's servers by origin. With NetworkManager it reads the connection's `ipv4.method`, `ipv4.dns`, `ipv4.ignore-auto-dns`, `ipv6.dns`, `ipv6.ignore-auto-dns`: 手动 (static only), 手动 + DHCP, DHCP/默认, or 系统全局 DNS when the link has no servers of its own. Without NetworkManager, per-link servers from resolved are labelled as of unknown origin. The fix hint names `nmcli connection modify … ipv4.dns … ipv4.ignore-auto-dns yes`, or `resolved.conf` (`DNS=`, `Domains=~.`) when there is only systemd-resolved, instead of `networksetup`.
 - `vpn-conflict` fails when any tunnel device that is neither mihomo's TUN (its `tun.device`, or `Meta*` when unset) nor `tailscale*` holds the default route (`tun*`, `tap*`, `wg*`, `ppp*`, `ipsec*`, `vti*`, `xfrm*` and common vendor names), whether or not mihomo's TUN is on. A physical link holding it is a warning only when mihomo's TUN is on. On macOS only another `utun*` fails.
 
-**Where checks run.** The helper runs them with `health.Scheduler`: every `--health-interval` (default 5 min), after an apply that wrote a file, after every service operation, and (macOS) on network changes from `darwin.NetWatcher`, debounced. `--no-health` turns it off. Only real status transitions publish `check.changed`; every run publishes `health.updated`. `duet helper health` reads `health.last`, `--run` calls `health.run`. The app still runs the checks in process on its own timer (`core/rpc/healthsrc` is the drop-in source for using the helper's reports instead), and `duet doctor` runs them once.
+**Where checks run.** The helper runs them with `health.Scheduler`: every `--health-interval` (default 5 min), after an apply that wrote a file, after every service operation, and (macOS) on network changes from `darwin.NetWatcher`, debounced. `--no-health` turns it off. Only real status transitions publish `check.changed`; every run publishes `health.updated`. `duet helper health` reads `health.last`, `--run` calls `health.run`. While the helper is connected the app shows the helper's reports (`core/rpc/healthsrc`; a rerun calls `health.run`); without a helper it runs the checks in process. `duet doctor` runs them once, in process.
 
 ## Takeover
 
-`duet takeover plan` turns a hand-made setup into duet's model without changing anything. It finds the mihomo and Tailscale services (launchd plists on macOS, systemd units on Linux), reads the live config, scores candidate subscription files next to it, and derives layers: a `base` layer with the settings that differ from the subscription, `user` layers for hand-added rules, and the coexist layer in place of the hand-written Tailscale parts. It then composes them, runs `mihomo -t` with the service's own binary, and compares the result with the live config using a semantic diff (settings as sets where order does not matter, proxies by content hash, rules under first-match semantics). The output directory holds the layers, the composed config, the diff and a `plan.json` without credentials. There is no apply step yet.
+`duet takeover plan` turns a hand-made setup into duet's model without changing anything. It finds the mihomo and Tailscale services (launchd plists on macOS, systemd units on Linux), reads the live config, scores candidate subscription files next to it, and derives layers: a `base` layer with the settings that differ from the subscription, `user` layers for hand-added rules, and the coexist layer in place of the hand-written Tailscale parts. It then composes them, runs `mihomo -t` with the service's own binary, and compares the result with the live config using a semantic diff (settings as sets where order does not matter, proxies by content hash, rules under first-match semantics). The output directory holds the layers, the composed config, the diff and a `plan.json` without credentials.
+
+**Adopt** (`duet takeover plan --via-helper`, then `duet helper adopt PLAN_ID`; `core/engine/takeover.go`). The helper makes the plan itself and keeps it under `<state>/takeover/<id>/` (0700). Adopt re-checks that the live config is byte-identical to the plan, copies it to `live-backup.yaml`, imports the subscription (URL into the secret store), the layers and the settings (live binary, config, controller, service labels marked adopted: their plists are never replaced), runs five health checks, applies through the normal pipeline, and runs the checks again. A check that is still worse after one re-check restores the backup byte for byte, reloads and undoes the import. The step-by-step procedure is `docs/runbook-adopt-macos.md`.
+
+**Harden** (`duet helper harden plan|apply`, `core/engine/harden.go`, macOS). After an adopt, mihomo still runs a binary and a config dir the user owns, as root (security review finding 5). Harden moves it, in one restart of mihomo, to the managed kernel, a root-owned config dir `<state>/mihomo` (the composed config, geo databases, `cache.db`, the dashboard) and the LaunchDaemon `com.l3ony2k.duet.mihomo`: bootout old, bootstrap new, wait for `/version`, compare health; on failure the old label is bootstrapped again. On success the old label is only disabled. Without root the helper prepares and validates, then reports the launchctl steps as a dry run.
 
 ## Services
 
@@ -201,15 +207,16 @@ Not on Linux yet: a network-change trigger for health and tailnet refresh (the h
 | Helper log | `<state>/logs/helper.log` (on Linux the helper's stdout/stderr also go to the journal) |
 | mihomo and tailscaled services | labels from settings: macOS `com.l3ony2k.duet.mihomo`, `com.tailscale.tailscaled`; Linux `duet-mihomo`, `tailscaled` |
 | Managed mihomo kernels | `<state>/kernels/`, with `current` and `previous` symlinks |
+| Managed mihomo config dir (after harden) | `<state>/mihomo`, root-owned 0700; harden plans and the old plist copy in `<state>/harden/<id>/` |
 | App preferences | `<user config dir>/duet/app.json` |
-| Takeover plans | a new temp dir, or `--out` |
+| Takeover plans | `duet takeover plan`: a new temp dir, or `--out`; `--via-helper`: `<state>/takeover/<id>/` (with `live-backup.yaml` after an adopt) |
 
 ## Security model
 
 - **One privileged process.** Only the helper runs as root. The app and CLI read mihomo and Tailscale directly, and everything that writes goes through the helper.
 - **Narrow RPC.** Fixed method allowlist, strict param decoding, peer uid check, no paths or commands from clients. Kernel installs take only a channel; the helper picks the asset and refuses one without a published SHA-256 digest.
 - **Validate before write, back up before write, roll back on failure.** The running config is never replaced by one `mihomo -t` rejects.
-- **Secrets.** The controller secret is kept out of history and backups and injected only into the live file. Subscription URLs are redacted in errors, logs, takeover plans and diffs. The config parser used by health checks never reads proxies or providers. On macOS the root helper keeps secrets in the System keychain; values are written by piping the command to `security -i` on stdin, so they never appear in argv, the environment or a file. On Linux they are a root-owned 0600 file until a Secret Service store exists. The app cannot read the System keychain (root-only) and keeps its own copy of the controller secret in `app.json`.
+- **Secrets.** The controller secret is kept out of history and backups and injected only into the live file. Subscription URLs are redacted in errors, logs, takeover plans and diffs. The config parser used by health checks never reads proxies or providers. On macOS the root helper keeps secrets in the System keychain; values are written by piping the command to `security -i` on stdin, so they never appear in argv, the environment or a file. On Linux they are a root-owned 0600 file until a Secret Service store exists. The app cannot read the System keychain (root-only): while the helper is connected it gets the controller address and secret through `controller.credentials`; without a helper it uses the secret saved in its `app.json`.
 - **Never root for what a user controls.** A binary the helper runs (tailscale CLI, adopted mihomo, `mihomo -t`) runs as root only when root alone controls it (file and every parent dir); otherwise as its owner or nobody (`core/kernel/runas.go`). Writes into the mihomo config dir go through an `os.Root` and require the dir to belong to root or to the uid recorded at adopt (`mihomo.config_dir_uid`). Apply refuses a controller exposed beyond loopback without a secret. See `docs/security-review.md`.
 - **Read-only diagnostics.** Health checks and takeover only read files, run read-only commands and send GET requests to the controller.
 - **No personal data in the repo.** Test data is synthetic; `scripts/check-no-personal-data.sh` greps tracked files for patterns kept outside the tree.

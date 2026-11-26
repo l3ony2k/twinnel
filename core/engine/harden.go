@@ -566,7 +566,7 @@ func (e *Engine) HardenPlan(ctx context.Context, p rpc.HardenPlanParams) (rpc.Ha
 		plan.ConfigChanges = append(plan.ConfigChanges, "a new controller secret (clients of the controller need it afterwards)")
 	case newSecretVal == "":
 		plan.Secret = "none"
-		plan.Warnings = append(plan.Warnings, "the controller has no secret. After the move the helper manages the config and its next apply generates one, which mihomo only loads at its next restart; plan with new_secret to set one in this restart")
+		plan.Warnings = append(plan.Warnings, "the controller has no secret. After the move the helper manages the config and its next apply generates one, which mihomo only loads at its next restart; plan with a new secret (duet helper harden plan --new-secret) to set one in this restart")
 	case newSecretVal != runningSecret:
 		plan.Secret = "activate"
 		plan.ConfigChanges = append(plan.ConfigChanges, "the stored controller secret (written by controller.secure, not yet loaded) becomes active")

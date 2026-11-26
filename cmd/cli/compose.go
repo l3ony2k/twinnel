@@ -51,8 +51,8 @@ func runCompose(args []string) error {
 		userLayers = append(userLayers, userLayer{path: s, verge: true})
 		return nil
 	})
-	fs.BoolVar(&fromStatus, "tailnet-from-status", false, "add the Tailscale coexist layer from `tailscale status --json` (read-only)")
-	fs.StringVar(&tailnetJSON, "tailnet-json", "", "add the Tailscale coexist layer from a saved `tailscale status --json` FILE")
+	fs.BoolVar(&fromStatus, "tailnet-from-status", false, "add the Tailscale coexist layer from 'tailscale status --json' (read-only)")
+	fs.StringVar(&tailnetJSON, "tailnet-json", "", "add the Tailscale coexist layer from `FILE`, a saved tailscale status --json")
 	fs.StringVar(&tsResolver, "tailnet-resolver", "", "nameserver for tailnet names (default \"100.100.100.100\"; never \"system\" when the system DNS is mihomo)")
 	fs.StringVar(&tsIface, "tailnet-iface", "auto", "Tailscale interface appended to the default resolver (\"100.100.100.100#utun9\"), needed when mihomo binds to the physical interface: `NAME`, \"auto\" (detect, only with --tailnet-from-status) or \"none\"")
 	fs.StringVar(&leakGuard, "leak-guard", "", "comma-separated proxy `GROUPS` that must never use DIRECT")

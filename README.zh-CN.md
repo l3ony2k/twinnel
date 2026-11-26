@@ -18,7 +18,8 @@ duet 在桌面上同时跑**官方的** [mihomo](https://github.com/MetaCubeX/mi
 | 功能 | 状态 |
 |---|---|
 | `duet doctor`：13 项共存健康检查，输出纯文本 / Markdown / JSON | macOS、Linux |
-| `duet takeover plan`：读取手工搭好的 mihomo + Tailscale，推导出能还原现有配置的覆写层，并用 `mihomo -t` 和语义 diff 证明等价 | macOS、Linux（只读，还没有"应用"这一步） |
+| `duet takeover plan`：读取手工搭好的 mihomo + Tailscale，推导出能还原现有配置的覆写层，并用 `mihomo -t` 和语义 diff 证明等价 | macOS、Linux（只读） |
+| 经 helper 接管（`duet takeover plan --via-helper`、`duet helper adopt`）：精确备份、导入、应用、前后健康检查对比、变差自动还原；`duet helper secure-controller`；`duet helper harden`：一次重启把接管的 mihomo 换到托管内核和 root 所有的配置目录。步骤见 [docs/runbook-adopt-macos.md](docs/runbook-adopt-macos.md)（英文） | macOS。已在真实配置的副本上用非 root helper 演练过（launchctl 只做 dry run），还没在真机上以 root 跑过 |
 | `duet compose`：订阅 + 覆写层 → 配置，用 `mihomo -t` 校验 | 全平台 |
 | root helper（`duet-helper`）：合成 → 校验 → 备份 → 写入 → 热重载 → 验证，失败自动回滚；订阅、覆写层、历史版本，mihomo 内核下载 / 切换 / 回滚；geo 数据库和外部面板（按发布页公布的摘要校验） | macOS、Linux |
 | helper 内置健康检查：定时跑，配置应用和服务操作之后跑，网络变化时跑（仅 macOS）；`duet helper health` | macOS、Linux（Linux 还没有网络变化触发） |
@@ -83,8 +84,22 @@ duet kernel check                # mihomo 内核：list | check | install | roll
 duet kernel geo check            # geo 数据库：check | update；面板用 duet kernel ui check|update
 duet service restart mihomo      # 服务：status | start | stop | restart（mihomo、tailscaled）| install | uninstall（仅 mihomo）
 duet settings                    # 防泄漏组、共存开关、tailnet 解析器、历史条数、内核通道、自动应用
+duet tailnet refresh             # 立刻重读 tailnet 设备（helper 也会每 60 秒查一次）
 duet events --follow
 ```
+
+接管手工搭好的环境（详细步骤见 [docs/runbook-adopt-macos.md](docs/runbook-adopt-macos.md)）：
+
+```sh
+duet takeover plan --via-helper  # 由 helper 生成并保存计划，输出计划 ID
+duet helper plans [PLAN_ID]      # 列出或查看已保存的计划
+duet helper adopt PLAN_ID        # 备份、导入、应用、对比健康检查；变差就还原备份
+duet helper secure-controller    # 设置 controller secret（mihomo 下次启动后生效）
+duet helper harden plan          # macOS：看换到托管内核和 root 目录会做什么
+duet helper harden apply         # mihomo 重启一次，断网几秒
+```
+
+会问 `Proceed? [y/N]` 的命令，在标准输入不是终端时要加 `--yes`。
 
 ## 健康检查
 
