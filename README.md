@@ -66,6 +66,7 @@ duet compose --sub sub.yaml --base base.yaml --layer my-rules.yaml \
   --validate /path/to/mihomo -o config.yaml
 
 duet status                      # mihomo + Tailscale snapshot (what the menu bar shows)
+duet version                     # duet, helper, mihomo and Tailscale versions (read-only)
 ```
 
 The helper commands talk to `duet-helper` over its Unix socket (`$DUET_SOCKET`, default `/var/run/duet/helper.sock`):

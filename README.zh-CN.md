@@ -66,6 +66,7 @@ duet compose --sub sub.yaml --base base.yaml --layer my-rules.yaml \
   --validate /path/to/mihomo -o config.yaml
 
 duet status                      # mihomo + Tailscale 状态快照（菜单栏显示的就是这些）
+duet version                     # duet、helper、mihomo、Tailscale 的版本（只读）
 ```
 
 helper 相关的命令通过 Unix socket 和 `duet-helper` 通信（`$DUET_SOCKET`，默认 `/var/run/duet/helper.sock`）：
