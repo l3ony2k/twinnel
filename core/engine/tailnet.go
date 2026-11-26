@@ -65,7 +65,11 @@ func isTunnelIface(name string) bool {
 
 // RefreshTailnet reads `tailscale status --json`. When the peers or the
 // MagicDNS suffix changed, the cache is updated and, with coexist and
-// auto-apply on, the config is composed and applied again.
+// auto-apply on, the config is composed and applied again. Auto-apply only
+// re-applies: before duet has applied anything (no history) a change is
+// recorded but nothing is applied, so the first poll of a new helper, which
+// always reports a change (there is no cache yet), never applies a config
+// on its own, possibly half-way through the user's setup.
 func (e *Engine) RefreshTailnet(ctx context.Context) (rpc.TailnetRefreshResult, error) {
 	var out rpc.TailnetRefreshResult
 	if e.Tailnet == nil {
@@ -73,20 +77,9 @@ func (e *Engine) RefreshTailnet(ctx context.Context) (rpc.TailnetRefreshResult, 
 	}
 	raw, err := e.Tailnet.Status(ctx)
 	now := e.now().UTC()
+	var info config.TailnetInfo
 	if err == nil {
-		var info config.TailnetInfo
 		info, err = config.TailnetInfoFromStatus(raw)
-		if err == nil {
-			old, had := e.cachedTailnet()
-			info.Interface = e.tailnetIface(ctx, old.Interface)
-			out.Changed = !had || !sameTailnet(old, info)
-			if out.Changed {
-				e.saveTailnet(info)
-			}
-			e.mu.Lock()
-			e.tailnet = rpc.TailnetStatus{Peers: info.PeerShortNames, Suffix: info.MagicDNSSuffix, Interface: info.Interface, LastPoll: now}
-			e.mu.Unlock()
-		}
 	}
 	if err != nil {
 		e.mu.Lock()
@@ -94,24 +87,41 @@ func (e *Engine) RefreshTailnet(ctx context.Context) (rpc.TailnetRefreshResult, 
 		e.mu.Unlock()
 		return out, err
 	}
+	e.tailnetMu.Lock()
+	old, had := e.cachedTailnet()
+	info.Interface = e.tailnetIface(ctx, old.Interface)
+	out.Changed = !had || !sameTailnet(old, info)
+	if out.Changed {
+		e.saveTailnet(info)
+	}
+	e.tailnetMu.Unlock()
+	// Decide about the auto-apply before the poll shows in status.get, so
+	// a client that saw this poll knows it can no longer start an apply.
 	st, serr := e.Store.Settings()
 	if serr != nil {
 		return out, serr
 	}
+	_, active := st.ActiveSubscription()
+	autoApply := out.Changed && active && st.Tailscale.Coexist && *st.AutoApply && e.appliedBefore()
+	out.Tailnet = rpc.TailnetStatus{Peers: info.PeerShortNames, Suffix: info.MagicDNSSuffix, Interface: info.Interface, LastPoll: now}
 	e.mu.Lock()
-	out.Tailnet = e.tailnet
+	e.tailnet = out.Tailnet
 	e.mu.Unlock()
 	out.Tailnet.Coexist = st.Tailscale.Coexist
 	if out.Changed {
 		e.publish(rpc.EventTailnetChanged, out.Tailnet)
-		if st.Tailscale.Coexist && *st.AutoApply && !e.adopting.Load() {
-			if _, ok := st.ActiveSubscription(); ok {
-				r, _ := e.Apply(ctx, rpc.ApplyParams{Reason: "tailnet changed"})
-				out.Apply = r
-			}
+		if autoApply && !e.adopting.Load() {
+			r, _ := e.Apply(ctx, rpc.ApplyParams{Reason: "tailnet changed"})
+			out.Apply = r
 		}
 	}
 	return out, nil
+}
+
+// appliedBefore: duet has written a config before (any history entry).
+func (e *Engine) appliedBefore() bool {
+	_, ok, err := e.Store.LatestHistory()
+	return ok && err == nil
 }
 
 func (e *Engine) tailnetLoop(ctx context.Context) {

@@ -64,6 +64,7 @@ func (e *Engine) buildLayers(ctx context.Context, st *store.Settings) ([]config.
 // With no cache yet it polls once; if Tailscale can't be read the layer is
 // still generated with the default CIDRs and domains (no peer names).
 func (e *Engine) coexistLayer(ctx context.Context, st *store.Settings) (config.Layer, error) {
+	e.tailnetMu.Lock()
 	info, ok := e.cachedTailnet()
 	if !ok && e.Tailnet != nil {
 		if raw, err := e.Tailnet.Status(ctx); err == nil {
@@ -74,6 +75,7 @@ func (e *Engine) coexistLayer(ctx context.Context, st *store.Settings) (config.L
 			}
 		}
 	}
+	e.tailnetMu.Unlock()
 	info.Resolver = st.Tailscale.Resolver
 	return config.TailscaleCoexistLayer(info)
 }
