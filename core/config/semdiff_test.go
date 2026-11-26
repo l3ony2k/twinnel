@@ -57,7 +57,7 @@ func TestDiffRulesEquivalentReorder(t *testing.T) {
 		"PROCESS-NAME,tailscaled,DIRECT",
 		"DOMAIN-SUFFIX,tailscale.com,DIRECT",
 		"DOMAIN,controlplane.tailscale.com,DIRECT", // shadowed
-		"DOMAIN,redacted,DIRECT",
+		"DOMAIN,laptop,DIRECT",
 		"DOMAIN,macbook,DIRECT",
 		"IP-CIDR,100.64.0.0/10,DIRECT,no-resolve",
 		"IP-CIDR,100.100.100.100/32,DIRECT,no-resolve", // shadowed
@@ -67,7 +67,7 @@ func TestDiffRulesEquivalentReorder(t *testing.T) {
 		"PROCESS-NAME,tailscaled,DIRECT",
 		"DOMAIN-SUFFIX,tailscale.com,DIRECT",
 		"DOMAIN,macbook,DIRECT",
-		"DOMAIN,redacted,DIRECT",
+		"DOMAIN,laptop,DIRECT",
 		"IP-CIDR,100.64.0.0/10,DIRECT,no-resolve",
 		"DOMAIN-SUFFIX,microsoft.com,DIRECT",
 	}, tail...)
