@@ -355,6 +355,10 @@ func classify(sd *config.SemDiff, ms *managedSet, cx Coexist, rulesCoexistOnly b
 		if n.Same() {
 			return
 		}
+		if n.Reordered && n.OrderMatters {
+			out = append(out, Change{Area: area, What: "same items in a different order; groups with include-all take them in list order, so priority changes"})
+			return
+		}
 		out = append(out, Change{Area: area, What: fmt.Sprintf("only in live %v, only in composed %v, changed %v", n.OnlyA, n.OnlyB, n.Changed)})
 	}
 	named("proxies", sd.Proxies)
