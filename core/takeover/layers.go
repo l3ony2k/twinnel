@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/netip"
 	"reflect"
-	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -151,9 +150,6 @@ func (m *managedSet) inTailnet(s string) bool {
 	return false
 }
 
-// singleLabel matches MagicDNS short names in DOMAIN rules.
-var singleLabel = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
-
 // ruleExplained reports whether a live rule is produced, or made redundant,
 // by the coexist layer, and why.
 func (m *managedSet) ruleExplained(r config.Rule) (bool, string) {
@@ -170,9 +166,10 @@ func (m *managedSet) ruleExplained(r config.Rule) (bool, string) {
 			return true, "covered by coexist rule " + g.Canonical()
 		}
 	}
-	if r.Type == "DOMAIN" && singleLabel.MatchString(r.Payload) {
-		return true, "single-label (MagicDNS short name) rule; tailnet short names are handled by the coexist layer"
-	}
+	// A single-label DOMAIN rule for a name that is not a current peer
+	// ("router", "nas" on the LAN, a removed peer) is not explained: the
+	// coexist layer only writes rules for current peers (matched above), so
+	// dropping it would route that name by later rules instead.
 	return false, ""
 }
 

@@ -162,7 +162,10 @@ func TestBuildPlan(t *testing.T) {
 	for _, l := range p.Layers {
 		ids = append(ids, l.ID)
 	}
-	if strings.Join(ids, ",") != "base,user-1,user-2,tailscale-coexist" {
+	// "oldbox" is a single-label DIRECT rule for a name that is not a
+	// current peer: it is kept as a user layer, not dropped as a Tailscale
+	// rule (dropping it would route "oldbox" by later rules).
+	if strings.Join(ids, ",") != "base,user-1,user-2,user-3,tailscale-coexist" {
 		t.Fatalf("layers: %v", ids)
 	}
 	baseLayer := string(p.Layers[0].Data())
@@ -177,17 +180,18 @@ func TestBuildPlan(t *testing.T) {
 		}
 	}
 	// user-1 is applied first and lands below user-2 (prepends).
-	if !strings.Contains(string(p.Layers[1].Data()), "fd00::/8") || !strings.Contains(string(p.Layers[2].Data()), "nas.example.org") {
-		t.Fatalf("user layers:\n%s\n%s", p.Layers[1].Data(), p.Layers[2].Data())
+	if !strings.Contains(string(p.Layers[1].Data()), "fd00::/8") || !strings.Contains(string(p.Layers[2].Data()), "DOMAIN,oldbox,DIRECT") ||
+		!strings.Contains(string(p.Layers[3].Data()), "nas.example.org") {
+		t.Fatalf("user layers:\n%s\n%s\n%s", p.Layers[1].Data(), p.Layers[2].Data(), p.Layers[3].Data())
 	}
-	if p.Layers[2].Name != "My NAS" {
-		t.Errorf("layer name %q", p.Layers[2].Name)
+	if p.Layers[3].Name != "My NAS" {
+		t.Errorf("layer name %q", p.Layers[3].Name)
 	}
 	replaced := map[string]int{}
 	for _, r := range p.Replaced {
 		replaced[r.Path]++
 	}
-	if replaced["rules"] != 10 || replaced["dns.nameserver-policy"] != 1 || replaced["dns.fake-ip-filter"] != 2 || replaced["tun.route-exclude-address"] != 2 {
+	if replaced["rules"] != 9 || replaced["dns.nameserver-policy"] != 1 || replaced["dns.fake-ip-filter"] != 2 || replaced["tun.route-exclude-address"] != 2 {
 		t.Fatalf("replaced: %v\n%+v", replaced, p.Replaced)
 	}
 
@@ -203,9 +207,9 @@ func TestBuildPlan(t *testing.T) {
 			t.Errorf("missing deliberate change %s:\n%s", a, p.Text())
 		}
 	}
-	// The live rules lack tailscale.io / beta.tailscale.net and have a stale
-	// peer: all three edits are the coexist layer's.
-	if p.SemDiff.Rules.Equivalent || !strings.Contains(p.Text(), "3 Tailscale rule edit(s)") {
+	// The live rules lack tailscale.io / beta.tailscale.net: both edits are
+	// the coexist layer's. The stale peer "oldbox" is kept (user layer).
+	if p.SemDiff.Rules.Equivalent || !strings.Contains(p.Text(), "2 Tailscale rule edit(s)") || strings.Contains(p.Text(), "- DOMAIN,oldbox") {
 		t.Fatalf("rules:\n%s", p.Text())
 	}
 
@@ -213,7 +217,7 @@ func TestBuildPlan(t *testing.T) {
 	if err := p.WriteFiles(out); err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"plan.json", "composed.yaml", "semdiff.txt", "summary.txt", "layers/00-base.yaml", "layers/03-tailscale-coexist.yaml"} {
+	for _, f := range []string{"plan.json", "composed.yaml", "semdiff.txt", "summary.txt", "layers/00-base.yaml", "layers/04-tailscale-coexist.yaml"} {
 		fi, err := os.Stat(filepath.Join(out, f))
 		if err != nil {
 			t.Fatal(err)
