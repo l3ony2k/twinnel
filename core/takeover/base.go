@@ -128,7 +128,7 @@ func FindCandidates(live string) []string {
 // ScoreCandidate measures how well the file at path explains live.
 func ScoreCandidate(live *doc, path string) Candidate {
 	c := Candidate{Path: path}
-	fi, err := os.Stat(path)
+	fi, err := os.Lstat(path)
 	if err != nil {
 		c.Error = err.Error()
 		return c
@@ -138,7 +138,8 @@ func ScoreCandidate(live *doc, path string) Candidate {
 		c.Error = "too large"
 		return c
 	}
-	b, err := os.ReadFile(path)
+	// Confined to the file's dir: a symlink out of it is refused.
+	b, err := config.ReadConfined(path)
 	if err != nil {
 		c.Error = err.Error()
 		return c

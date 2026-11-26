@@ -55,7 +55,7 @@ func LoadPlan(path string) (*Plan, error) {
 // profile, read again from its index file. The URL is a secret: keep it in
 // the secret store, never in plans or logs.
 func ProfileURL(pr Profile) (string, error) {
-	b, err := os.ReadFile(pr.From)
+	b, err := config.ReadConfined(pr.From)
 	if err != nil {
 		return "", err
 	}

@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/l3ony2k/duet/core/config"
 	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/health/dnswire"
 	"github.com/l3ony2k/duet/platform/common"
@@ -95,7 +96,8 @@ type Options struct {
 
 // Env implements health.Env on Linux.
 type Env struct {
-	opt Options
+	opt        Options
+	readConfig func(string) ([]byte, error)
 
 	cfgOnce   sync.Once
 	cfg       *health.MihomoConfig
@@ -114,8 +116,13 @@ func New(opt Options) *Env {
 		// Never use a proxy for the local controller.
 		opt.HTTP = &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil}}
 	}
+	// The mihomo config lives in a user's dir and this may run as root:
+	// read it without following symlinks out of its dir, unless a test
+	// injects its own reader.
+	readConfig := opt.ReadFile
 	if opt.ReadFile == nil {
 		opt.ReadFile = os.ReadFile
+		readConfig = config.ReadConfined
 	}
 	if opt.LookPath == nil {
 		opt.LookPath = exec.LookPath
@@ -127,7 +134,7 @@ func New(opt Options) *Env {
 		home, _ := os.UserHomeDir()
 		opt.UnitDirs = UnitDirs(home)
 	}
-	return &Env{opt: opt}
+	return &Env{opt: opt, readConfig: readConfig}
 }
 
 func (e *Env) Platform() string { return health.Linux }
@@ -374,7 +381,7 @@ func (e *Env) loadConfig(ctx context.Context) {
 		if path == "" {
 			path = DiscoverConfigPath(e.opt.UnitDirs, e.opt.ReadFile)
 		}
-		b, err := e.opt.ReadFile(path)
+		b, err := e.readConfig(path)
 		if err != nil {
 			e.cfgErr = err
 			return

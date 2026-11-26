@@ -354,3 +354,34 @@ func TestScoreExplainsNeedsSameProviders(t *testing.T) {
 		t.Fatalf("explains: same %v, old provider %v", c1.Explains, c2.Explains)
 	}
 }
+
+// Finding 13: discovery runs as root in the helper. A candidate that is a
+// symlink out of its dir is not read, and a symlinked backup dir is not
+// searched.
+func TestDiscoveryRefusesEscapingSymlinks(t *testing.T) {
+	live := liveHeader + subBody[:strings.Index(subBody, "rules:")] + liveRules
+	dir := setup(t, live)
+	outside := t.TempDir()
+	os.WriteFile(filepath.Join(outside, "victim.yaml"), []byte(subFile), 0o600)
+	if err := os.Symlink(filepath.Join(outside, "victim.yaml"), filepath.Join(dir, "conf", "evil.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "conf", "backup-link")); err != nil {
+		t.Fatal(err)
+	}
+	p, err := BuildPlan(context.Background(), fakeProbe{dir}, Options{NoValidate: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range p.Candidates {
+		if strings.Contains(c.Path, "backup-link") {
+			t.Errorf("searched a symlinked dir: %s", c.Path)
+		}
+		if strings.HasSuffix(c.Path, "evil.yaml") && (c.Error == "" || c.ProxiesTotal > 0) {
+			t.Errorf("read a symlink leaving the dir: %+v", c)
+		}
+	}
+	if filepath.Base(p.Base.Path) != "raw-sub.yaml" {
+		t.Errorf("base %s", p.Base.Path)
+	}
+}

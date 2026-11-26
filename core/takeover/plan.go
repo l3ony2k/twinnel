@@ -101,7 +101,7 @@ func BuildPlan(ctx context.Context, probe Probe, opt Options) (*Plan, error) {
 	}
 	p := &Plan{Version: PlanVersion, CreatedAt: now(), Discovery: disc, Live: disc.Mihomo.Config}
 	p.Warnings = append(p.Warnings, disc.Warnings...)
-	liveData, err := os.ReadFile(p.Live)
+	liveData, err := config.ReadConfined(p.Live)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func BuildPlan(ctx context.Context, probe Probe, opt Options) (*Plan, error) {
 	if !b.Explains {
 		p.Warnings = append(p.Warnings, "the chosen base does not fully explain the live config (proxies, groups or rule tail differ)")
 	}
-	baseData, err := os.ReadFile(b.Path)
+	baseData, err := config.ReadConfined(b.Path)
 	if err != nil {
 		return nil, err
 	}

@@ -16,6 +16,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/l3ony2k/duet/core/config"
 	"github.com/l3ony2k/duet/core/tailscale"
 )
 
@@ -219,7 +220,7 @@ func ConfigFromArgs(args []string) (dir, file string) {
 
 // readConfig reads the few settings discovery needs. The secret is not kept.
 func (m *MihomoSetup) readConfig() error {
-	b, err := os.ReadFile(m.Config)
+	b, err := config.ReadConfined(m.Config)
 	if err != nil {
 		return fmt.Errorf("live config: %w", err)
 	}
@@ -242,7 +243,7 @@ func (m *MihomoSetup) readConfig() error {
 
 // secret re-reads the controller secret for the version request only.
 func (m *MihomoSetup) secret() string {
-	b, err := os.ReadFile(m.Config)
+	b, err := config.ReadConfined(m.Config)
 	if err != nil {
 		return ""
 	}
@@ -272,7 +273,7 @@ func findProfiles(dir string) []Profile {
 	var out []Profile
 	for _, f := range searchDirs(dir) {
 		p := filepath.Join(f, "index.json")
-		b, err := os.ReadFile(p)
+		b, err := config.ReadConfined(p)
 		if err != nil {
 			continue
 		}
@@ -296,7 +297,9 @@ func findProfiles(dir string) []Profile {
 }
 
 // searchDirs are where base candidates and profile indexes are looked for:
-// the config dir, its parent, and backup-like dirs next to them.
+// the config dir, its parent, and backup-like dirs next to them. Symlinked
+// subdirs are not followed (DirEntry.IsDir is false for a symlink), so a
+// "backup" link to /etc is not searched as root.
 func searchDirs(confDir string) []string {
 	seen := map[string]bool{}
 	var out []string
