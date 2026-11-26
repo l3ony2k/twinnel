@@ -63,8 +63,9 @@ func (m *Monitor) RunHealth(ctx context.Context) {
 		m.mu.Unlock()
 		return
 	}
+	m.snap.Health.Running = true // claimed under the lock: one run at a time
 	m.mu.Unlock()
-	m.update(func(s *Snapshot) { s.Health.Running = true })
+	m.update(func(*Snapshot) {})
 	ctx, cancel := context.WithTimeout(ctx, HealthTimeout)
 	defer cancel()
 	rep, err := src.Run(ctx)

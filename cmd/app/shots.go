@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+
+	"github.com/l3ony2k/duet/core/status"
 )
 
 // shots saves PNGs of every page of the main window and of the panel into
@@ -31,7 +33,7 @@ func (a *app) shots(dir string) {
 		log.Printf("saved %s", path)
 	}
 	go func() {
-		time.Sleep(4 * time.Second) // let the monitor load and traffic accumulate
+		time.Sleep(6 * time.Second) // let the monitor load, traffic accumulate and the health checks finish
 		for _, p := range []string{pageOverview, pageProxies, pageTailscale, pageHealth, pageLogs, pageSettings} {
 			mygo.RunOnMain(func() {
 				old := a.page
@@ -45,6 +47,11 @@ func (a *app) shots(dir string) {
 				time.Sleep(700 * time.Millisecond)
 			}
 			save(a.win, "main-"+p)
+		}
+		for _, l := range []status.Level{status.LevelOK, status.LevelWarn, status.LevelError} {
+			if err := os.WriteFile(filepath.Join(dir, "tray-"+l.String()+".png"), trayIcon(l), 0o644); err != nil {
+				log.Print(err)
+			}
 		}
 		mygo.RunOnMain(a.togglePanel)
 		time.Sleep(1500 * time.Millisecond)

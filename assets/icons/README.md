@@ -16,7 +16,7 @@ Line icons in the Kubai line style (24 grid, stroke 2, outline variant, black;
 | `copy.svg` | 复制 |
 | `gauge.svg` | 测速 |
 | `log-out.svg` | 出口节点 |
-| `triangle-alert.svg`, `circle-check.svg`, `circle-x.svg` | 警告 / 正常 / 错误 |
+| `triangle-alert.svg`, `circle-check.svg`, `circle-x.svg`, `circle-minus.svg` | 警告 / 正常 / 错误 / 跳过 |
 | `power.svg` | Tailscale 启停 |
 | `globe.svg` | TUN |
 | `eraser.svg` | 清空缓存 |

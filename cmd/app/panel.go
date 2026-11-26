@@ -16,6 +16,7 @@ import (
 
 // panelView is the flyout under the tray icon.
 func (a *app) panelView(c *ui.Context) {
+	a.applyTheme(c)
 	t := c.Theme()
 	T := i18n.T
 	s := a.mon.Snapshot()
@@ -38,9 +39,18 @@ func (a *app) panelView(c *ui.Context) {
 				ui.Text(c, status.TrayTitle(s.Mihomo.Traffic)).Font("monospace").FontSize(12).TextColor(t.TextMuted)
 			}
 		})
-		for i, r := range s.Reasons {
+		reasons := s.Reasons
+		if a.healthSrc != nil { // the health line below says it
+			reasons = nil
+			for _, r := range s.Reasons {
+				if !r.Health {
+					reasons = append(reasons, r)
+				}
+			}
+		}
+		for i, r := range reasons {
 			if i == 3 {
-				ui.Textf(c, "… +%d", len(s.Reasons)-3).FontSize(12).TextColor(t.TextMuted)
+				ui.Textf(c, "… +%d", len(reasons)-3).FontSize(12).TextColor(t.TextMuted)
 				break
 			}
 			ui.Row(c).Gap(6).AlignItems(ui.Start).Children(func() {
@@ -48,6 +58,7 @@ func (a *app) panelView(c *ui.Context) {
 				ui.Text(c, r.Text).FontSize(12).Grow(1).Wrap()
 			})
 		}
+		a.healthLine(c, s)
 		ui.Divider(c)
 		a.panelMihomo(c, s)
 		ui.Divider(c)
@@ -101,7 +112,10 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	if m.Config.Tun.Enable {
 		tun = T.TunOn + " · " + m.Config.Tun.Device
 	}
-	kv(c, T.Tun, tun)
+	kvWith(c, T.Tun, func() {
+		a.tunSwitch(c, s)
+		ui.Text(c, tun).FontSize(13).SingleLine().Shrink(1)
+	})
 	if p := m.Primary; p != nil {
 		kvWith(c, p.Name, func() {
 			sel := p.Now
@@ -147,23 +161,8 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 		kv(c, T.SelfIP, ip.String()+" · "+st.Self.Name)
 	}
 	kv(c, T.OnlinePeers, fmt.Sprintf("%d / %d", st.OnlinePeers(), len(st.Peers)))
-	exit := T.NoExitNode
-	if st.ExitNode != nil {
-		exit = st.ExitNode.Name
-	}
-	kv(c, T.ExitNode, exit)
-	w := s.WritesAllowed
-	ui.Row(c).Gap(8).Children(func() {
-		if st.Prefs.WantRunning {
-			if ui.Button(c.Key("ts-down"), T.TSDown).Disabled(!w).Clicked() {
-				a.do(a.ts.Down)
-			}
-		} else {
-			if ui.Button(c.Key("ts-up"), T.TSUp).Disabled(!w).Clicked() {
-				a.do(a.ts.Up)
-			}
-		}
-	})
+	kvWith(c, T.ExitNode, func() { a.exitNodePicker(c, s).Grow(1) })
+	ui.Row(c).Gap(8).Children(func() { a.tsPowerButton(c, s) })
 }
 
 func versionSuffix(v string) string {

@@ -24,6 +24,7 @@ const (
 )
 
 func (a *app) mainView(c *ui.Context) {
+	a.applyTheme(c)
 	t := c.Theme()
 	T := i18n.T
 	if c.Shortcut(ui.Cmd, ui.KeyW) {
@@ -34,7 +35,7 @@ func (a *app) mainView(c *ui.Context) {
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
 		ui.Column(c).Width(200).PaddingY(16).Background(t.Surface).Shrink(0).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(4, 20, 10).Children(func() {
-				dot(c, levelColor(t, s.Level), 10)
+				ui.Icon(c, iconDuet).FontSize(20).TextColor(levelColor(t, s.Level))
 				ui.Text(c, T.AppName).FontSize(15).Bold()
 			})
 			old := a.page
@@ -46,7 +47,11 @@ func (a *app) mainView(c *ui.Context) {
 						ui.Badge(c, fmt.Sprint(s.Tailscale.State.OnlinePeers()))
 					}
 				})
-				ui.SidebarItem(c, pageHealth, iconHealth, T.PageHealth)
+				ui.SidebarItem(c, pageHealth, iconHealth, T.PageHealth).Children(func() {
+					if w, f := s.Health.Counts(); w+f > 0 {
+						ui.Badge(c, fmt.Sprint(w+f))
+					}
+				})
 				ui.SidebarItem(c, pageLogs, iconLogs, T.PageLogs)
 				ui.SidebarItem(c, pageSettings, iconSettings, T.PageSettings)
 			}).Grow(1).Label(T.AppName).Changed() {
@@ -69,7 +74,7 @@ func (a *app) mainView(c *ui.Context) {
 						case pageTailscale:
 							a.tailscalePage(c, s)
 						case pageHealth:
-							a.healthPage(c)
+							a.healthPage(c, s)
 						case pageSettings:
 							a.settingsPage(c, s)
 						}
@@ -89,6 +94,10 @@ func (a *app) pageChanged(old string) {
 	if a.page == pageSettings {
 		a.settings.load(a.cfg)
 	}
+	if a.page == pageHealth && old != pageHealth {
+		a.runHealth()
+	}
+	a.syncHealthVisible()
 }
 
 func pageTitle(c *ui.Context, title string) {
@@ -113,6 +122,7 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 			})
 		}
 	})
+	a.actionNotes(c, s)
 	ui.Row(c).Gap(16).AlignItems(ui.Stretch).Children(func() {
 		card(c, T.Mihomo, func() { a.mihomoSummary(c, s) }).Basis(0).Grow(1)
 		card(c, T.Tailscale, func() { a.tailscaleSummary(c, s) }).Basis(0).Grow(1)
@@ -139,7 +149,10 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	if m.Config.Tun.Enable {
 		tun = fmt.Sprintf("%s · %s · %s", T.TunOn, m.Config.Tun.Device, m.Config.Tun.Stack)
 	}
-	kv(c, T.Tun, tun)
+	kvWith(c, T.Tun, func() {
+		a.tunSwitch(c, s)
+		ui.Text(c, tun).FontSize(13).SingleLine().Shrink(1)
+	})
 	if p := m.Primary; p != nil {
 		kvWith(c, p.Name, func() {
 			ui.Text(c, p.Node).FontSize(13).SingleLine().Shrink(1)
@@ -151,6 +164,8 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	}
 	kv(c, T.Connections, fmt.Sprint(m.Connections))
 	kv(c, T.Total, fmt.Sprintf("↓ %s  ↑ %s", status.Bytes(m.Traffic.DownTotal), status.Bytes(m.Traffic.UpTotal)))
+	ui.Divider(c)
+	a.mihomoActions(c, s)
 }
 
 func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
@@ -172,11 +187,7 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 		kv(c, T.SelfIP, ip.String())
 	}
 	kv(c, T.OnlinePeers, fmt.Sprintf("%d / %d", st.OnlinePeers(), len(st.Peers)))
-	exit := T.NoExitNode
-	if st.ExitNode != nil {
-		exit = st.ExitNode.Name
-	}
-	kv(c, T.ExitNode, exit)
+	kvWith(c, T.ExitNode, func() { a.exitNodePicker(c, s).Grow(1) })
 	kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
 	if st.KeyExpiry != nil {
 		kv(c, T.KeyExpiry, st.KeyExpiry.Local().Format("2006-01-02")+" ("+status.Until(s.Time, *st.KeyExpiry)+")")
@@ -279,13 +290,13 @@ func (a *app) groupCard(_ *ui.Context, c *ui.Context, g status.Group, writes boo
 	T := i18n.T
 	open := a.groupsOpen[g.Name]
 	ui.Column(c.Key("group:"+g.Name)).Padding(14).Gap(12).Radius(10).Background(t.Surface).Border(1, t.Border).Children(func() {
-		head := ui.Row(c).Gap(10).AlignItems(ui.Center)
+		head := ui.Row(c).Gap(10).AlignItems(ui.Center).Cursor(ui.CursorPointer)
 		head.Children(func() {
-			arrow := "▸"
+			chev := iconCollapsed
 			if open {
-				arrow = "▾"
+				chev = iconExpanded
 			}
-			ui.Text(c, arrow).FontSize(12).TextColor(t.TextMuted).Width(10)
+			ui.Icon(c, chev).FontSize(14).TextColor(t.TextMuted)
 			ui.Text(c, g.Name).FontSize(14).Bold().SingleLine()
 			ui.Badge(c, g.Type)
 			ui.Text(c, strings.Join(g.Chain, " → ")).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(1)
@@ -296,7 +307,7 @@ func (a *app) groupCard(_ *ui.Context, c *ui.Context, g status.Group, writes boo
 			if testing {
 				label = T.TestingDelay
 			}
-			if ui.Button(c.Key("test"), label).Disabled(testing).Clicked() {
+			if iconButton(c.Key("test"), iconSpeed, label, false).Disabled(testing).Clicked() {
 				name, mon := g.Name, a.mon
 				go func() {
 					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -370,7 +381,16 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 				kv(c, T.Install, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source))
 			})
 		})
+		ui.Divider(c)
+		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, iconExitNode).FontSize(16).TextColor(t.TextMuted)
+			ui.Text(c, T.ExitNode).FontSize(12).TextColor(t.TextMuted).Shrink(0)
+			a.exitNodePicker(c, s).Width(220)
+			ui.Spacer(c)
+			a.tsPowerButton(c, s)
+		})
 	})
+	a.actionNotes(c, s)
 	if len(st.Peers) == 0 {
 		ui.Text(c, T.NoPeers).TextColor(t.TextMuted)
 		return
@@ -427,16 +447,6 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 			ui.Text(c, seen).SingleLine()
 		}
 	}).Height(float32(min(len(peers), 14)*32 + 40))
-}
-
-// --- health ---
-
-func (a *app) healthPage(c *ui.Context) {
-	T := i18n.T
-	pageTitle(c, T.PageHealth)
-	card(c, "", func() {
-		ui.Text(c, T.HealthPlaceholder).TextColor(c.Theme().TextMuted).Wrap()
-	})
 }
 
 // --- logs ---
@@ -580,10 +590,43 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 			kv(c, "tailscaled", in.Daemon)
 		}
 	})
+	card(c, T.Notifications, func() {
+		on := !a.cfg.NotificationsOff
+		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+			if ui.Switch(c.Key("notify"), &on).Label(T.Notifications).Changed() {
+				a.setNotifications(on)
+			}
+			ui.Text(c, T.NotificationsHint).FontSize(12).TextColor(t.TextMuted).Grow(1).Wrap()
+		})
+		if !notificationsSupported() {
+			ui.Text(c, T.NotificationsUnsupported).FontSize(11).TextColor(t.TextMuted).Wrap()
+		}
+	})
 	card(c, T.AppName, func() {
 		kv(c, T.ConfigFile, a.cfgPath)
 		kv(c, T.AllowWrites, onOff(a.cfg.AllowWrites))
 	})
+}
+
+func (a *app) setNotifications(on bool) {
+	cfg := a.cfg
+	cfg.NotificationsOff = !on
+	if err := status.SaveConfig(a.cfgPath, cfg); err != nil {
+		a.settings.msg, a.settings.failed = i18n.T.SaveFailed+err.Error(), true
+		return
+	}
+	a.cfg = cfg
+}
+
+// actionNotes shows the read-only hint and the last action's error.
+func (a *app) actionNotes(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	if !s.WritesAllowed {
+		ui.Text(c, i18n.T.WritesDisabledHint).FontSize(12).TextColor(t.TextMuted)
+	}
+	if a.actionErr != "" {
+		ui.Text(c, a.actionErr).FontSize(12).TextColor(t.Danger).Wrap()
+	}
 }
 
 func (a *app) saveSettings() {

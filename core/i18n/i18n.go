@@ -248,7 +248,7 @@ var zh = Strings{
 	Actions:               "操作",
 	ReloadConfig:          "重载配置",
 	FlushFakeIP:           "清空 Fake-IP",
-	FlushDNS:              "清空 DNS 缓存",
+	FlushDNS:              "清空 DNS",
 	Done:                  "已完成",
 	ExitNodeNone:          "不使用",
 	ExitNodeConflictTitle: "使用出口节点会和 mihomo 冲突",

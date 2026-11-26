@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -30,9 +32,15 @@ type app struct {
 	cfg     status.Config
 	install tailscale.Install
 
-	mh  *mihomo.Client
-	ts  *tailscale.Client
-	mon *status.Monitor
+	mh        *mihomo.Client
+	ts        *tailscale.Client
+	mon       *status.Monitor
+	healthSrc status.HealthSource // nil on platforms without checks
+
+	// healthVisible is true while the main window shows the health page:
+	// the checks then rerun every HealthRefresh.
+	healthVisible atomic.Bool
+	notes         *notifier
 
 	stop  context.CancelFunc
 	unsub func()
@@ -47,13 +55,16 @@ type app struct {
 	actionErr  string
 	settings   settingsForm
 	logs       logsView
-	shotMode   bool // DUET_SHOTS: the panel draws its own background
+	shotMode   bool   // DUET_SHOTS: the panel draws its own background
+	theme      string // DUET_THEME=light|dark forces a theme (development, shots)
 	peers      ui.ListState
 	groupsOpen map[string]bool
+	healthOpen map[string]bool // check ID → expanded, once the user toggled it
+	exitPick   string          // exit node select value (peer name or ExitNodeNone)
 }
 
 func main() {
-	a := &app{page: pageOverview, groupsOpen: map[string]bool{}}
+	a := &app{page: pageOverview, groupsOpen: map[string]bool{}, healthOpen: map[string]bool{}}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		log.Fatal(err)
@@ -69,6 +80,8 @@ func main() {
 		return err == nil
 	})
 	a.ts = tailscale.New(tailscale.LocalAPI(nil), a.cfg.AllowWrites)
+	a.notes = newNotifier()
+	a.theme = os.Getenv("DUET_THEME")
 
 	mygo.App.SetName(i18n.T.AppName)
 	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
@@ -143,8 +156,10 @@ func (a *app) start() {
 		mh, _ = mihomo.New(mihomo.Options{Secret: a.cfg.Secret, AllowWrites: a.cfg.AllowWrites})
 	}
 	a.mh = mh
+	a.healthSrc = newHealthSource(a.cfg)
 	a.mon = status.NewMonitor(status.Options{
 		Mihomo:        mh,
+		Health:        a.healthSrc,
 		Tailscale:     a.ts,
 		Install:       a.install,
 		PrimaryGroup:  a.cfg.PrimaryGroup,
@@ -159,6 +174,29 @@ func (a *app) start() {
 	if a.win != nil && a.page == pageLogs {
 		mon.SetLogLevel(a.logs.levelName())
 	}
+	go a.healthTicker(ctx, mon)
+}
+
+// healthTicker reruns the health checks every HealthRefresh while the
+// health page shows.
+func (a *app) healthTicker(ctx context.Context, mon *status.Monitor) {
+	t := time.NewTicker(HealthRefresh)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if a.healthVisible.Load() {
+				mon.RunHealth(ctx)
+			}
+		}
+	}
+}
+
+// syncHealthVisible records whether the health page shows. Main thread.
+func (a *app) syncHealthVisible() {
+	a.healthVisible.Store(a.win != nil && a.page == pageHealth)
 }
 
 // changed runs on a monitor goroutine after every change.
@@ -187,7 +225,25 @@ func (a *app) changed(mon *status.Monitor) {
 		if a.win != nil {
 			a.win.Invalidate()
 		}
+		if !a.cfg.NotificationsOff {
+			a.notes.check(s, a.openFor)
+		}
 	})
+}
+
+// openFor opens the main window at the page that explains an alert.
+func (a *app) openFor(key string) {
+	old := a.page
+	switch {
+	case strings.HasPrefix(key, "health/"):
+		a.page = pageHealth
+	case strings.HasPrefix(key, "ts-"):
+		a.page = pageTailscale
+	default:
+		a.page = pageOverview
+	}
+	a.openMain()
+	a.pageChanged(old)
 }
 
 // do runs a write action off the main thread, shows its error, refreshes.
@@ -248,24 +304,56 @@ func (a *app) openMain() {
 		a.win.Show()
 		a.win.Focus()
 		mygo.App.Focus()
+		a.syncHealthVisible()
 		return
 	}
 	a.settings.load(a.cfg)
 	a.win = mygo.NewWindow(mygo.WindowOptions{
 		Title:     i18n.T.AppName,
 		Width:     980,
-		Height:    660,
+		Height:    a.winHeight(),
 		MinWidth:  760,
 		MinHeight: 480,
-		StateKey:  "main",
+		StateKey:  a.stateKey(),
 		Content:   ui.View(a.mainView),
 	})
 	a.win.OnClosed(func() {
 		a.win = nil
 		a.mon.SetLogLevel("") // logs stream only while the window shows
+		a.syncHealthVisible()
 	})
 	if a.page == pageLogs {
 		a.mon.SetLogLevel(a.logs.levelName())
 	}
+	if a.page == pageHealth {
+		a.runHealth()
+	}
+	a.syncHealthVisible()
 	mygo.App.Focus()
+}
+
+func (a *app) winHeight() int {
+	if a.shotMode {
+		return 1100 // the shots capture the visible part only
+	}
+	return 660
+}
+
+// applyTheme forces DUET_THEME's theme on a view. Main thread.
+func (a *app) applyTheme(c *ui.Context) {
+	switch a.theme {
+	case "dark":
+		c.SetTheme(ui.DarkTheme().WithPreferences(c.Preferences()))
+	case "light":
+		c.SetTheme(ui.LightTheme().WithPreferences(c.Preferences()))
+	}
+}
+
+// stateKey keeps the window's place and size across launches, except in
+// shot mode, which wants its own size.
+func (a *app) stateKey() string {
+	if a.shotMode {
+		return ""
+	}
+	return "main"
 }

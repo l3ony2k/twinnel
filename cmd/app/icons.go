@@ -32,6 +32,7 @@ var (
 	iconWarning   = svgIcon("triangle-alert")
 	iconOK        = svgIcon("circle-check")
 	iconError     = svgIcon("circle-x")
+	iconSkip      = svgIcon("circle-minus")
 	iconPower     = svgIcon("power")
 	iconTun       = svgIcon("globe")
 	iconFlush     = svgIcon("eraser")
