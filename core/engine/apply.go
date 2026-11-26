@@ -106,8 +106,14 @@ func (e *Engine) compose(ctx context.Context, st *store.Settings) (*config.Resul
 
 func (e *Engine) validateOpts(st *store.Settings) []config.ValidateOption {
 	var opts []config.ValidateOption
-	if st.Mihomo.ConfigDir != "" {
-		opts = append(opts, config.WithGeoDir(st.Mihomo.ConfigDir), config.WithSafePaths(st.Mihomo.ConfigDir))
+	if st.Mihomo.ConfigDir == "" {
+		return nil
+	}
+	opts = append(opts, config.WithSafePaths(st.Mihomo.ConfigDir))
+	// A fresh install has no config dir yet; mihomo -t then downloads the
+	// geo databases into its temp dir.
+	if fi, err := os.Stat(st.Mihomo.ConfigDir); err == nil && fi.IsDir() {
+		opts = append(opts, config.WithGeoDir(st.Mihomo.ConfigDir))
 	}
 	return opts
 }
