@@ -19,6 +19,8 @@ type Config struct {
 	TestURL         string `json:"testURL,omitempty"`
 	MihomoBinary    string `json:"mihomoBinary,omitempty"`
 	MihomoConfigDir string `json:"mihomoConfigDir,omitempty"`
+	// NotificationsOff turns desktop notifications off (on by default).
+	NotificationsOff bool `json:"notificationsOff,omitempty"`
 
 	// From the environment only, never saved.
 	AllowWrites   bool `json:"-"`

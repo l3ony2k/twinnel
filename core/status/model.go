@@ -96,6 +96,7 @@ type Snapshot struct {
 	Time          time.Time
 	Mihomo        Mihomo
 	Tailscale     Tailscale
+	Health        Health
 	Level         Level
 	Reasons       []Reason
 	WritesAllowed bool
@@ -201,6 +202,15 @@ func Evaluate(s *Snapshot) {
 	}
 	if ts.Install.UsesSystemVPN {
 		add(LevelWarn, t.ReasonTSSystemVPN)
+	}
+	// The health checks overlap the reasons above (mihomo down fails some of
+	// them too), but they also see what the snapshot cannot: routes, DNS,
+	// rules. Their worst result counts.
+	switch warn, fail := s.Health.Counts(); {
+	case fail > 0:
+		add(LevelError, fmt.Sprintf(t.ReasonHealthFail, fail))
+	case warn > 0:
+		add(LevelWarn, fmt.Sprintf(t.ReasonHealthWarn, warn))
 	}
 	s.Reasons = rs
 	switch {

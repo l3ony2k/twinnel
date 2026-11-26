@@ -38,9 +38,15 @@ type Options struct {
 	Mihomo        MihomoSource
 	Tailscale     TailscaleSource // nil: Tailscale is not shown as reachable
 	Install       tailscale.Install
+	Health        HealthSource // nil: no health checks
 	PrimaryGroup  string
 	TestURL       string
 	WritesAllowed bool
+
+	// HealthInterval is how often the health checks run in the background
+	// (they also run at start and on demand, RunHealth). Default 10 min;
+	// negative: only at start and on demand.
+	HealthInterval time.Duration
 
 	MihomoPoll    time.Duration // default 3s
 	TailscalePoll time.Duration // default 10s; the IPN bus triggers the rest
@@ -82,6 +88,9 @@ func NewMonitor(o Options) *Monitor {
 	if o.TailscalePoll == 0 {
 		o.TailscalePoll = 10 * time.Second
 	}
+	if o.HealthInterval == 0 {
+		o.HealthInterval = 10 * time.Minute
+	}
 	if o.HistoryLen == 0 {
 		o.HistoryLen = 120
 	}
@@ -115,6 +124,9 @@ func (m *Monitor) Run(ctx context.Context) {
 	m.logMu.Unlock()
 	go m.mihomoLoop(ctx)
 	go m.trafficLoop(ctx)
+	if m.o.Health != nil {
+		go m.healthLoop(ctx)
+	}
 	if m.o.Tailscale != nil {
 		go m.tailscaleLoop(ctx)
 		go m.tailscaleWatch(ctx)

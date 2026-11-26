@@ -26,6 +26,13 @@ type Strings struct {
 	ReasonTSKeyExpiry    string // %s: duration
 	ReasonTSHealth       string // %s: message
 	ReasonTSSystemVPN    string
+	ReasonHealthWarn     string // %d: count
+	ReasonHealthFail     string // %d: count
+
+	// Desktop notifications.
+	AlertMihomoDown, AlertTSNeedsLogin, AlertTSKeyExpiry string
+	AlertTSKeyExpiryBody                                 string // %s: date, %s: in how long
+	AlertHealthFail                                      string // %s: check title
 
 	// Sections and labels.
 	Mihomo, Tailscale                                          string
@@ -63,7 +70,24 @@ type Strings struct {
 	Online, Offline, NoPeers, CopyIP                            string
 
 	// Health page.
-	HealthPlaceholder string
+	HealthSummary                       string // %d ok, warn, fail, skip
+	HealthLastRun                       string // %s: time, %s: duration
+	HealthRunning, HealthRerun          string
+	HealthCopyReport, Copied            string
+	HealthEvidence, HealthFix, CopyCmd  string
+	HealthNever, HealthUnavailable      string
+	HealthError                         string // %s
+	HealthOK, HealthWarn, HealthFail    string
+	HealthSkip                          string
+	PanelHealthOK, PanelHealthWarn      string // %d
+	PanelHealthFail, PanelHealthPending string // %d
+	Seconds                             string // %.1f
+
+	// Controls (v0.2, guarded by DUET_ALLOW_WRITES).
+	Actions, ReloadConfig, FlushFakeIP, FlushDNS, Done string
+	ExitNodeNone, ExitNodeConflictTitle                string
+	ExitNodeConflictBody, ExitNodeConfirm, Cancel      string
+	TestNodeDelay                                      string
 
 	// Logs page.
 	LogLevel, LogClear, LogPause, LogResume, LogEmpty string
@@ -72,6 +96,7 @@ type Strings struct {
 	Controller, Secret, SecretHint, ConfigFile, Save, Saved, SaveFailed string
 	MihomoBinary, MihomoConfigDir, TailscaleSocket, AllowWrites         string
 	SettingsRestartHint                                                 string
+	Notifications, NotificationsHint, NotificationsUnsupported          string
 
 	// Units and time.
 	JustNow, SecondsAgo, MinutesAgo, HoursAgo, DaysAgo string // %d
@@ -99,6 +124,14 @@ var zh = Strings{
 	ReasonTSKeyExpiry:    "Tailscale 密钥将在 %s 过期",
 	ReasonTSHealth:       "Tailscale：%s",
 	ReasonTSSystemVPN:    "Tailscale 使用系统 VPN 通道，建议改用 tailscaled",
+	ReasonHealthWarn:     "健康检查：%d 项警告",
+	ReasonHealthFail:     "健康检查：%d 项失败",
+
+	AlertMihomoDown:      "mihomo 无法连接",
+	AlertTSNeedsLogin:    "Tailscale 需要登录",
+	AlertTSKeyExpiry:     "Tailscale 密钥即将过期",
+	AlertTSKeyExpiryBody: "将在 %s 过期（%s），请在管理后台续期或重新登录",
+	AlertHealthFail:      "健康检查失败：%s",
 
 	Mihomo:             "mihomo",
 	Tailscale:          "Tailscale",
@@ -190,7 +223,39 @@ var zh = Strings{
 	NoPeers:       "没有其他设备",
 	CopyIP:        "复制 IP",
 
-	HealthPlaceholder: "共存健康检查将在这里显示（由 helper 提供，开发中）。",
+	HealthSummary:      "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
+	HealthLastRun:      "上次检查 %s · 用时 %s",
+	HealthRunning:      "正在检查…",
+	HealthRerun:        "重新检查",
+	HealthCopyReport:   "复制报告",
+	Copied:             "已复制",
+	HealthEvidence:     "依据",
+	HealthFix:          "修复建议",
+	CopyCmd:            "复制命令",
+	HealthNever:        "还没有检查结果",
+	HealthUnavailable:  "这个平台还不支持健康检查",
+	HealthError:        "检查出错：%s",
+	HealthOK:           "通过",
+	HealthWarn:         "警告",
+	HealthFail:         "失败",
+	HealthSkip:         "跳过",
+	PanelHealthOK:      "健康检查：全部通过",
+	PanelHealthWarn:    "健康检查：%d 项警告",
+	PanelHealthFail:    "健康检查：%d 项失败",
+	PanelHealthPending: "健康检查：正在检查",
+	Seconds:            "%.1f 秒",
+
+	Actions:               "操作",
+	ReloadConfig:          "重载配置",
+	FlushFakeIP:           "清空 Fake-IP",
+	FlushDNS:              "清空 DNS 缓存",
+	Done:                  "已完成",
+	ExitNodeNone:          "不使用",
+	ExitNodeConflictTitle: "使用出口节点会和 mihomo 冲突",
+	ExitNodeConflictBody:  "出口节点会接管本机的默认路由，和 mihomo 的 TUN 抢同一份流量：代理规则可能失效，部分连接会直接从出口节点出去。确定要使用 %s 吗？",
+	ExitNodeConfirm:       "仍然使用",
+	Cancel:                "取消",
+	TestNodeDelay:         "测速",
 
 	LogLevel:  "级别",
 	LogClear:  "清空",
@@ -198,18 +263,21 @@ var zh = Strings{
 	LogResume: "继续",
 	LogEmpty:  "暂无日志",
 
-	Controller:          "控制接口地址",
-	Secret:              "Secret",
-	SecretHint:          "也可用环境变量 DUET_MIHOMO_SECRET 提供",
-	ConfigFile:          "配置文件",
-	Save:                "保存",
-	Saved:               "已保存",
-	SaveFailed:          "保存失败：",
-	MihomoBinary:        "mihomo 程序",
-	MihomoConfigDir:     "mihomo 配置目录",
-	TailscaleSocket:     "Tailscale 安装",
-	AllowWrites:         "允许操作",
-	SettingsRestartHint: "控制接口设置保存后立即生效",
+	Controller:               "控制接口地址",
+	Secret:                   "Secret",
+	SecretHint:               "也可用环境变量 DUET_MIHOMO_SECRET 提供",
+	ConfigFile:               "配置文件",
+	Save:                     "保存",
+	Saved:                    "已保存",
+	SaveFailed:               "保存失败：",
+	MihomoBinary:             "mihomo 程序",
+	MihomoConfigDir:          "mihomo 配置目录",
+	TailscaleSocket:          "Tailscale 安装",
+	AllowWrites:              "允许操作",
+	SettingsRestartHint:      "控制接口设置保存后立即生效",
+	Notifications:            "系统通知",
+	NotificationsHint:        "mihomo 断开、健康检查新出现失败、Tailscale 需要登录或密钥 3 天内过期时提醒；同一件事 30 分钟内只提醒一次",
+	NotificationsUnsupported: "当前以开发方式运行，macOS 只给打包后的 app（mygo build）显示通知",
 
 	JustNow:    "刚刚",
 	SecondsAgo: "%d 秒前",
