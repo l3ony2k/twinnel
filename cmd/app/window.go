@@ -901,7 +901,16 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 		a.controlError(c, pendExit)
 	})
 	peers := st.Peers
-	title := fmt.Sprintf("%s · %d / %d", T.Devices, st.OnlinePeers(), len(peers))
+	if a.shotNoPeers { // shots of the empty devices card (shots_final.go)
+		peers = nil
+	}
+	online := 0
+	for _, p := range peers {
+		if p.Online {
+			online++
+		}
+	}
+	title := fmt.Sprintf("%s · %d / %d", T.Devices, online, len(peers))
 	card(c, title, func() {
 		if len(peers) == 0 {
 			// In a card under the account's: the card size of an empty

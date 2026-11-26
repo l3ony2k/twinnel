@@ -70,6 +70,7 @@ type app struct {
 	peers       ui.ListState
 	groupsOpen  map[string]bool
 	tileCols    map[string]int             // node tile columns per group, from the last layout
+	shotNoPeers bool                       // shots: the devices card as if the tailnet had no other device
 	tileFocus   tileRef                    // the node tile ↑/↓ moved the focus to, until it is built
 	pageScroll  map[string]*ui.ScrollState // each page's scroll place; the toolbar's edge shows once scrolled
 	healthOpen  map[string]bool            // check ID → expanded, once the user toggled it
