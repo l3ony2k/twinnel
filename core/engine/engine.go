@@ -42,6 +42,11 @@ type Engine struct {
 	Kernels *kernel.Manager
 	TSProbe *kernel.TailscaleProbe
 	Tailnet TailnetSource
+	// TailnetInterface returns the name of the interface that carries
+	// Tailscale's resolver 100.100.100.100 (darwin: `route -n get`). It
+	// fills TailnetInfo.Interface, so the coexist layer binds the resolver
+	// to it. nil leaves Interface empty.
+	TailnetInterface func(ctx context.Context) (string, error)
 	// Services reads service status (nil: service.status fails).
 	Services service.Manager
 	Bus      *rpc.Bus
@@ -213,7 +218,7 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 	out.Tailnet.Coexist = st.Tailscale.Coexist
 	if out.Tailnet.Peers == nil {
 		if info, ok := e.cachedTailnet(); ok {
-			out.Tailnet.Peers, out.Tailnet.Suffix = info.PeerShortNames, info.MagicDNSSuffix
+			out.Tailnet.Peers, out.Tailnet.Suffix, out.Tailnet.Interface = info.PeerShortNames, info.MagicDNSSuffix, info.Interface
 		}
 	}
 	out.Kernel, _ = e.KernelList()

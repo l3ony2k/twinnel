@@ -65,6 +65,7 @@ func (e *Engine) coexistLayer(ctx context.Context, st *store.Settings) (config.L
 	if !ok && e.Tailnet != nil {
 		if raw, err := e.Tailnet.Status(ctx); err == nil {
 			if i, err := config.TailnetInfoFromStatus(raw); err == nil {
+				i.Interface = e.tailnetIface(ctx, "")
 				info, ok = i, true
 				e.saveTailnet(i)
 			}

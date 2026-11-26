@@ -575,7 +575,7 @@ func runSettings(args []string) error {
 	})
 	fs.Func("coexist", "Tailscale coexist layer `on|off`", boolFlag(&u.TailscaleCoexist))
 	fs.Func("auto-apply", "re-apply after subscription/tailnet changes `on|off`", boolFlag(&u.AutoApply))
-	fs.Func("resolver", "nameserver for tailnet names (default system)", func(s string) error { u.TailscaleResolver = &s; return nil })
+	fs.Func("resolver", "nameserver for tailnet names (empty = 100.100.100.100 on the Tailscale interface)", func(s string) error { u.TailscaleResolver = &s; return nil })
 	fs.Func("history-keep", "number of history entries to keep", func(s string) error {
 		var n int
 		if _, err := fmt.Sscan(s, &n); err != nil {
@@ -600,7 +600,7 @@ func runSettings(args []string) error {
 	return cf.callPrint(method, params, &s, func() {
 		w := tw()
 		fmt.Fprintf(w, "leak guard\t%s\n", orNone(strings.Join(s.LeakGuardGroups, ", ")))
-		fmt.Fprintf(w, "tailscale coexist\t%v (resolver %s)\n", s.TailscaleCoexist, orDefault(s.TailscaleResolver, "system"))
+		fmt.Fprintf(w, "tailscale coexist\t%v (resolver %s)\n", s.TailscaleCoexist, orDefault(s.TailscaleResolver, "100.100.100.100 (default)"))
 		fmt.Fprintf(w, "auto apply\t%v\n", s.AutoApply)
 		fmt.Fprintf(w, "history keep\t%d\n", s.HistoryKeep)
 		fmt.Fprintf(w, "kernel channel\t%s\n", s.KernelChannel)

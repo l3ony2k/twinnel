@@ -41,25 +41,44 @@ const (
 
 	MethodTailscaleInfo = "tailscale.info"
 
-	MethodServiceStatus = "service.status"
+	MethodServiceStatus    = "service.status"
+	MethodServiceStart     = "service.start"
+	MethodServiceStop      = "service.stop"
+	MethodServiceRestart   = "service.restart"
+	MethodServiceInstall   = "service.install"   // mihomo only
+	MethodServiceUninstall = "service.uninstall" // mihomo only
+
+	MethodHealthLast = "health.last"
+	MethodHealthRun  = "health.run"
+
+	MethodConfigGet = "config.get"
+
+	MethodGeoCheck  = "geo.check"
+	MethodGeoUpdate = "geo.update"
+	MethodUICheck   = "ui.check"
+	MethodUIUpdate  = "ui.update"
+
+	MethodTakeoverAdopt = "takeover.adopt"
 
 	MethodEventsWait = "events.wait"
 )
 
 // Event types pushed through events.wait.
 const (
-	EventComposeApplied  = "compose.applied"
-	EventComposeFailed   = "compose.failed"
-	EventStateChanged    = "state.changed" // layers, subscriptions or settings edited
-	EventSubUpdated      = "subscription.updated"
-	EventSubFailed       = "subscription.failed"
-	EventTailnetChanged  = "tailnet.changed"
-	EventKernelChanged   = "kernel.changed"
-	EventCheckChanged    = "check.changed" // health check result changed (published by the health runner)
-	EventServiceChanged  = "service.changed"
-	EventHelperStarted   = "helper.started"
-	EventHelperStopping  = "helper.stopping"
-	EventEventsTruncated = "events.truncated" // the client asked for events older than the buffer
+	EventComposeApplied   = "compose.applied"
+	EventComposeFailed    = "compose.failed"
+	EventStateChanged     = "state.changed" // layers, subscriptions or settings edited
+	EventSubUpdated       = "subscription.updated"
+	EventSubFailed        = "subscription.failed"
+	EventTailnetChanged   = "tailnet.changed"
+	EventKernelChanged    = "kernel.changed"
+	EventCheckChanged     = "check.changed"     // one health check changed status (data: health.Change)
+	EventHealthUpdated    = "health.updated"    // a health run finished (data: HealthSummary)
+	EventAccessoryChanged = "accessory.changed" // geo databases or the external UI were updated
+	EventServiceChanged   = "service.changed"
+	EventHelperStarted    = "helper.started"
+	EventHelperStopping   = "helper.stopping"
+	EventEventsTruncated  = "events.truncated" // the client asked for events older than the buffer
 )
 
 // Empty is the params/result of methods without any.
@@ -93,11 +112,14 @@ type MihomoStatus struct {
 }
 
 type TailnetStatus struct {
-	Coexist  bool      `json:"coexist"`
-	Peers    []string  `json:"peers,omitempty"`
-	Suffix   string    `json:"suffix,omitempty"`
-	LastPoll time.Time `json:"last_poll,omitzero"`
-	Error    string    `json:"error,omitempty"`
+	Coexist bool     `json:"coexist"`
+	Peers   []string `json:"peers,omitempty"`
+	Suffix  string   `json:"suffix,omitempty"`
+	// Interface carries 100.100.100.100 (e.g. utun9); the coexist layer
+	// binds the tailnet resolver to it.
+	Interface string    `json:"interface,omitempty"`
+	LastPoll  time.Time `json:"last_poll,omitzero"`
+	Error     string    `json:"error,omitempty"`
 }
 
 // ---- compose ----
@@ -334,4 +356,119 @@ type EventsWaitParams struct {
 type EventsWaitResult struct {
 	Events []Event `json:"events"`
 	Next   uint64  `json:"next"`
+}
+
+// ServiceOpResult is the result of service.start|stop|restart|install|uninstall.
+type ServiceOpResult struct {
+	Name  string   `json:"name"`
+	Label string   `json:"label"`
+	Op    string   `json:"op"`
+	Steps []string `json:"steps"` // the plan, one shell-like line per step
+	// DryRun is true when the helper is not running as root: the plan was
+	// computed but nothing was run (development helpers).
+	DryRun bool          `json:"dry_run,omitempty"`
+	Status ServiceStatus `json:"status"` // after the operation
+}
+
+// ---- health ----
+
+// HealthRunParams are the params of health.run.
+type HealthRunParams struct {
+	Reason string `json:"reason,omitempty"` // default "manual"
+}
+
+// HealthReport is the result of health.last and health.run. Report is a
+// core/health.Report in JSON form (decode it with encoding/json into
+// health.Report); nil before the first run.
+type HealthReport struct {
+	Report json.RawMessage `json:"report,omitempty"`
+	Reason string          `json:"reason,omitempty"`
+	At     time.Time       `json:"at,omitzero"`
+}
+
+// HealthSummary is the data of health.updated.
+type HealthSummary struct {
+	Reason  string         `json:"reason"`
+	Overall string         `json:"overall"`
+	Counts  map[string]int `json:"counts"`
+	At      time.Time      `json:"at"`
+}
+
+// ---- config text ----
+
+// Config sources of config.get.
+const (
+	ConfigLive    = "live"    // the config file on disk
+	ConfigPreview = "preview" // what compose.apply would write now
+	ConfigHistory = "history" // a history entry (needs ID)
+)
+
+type ConfigGetParams struct {
+	Source string `json:"source"`
+	ID     string `json:"id,omitempty"`
+}
+
+// ConfigText is a config with the top-level secret removed (the form history
+// keeps), so texts from all sources compare cleanly.
+type ConfigText struct {
+	Source  string `json:"source"`
+	ID      string `json:"id,omitempty"`
+	Content string `json:"content"`
+	Hash    string `json:"hash"`
+	Size    int    `json:"size"`
+}
+
+// ---- accessories (geo databases, external UI) ----
+
+// AccessoryFile is one geo database or the UI bundle.
+type AccessoryFile struct {
+	Name       string `json:"name"` // "geoip", "geosite", "mmdb", "asn", "ui"
+	File       string `json:"file"` // path in the config dir
+	URL        string `json:"url"`
+	Installed  bool   `json:"installed"`
+	Size       int64  `json:"size,omitempty"`   // local size
+	SHA256     string `json:"sha256,omitempty"` // local sha256 (files) / installed tag (ui)
+	Remote     string `json:"remote,omitempty"` // remote sha256 or tag, when known
+	RemoteSize int64  `json:"remote_size,omitempty"`
+	// Verifiable is true when the remote publishes a digest the download
+	// is checked against.
+	Verifiable      bool   `json:"verifiable"`
+	UpdateAvailable bool   `json:"update_available"`
+	Error           string `json:"error,omitempty"`
+}
+
+type AccessoryCheck struct {
+	Dir   string          `json:"dir"`
+	Files []AccessoryFile `json:"files"`
+}
+
+type AccessoryUpdateParams struct {
+	// Force downloads even files that look up to date.
+	Force bool `json:"force,omitempty"`
+}
+
+type AccessoryUpdateResult struct {
+	Updated []string        `json:"updated"`
+	Skipped []string        `json:"skipped,omitempty"`
+	Files   []AccessoryFile `json:"files"`
+	// RolledBack is true when a later file failed and every file already
+	// replaced in this run was put back.
+	RolledBack bool `json:"rolled_back,omitempty"`
+	// ReloadNeeded: mihomo reads geo files / serves the UI from disk; a
+	// geo change takes effect after compose.apply with force or a restart.
+	ReloadNeeded bool   `json:"reload_needed,omitempty"`
+	Error        string `json:"error,omitempty"`
+}
+
+// ---- takeover ----
+
+// AdoptParams selects a takeover plan the helper generated itself (via
+// core/takeover); the client never passes paths.
+type AdoptParams struct {
+	PlanID string `json:"plan_id"`
+}
+
+type AdoptResult struct {
+	PlanID string       `json:"plan_id"`
+	Apply  *ApplyResult `json:"apply,omitempty"`
 }

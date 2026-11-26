@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -60,7 +61,10 @@ type MihomoSettings struct {
 // TailscaleSettings controls the managed coexist layer.
 type TailscaleSettings struct {
 	Coexist bool `json:"coexist"`
-	// Resolver for tailnet names in nameserver-policy (default "system").
+	// Resolver for tailnet names in nameserver-policy. Empty means the
+	// generator's default, Tailscale's MagicDNS resolver 100.100.100.100
+	// (bound to the Tailscale interface when it is known). "system" is not
+	// accepted: with mihomo as the system DNS it loops back into mihomo.
 	Resolver string `json:"resolver,omitempty"`
 	// Binary is the tailscale CLI; empty means search the usual places.
 	Binary       string `json:"binary,omitempty"`
@@ -123,6 +127,10 @@ func (st *Settings) Defaults(stateDir string) {
 	}
 	if st.Mihomo.ServiceLabel == "" {
 		st.Mihomo.ServiceLabel = DefaultMihomoLabel
+	}
+	if strings.EqualFold(strings.TrimSpace(st.Tailscale.Resolver), "system") {
+		// The old default; it loops back into mihomo. Use the generator's.
+		st.Tailscale.Resolver = ""
 	}
 	if st.Tailscale.PollSeconds <= 0 {
 		st.Tailscale.PollSeconds = 60
