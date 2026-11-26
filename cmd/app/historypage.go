@@ -23,6 +23,7 @@ type historyView struct {
 	diff    *editor.DiffState
 	diffErr string
 	result  *rpc.ApplyResult
+	reveal  bool // bring the detail into view in the next frame
 }
 
 func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
@@ -36,7 +37,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 	}
 	a.opNotes(c, s)
 	if len(d.history) == 0 {
-		groupBox(c, t).Children(func() { emptyState(c, iconHistory, T.HistoryEmpty, "") })
+		groupBox(c, t).Children(func() { emptyState(c, iconHistory, T.HistoryEmpty, T.HistoryEmptyHint) })
 		return
 	}
 	hist := d.history // newest first, as history.list returns it
@@ -64,14 +65,28 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 			case 3:
 				el = cell(c, shortHash(e.Hash)).Font("monospace").FontSize(12)
 			case 4:
-				el = cell(c, e.Reason)
+				el = cell(c, e.Reason).Tooltip(e.Reason)
 			}
 			el.SingleLine()
+			el.ContextMenu(func(m *ui.Menu) {
+				if m.Item(T.HistoryDiff).Disabled(a.hd.busy != "").Chosen() {
+					v.sel, v.reveal = e.ID, true
+					a.historyDiff(s, e.ID)
+				}
+				if m.Item(T.HistoryRollback + "…").Disabled(!a.helperWrites(s)).Chosen() {
+					v.sel = e.ID
+					a.historyRollback(e)
+				}
+				m.Separator()
+				if m.Item(T.CopyID).Chosen() {
+					copyText(c, e.ID)
+				}
+			})
 			if sel {
 				el.FontWeight(600)
 			}
-			if el.Clicked() {
-				v.sel = e.ID
+			if el.Clicked() && v.sel != e.ID {
+				v.sel, v.reveal = e.ID, true
 			}
 		}).Height(float32(min(len(hist), 10)*30 + 40)).Background(ui.Transparent).MarginX(-8)
 		if v.sel == "" {
@@ -87,7 +102,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 	if entry == nil {
 		return
 	}
-	headedCard(c, func() {
+	detail := headedCard(c, func() {
 		ui.Text(c, T.HistoryEntry).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 		ui.Text(c, entry.ID).Font("monospace").FontSize(12).TextColor(t.TextMuted).Selectable()
 		ui.Spacer(c)
@@ -117,6 +132,12 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 			applySummary(c, *r)
 		}
 	})
+	// The detail sits under the table: bring it into view as a row is
+	// chosen, so it never opens off-screen (review-b 015 #2).
+	if v.reveal {
+		v.reveal = false
+		detail.ScrollIntoView(ui.ScrollIntoViewOptions{Animation: &rowMove})
+	}
 }
 
 func (a *app) historyDiff(s status.Snapshot, id string) {
