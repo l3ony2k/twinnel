@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"os"
 
 	"github.com/l3ony2k/duet/core/rpc"
 )
@@ -17,7 +16,7 @@ func (e *Engine) ControllerCredentials() (rpc.ControllerCredentials, error) {
 		return rpc.ControllerCredentials{}, err
 	}
 	out := rpc.ControllerCredentials{Controller: st.Mihomo.Controller}
-	if b, err := os.ReadFile(st.Mihomo.ConfigFile); err == nil {
+	if b, err := readConfined(st.Mihomo.ConfigFile); err == nil {
 		out.Secret, _ = topLevel(b, "secret")
 		out.Source = rpc.CredentialsFromConfig
 	} else {

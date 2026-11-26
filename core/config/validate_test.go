@@ -3,9 +3,11 @@ package config
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -163,5 +165,27 @@ func TestCoexistFakeIPModesReal(t *testing.T) {
 		if !v.OK {
 			t.Errorf("%s: composed config invalid: %v\n%s", mode, v.Errors, out)
 		}
+	}
+}
+
+// WithRunAs: the work dir is in /tmp, handed to the user, and the command
+// is prepared last (after SAFE_PATHS is set).
+func TestValidateRunAs(t *testing.T) {
+	bin, _ := fakeMihomo(t, `configuration file x test is successful`, 0)
+	var dir string
+	prepared := false
+	v, err := Validate(context.Background(), bin, []byte("mode: rule\n"), WithSafePaths("/a"),
+		WithRunAs(os.Getuid(), os.Getgid(), func(cmd *exec.Cmd) {
+			prepared = true
+			dir = cmd.Dir
+			if !slices.ContainsFunc(cmd.Env, func(kv string) bool { return strings.HasPrefix(kv, "SAFE_PATHS=") }) {
+				t.Error("SAFE_PATHS not set before prepare")
+			}
+		}))
+	if err != nil || !v.OK || !prepared {
+		t.Fatalf("v=%+v err=%v prepared=%v", v, err, prepared)
+	}
+	if !strings.HasPrefix(dir, "/tmp/duet-validate-") {
+		t.Errorf("work dir %s not in /tmp", dir)
 	}
 }

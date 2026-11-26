@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -183,7 +182,7 @@ func (e *Engine) downloadClient(ctx context.Context, st *store.Settings) (*http.
 	if err == nil {
 		port := st.Mihomo.MixedPort
 		if port == 0 {
-			if b, err := os.ReadFile(st.Mihomo.ConfigFile); err == nil {
+			if b, err := readConfined(st.Mihomo.ConfigFile); err == nil {
 				port = mixedPort(b)
 			}
 		}

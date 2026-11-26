@@ -4,4 +4,4 @@ package engine
 
 import "io/fs"
 
-func keepOwner(string, fs.FileInfo) {}
+func statOwner(fs.FileInfo) (int, int, bool) { return 0, 0, false }

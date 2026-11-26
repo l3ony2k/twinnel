@@ -21,6 +21,21 @@ type validateOpts struct {
 	geoDir    string
 	safePaths []string
 	timeout   time.Duration
+	runAs     *runAs
+}
+
+type runAs struct {
+	uid, gid int
+	prepare  func(*exec.Cmd)
+}
+
+// WithRunAs runs mihomo as uid:gid instead of the caller's user: the work
+// dir is made in /tmp and handed to that user, and prepare (which sets the
+// credential on the command) is called last. A root helper uses it when
+// the mihomo binary is controlled by a non-root user, so running the test
+// never executes that user's file as root.
+func WithRunAs(uid, gid int, prepare func(*exec.Cmd)) ValidateOption {
+	return func(o *validateOpts) { o.runAs = &runAs{uid: uid, gid: gid, prepare: prepare} }
 }
 
 // WithGeoDir copies the geo databases (*.mmdb, *.metadb, *.dat) found in dir
@@ -56,7 +71,12 @@ func Validate(ctx context.Context, mihomoBin string, config []byte, opts ...Vali
 	for _, f := range opts {
 		f(&o)
 	}
-	dir, err := os.MkdirTemp("", "duet-validate-")
+	tmpRoot := ""
+	if o.runAs != nil {
+		// The helper's own TMPDIR may not be reachable by that user.
+		tmpRoot = "/tmp"
+	}
+	dir, err := os.MkdirTemp(tmpRoot, "duet-validate-")
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +94,11 @@ func Validate(ctx context.Context, mihomoBin string, config []byte, opts ...Vali
 
 	ctx, cancel := context.WithTimeout(ctx, o.timeout)
 	defer cancel()
+	if o.runAs != nil {
+		if err := chownTree(dir, o.runAs.uid, o.runAs.gid); err != nil {
+			return nil, err
+		}
+	}
 	cmd := exec.CommandContext(ctx, mihomoBin, "-t", "-d", dir, "-f", cfg)
 	cmd.Dir = dir
 	cmd.WaitDelay = 2 * time.Second
@@ -83,6 +108,9 @@ func Validate(ctx context.Context, mihomoBin string, config []byte, opts ...Vali
 			paths = append([]string{cur}, paths...)
 		}
 		cmd.Env = append(os.Environ(), "SAFE_PATHS="+strings.Join(paths, string(os.PathListSeparator)))
+	}
+	if o.runAs != nil && o.runAs.prepare != nil {
+		o.runAs.prepare(cmd)
 	}
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
@@ -160,4 +188,18 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return out.Close()
+}
+
+// chownTree gives dir and the files directly in it to uid:gid.
+func chownTree(dir string, uid, gid int) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if err := os.Lchown(filepath.Join(dir, e.Name()), uid, gid); err != nil {
+			return err
+		}
+	}
+	return os.Lchown(dir, uid, gid)
 }
