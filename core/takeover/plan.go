@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,7 +61,30 @@ type Change struct {
 	What       string `json:"what"`
 	Deliberate bool   `json:"deliberate"`
 	Why        string `json:"why,omitempty"`
+	// Code and Args name What for a UI that words it in its own language
+	// (core/i18n TakeoverChange); WhyCode and WhyArgs do the same for Why.
+	// Empty Code: What is data (a config diff line), shown as it is.
+	Code    string   `json:"code,omitempty"`
+	Args    []string `json:"args,omitempty"`
+	WhyCode string   `json:"why_code,omitempty"`
+	WhyArgs []string `json:"why_args,omitempty"`
 }
+
+// Change codes (Change.Code). Args are listed after each.
+const (
+	ChangeCounts         = "counts"           // added, removed, changed (decimal)
+	ChangeReordered      = "reordered"        // same items, order matters
+	ChangeNamedDiff      = "named-diff"       // only in live, only in composed, changed (comma lists)
+	ChangeSubRuleDiffers = "sub-rule-differs" // sub-rule name
+	ChangeRulesReordered = "rules-reordered"  // same-target head rules reordered
+	ChangeTailscaleRules = "tailscale-rules"  // count, edits ("; " list)
+	WhyCoexist           = "coexist"
+	WhyCoexistPolicy     = "coexist-nameserver-policy" // resolver
+	WhyCoexistFakeIP     = "coexist-fake-ip-filter"
+	WhyCoexistHosts      = "coexist-hosts" // peers
+	WhyCoexistUseHosts   = "coexist-use-hosts"
+	WhyCoexistPrepended  = "coexist-prepended"
+)
 
 // Plan is a TakeoverPlan: how duet would manage the existing setup. It holds
 // no credentials; layer contents are only referenced by file.
@@ -175,7 +199,7 @@ func BuildPlan(ctx context.Context, probe Probe, opt Options) (*Plan, error) {
 	}
 	p.Layers, p.Replaced = der.Layers, der.Replaced
 	p.Warnings = append(p.Warnings, der.Warnings...)
-	p.Layers = append(p.Layers, DerivedLayer{ID: coexist.ID, Name: coexist.Name, Kind: coexist.Kind,
+	p.Layers = append(p.Layers, DerivedLayer{ID: coexist.ID, Name: coexist.Name, NameCode: LayerNameCoexist, Kind: coexist.Kind,
 		Stage: coexist.Stage.String(), stage: coexist.Stage, data: coexist.Override, transform: coexist.Transform})
 
 	var layers []config.Layer
@@ -348,31 +372,36 @@ func classify(sd *config.SemDiff, ms *managedSet, cx Coexist, rulesCoexistOnly b
 		if a.changed > 0 {
 			parts = append(parts, fmt.Sprintf("%d changed", a.changed))
 		}
+		why, whyCode, whyArgs := coexistWhy(area, cx)
 		out = append(out, Change{Area: area, What: strings.Join(parts, ", "), Deliberate: true,
-			Why: coexistWhy(area, cx)})
+			Why: why, WhyCode: whyCode, WhyArgs: whyArgs, Code: ChangeCounts,
+			Args: []string{strconv.Itoa(a.added), strconv.Itoa(a.removed), strconv.Itoa(a.changed)}})
 	}
 	named := func(area string, n config.NamedDiff) {
 		if n.Same() {
 			return
 		}
 		if n.Reordered && n.OrderMatters {
-			out = append(out, Change{Area: area, What: "same items in a different order; groups with include-all take them in list order, so priority changes"})
+			out = append(out, Change{Area: area, Code: ChangeReordered,
+				What: "same items in a different order; groups with include-all take them in list order, so priority changes"})
 			return
 		}
-		out = append(out, Change{Area: area, What: fmt.Sprintf("only in live %v, only in composed %v, changed %v", n.OnlyA, n.OnlyB, n.Changed)})
+		out = append(out, Change{Area: area, What: fmt.Sprintf("only in live %v, only in composed %v, changed %v", n.OnlyA, n.OnlyB, n.Changed),
+			Code: ChangeNamedDiff, Args: []string{strings.Join(n.OnlyA, ", "), strings.Join(n.OnlyB, ", "), strings.Join(n.Changed, ", ")}})
 	}
 	named("proxies", sd.Proxies)
 	named("proxy-providers", sd.ProxyProviders)
 	named("proxy-groups", sd.ProxyGroups)
 	named("rule-providers", sd.RuleProviders)
 	for _, s := range sd.SubRules {
-		out = append(out, Change{Area: "sub-rules", What: s + " differs"})
+		out = append(out, Change{Area: "sub-rules", What: s + " differs", Code: ChangeSubRuleDiffers, Args: []string{s}})
 	}
 	r := sd.Rules
 	if r.Equivalent && r.Reordered {
 		out = append(out, Change{Area: "rules", Deliberate: true,
 			What: "same-target head rules in a different order; no connection is routed differently",
-			Why:  "coexist rules are prepended after user layers"})
+			Why:  "coexist rules are prepended after user layers",
+			Code: ChangeRulesReordered, WhyCode: WhyCoexistPrepended})
 	}
 	var coexistEdits, other []string
 	for _, e := range r.Edits {
@@ -385,8 +414,11 @@ func classify(sd *config.SemDiff, ms *managedSet, cx Coexist, rulesCoexistOnly b
 	}
 	if len(coexistEdits) > 0 {
 		out = append(out, Change{Area: "rules", Deliberate: true,
-			What: fmt.Sprintf("%d Tailscale rule edit(s): %s", len(coexistEdits), strings.Join(firstN(coexistEdits, 6), "; ")),
-			Why:  whyCoexist})
+			What:    fmt.Sprintf("%d Tailscale rule edit(s): %s", len(coexistEdits), strings.Join(firstN(coexistEdits, 6), "; ")),
+			Why:     whyCoexist,
+			Code:    ChangeTailscaleRules,
+			Args:    []string{strconv.Itoa(len(coexistEdits)), strings.Join(firstN(coexistEdits, 6), "; ")},
+			WhyCode: WhyCoexist})
 	}
 	for _, e := range other {
 		out = append(out, Change{Area: "rules", What: e})
@@ -500,18 +532,19 @@ func allItems(val string, ok func(string) bool) bool {
 	return ok(val)
 }
 
-func coexistWhy(area string, cx Coexist) string {
+func coexistWhy(area string, cx Coexist) (why, code string, args []string) {
 	switch area {
 	case "dns.nameserver-policy":
-		return fmt.Sprintf("%s: tailnet names (MagicDNS suffix, single-label names, tailnet reverse zones) resolve via %s instead of looping through the system resolver", whyCoexist, cx.Resolver)
+		return fmt.Sprintf("%s: tailnet names (MagicDNS suffix, single-label names, tailnet reverse zones) resolve via %s instead of looping through the system resolver", whyCoexist, cx.Resolver),
+			WhyCoexistPolicy, []string{cx.Resolver}
 	case "dns.fake-ip-filter":
-		return whyCoexist + ": tailnet names and single-label names get real answers, not fake-ips"
+		return whyCoexist + ": tailnet names and single-label names get real answers, not fake-ips", WhyCoexistFakeIP, nil
 	case "hosts":
-		return fmt.Sprintf("%s: peer names answered locally (%d peers)", whyCoexist, cx.Peers)
+		return fmt.Sprintf("%s: peer names answered locally (%d peers)", whyCoexist, cx.Peers), WhyCoexistHosts, []string{strconv.Itoa(cx.Peers)}
 	case "dns.use-hosts":
-		return whyCoexist + ": needed for the peer hosts"
+		return whyCoexist + ": needed for the peer hosts", WhyCoexistUseHosts, nil
 	}
-	return whyCoexist
+	return whyCoexist, WhyCoexist, nil
 }
 
 // WriteFiles writes the layers, the composed config, the redacted diff and

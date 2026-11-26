@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/netip"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -12,17 +13,31 @@ import (
 )
 
 // DerivedLayer is one override layer derived from the live config.
+// Layer name codes (DerivedLayer.NameCode).
+const (
+	LayerNameBase      = "base"
+	LayerNameCoexist   = "tailscale-coexist"
+	LayerNameLiveRules = "live-rules"
+	LayerNameLeakGuard = "leak-guard" // the helper's managed leak guard layer
+)
+
 type DerivedLayer struct {
-	ID      string       `json:"id"`
-	Name    string       `json:"name"`
-	Kind    config.Kind  `json:"kind"`
-	Stage   string       `json:"stage"`
-	File    string       `json:"file,omitempty"` // set when written
-	Keys    []string     `json:"keys,omitempty"` // top-level keys it sets (base layer)
-	Rules   int          `json:"rules,omitempty"`
-	Comment string       `json:"comment,omitempty"`
-	stage   config.Stage `json:"-"`
-	data    []byte
+	ID      string      `json:"id"`
+	Name    string      `json:"name"`
+	Kind    config.Kind `json:"kind"`
+	Stage   string      `json:"stage"`
+	File    string      `json:"file,omitempty"` // set when written
+	Keys    []string    `json:"keys,omitempty"` // top-level keys it sets (base layer)
+	Rules   int         `json:"rules,omitempty"`
+	Comment string      `json:"comment,omitempty"`
+	// NameCode and NameArgs name a generated Name for a UI that words it
+	// in its own language (core/i18n TakeoverLayerName): LayerNameBase,
+	// LayerNameCoexist, or LayerNameLiveRules (first rule, more count).
+	// Empty: Name is the person's own (a comment from the live config).
+	NameCode string       `json:"name_code,omitempty"`
+	NameArgs []string     `json:"name_args,omitempty"`
+	stage    config.Stage `json:"-"`
+	data     []byte
 	// transform is the layer's transform, if any (the coexist layer adapts
 	// fake-ip-filter to fake-ip-filter-mode).
 	transform config.Transform
@@ -251,7 +266,7 @@ func DeriveLayers(liveData, baseData []byte, info config.TailnetInfo) (*Derivati
 			out.Warnings = append(out.Warnings, fmt.Sprintf("base sets %q but the live config does not; the Party syntax cannot delete a key, so it stays", k))
 		}
 	}
-	baseLayer := DerivedLayer{ID: "base", Name: "Base settings", Kind: config.KindManaged,
+	baseLayer := DerivedLayer{ID: "base", Name: "Base settings", NameCode: LayerNameBase, Kind: config.KindManaged,
 		Stage: config.StageBase.String(), stage: config.StageBase, Keys: keys}
 	if baseLayer.data, err = config.Encode(layerRoot); err != nil {
 		return nil, err
@@ -297,11 +312,14 @@ func DeriveLayers(liveData, baseData []byte, info config.TailnetInfo) (*Derivati
 		s := segs[i]
 		id := fmt.Sprintf("user-%d", n-i)
 		name := s.comment
+		var nameCode string
+		var nameArgs []string
 		if name == "" {
 			name = "Rules from the live config: " + s.rules[0]
 			if len(s.rules) > 1 {
 				name += fmt.Sprintf(" and %d more", len(s.rules)-1)
 			}
+			nameCode, nameArgs = LayerNameLiveRules, []string{shorten(s.rules[0], 60), strconv.Itoa(len(s.rules) - 1)}
 		}
 		root := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 		root.HeadComment = name
@@ -315,7 +333,7 @@ func DeriveLayers(liveData, baseData []byte, info config.TailnetInfo) (*Derivati
 			return nil, err
 		}
 		out.Layers = append(out.Layers, DerivedLayer{
-			ID: id, Name: shorten(name, 80), Kind: config.KindUser, Stage: config.StageUser.String(),
+			ID: id, Name: shorten(name, 80), NameCode: nameCode, NameArgs: nameArgs, Kind: config.KindUser, Stage: config.StageUser.String(),
 			stage: config.StageUser, Rules: len(s.rules), Comment: s.comment, data: data,
 		})
 	}

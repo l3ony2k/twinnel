@@ -1,5 +1,7 @@
 package i18n
 
+import "fmt"
+
 // ControlStrings are the texts of the app's controls and their states:
 // pending and failed changes, loading, unreachable services, operation
 // results. Embedded in Strings, so they read as T.X.
@@ -9,6 +11,11 @@ type ControlStrings struct {
 	UnreachableMihomoTitle, UnreachableMihomoBody, UnreachableMihomoShort string
 	UnreachableTSTitle, UnreachableTSBody, UnreachableTSShort             string
 	UnreachableDetail, Retry, OpenSettings                                string
+
+	// A network error said in words (PlainNetError): 没能连上 <host>, the
+	// proxy it went through, then the reason after NetReasonSep.
+	NetUnreachableF, NetViaProxyF, NetReasonSep                             string
+	NetProxyDown, NetRefused, NetTimeout, NetNoHost, NetTLS, NetRateLimited string
 
 	// A control whose change failed (shown by the control, %s: reason).
 	ModeFailed, TunFailed, TSPowerFailed, ExitNodeFailed, NodeFailed string
@@ -39,6 +46,16 @@ var zhControls = ControlStrings{
 	Retry:                  "重试",
 	OpenSettings:           "打开设置",
 
+	NetUnreachableF: "没能连上 %s",
+	NetViaProxyF:    "（经由代理 %s）",
+	NetReasonSep:    "：",
+	NetProxyDown:    "代理没有响应，mihomo 可能没在运行",
+	NetRefused:      "对方拒绝了连接",
+	NetTimeout:      "连接超时",
+	NetNoHost:       "找不到这个域名",
+	NetTLS:          "证书校验失败",
+	NetRateLimited:  "请求被限流，稍后再试",
+
 	ModeFailed:     "模式没有切换：%s",
 	TunFailed:      "TUN 没有切换：%s",
 	TSPowerFailed:  "Tailscale 没有切换：%s",
@@ -61,4 +78,14 @@ var zhControls = ControlStrings{
 
 	PanelOpen: "打开 duet…",
 	PanelQuit: "退出 duet",
+}
+
+// NetUnreachable is NetUnreachableF for host.
+func (s *ControlStrings) NetUnreachable(host string) string {
+	return fmt.Sprintf(s.NetUnreachableF, host)
+}
+
+// NetViaProxy is NetViaProxyF for addr.
+func (s *ControlStrings) NetViaProxy(addr string) string {
+	return fmt.Sprintf(s.NetViaProxyF, addr)
 }

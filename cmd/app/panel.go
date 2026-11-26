@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"runtime"
 
 	"github.com/egoist/mygo"
@@ -18,11 +19,18 @@ import (
 // (state on top, one section per network, the window and quit at the foot).
 func (a *app) panelView(c *ui.Context) {
 	a.applyTheme(c)
+	// Text one step under the main window's on Windows and Linux (13 for
+	// 14), as on macOS: the size of Control Center's and the Wi-Fi menu's.
+	th := *c.Theme()
+	th.FontSize = plat.panelTextSize
+	c.SetTheme(&th)
 	t := c.Theme()
 	T := i18n.T
 	s := a.mon.Snapshot()
 	c.Root().Background(ui.Transparent)
-	box := ui.Column(c).Fill()
+	// As wide as the flyout, as tall as its content: the flyout fits it
+	// (FitContent); a height of its own would keep the flyout at that.
+	box := ui.Column(c).FillWidth()
 	switch {
 	case c.Vibrancy(): // over the popover's material on macOS
 	case runtime.GOOS == "windows":
@@ -31,11 +39,11 @@ func (a *app) panelView(c *ui.Context) {
 		box.Background(t.Background).Radius(plat.groupRadius+2).Border(1, pal(t).groupLine)
 	}
 	sep := func() { ui.Box(c).Height(1).Background(pal(t).separator).MarginY(2) }
-	box.Padding(plat.panelPad).Gap(10).Children(func() {
+	box.Padding(plat.panelPad).Gap(gapRow).Children(func() {
 		// Overall state and the live rates.
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			stateDot(c, levelMark(s.Level), levelColor(t, s.Level), 10)
-			ui.Text(c, s.Level.Text()).FontSize(15).FontWeight(600)
+			ui.Text(c, s.Level.Text()).FontSize(plat.leadSize).FontWeight(600)
 			ui.Spacer(c)
 			if s.Mihomo.Reachable {
 				num(small(c, "↓ "+status.Rate(s.Mihomo.Traffic.Down)+"   ↑ "+status.Rate(s.Mihomo.Traffic.Up)))
@@ -55,7 +63,7 @@ func (a *app) panelView(c *ui.Context) {
 				small(c, fmt.Sprintf("… +%d", len(reasons)-3))
 				break
 			}
-			ui.Text(c, r.Text).FontSize(plat.bodySize - 1).TextColor(levelText(t, r.Level)).Wrap()
+			ui.Text(c, r.Text).FontSize(plat.calloutSize).TextColor(levelText(t, r.Level)).Wrap()
 		}
 		a.healthLine(c, s)
 		a.helperLine(c, s)
@@ -73,6 +81,7 @@ func (a *app) panelView(c *ui.Context) {
 		if a.actionErr != "" {
 			errorNote(c, a.actionErr)
 		}
+		a.fitShotPanel(box)
 		// The foot as a menu bar extra ends: menu-style rows, not buttons.
 		ui.Column(c).Gap(0).MarginY(-4).Children(func() {
 			panelRow(c.Key("open"), T.PanelOpen, a.openMain)
@@ -122,7 +131,7 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 				idx = i
 			}
 		}
-		if ui.Segmented(c.Key("mode"), &idx, labels...).Disabled(!w).Grow(1).Changed() {
+		if ui.Segmented(c.Key("mode"), &idx, labels...).Disabled(!w).Grow(1).Height(plat.rowMinHeight).Changed() {
 			md := mihomo.Modes[idx]
 			a.optimistic(pendMode, md, T.ModeFailed, func(ctx context.Context) error { return a.mh.SetMode(ctx, md) })
 		}
@@ -148,7 +157,7 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 			for i, mem := range p.Members {
 				opts[i] = mem.Name
 			}
-			if ui.Select(c.Key("node"), &sel, opts).Disabled(!w || !p.Selectable()).Grow(1).Label(T.Node).Changed() {
+			if ui.Select(c.Key("node"), &sel, opts).Disabled(!w || !p.Selectable()).Grow(1).Height(plat.rowMinHeight).Label(T.Node).Changed() {
 				a.selectNode(p.Name, sel)
 			}
 		})
@@ -157,7 +166,7 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 			kvWith(c, T.Exit, func() {
 				ui.Text(c, p.Node).SingleLine().Shrink(1)
 				ui.Spacer(c)
-				num(ui.Text(c, status.DelayText(p.Delay, p.Tested)).FontSize(plat.bodySize - 1).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
+				num(ui.Text(c, status.DelayText(p.Delay, p.Tested)).FontSize(plat.calloutSize).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
 			})
 		}
 	}
@@ -226,4 +235,25 @@ func (a *app) helperLine(c *ui.Context, s status.Snapshot) {
 		a.openMain()
 		a.pageChanged(old)
 	}
+}
+
+// fitShotPanel sizes shot mode's stand-in for the flyout (a hidden window,
+// which does not fit its content) to the content's height, as the live
+// flyout's FitContent does, so a shot shows no empty space under it.
+func (a *app) fitShotPanel(box ui.Element) {
+	if !a.shotMode || a.panel == nil {
+		return
+	}
+	h := int(math.Ceil(float64(box.LayoutBounds().H)))
+	if h <= 0 || h == a.panelShotH {
+		return
+	}
+	a.panelShotH = h
+	p := a.panel
+	mygo.RunOnMain(func() {
+		// SetSize sizes the frame: add what the title bar takes.
+		_, wh := p.Size()
+		_, ch := p.ContentSize()
+		p.SetSize(panelWidth, h+max(0, wh-ch))
+	})
 }

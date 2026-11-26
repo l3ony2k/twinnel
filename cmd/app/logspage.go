@@ -46,7 +46,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 	ui.Column(c).Grow(1).Gap(16).Children(func() {
 		pageHeader(c, T.PageLogs, func() {
 			small(c, T.LogLevel)
-			if ui.Segmented(c.Key("level"), &a.logs.level, i18n.T.LogLevelNames...).Label(T.LogLevel).Changed() {
+			if segmented(c.Key("level"), &a.logs.level, i18n.T.LogLevelNames...).Label(T.LogLevel).Changed() {
 				a.mon.ClearLogs()
 				a.mon.SetLogLevel(a.logs.levelName())
 			}
@@ -90,9 +90,9 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 				}
 				line := e.Time.Format("15:04:05") + " " + e.Type + " " + e.Payload
 				ui.Row(c).Gap(12).Padding(3, 12).AlignItems(ui.Start).Children(func() {
-					ui.Text(c, e.Time.Format("15:04:05")).Font("monospace").FontSize(11).TextColor(t.TextMuted).Shrink(0)
-					ui.Text(c, logLevelName(e.Type)).FontSize(11).TextColor(col).Width(32).Shrink(0)
-					ui.Text(c, e.Payload).Font("monospace").FontSize(11).TextColor(col).Grow(1).Wrap().Selectable().
+					ui.Text(c, e.Time.Format("15:04:05")).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Shrink(0)
+					ui.Text(c, logLevelName(e.Type)).FontSize(plat.smallSize).TextColor(col).Width(32).Shrink(0)
+					ui.Text(c, e.Payload).Font("monospace").FontSize(plat.smallSize).TextColor(col).Grow(1).Wrap().Selectable().
 						ContextMenu(func(m *ui.Menu) {
 							if m.Item(i18n.T.CopyLine).Chosen() {
 								copyText(c, line)

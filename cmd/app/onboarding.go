@@ -125,14 +125,14 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 	}
 	groupBox(c, t).Gap(12).Padding(20, 20).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconDuet).FontSize(28).TextColor(t.Accent)
+			ui.Icon(c, iconDuet).FontSize(iconHero).TextColor(t.Accent)
 			ui.Text(c, T.OnboardTitle).FontSize(plat.titleSize - 3).FontWeight(plat.titleWeight)
 		})
 		ui.Text(c, T.OnboardIntro).Wrap()
 		ui.Column(c).Gap(6).Children(func() {
 			for _, line := range T.OnboardPoints {
 				ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-					ui.Icon(c, iconOK).FontSize(14).TextColor(t.Accent).MarginY(1).Shrink(0)
+					ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Accent).MarginY(1).Shrink(0)
 					ui.Text(c, line).Grow(1).Wrap()
 				})
 			}
@@ -157,7 +157,7 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 		})
 		if !s.WritesAllowed {
 			ui.Row(c).Gap(6).AlignItems(ui.Start).Children(func() {
-				ui.Icon(c, iconSecure).FontSize(13).TextColor(t.TextMuted).MarginY(1).Shrink(0)
+				ui.Icon(c, iconSecure).FontSize(iconInline).TextColor(t.TextMuted).MarginY(1).Shrink(0)
 				hintText(c, T.WritesDisabledHint).Grow(1)
 			})
 		}

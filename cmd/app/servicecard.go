@@ -110,7 +110,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			dot(c, t.TextMuted, 8)
 			ui.Text(c, name).FontWeight(600)
-			ui.Text(c, v.errs[name]).FontSize(12).TextColor(pal(t).badText).Wrap().Shrink(1)
+			ui.Text(c, v.errs[name]).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().Shrink(1)
 		})
 		return
 	}
@@ -118,7 +118,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Height(28).Children(func() { // one height with or without buttons
 		dot(c, col, 8)
 		ui.Text(c, name).FontWeight(600)
-		ui.Text(c, state).FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, state).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 		ui.Spacer(c)
 		if !st.Installed {
 			if name == "mihomo" && a.opButton(c.Key("install"), iconOK, T.ServiceInstall, false, T.ServiceInstall+" "+name).Disabled(!w).Clicked() {
@@ -191,10 +191,10 @@ func serviceOpResult(c *ui.Context, r *rpc.ServiceOpResult) {
 		}
 		ui.Text(c, head).FontWeight(600)
 		if r.DryRun {
-			ui.Text(c, T.ServiceDryRunHint).FontSize(12).TextColor(pal(t).warnText).Wrap()
+			ui.Text(c, T.ServiceDryRunHint).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Wrap()
 		}
 		for i, step := range r.Steps {
-			ui.Text(c.Key(fmt.Sprint("step", i)), step).Font("monospace").FontSize(11).TextColor(t.TextMuted).Wrap().Selectable()
+			ui.Text(c.Key(fmt.Sprint("step", i)), step).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().Selectable()
 		}
 	})
 }
@@ -268,7 +268,7 @@ func (a *app) accessoryCard(c *ui.Context, s status.Snapshot, k accessoryKind) {
 			listRow(c).Children(func() {
 				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 					ui.Switch(c.Key("force"), &v.force).Label(T.AccessoryForce)
-					ui.Text(c, T.AccessoryForce).FontSize(plat.bodySize - 1)
+					ui.Text(c, T.AccessoryForce).FontSize(plat.calloutSize)
 					ui.Spacer(c)
 					label := T.AccessoryUpdate
 					if updates == 0 && !v.force {
@@ -301,7 +301,7 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		dot(c, col, 8)
 		ui.Text(c, f.Name).FontWeight(600).SingleLine().Shrink(0)
-		ui.Text(c, state).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).SingleLine().Shrink(0)
+		ui.Text(c, state).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine().Shrink(0)
 		if f.Verifiable {
 			tag(c, T.AccessoryVerifiable)
 		} else {
@@ -345,22 +345,22 @@ func (a *app) accessoryResult(c *ui.Context, s status.Snapshot, r *rpc.Accessory
 	T := i18n.T
 	ui.Column(c).Gap(4).Children(func() {
 		if len(r.Updated) > 0 {
-			ui.Text(c, fmt.Sprintf(T.AccessoryUpdated, strings.Join(r.Updated, ", "))).FontSize(12).TextColor(pal(t).okText).Wrap()
+			ui.Text(c, fmt.Sprintf(T.AccessoryUpdated, strings.Join(r.Updated, ", "))).FontSize(plat.calloutSize).TextColor(pal(t).okText).Wrap()
 		} else if r.Error == "" {
-			ui.Text(c, T.AccessoryNothing).FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, T.AccessoryNothing).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 		}
 		if len(r.Skipped) > 0 {
-			ui.Text(c, fmt.Sprintf(T.AccessorySkipped, strings.Join(r.Skipped, ", "))).FontSize(12).TextColor(t.TextMuted).Wrap()
+			ui.Text(c, fmt.Sprintf(T.AccessorySkipped, strings.Join(r.Skipped, ", "))).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap()
 		}
 		if r.RolledBack {
-			ui.Text(c, T.AccessoryRolledBack).FontSize(12).TextColor(pal(t).warnText).Wrap()
+			ui.Text(c, T.AccessoryRolledBack).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Wrap()
 		}
 		if r.Error != "" {
-			ui.Text(c, T.ErrorPrefix+r.Error).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
+			errorNote(c, T.ErrorPrefix+r.Error)
 		}
 		if r.ReloadNeeded {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, T.AccessoryReloadNeeded).FontSize(12).TextColor(pal(t).warnText).Grow(1).Wrap()
+				ui.Text(c, T.AccessoryReloadNeeded).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Grow(1).Wrap()
 				if a.opButton(c.Key("apply"), iconRefresh, T.AccessoryApply, true, T.AccessoryApply).Disabled(!a.helperWrites(s)).Clicked() {
 					a.applyForce(T.AccessoryApplyReason, func() { r.ReloadNeeded = false })
 				}

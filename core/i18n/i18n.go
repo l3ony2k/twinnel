@@ -237,9 +237,10 @@ type Strings struct {
 
 	// Texts kept in their own files (one per area, so parallel work does
 	// not collide here). Fields are promoted: T.X reads them.
-	ControlStrings // controls.go
-	ConfigStrings  // config.go
-	WindowStrings  // window.go
+	ControlStrings  // controls.go
+	ConfigStrings   // config.go
+	WindowStrings   // window.go
+	TakeoverStrings // takeover.go
 }
 
 // zh is the Chinese text.
@@ -801,8 +802,9 @@ var zh = Strings{
 	HealthProblems:      "需要处理",
 	HealthPassed:        "其他检查",
 
-	ConfigStrings: zhConfig,
-	WindowStrings: zhWindow,
+	ConfigStrings:   zhConfig,
+	WindowStrings:   zhWindow,
+	TakeoverStrings: zhTakeover,
 }
 
 // For returns the strings of a language tag; unknown tags get Chinese.
