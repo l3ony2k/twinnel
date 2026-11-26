@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -25,12 +26,11 @@ dns:
     - '+.tailscale.io'
     - '+.ts.net'
     - '+.beta.tailscale.net'
+    - '*'
   nameserver-policy:
-    <+.ts.net>:
-      - system
-    <+.beta.tailscale.net>:
-      - system
-'+rules':
+    <+.example-tailnet.ts.net>: [100.100.100.100]
+    '*': [100.100.100.100]
+` + revPolicy("100.100.100.100") + `'+rules':
   - PROCESS-NAME,tailscaled,DIRECT
   - DOMAIN-SUFFIX,tailscale.com,DIRECT
   - DOMAIN-SUFFIX,tailscale.io,DIRECT
@@ -60,12 +60,20 @@ func TestTailscaleCoexistOptions(t *testing.T) {
 	}
 	for _, s := range []string{
 		"- 100.100.0.0/16", "- fd7a:115c:a1e0:ab12::/64",
-		"'+.corp.example.com'", "<+.corp.example.com>:\n      - 100.100.100.100",
+		"'+.corp.example.com'", "<+.corp.example.com>: [100.100.100.100]",
+		"<+.100.100.in-addr.arpa>: [100.100.100.100]",
+		"<+.2.1.b.a.0.e.1.a.c.5.1.1.a.7.d.f.ip6.arpa>: [100.100.100.100]",
 		"PROCESS-NAME,tailscaled.exe,DIRECT", "DOMAIN-SUFFIX,corp.example.com,DIRECT",
 	} {
 		if !strings.Contains(string(got), s) {
 			t.Errorf("missing %q in:\n%s", s, got)
 		}
+	}
+	if strings.Contains(string(got), "in-addr.arpa>") && strings.Count(string(got), "in-addr.arpa>") != 1 {
+		t.Errorf("want exactly one v4 reverse zone for a /16:\n%s", got)
+	}
+	if strings.Contains(string(got), "hosts") || strings.Contains(string(got), "<+.ts.net>") {
+		t.Errorf("no addresses / custom suffix, but hosts or +.ts.net policy present:\n%s", got)
 	}
 	if strings.Contains(string(got), "DOMAIN,") {
 		t.Errorf("no peers given, but DOMAIN rules present:\n%s", got)
@@ -78,6 +86,10 @@ func TestTailscaleCoexistErrors(t *testing.T) {
 		{IPv6CIDR: "nope"},
 		{PeerShortNames: []string{"bad name"}},
 		{PeerShortNames: []string{"-x"}},
+		{PeerAddrs: map[string][]string{"nas": {"not-an-ip"}}},
+		{PeerAddrs: map[string][]string{"bad name": {"100.64.0.1"}}},
+		{IPv4CIDR: "0.0.0.0/0"},
+		{IPv6CIDR: "::/0"},
 	} {
 		if _, err := TailscaleCoexist(info); err == nil {
 			t.Errorf("%+v: no error", info)
@@ -115,11 +127,79 @@ func TestTailnetInfoFromStatus(t *testing.T) {
 	want := TailnetInfo{
 		MagicDNSSuffix: "example-tailnet.ts.net",
 		PeerShortNames: []string{"laptop", "nas", "phone"},
+		PeerAddrs:      map[string][]string{"laptop": {"100.64.0.1"}},
 	}
 	if !reflect.DeepEqual(info, want) {
 		t.Errorf("got %+v, want %+v", info, want)
 	}
 	if _, err := TailnetInfoFromStatus([]byte("{")); err == nil {
 		t.Error("bad json: no error")
+	}
+}
+
+// revPolicy is the expected nameserver-policy block for the default ranges.
+func revPolicy(ns string) string {
+	var b strings.Builder
+	for i := 64; i <= 127; i++ {
+		fmt.Fprintf(&b, "    <+.%d.100.in-addr.arpa>: [%s]\n", i, ns)
+	}
+	fmt.Fprintf(&b, "    <+.0.e.1.a.c.5.1.1.a.7.d.f.ip6.arpa>: [%s]\n", ns)
+	return b.String()
+}
+
+func TestTailscaleCoexistHostsAndInterface(t *testing.T) {
+	got, err := TailscaleCoexist(TailnetInfo{
+		MagicDNSSuffix: "example-tailnet.ts.net",
+		PeerShortNames: []string{"nas"},
+		PeerAddrs: map[string][]string{
+			"NAS":    {"fd7a:115c:a1e0::1", "100.64.0.2", "100.64.0.2"},
+			"laptop": {"100.64.0.1"},
+		},
+		Interface: "utun9",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range []string{
+		"hosts:\n  laptop:\n    - 100.64.0.1\n  laptop.example-tailnet.ts.net:\n    - 100.64.0.1\n" +
+			"  nas:\n    - 100.64.0.2\n    - fd7a:115c:a1e0::1\n  nas.example-tailnet.ts.net:\n",
+		"dns:\n  use-hosts: true\n",
+		"<+.example-tailnet.ts.net>: [100.100.100.100#utun9]",
+		"'*': [100.100.100.100#utun9]",
+	} {
+		if !strings.Contains(string(got), s) {
+			t.Errorf("missing %q in:\n%s", s, got)
+		}
+	}
+	// A custom resolver is used as is.
+	got, _ = TailscaleCoexist(TailnetInfo{Resolver: "10.0.0.53", Interface: "utun9"})
+	if strings.Contains(string(got), "#utun9") || !strings.Contains(string(got), "'*': [10.0.0.53]") {
+		t.Errorf("custom resolver changed:\n%s", got)
+	}
+}
+
+func TestReverseZones(t *testing.T) {
+	for _, c := range []struct {
+		v4, v6 string
+		want   []string
+	}{
+		{"10.0.0.0/8", "fd00::/8", []string{"10.in-addr.arpa", "d.f.ip6.arpa"}},
+		{"192.168.4.0/23", "fd7a:115c:a1e0:10::/62", []string{
+			"4.168.192.in-addr.arpa", "5.168.192.in-addr.arpa",
+			"0.1.0.0.0.e.1.a.c.5.1.1.a.7.d.f.ip6.arpa", "1.1.0.0.0.e.1.a.c.5.1.1.a.7.d.f.ip6.arpa",
+			"2.1.0.0.0.e.1.a.c.5.1.1.a.7.d.f.ip6.arpa", "3.1.0.0.0.e.1.a.c.5.1.1.a.7.d.f.ip6.arpa",
+		}},
+		{"10.255.0.0/15", "fd00::/7", []string{
+			"254.10.in-addr.arpa", "255.10.in-addr.arpa", // masked to 10.254/15
+			"c.f.ip6.arpa", "d.f.ip6.arpa",
+		}},
+	} {
+		got, err := reverseZones(c.v4, c.v6)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s %s: got %v, want %v", c.v4, c.v6, got, c.want)
+		}
 	}
 }

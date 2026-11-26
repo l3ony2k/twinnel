@@ -94,10 +94,11 @@ func TestComposeDedupe(t *testing.T) {
 
 // Golden test of the whole pipeline on synthetic data.
 func TestComposeGolden(t *testing.T) {
-	ts, err := TailscaleCoexistLayer(TailnetInfo{
-		MagicDNSSuffix: "example-tailnet.ts.net",
-		PeerShortNames: []string{"laptop", "nas", "phone"},
-	})
+	info, err := TailnetInfoFromStatus(readTestdata(t, "tailscale-status.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts, err := TailscaleCoexistLayer(info)
 	if err != nil {
 		t.Fatal(err)
 	}
