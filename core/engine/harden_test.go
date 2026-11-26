@@ -50,7 +50,7 @@ func (f *launchFake) Plan(op service.Op, s service.Spec) ([]service.Step, error)
 	case service.OpInstall:
 		b, _ := f.Render(s)
 		return []service.Step{{Kind: service.StepMkdir, Path: filepath.Join(f.dir, "logs"), Mode: 0o755}, lc(true, "bootout", t),
-			{Kind: service.StepWrite, Path: f.DefinitionPath(s.Label), Mode: 0o644, Content: b}, lc(false, "bootstrap", "system", f.DefinitionPath(s.Label)), lc(false, "enable", t)}, nil
+			{Kind: service.StepWrite, Path: f.DefinitionPath(s.Label), Mode: 0o644, Content: b}, lc(false, "enable", t), lc(false, "bootstrap", "system", f.DefinitionPath(s.Label))}, nil
 	case service.OpStart:
 		return []service.Step{lc(true, "bootstrap", "system", f.DefinitionPath(s.Label)), lc(false, "kickstart", t)}, nil
 	case service.OpStop:

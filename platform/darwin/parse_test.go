@@ -331,3 +331,19 @@ func TestParseConnectionChain(t *testing.T) {
 		t.Fatal("unexpected match")
 	}
 }
+
+func TestTailscaleStatusOverride(t *testing.T) {
+	ran := false
+	e := New(Options{
+		TailscaleBin: "/nonexistent/tailscale",
+		Run: func(context.Context, string, ...string) ([]byte, error) {
+			ran = true
+			return nil, errors.New("live read")
+		},
+		TailscaleStatus: func(context.Context) ([]byte, error) { return []byte(read(t, "tailscale_status.json")), nil },
+	})
+	st, err := e.Tailscale(context.Background())
+	if err != nil || ran || st.MagicDNSSuffix != "tailnet-example.ts.net" {
+		t.Fatalf("%+v %v ran=%v", st, err, ran)
+	}
+}

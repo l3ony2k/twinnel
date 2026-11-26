@@ -59,7 +59,7 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	if !o.noHealth {
 		e.SetHealth(&health.Scheduler{
 			Runner:   &health.Runner{Registry: health.DefaultRegistry(), Timeout: 15 * time.Second},
-			NewEnv:   func() health.Env { return linux.New(healthOptions(e)) },
+			NewEnv:   func() health.Env { return linux.New(healthOptions(e, o)) },
 			Interval: o.healthInterval,
 		})
 	}
@@ -95,8 +95,8 @@ func linuxGroup(g string) string {
 
 // healthOptions points the checks at the mihomo the helper manages, read
 // fresh from settings for every run.
-func healthOptions(e *engine.Engine) linux.Options {
-	var o linux.Options
+func healthOptions(e *engine.Engine, opts *options) linux.Options {
+	o := linux.Options{TailscaleStatus: devTailnetStatus(e, opts)}
 	st, err := e.Store.Settings()
 	if err != nil {
 		return o

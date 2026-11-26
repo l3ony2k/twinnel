@@ -72,6 +72,10 @@ func TestHelperInstallElevates(t *testing.T) {
 			t.Errorf("output lacks %q:\n%s", s, out)
 		}
 	}
+	// A label disabled earlier only bootstraps after `launchctl enable`.
+	if en, bs := strings.Index(out, "enable system/"), strings.Index(out, "bootstrap system"); en < 0 || en > bs {
+		t.Errorf("enable must come before bootstrap:\n%s", out)
+	}
 }
 
 func TestHelperInstallNeedsConsent(t *testing.T) {

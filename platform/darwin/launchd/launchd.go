@@ -182,8 +182,10 @@ func (l *Launchd) Plan(op service.Op, s service.Spec) ([]service.Step, error) {
 		return append(steps,
 			run(true, "bootout", target), // replace a loaded older definition
 			service.Step{Kind: service.StepWrite, Path: path, Mode: 0o644, Content: plist},
-			run(false, "bootstrap", "system", path),
+			// enable first: launchd refuses to bootstrap a label that was
+			// disabled earlier (`launchctl disable`, e.g. by harden).
 			run(false, "enable", target),
+			run(false, "bootstrap", "system", path),
 		), nil
 	case service.OpUninstall:
 		return []service.Step{

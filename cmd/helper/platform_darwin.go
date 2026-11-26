@@ -55,7 +55,7 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	e.NetChanges = nw.C()
 	sched := &health.Scheduler{
 		Runner:   &health.Runner{Registry: health.DefaultRegistry(), Timeout: 15 * time.Second},
-		NewEnv:   func() health.Env { return darwin.New(healthOptions(e)) },
+		NewEnv:   func() health.Env { return darwin.New(healthOptions(e, o)) },
 		Interval: o.healthInterval,
 	}
 	e.SetHealth(sched)
@@ -68,10 +68,10 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 
 // healthOptions points the checks at the mihomo the helper manages, read
 // fresh from settings for every run.
-func healthOptions(e *engine.Engine) darwin.Options {
+func healthOptions(e *engine.Engine, opts *options) darwin.Options {
 	// The checks run the tailscale CLI, which Homebrew installs owned by
 	// the user: never as root.
-	o := darwin.Options{Run: takeoverprobe.SafeRunner(8 * time.Second)}
+	o := darwin.Options{Run: takeoverprobe.SafeRunner(8 * time.Second), TailscaleStatus: devTailnetStatus(e, opts)}
 	st, err := e.Store.Settings()
 	if err != nil {
 		return o

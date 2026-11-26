@@ -35,7 +35,8 @@ dist=dist
 rm -rf "$dist"
 mkdir -p "$dist"
 
-ldflags="-s -w -X github.com/l3ony2k/duet/core/engine.HelperVersion=${version}"
+# main.version is the duet CLI's version; packages without it ignore it.
+ldflags="-s -w -X github.com/l3ony2k/duet/core/engine.HelperVersion=${version} -X main.version=${version}"
 
 for t in $targets; do
 	os="${t%/*}"

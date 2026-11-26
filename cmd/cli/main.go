@@ -40,6 +40,9 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
+	if a := os.Args[1]; a == "--version" || a == "-version" || a == "-v" {
+		os.Args[1] = "version"
+	}
 	c, ok := commands[os.Args[1]]
 	if !ok {
 		usage()

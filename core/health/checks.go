@@ -595,6 +595,9 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	}
 
 	res := Result{Status: StatusOK, Summary: fmt.Sprintf(msgDNSOK, cfg.DNS.Listen)}
+	if strings.TrimSpace(cfg.DNS.Listen) == "" {
+		res.Summary = msgDNSOKNoListen
+	}
 	var bad, viaHijack []string
 	nActive := 0
 	for _, s := range svcs {
