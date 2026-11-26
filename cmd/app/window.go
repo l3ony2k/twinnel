@@ -118,6 +118,7 @@ func (a *app) pageChanged(old string) {
 		if a.hd.kern.ts == nil && a.hd.connected {
 			a.tailscaleCheck()
 		}
+		a.loadServices()
 	}
 	a.syncHealthVisible()
 }

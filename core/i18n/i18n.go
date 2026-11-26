@@ -161,6 +161,26 @@ type Strings struct {
 	TSVersionHint, TSNotInstalled, UpdateAvailable                                              string
 	TSInstallKinds, TSUpdateHints                                                               map[string]string
 
+	// Services card (kernel page).
+	Services, ServicesHint, Refresh, ServiceRunning, ServiceStopped, ServiceLoaded string
+	ServiceNotInstalled, ServiceStart, ServiceStop, ServiceRestart                 string
+	ServiceInstall, ServiceUninstall, ServiceLabel, ServiceExit, ServiceProgram    string
+	ServiceDefinition, ServiceDryRun, ServiceDryRunHint                            string
+	ServiceStopTitle, ServiceRestartTitle, ServiceInstallTitle                     string // %s: service
+	ServiceUninstallTitle                                                          string // %s: service
+	ServiceStopBody, ServiceRestartBody, ServiceInstallBody                        string
+	ServiceUninstallBody                                                           string // %s: label, %s: plist
+	ServiceOpHead                                                                  string // %s: op, %s: service
+
+	// Geo databases and external UI cards.
+	GeoTitle, GeoHint, UITitle, UIHint, AccessoryDir, AccessoryForce             string
+	AccessoryUpdate, AccessoryUpToDate, AccessoryCurrent, AccessoryError         string
+	AccessoryMissing, AccessoryVerifiable, AccessoryUnverifiable, AccessoryLocal string
+	AccessoryRemote, AccessoryNothing, AccessoryRolledBack                       string
+	AccessoryUpdated, AccessorySkipped                                           string // %s: names
+	AccessoryReloadNeeded, AccessoryApply, AccessoryApplyReason                  string
+	HelperTooOld                                                                 string
+
 	// First run (helper not installed).
 	OnboardTitle, OnboardIntro, OnboardReadOnly, OnboardPlan, OnboardPlanHint string
 	OnboardInstall, OnboardInstalling, OnboardOpen, CLINotFound               string
@@ -519,6 +539,58 @@ var zh = Strings{
 		"appstore":   "在 App Store 里更新。",
 		"static":     "从 pkgs.tailscale.com 下载新版替换。",
 	},
+
+	Services:              "服务",
+	ServicesHint:          "由 launchd 管理的服务。停止或重启 mihomo 会让网络短暂中断。",
+	Refresh:               "刷新",
+	ServiceRunning:        "运行中",
+	ServiceStopped:        "已停止",
+	ServiceLoaded:         "已加载，未运行",
+	ServiceNotInstalled:   "未安装",
+	ServiceStart:          "启动",
+	ServiceStop:           "停止",
+	ServiceRestart:        "重启",
+	ServiceInstall:        "安装服务",
+	ServiceUninstall:      "卸载服务",
+	ServiceLabel:          "标签",
+	ServiceExit:           "上次退出码",
+	ServiceProgram:        "程序",
+	ServiceDefinition:     "定义文件",
+	ServiceDryRun:         "仅预演",
+	ServiceDryRunHint:     "后台助手没有以 root 运行（开发模式），下面的步骤没有执行。",
+	ServiceStopTitle:      "停止 %s？",
+	ServiceRestartTitle:   "重启 %s？",
+	ServiceInstallTitle:   "为 %s 安装 LaunchDaemon？",
+	ServiceUninstallTitle: "卸载 %s 服务？",
+	ServiceStopBody:       "停止后，依赖它的网络会中断，直到再次启动。",
+	ServiceRestartBody:    "重启时网络会短暂中断。",
+	ServiceInstallBody:    "后台助手按当前设置生成 plist（内核、配置目录、日志目录）并加载。",
+	ServiceUninstallBody:  "会停止服务（%s）并删除定义文件 %s，网络会中断。内核和配置文件保留。",
+	ServiceOpHead:         "%s %s",
+
+	GeoTitle:              "GEO 数据库",
+	GeoHint:               "mihomo 的 GeoIP / GeoSite / ASN 数据。有校验值的文件会按 GitHub 发布的 SHA-256 校验，替换后用 mihomo -t 检查，失败自动恢复。",
+	UITitle:               "控制面板（external UI）",
+	UIHint:                "mihomo 自带网页面板的文件，更新后立即生效。",
+	AccessoryDir:          "目录",
+	AccessoryForce:        "强制重新下载",
+	AccessoryUpdate:       "更新",
+	AccessoryUpToDate:     "已是最新",
+	AccessoryCurrent:      "最新",
+	AccessoryError:        "出错",
+	AccessoryMissing:      "未安装",
+	AccessoryVerifiable:   "可校验",
+	AccessoryUnverifiable: "无校验值",
+	AccessoryLocal:        "本地",
+	AccessoryRemote:       "远端",
+	AccessoryNothing:      "没有需要更新的文件",
+	AccessoryRolledBack:   "有文件失败，本次替换的文件都已恢复",
+	AccessoryUpdated:      "已更新：%s",
+	AccessorySkipped:      "跳过：%s",
+	AccessoryReloadNeeded: "mihomo 重新加载配置后才会使用新数据。",
+	AccessoryApply:        "应用以生效",
+	AccessoryApplyReason:  "geo update",
+	HelperTooOld:          "后台助手版本较旧，不支持这个操作，请更新后台助手",
 
 	OnboardTitle: "安装后台助手",
 	OnboardIntro: "改网络配置需要管理员权限。duet 把这些操作交给一个常驻的后台助手（root 运行的 LaunchDaemon），app 本身不需要权限：",

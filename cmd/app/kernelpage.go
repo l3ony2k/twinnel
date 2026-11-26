@@ -25,6 +25,9 @@ type kernelView struct {
 	release   *rpc.KernelRelease
 	ts        *rpc.TailscaleInfo
 	tsLoading bool
+
+	svc     serviceView
+	geo, ui accessoryView
 }
 
 func (a *app) kernelPage(c *ui.Context, s status.Snapshot) {
@@ -43,6 +46,10 @@ func (a *app) kernelPage(c *ui.Context, s status.Snapshot) {
 	}
 	a.opNotes(c, s)
 	a.kernelCard(c, s)
+	a.servicesCard(c, s)
+	for _, k := range []accessoryKind{geoKind(), uiKind()} {
+		ui.Column(c.Key(k.check)).Children(func() { a.accessoryCard(c, s, k) })
+	}
 	a.tailscaleVersionCard(c, s)
 }
 

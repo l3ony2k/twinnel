@@ -43,6 +43,9 @@ func (a *app) startHelper() {
 			}
 			if h.Connected() && !wasUp {
 				a.loadHelperData()
+				if a.page == pageKernel {
+					a.loadServices()
+				}
 			}
 			if h.State == status.HelperNotInstalled && !a.hd.onb.loaded {
 				a.loadInstallPlan() // for the first-run view
@@ -53,6 +56,9 @@ func (a *app) startHelper() {
 	hc.OnEvents = func(evs []rpc.Event) {
 		mygo.RunOnMain(func() {
 			a.hd.lastEvent = evs[len(evs)-1]
+			if serviceEvent(evs) && a.page == pageKernel {
+				a.loadServices()
+			}
 			if healthEvent(evs) && a.mon != nil {
 				a.runHealth() // reads health.last; nothing runs locally
 			}
@@ -162,6 +168,9 @@ func (a *app) helperOp(label string, timeout time.Duration, fn func(ctx context.
 func helperError(err error) string {
 	var re *rpc.Error
 	if errors.As(err, &re) {
+		if re.Code == rpc.CodeMethodNotFound || re.Code == rpc.CodeNotImplemented {
+			return i18n.T.HelperTooOld
+		}
 		return re.Message
 	}
 	return status.ShortError(err)
