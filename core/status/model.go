@@ -223,3 +223,19 @@ func Evaluate(s *Snapshot) {
 		}
 	}
 }
+
+// String returns the level's machine name: ok, warn, error, unknown.
+func (l Level) String() string {
+	switch l {
+	case LevelOK:
+		return "ok"
+	case LevelWarn:
+		return "warn"
+	case LevelError:
+		return "error"
+	}
+	return "unknown"
+}
+
+// MarshalText encodes the level by its machine name (JSON output).
+func (l Level) MarshalText() ([]byte, error) { return []byte(l.String()), nil }
