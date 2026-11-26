@@ -18,8 +18,9 @@ import (
 type ValidateOption func(*validateOpts)
 
 type validateOpts struct {
-	geoDir  string
-	timeout time.Duration
+	geoDir    string
+	safePaths []string
+	timeout   time.Duration
 }
 
 // WithGeoDir copies the geo databases (*.mmdb, *.metadb, *.dat) found in dir
@@ -27,6 +28,14 @@ type validateOpts struct {
 // They are copied, not symlinked, so nothing mihomo does can write back into
 // dir.
 func WithGeoDir(dir string) ValidateOption { return func(o *validateOpts) { o.geoDir = dir } }
+
+// WithSafePaths adds directories to mihomo's SAFE_PATHS. mihomo only accepts
+// file paths in the config (external-ui, providers' path, ...) under its -d
+// dir or SAFE_PATHS; the test runs with -d set to a temp dir, so absolute
+// paths that are fine for the real service must be allowed here.
+func WithSafePaths(dirs ...string) ValidateOption {
+	return func(o *validateOpts) { o.safePaths = append(o.safePaths, dirs...) }
+}
 
 // WithTimeout bounds the mihomo run (default 60s).
 func WithTimeout(d time.Duration) ValidateOption { return func(o *validateOpts) { o.timeout = d } }
@@ -68,6 +77,13 @@ func Validate(ctx context.Context, mihomoBin string, config []byte, opts ...Vali
 	cmd := exec.CommandContext(ctx, mihomoBin, "-t", "-d", dir, "-f", cfg)
 	cmd.Dir = dir
 	cmd.WaitDelay = 2 * time.Second
+	if len(o.safePaths) > 0 {
+		paths := o.safePaths
+		if cur := os.Getenv("SAFE_PATHS"); cur != "" {
+			paths = append([]string{cur}, paths...)
+		}
+		cmd.Env = append(os.Environ(), "SAFE_PATHS="+strings.Join(paths, string(os.PathListSeparator)))
+	}
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	runErr := cmd.Run()

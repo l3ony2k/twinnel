@@ -39,6 +39,7 @@ func runCompose(args []string) error {
 		leakGuard                        string
 		fromStatus, force                bool
 		userLayers                       []userLayer
+		safePaths                        []string
 	)
 	fs.StringVar(&sub, "sub", "", "subscription `FILE` (required)")
 	fs.StringVar(&base, "base", "", "base settings layer `FILE` (ports, DNS, TUN, controller, UI)")
@@ -56,6 +57,10 @@ func runCompose(args []string) error {
 	fs.StringVar(&leakGuard, "leak-guard", "", "comma-separated proxy `GROUPS` that must never use DIRECT")
 	fs.StringVar(&validate, "validate", "", "check the result with this mihomo `BIN` (mihomo -t in a temp dir)")
 	fs.StringVar(&geoDir, "geo-dir", "", "`DIR` with geo databases to copy into the validation dir")
+	fs.Func("safe-path", "`DIR` mihomo may reference during --validate, e.g. the external-ui dir (repeatable)", func(s string) error {
+		safePaths = append(safePaths, s)
+		return nil
+	})
 	fs.StringVar(&out, "o", "", "output `FILE` (default stdout)")
 	fs.BoolVar(&force, "force", false, "overwrite an existing -o file")
 	if err := fs.Parse(args); err != nil {
@@ -149,6 +154,9 @@ func runCompose(args []string) error {
 		var opts []config.ValidateOption
 		if geoDir != "" {
 			opts = append(opts, config.WithGeoDir(geoDir))
+		}
+		if len(safePaths) > 0 {
+			opts = append(opts, config.WithSafePaths(safePaths...))
 		}
 		v, err := config.Validate(context.Background(), validate, res.Config, opts...)
 		if err != nil {

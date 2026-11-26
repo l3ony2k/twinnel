@@ -1,0 +1,70 @@
+# Base settings: local ports, controller, DNS (fake-ip) and TUN.
+# Generic template; edit ports and upstream DNS to taste. Tailscale-specific
+# entries are not here: the managed "tailscale-coexist" layer adds them.
+port: 7890
+socks-port: 7891
+mixed-port: 7899
+allow-lan: false
+bind-address: 127.0.0.1
+mode: rule
+log-level: info
+ipv6: false
+external-controller: 127.0.0.1:9090
+# secret: set by duet, never stored in this file
+
+profile:
+  store-selected: true
+
+find-process-mode: always
+unified-delay: true
+tcp-concurrent: true
+
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  listen: 127.0.0.1:53
+  ipv6: false
+  use-hosts: true
+  use-system-hosts: true
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+  fake-ip-filter:
+    - '+.lan'
+    - '+.local'
+    - '+.home.arpa'
+    - '+.localhost'
+    - '+.ntp.org'
+    - 'time.*.com'
+    - '+.stun.*.*'
+    - '+.msftconnecttest.com'
+    - '+.msftncsi.com'
+  # Keys that start with "+" must be wrapped in <...>, otherwise the merge
+  # reads "+.lan" as "prepend to .lan".
+  nameserver-policy:
+    '<+.lan>': [system]
+    '<+.local>': [system]
+
+tun:
+  enable: true
+  stack: mixed
+  auto-route: true
+  auto-detect-interface: true
+  strict-route: false
+  mtu: 1500
+  dns-hijack:
+    - any:53
+    - tcp://any:53
+  route-exclude-address:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - 169.254.0.0/16
+    - 224.0.0.0/4
+    - fc00::/7
+    - fe80::/10
+    - ff00::/8

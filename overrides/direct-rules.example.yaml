@@ -1,0 +1,5 @@
+# Example user layer: send a few domains DIRECT, ahead of the subscription's
+# rules. "+rules" prepends; "rules+" would append (after MATCH: useless).
++rules:
+  - DOMAIN-SUFFIX,example.com,DIRECT
+  - DOMAIN,download.example.org,DIRECT

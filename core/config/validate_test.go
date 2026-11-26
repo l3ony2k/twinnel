@@ -24,6 +24,7 @@ func fakeMihomo(t *testing.T, output string, exit int) (bin, seen string) {
 	script := `#!/bin/sh
 [ "$1" = "-t" ] && [ "$2" = "-d" ] && [ "$4" = "-f" ] && [ "$5" = "$3/config.yaml" ] || { echo "bad args: $*"; exit 9; }
 ls "$3" > ` + seen + `
+echo "SAFE_PATHS=$SAFE_PATHS"
 cat <<'OUT'
 ` + output + `
 OUT
@@ -42,12 +43,16 @@ configuration file /tmp/x/config.yaml test is successful`, 0)
 	for _, f := range []string{"geoip.metadb", "ASN.mmdb", "GeoSite.dat", "cache.db", "config.yaml"} {
 		os.WriteFile(filepath.Join(geo, f), []byte("x"), 0o644)
 	}
-	v, err := Validate(context.Background(), bin, []byte("mode: rule\n"), WithGeoDir(geo))
+	t.Setenv("SAFE_PATHS", "/x")
+	v, err := Validate(context.Background(), bin, []byte("mode: rule\n"), WithGeoDir(geo), WithSafePaths("/a", "/b"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !v.OK || len(v.Errors) != 0 {
 		t.Errorf("v = %+v", v)
+	}
+	if want := "SAFE_PATHS=/x" + string(os.PathListSeparator) + "/a" + string(os.PathListSeparator) + "/b"; !strings.Contains(v.Output, want) {
+		t.Errorf("output %q lacks %q", v.Output, want)
 	}
 	b, _ := os.ReadFile(seen)
 	got := strings.Fields(string(b))
