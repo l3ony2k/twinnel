@@ -120,14 +120,14 @@ type ComposeResult struct {
 
 type ApplyResult struct {
 	ComposeResult
-	Reason    string    `json:"reason,omitempty"`
-	Written   bool      `json:"written"`
-	Reloaded  bool      `json:"reloaded"`
-	RolledBack bool     `json:"rolled_back,omitempty"` // the new config failed after writing and the old one was restored
-	HistoryID string    `json:"history_id,omitempty"`
-	Error     string    `json:"error,omitempty"`
-	Time      time.Time `json:"time"`
-	Duration  string    `json:"duration"`
+	Reason     string    `json:"reason,omitempty"`
+	Written    bool      `json:"written"`
+	Reloaded   bool      `json:"reloaded"`
+	RolledBack bool      `json:"rolled_back,omitempty"` // the new config failed after writing and the old one was restored
+	HistoryID  string    `json:"history_id,omitempty"`
+	Error      string    `json:"error,omitempty"`
+	Time       time.Time `json:"time"`
+	Duration   string    `json:"duration"`
 }
 
 // ---- history ----
@@ -165,8 +165,8 @@ type LayerContent struct {
 type LayerPutParams struct {
 	ID      string `json:"id"`
 	Name    string `json:"name,omitempty"`
-	Stage   string `json:"stage,omitempty"`  // default "user"
-	Format  string `json:"format,omitempty"` // default "merge"
+	Stage   string `json:"stage,omitempty"`   // default "user"
+	Format  string `json:"format,omitempty"`  // default "merge"
 	Enabled *bool  `json:"enabled,omitempty"` // default true for new layers, unchanged otherwise
 	Content string `json:"content"`
 }
