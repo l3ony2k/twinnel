@@ -1,0 +1,9 @@
+LoadState=loaded
+ActiveState=failed
+SubState=failed
+MainPID=0
+ExecMainStatus=1
+NRestarts=5
+FragmentPath=/etc/systemd/system/duet-mihomo.service
+ExecStart={ path=/opt/duet/kernels/mihomo/current/mihomo ; argv[]=/opt/duet/kernels/mihomo/current/mihomo ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=exited ; status=1 }
+UnitFileState=enabled

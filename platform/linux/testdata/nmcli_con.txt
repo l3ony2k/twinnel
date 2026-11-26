@@ -1,0 +1,5 @@
+Home\: 5 GHz:7d4c1b8e-0000-4000-8000-000000000001:802-11-wireless:wlan0:activated
+Wired connection 1:7d4c1b8e-0000-4000-8000-000000000002:802-3-ethernet::
+Office VPN:7d4c1b8e-0000-4000-8000-000000000003:vpn::
+wg-lab:7d4c1b8e-0000-4000-8000-000000000004:wireguard:wg-lab:activated
+lo:7d4c1b8e-0000-4000-8000-000000000005:loopback:lo:activated

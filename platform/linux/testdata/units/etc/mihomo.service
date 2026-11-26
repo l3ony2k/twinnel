@@ -1,0 +1,10 @@
+[Unit]
+Description=mihomo
+After=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/mihomo -d /etc/mihomo -f /etc/mihomo/live.yaml
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

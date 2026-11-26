@@ -1,0 +1,9 @@
+[Unit]
+Description=Tailscale node agent
+
+[Service]
+ExecStart=/usr/sbin/tailscaled --state=/var/lib/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=${PORT} $FLAGS
+Type=notify
+
+[Install]
+WantedBy=multi-user.target
