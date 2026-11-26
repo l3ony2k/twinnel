@@ -3,7 +3,9 @@
 // and wires; the logic lives in core/....
 //
 // Environment: DUET_CONTROLLER (default 127.0.0.1:9090), DUET_MIHOMO_SECRET,
-// DUET_ALLOW_WRITES=1 to enable the controls that change things.
+// DUET_ALLOW_WRITES=1 to enable the controls that change things,
+// DUET_SOCKET (the helper's socket, default /var/run/duet/helper.sock),
+// DUET_CLI (the duet command line tool, for the helper install plan).
 package main
 
 import (
@@ -42,6 +44,8 @@ type app struct {
 	healthVisible atomic.Bool
 	notes         *notifier
 
+	hc *status.HelperConn // the root helper (lives across monitor restarts)
+
 	stop  context.CancelFunc
 	unsub func()
 
@@ -61,6 +65,7 @@ type app struct {
 	groupsOpen map[string]bool
 	healthOpen map[string]bool // check ID → expanded, once the user toggled it
 	exitPick   string          // exit node select value (peer name or ExitNodeNone)
+	hd         helperData      // what the helper pages show
 }
 
 func main() {
@@ -129,6 +134,7 @@ func (a *app) ready() {
 		}
 		a.tray.Destroy()
 	})
+	a.startHelper()
 	a.start()
 	if dir := os.Getenv("DUET_SHOTS"); dir != "" {
 		a.shotMode = true
@@ -166,6 +172,9 @@ func (a *app) start() {
 		TestURL:       a.cfg.TestURL,
 		WritesAllowed: a.cfg.AllowWrites,
 	})
+	if a.hc != nil {
+		a.mon.SetHelper(a.hc.State())
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	a.stop = cancel
 	mon := a.mon

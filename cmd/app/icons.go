@@ -39,6 +39,10 @@ var (
 	iconCollapsed = svgIcon("chevron-right")
 	iconExpanded  = svgIcon("chevron-down")
 	iconDuet      = svgIcon("duet")
+	// Placeholders until the design pass draws their own icons.
+	iconConfig  = svgIcon("list")
+	iconHistory = svgIcon("rotate-cw")
+	iconKernel  = svgIcon("gauge")
 )
 
 // trayIcon returns the menu bar template icon for a level (32×32 PNG, black

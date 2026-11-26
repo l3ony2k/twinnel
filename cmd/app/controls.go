@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/status"
 	"github.com/l3ony2k/duet/core/tailscale"
 )
@@ -29,7 +30,16 @@ func (a *app) mihomoActions(c *ui.Context, s status.Snapshot) {
 	off := !s.WritesAllowed || !s.Mihomo.Reachable
 	ui.Row(c).Gap(8).Wrap().Children(func() {
 		if iconButton(c.Key("reload"), iconRefresh, T.ReloadConfig, false).Disabled(off).Clicked() {
-			a.do(func(ctx context.Context) error { return a.mh.Reload(ctx, "") })
+			if s.Helper.Connected() {
+				// The helper owns the config: re-apply it (validate, write,
+				// reload, verify, roll back on failure).
+				hc := a.hc
+				a.do(func(ctx context.Context) error {
+					return hc.Call(ctx, rpc.MethodComposeApply, rpc.ApplyParams{Reason: T.ReloadReason, Force: true}, nil)
+				})
+			} else {
+				a.do(func(ctx context.Context) error { return a.mh.Reload(ctx, "") })
+			}
 		}
 		if iconButton(c.Key("flush-fakeip"), iconFlush, T.FlushFakeIP, false).Disabled(off).Clicked() {
 			a.do(a.mh.FlushFakeIP)

@@ -98,6 +98,73 @@ type Strings struct {
 	SettingsRestartHint                                                 string
 	Notifications, NotificationsHint, NotificationsUnsupported          string
 
+	// Helper connection.
+	Helper, HelperChecking, HelperConnected, HelperNotInstalled string
+	HelperNotRunning, HelperDenied, HelperNotConnectedErr       string
+	HelperNotRunningHint, HelperDeniedHint                      string
+	HelperRetry, HelperSocket, Subscription, LastApply          string
+	OpDone                                                      string // %s: operation
+	Loading, Close, Remove, Or, Unsaved, Checking, BinaryPath   string
+	ReloadReason                                                string
+
+	// Pages backed by the helper.
+	PageConfig, PageHistory, PageKernel string
+
+	// Subscriptions.
+	Subscriptions, SubAdd, SubNone, SubActive, SubRefresh, SubActivate string
+	SubRemoveTitle                                                     string // %s: name
+	SubRemoveBody, SubFromURL, SubFromFile, SubManual                  string
+	SubEvery                                                           string // %d: minutes
+	SubNeverFetched, SubFetched, SubChanged                            string // %s: ago
+	SubID, SubName, SubNamePlaceholder, SubInterval, SubURL            string
+	SubImportFile, SubURLHint, SubSave                                 string
+	SubFileChosen                                                      string // %s: file, %s: size
+
+	// Layers and the layer editor.
+	Layers, LayersHint, LayerNew, LayerEdit, LayerGenerated, LayerEnabled string
+	LayerManaged, LayerManagedHint, LayerID, LayerName, LayerStage        string
+	LayerFormat, FormatMerge, FormatVerge, MoveUp, MoveDown, LayerReorder string
+	LayerToggle                                                           string // %s: layer
+	LayerRemoveTitle                                                      string // %s: layer
+	LayerRemoveBody, LayerTemplate                                        string
+	Stages                                                                map[string]string
+
+	// Override lint (status.LintOverride).
+	LintYAMLError                        string // %s
+	LintPrepend, LintAppend, LintReplace string // %s key, %s target
+	LintNeedsList, LintLooksLiteral      string // %s key, %s key
+	LintLine                             string // %d
+
+	// Preview and apply.
+	PreviewApply, Preview, PreviewHint, DiffStats, DiffUnavailable  string
+	ConfigTextUnsupported, ComposeLayers, ComposeHash, ComposeValid string
+	ComposeChanged, ValidOK, ValidFail, ApplyReason, Apply          string
+	ApplyReasonPlaceholder, ApplyReasonDefault                      string
+	ApplyDone, ApplyFailed, ApplyUnchanged, ApplyWritten            string
+	ApplyReloaded, ApplyRolledBack                                  string
+
+	// History page.
+	HistoryEmpty, HistoryTime, HistoryKind, HistorySize, HistoryHash string
+	HistoryReason, HistoryPick, HistoryEntry, HistoryDiff            string
+	HistoryDiffHint, HistoryRollback, HistoryRollbackBody            string
+	HistoryRollbackTitle                                             string // %s: time
+	HistoryKinds                                                     map[string]string
+
+	// Kernel page.
+	KernelMihomo, KernelActive, KernelExternal, KernelRunning, KernelCurrent string
+	KernelPrevious, KernelInstalled, KernelChannel, ChannelStable            string
+	ChannelAlpha, KernelCheck, KernelRollback, KernelRollbackBody            string
+	KernelRollbackTitle, KernelUpdate, KernelInstall, KernelInstallTitle     string // %s: version
+	KernelUpToDate, KernelLatest, KernelAsset, KernelDigest, KernelNoDigest  string
+	KernelInstallBody, KernelInstallOK                                       string
+	TSVersionHint, TSNotInstalled, UpdateAvailable                           string
+	TSInstallKinds, TSUpdateHints                                            map[string]string
+
+	// First run (helper not installed).
+	OnboardTitle, OnboardIntro, OnboardReadOnly, OnboardPlan, OnboardPlanHint string
+	OnboardInstall, OnboardInstalling, OnboardOpen, CLINotFound               string
+	OnboardPoints                                                             []string
+
 	// Units and time.
 	JustNow, SecondsAgo, MinutesAgo, HoursAgo, DaysAgo string // %d
 	InDays, InHours                                    string // %d
@@ -279,6 +346,193 @@ var zh = Strings{
 	NotificationsHint:        "mihomo 断开、健康检查新出现失败、Tailscale 需要登录或密钥 3 天内过期时提醒；同一件事 30 分钟内只提醒一次",
 	NotificationsUnsupported: "当前以开发方式运行，macOS 只给打包后的 app（mygo build）显示通知",
 
+	Helper:                "后台助手",
+	HelperChecking:        "正在连接",
+	HelperConnected:       "已连接",
+	HelperNotInstalled:    "未安装",
+	HelperNotRunning:      "未运行",
+	HelperDenied:          "无权限",
+	HelperNotConnectedErr: "后台助手未连接",
+	HelperNotRunningHint:  "后台助手已安装，但现在连不上。它由 launchd 守护，通常几秒后会自动恢复；一直这样请看日志 /Library/Application Support/duet/logs/helper.log。",
+	HelperDeniedHint:      "后台助手拒绝了当前用户：只有管理员组（admin）的用户可以管理网络配置。",
+	HelperRetry:           "重新连接",
+	HelperSocket:          "Socket",
+	Subscription:          "订阅",
+	LastApply:             "上次应用",
+	OpDone:                "%s：完成",
+	Loading:               "正在加载…",
+	Close:                 "关闭",
+	Remove:                "删除",
+	Or:                    "或",
+	Unsaved:               "有未保存的修改",
+	Checking:              "正在检查…",
+	BinaryPath:            "路径",
+	ReloadReason:          "从 app 重载配置",
+
+	PageConfig:  "订阅与覆写",
+	PageHistory: "历史",
+	PageKernel:  "内核",
+
+	Subscriptions:      "订阅",
+	SubAdd:             "添加订阅",
+	SubNone:            "还没有订阅",
+	SubActive:          "使用中",
+	SubRefresh:         "更新",
+	SubActivate:        "设为使用中",
+	SubRemoveTitle:     "删除订阅 %s？",
+	SubRemoveBody:      "订阅地址和已下载的内容都会从后台助手删除，已应用的配置不受影响。",
+	SubFromURL:         "订阅地址已保存",
+	SubFromFile:        "本地文件",
+	SubManual:          "手动更新",
+	SubEvery:           "每 %d 分钟更新",
+	SubNeverFetched:    "还没有下载过",
+	SubFetched:         "%s下载",
+	SubChanged:         "%s有变化",
+	SubID:              "ID",
+	SubName:            "名称",
+	SubNamePlaceholder: "机场名称",
+	SubInterval:        "更新间隔（分钟，0 = 手动）",
+	SubURL:             "订阅地址",
+	SubImportFile:      "从文件导入…",
+	SubURLHint:         "订阅地址只交给后台助手保存，保存后不会再显示。保存后会立即下载一次。",
+	SubSave:            "保存订阅",
+	SubFileChosen:      "已选择 %s（%s）",
+
+	Layers:           "覆写",
+	LayersHint:       "按顺序叠加在订阅之上；托管层由 duet 生成",
+	LayerNew:         "新建覆写",
+	LayerEdit:        "编辑覆写",
+	LayerGenerated:   "生成的内容",
+	LayerEnabled:     "启用",
+	LayerManaged:     "托管",
+	LayerManagedHint: "托管层由 duet 根据 Tailscale 状态和设置生成，只读。Tailscale 共存可以用左侧开关关闭。",
+	LayerID:          "ID",
+	LayerName:        "名称",
+	LayerStage:       "阶段",
+	LayerFormat:      "格式",
+	FormatMerge:      "Clash Party",
+	FormatVerge:      "Verge Merge",
+	MoveUp:           "上移",
+	MoveDown:         "下移",
+	LayerReorder:     "调整顺序",
+	LayerToggle:      "切换 %s",
+	LayerRemoveTitle: "删除覆写 %s？",
+	LayerRemoveBody:  "删除后需要重新应用才会从当前配置里去掉。",
+	LayerTemplate:    "# 覆写（Clash Party 语法）\n# +rules 前置，rules+ 追加，key! 整体替换；字面量键写成 '<+.lan>'\n+rules:\n  - DOMAIN-SUFFIX,example.com,DIRECT\n",
+	Stages: map[string]string{
+		"base":    "基础",
+		"user":    "用户",
+		"coexist": "Tailscale 共存",
+		"guard":   "防泄漏",
+	},
+
+	LintYAMLError:    "YAML 错误：%s",
+	LintPrepend:      "%s：前置到 %s 列表",
+	LintAppend:       "%s：追加到 %s 列表",
+	LintReplace:      "%s：整体替换 %s",
+	LintNeedsList:    "%s 会被当作合并指令，但值不是列表，应用时会失败；如果是字面量键，请写成 '<%s>'",
+	LintLooksLiteral: "%s 像是域名或地址，却会被当作合并指令；如果是字面量键，请写成 '<%s>'",
+	LintLine:         "第 %d 行：",
+
+	PreviewApply:           "预览与应用",
+	Preview:                "预览",
+	PreviewHint:            "预览会合成订阅和覆写，用 mihomo -t 校验，并和当前生效的配置对比；不会写入任何文件。",
+	DiffStats:              "新增 %d 行 · 删除 %d 行",
+	DiffUnavailable:        "无法显示差异：%s",
+	ConfigTextUnsupported:  "后台助手版本较旧，还不能读取配置全文（config.get）",
+	ComposeLayers:          "合成顺序",
+	ComposeHash:            "哈希",
+	ComposeValid:           "mihomo -t",
+	ComposeChanged:         "有变化",
+	ValidOK:                "通过",
+	ValidFail:              "未通过",
+	ApplyReason:            "说明（写入历史）",
+	Apply:                  "应用",
+	ApplyReasonPlaceholder: "例如：加了公司内网规则",
+	ApplyReasonDefault:     "从 app 应用",
+	ApplyDone:              "已应用",
+	ApplyFailed:            "应用失败",
+	ApplyUnchanged:         "没有变化，未写入",
+	ApplyWritten:           "写入",
+	ApplyReloaded:          "重载",
+	ApplyRolledBack:        "新配置出错，已恢复旧配置",
+
+	HistoryEmpty:         "还没有历史记录",
+	HistoryTime:          "时间",
+	HistoryKind:          "类型",
+	HistorySize:          "大小",
+	HistoryHash:          "哈希",
+	HistoryReason:        "说明",
+	HistoryPick:          "点一行查看、对比或回滚",
+	HistoryEntry:         "历史",
+	HistoryDiff:          "与当前对比",
+	HistoryDiffHint:      "旧：这条记录 · 新：当前生效的配置",
+	HistoryRollback:      "回滚到这里",
+	HistoryRollbackTitle: "回滚到 %s 的配置？",
+	HistoryRollbackBody:  "后台助手会校验并写入这份配置、重载 mihomo；失败时自动恢复。当前配置会留在历史里。",
+	HistoryKinds: map[string]string{
+		"applied":  "应用",
+		"backup":   "备份",
+		"rollback": "回滚",
+	},
+
+	KernelMihomo:        "mihomo 内核",
+	KernelActive:        "使用中",
+	KernelExternal:      "外部程序",
+	KernelRunning:       "运行版本",
+	KernelCurrent:       "当前",
+	KernelPrevious:      "上一个",
+	KernelInstalled:     "已安装",
+	KernelChannel:       "通道",
+	ChannelStable:       "稳定版",
+	ChannelAlpha:        "Alpha",
+	KernelCheck:         "检查更新",
+	KernelRollback:      "回滚内核",
+	KernelRollbackTitle: "回滚到内核 %s？",
+	KernelRollbackBody:  "切换内核不会重启 mihomo 服务，下次启动时生效。",
+	KernelUpdate:        "有新版本 %s",
+	KernelUpToDate:      "已是最新",
+	KernelLatest:        "最新版本",
+	KernelAsset:         "文件",
+	KernelDigest:        "SHA-256",
+	KernelNoDigest:      "（GitHub 没有提供校验值，不会安装）",
+	KernelInstall:       "安装 %s",
+	KernelInstallTitle:  "安装 mihomo %s？",
+	KernelInstallBody:   "后台助手从 GitHub 下载、校验 SHA-256 并检查版本后切换；旧版本保留，可以回滚。不会重启正在运行的 mihomo。",
+	KernelInstallOK:     "安装",
+	TSVersionHint:       "Tailscale 由它自己的方式更新（Homebrew、App Store 或官方安装包），这里只显示版本。",
+	TSNotInstalled:      "未安装",
+	UpdateAvailable:     "可更新",
+	TSInstallKinds: map[string]string{
+		"brew":       "Homebrew",
+		"standalone": "官方 App（Standalone）",
+		"appstore":   "App Store",
+		"static":     "静态二进制",
+		"unknown":    "未知",
+	},
+	TSUpdateHints: map[string]string{
+		"brew":       "用 brew upgrade tailscale 更新，然后重启 tailscaled。",
+		"standalone": "在 Tailscale App 的菜单里检查更新。",
+		"appstore":   "在 App Store 里更新。",
+		"static":     "从 pkgs.tailscale.com 下载新版替换。",
+	},
+
+	OnboardTitle: "安装后台助手",
+	OnboardIntro: "改网络配置需要管理员权限。duet 把这些操作交给一个常驻的后台助手（root 运行的 LaunchDaemon），app 本身不需要权限：",
+	OnboardPoints: []string{
+		"合成订阅和覆写、用 mihomo -t 校验后写入配置并重载，失败自动恢复",
+		"定时更新订阅、跟随 Tailscale 状态生成共存规则",
+		"保存每次应用的历史，可以对比和回滚",
+		"下载、校验和切换 mihomo 内核",
+	},
+	OnboardReadOnly:   "不安装也可以用：总览、策略组、Tailscale、健康检查和日志都只读取状态。",
+	OnboardPlan:       "安装时会做什么",
+	OnboardPlanHint:   "下面是 duet helper install --dry-run 的输出，什么都没有执行。点击安装后会弹出一次管理员密码框。",
+	OnboardInstall:    "安装后台助手",
+	OnboardInstalling: "正在安装…",
+	OnboardOpen:       "了解并安装",
+	CLINotFound:       "找不到 duet 命令行工具（可用 DUET_CLI 指定）",
+
 	JustNow:    "刚刚",
 	SecondsAgo: "%d 秒前",
 	MinutesAgo: "%d 分钟前",
@@ -338,3 +592,30 @@ func (s *Strings) Path(p string) string {
 	}
 	return s.PathIdle
 }
+
+// StageName returns the label of a layer stage.
+func (s *Strings) StageName(st string) string {
+	if v, ok := s.Stages[st]; ok {
+		return v
+	}
+	return st
+}
+
+// HistoryKindName returns the label of a history entry kind.
+func (s *Strings) HistoryKindName(k string) string {
+	if v, ok := s.HistoryKinds[k]; ok {
+		return v
+	}
+	return k
+}
+
+// TSInstallKind returns the label of the helper's Tailscale install kind.
+func (s *Strings) TSInstallKind(k string) string {
+	if v, ok := s.TSInstallKinds[k]; ok {
+		return v
+	}
+	return k
+}
+
+// TSUpdateHint says how to update Tailscale for an install kind.
+func (s *Strings) TSUpdateHint(k string) string { return s.TSUpdateHints[k] }
