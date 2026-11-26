@@ -35,6 +35,8 @@ type options struct {
 	tailnetStatus string
 	version       bool
 
+	secrets        string
+	keychain       string
 	tailnetIface   string
 	noHealth       bool
 	healthInterval time.Duration
@@ -48,6 +50,8 @@ func parseFlags(args []string) (*options, error) {
 	fs.BoolVar(&o.foreground, "foreground", false, "log to stderr instead of <state-dir>/logs/helper.log")
 	fs.StringVar(&o.group, "group", "admin", "`GROUP` whose members may use the helper (besides root and the helper's own user)")
 	fs.StringVar(&o.tailnetStatus, "tailnet-status-file", "", "development: read tailscale status JSON from `FILE` instead of running `tailscale status --json`")
+	fs.StringVar(&o.secrets, "secrets", "auto", "where secrets live: keychain, file (<state-dir>/secrets.json, development) or auto (keychain when running as root on macOS)")
+	fs.StringVar(&o.keychain, "keychain", "", "keychain `FILE` for --secrets keychain (default the System keychain)")
 	fs.StringVar(&o.tailnetIface, "tailnet-iface", "auto", "Tailscale interface for the coexist resolver: auto (route to 100.100.100.100), none, or a `NAME`")
 	fs.BoolVar(&o.noHealth, "no-health", false, "do not run the health checks (health.last/run then fail)")
 	fs.DurationVar(&o.healthInterval, "health-interval", 5*time.Minute, "time between scheduled health runs")
@@ -106,9 +110,10 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 		}
 	}
 
-	// TODO(keychain): use the System keychain on macOS. Until then secrets
-	// live in a 0600 file in the 0755 state dir owned by root.
-	secrets := &store.FileSecrets{Path: st.Path("secrets.json")}
+	secrets, err := openSecrets(o, st, log)
+	if err != nil {
+		return err
+	}
 
 	e := engine.New(st, secrets)
 	e.Log = log
@@ -185,6 +190,47 @@ func newLogger(o *options, st *store.Store) (*slog.Logger, func(), error) {
 		w, closeFn = f, func() { f.Close() }
 	}
 	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})), closeFn, nil
+}
+
+// openSecrets picks the secrets backend. With the keychain, secrets left in
+// <state-dir>/secrets.json (a helper that ran with --secrets file before)
+// are moved into it and the file is deleted.
+func openSecrets(o *options, st *store.Store, log *slog.Logger) (store.Secrets, error) {
+	file := &store.FileSecrets{Path: st.Path("secrets.json")}
+	kind := o.secrets
+	if kind == "" || kind == "auto" {
+		kind = "file"
+		if hasKeychain && os.Geteuid() == 0 {
+			kind = "keychain"
+		}
+	}
+	switch kind {
+	case "file":
+		log.Info("secrets in file", "path", file.Path)
+		return file, nil
+	case "keychain":
+		kc, err := newKeychain(o.keychain)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := os.Stat(file.Path); err == nil {
+			moved, err := store.MigrateSecrets(file, kc)
+			if err != nil {
+				return nil, fmt.Errorf("move secrets.json into the keychain: %w", err)
+			}
+			log.Info("moved secrets into the keychain", "count", len(moved))
+		}
+		log.Info("secrets in keychain", "keychain", orDefault(o.keychain, "System"))
+		return kc, nil
+	}
+	return nil, fmt.Errorf("unknown --secrets %q (keychain, file, auto)", o.secrets)
+}
+
+func orDefault(s, d string) string {
+	if s == "" {
+		return d
+	}
+	return s
 }
 
 // fileTailnet reads a saved `tailscale status --json` (development).

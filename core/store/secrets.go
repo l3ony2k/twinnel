@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"sort"
 	"sync"
 )
 
@@ -132,4 +133,50 @@ func (s *MemSecrets) Delete(key string) error {
 	defer s.mu.Unlock()
 	delete(s.m, key)
 	return nil
+}
+
+// Keys lists the stored keys, sorted.
+func (f *FileSecrets) Keys() ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	m, err := f.load()
+	if err != nil {
+		return nil, err
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys, nil
+}
+
+// MigrateSecrets copies every secret of a FileSecrets into dst (keeping a
+// value dst already has) and then deletes the file. It returns the keys
+// copied. If any copy fails the file is kept.
+func MigrateSecrets(src *FileSecrets, dst Secrets) ([]string, error) {
+	keys, err := src.Keys()
+	if err != nil {
+		return nil, err
+	}
+	var copied []string
+	for _, k := range keys {
+		if _, err := dst.Get(k); err == nil {
+			continue
+		} else if !errors.Is(err, ErrNoSecret) {
+			return copied, fmt.Errorf("migrate %s: %w", k, err)
+		}
+		v, err := src.Get(k)
+		if err != nil {
+			return copied, err
+		}
+		if err := dst.Set(k, v); err != nil {
+			return copied, fmt.Errorf("migrate %s: %w", k, err)
+		}
+		copied = append(copied, k)
+	}
+	if err := os.Remove(src.Path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return copied, err
+	}
+	return copied, nil
 }

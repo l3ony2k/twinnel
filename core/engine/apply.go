@@ -3,11 +3,14 @@ package engine
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/l3ony2k/duet/core/config"
@@ -216,6 +219,11 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 		return e.fail(res, start, err)
 	}
 
+	if generated, err := e.ensureSecret(st, layerSecret, current, hadCurrent); err != nil {
+		return e.fail(res, start, err)
+	} else if generated {
+		warnings = append(warnings, "generated a new controller secret (kept in the helper's secret store)")
+	}
 	cr, final, err := e.check(ctx, st, cfg, applied, warnings, current, layerSecret)
 	res.ComposeResult = cr
 	if err != nil {
@@ -278,6 +286,41 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 	}
 	e.triggerHealth("config applied")
 	return e.done(res, start), nil
+}
+
+// ensureSecret generates and stores a random controller secret when no
+// secret exists anywhere (secret store, layers, the file being replaced)
+// and the helper manages the config: there is no config file yet, or it
+// lives in the helper's state dir. An adopted config without a secret is
+// left alone, since its other clients would lose access.
+func (e *Engine) ensureSecret(st *store.Settings, layerSecret string, current []byte, hadCurrent bool) (bool, error) {
+	if e.Secrets == nil || layerSecret != "" || e.controllerSecret() != "" {
+		return false, nil
+	}
+	if hadCurrent {
+		if s, _ := topLevel(current, "secret"); s != "" {
+			return false, nil
+		}
+		if !e.managesConfig(st) {
+			return false, nil
+		}
+	}
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		return false, err
+	}
+	if err := e.Secrets.Set(store.SecretController, hex.EncodeToString(b)); err != nil {
+		return false, fmt.Errorf("store the new controller secret: %w", err)
+	}
+	e.log().Info("generated a controller secret")
+	return true, nil
+}
+
+// managesConfig: the config file is inside the helper's state dir (the
+// layout of a fresh install), not an adopted file elsewhere.
+func (e *Engine) managesConfig(st *store.Settings) bool {
+	rel, err := filepath.Rel(e.Store.Dir, st.Mihomo.ConfigFile)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
 // sameComposed reports whether current is the latest history entry plus a

@@ -11,8 +11,15 @@ import (
 	"github.com/l3ony2k/duet/core/service"
 	"github.com/l3ony2k/duet/core/store"
 	"github.com/l3ony2k/duet/platform/darwin"
+	"github.com/l3ony2k/duet/platform/darwin/keychain"
 	"github.com/l3ony2k/duet/platform/darwin/launchd"
 )
+
+const hasKeychain = true
+
+func newKeychain(path string) (store.Secrets, error) {
+	return &keychain.Keychain{Path: path}, nil
+}
 
 func platformServices() service.Manager { return launchd.New() }
 
