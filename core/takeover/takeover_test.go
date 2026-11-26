@@ -336,4 +336,3 @@ func TestNeedsReplaceUsesBang(t *testing.T) {
 		t.Fatalf("not equivalent:\n%s", sd.Text(0))
 	}
 }
-
