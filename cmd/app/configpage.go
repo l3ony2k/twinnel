@@ -411,9 +411,10 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 			}
 		}
 	}
+	title := layerTitle(l)
 	col.Children(func() {
 		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).Padding(8).MarginY(4).Radius(plat.controlRadius).
-			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(l.Name)
+			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(title)
 		switch {
 		case open:
 			head.Background(pal(t).accentSoft)
@@ -430,7 +431,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 		head.Children(func() {
 			disclosure(c, open).Shrink(0)
 			on := l.Enabled
-			sw := ui.Switch(c.Key("on"), &on).Label(T.LayerEnabled + " " + l.Name)
+			sw := ui.Switch(c.Key("on"), &on).Label(T.LayerEnabled + " " + title)
 			switch {
 			case l.ID == coexistLayerID:
 				sw.Disabled(!w)
@@ -451,8 +452,10 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 						}
 						ui.Icon(c, icon).FontSize(iconInline).TextColor(t.TextMuted).Tooltip(T.LayerManagedFixed)
 					}
-					ui.Text(c, l.Name).FontWeight(600).SingleLine().Shrink(1).Tooltip(l.Name)
-					tag(c, T.StageName(l.Stage))
+					ui.Text(c, title).FontWeight(600).SingleLine().Shrink(1).Tooltip(title)
+					if stage := T.StageName(l.Stage); stage != title {
+						tag(c, stage)
+					}
 					if l.Managed {
 						tag(c, T.LayerManaged)
 					}
@@ -516,7 +519,7 @@ func (a *app) layerMenu(c *ui.Context, m *ui.Menu, l rpc.Layer, ids []string, w 
 	if !l.Managed {
 		m.Separator()
 		if m.Item(T.Remove + "…").Danger().Disabled(!w).Chosen() {
-			a.removeLayer(l.ID, l.Name)
+			a.removeLayer(l.ID, layerTitle(l))
 		}
 	}
 }
@@ -540,9 +543,16 @@ func (a *app) newLayerRow(c *ui.Context, s status.Snapshot, w bool) {
 	})
 }
 
+// layerTitle is a layer's name in the UI language: a managed layer's or a
+// takeover-generated one's from its code (Tailscale 共存, 基础设置, 现有配置的
+// 规则：…), the person's own name otherwise.
+func layerTitle(l rpc.Layer) string {
+	return i18n.T.TakeoverLayerName(l.NameCode, l.NameArgs, l.Name)
+}
+
 func (a *app) setLayerEnabled(l rpc.Layer, on bool) {
 	T := i18n.T
-	label := fmt.Sprintf(T.LayerToggle, l.Name)
+	label := fmt.Sprintf(T.LayerToggle, layerTitle(l))
 	a.helperOp(label, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
 		if l.ID == coexistLayerID {
 			return hc.Call(ctx, rpc.MethodSettingsUpdate, rpc.SettingsUpdate{TailscaleCoexist: &on}, nil)
@@ -608,7 +618,7 @@ func (a *app) moveLayerByID(id string, delta int) {
 func (a *app) selectLayer(l rpc.Layer) {
 	v := &a.hd.cfg
 	v.sel, v.isNew, v.managed, v.loading = l.ID, false, l.Managed, true
-	v.edID, v.edName, v.edEnabled = l.ID, l.Name, l.Enabled
+	v.edID, v.edName, v.edEnabled = l.ID, layerTitle(l), l.Enabled
 	v.edStage = max(0, slices.Index(layerStages, l.Stage))
 	v.edFormat = max(0, slices.Index(layerFormats, l.Format))
 	v.ed, v.reveal = nil, true

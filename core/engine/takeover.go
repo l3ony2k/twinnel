@@ -222,10 +222,12 @@ func planSummary(p *takeover.Plan, ps *planState, full bool) rpc.TakeoverPlan {
 		})
 	}
 	for _, l := range p.Layers {
-		out.Layers = append(out.Layers, rpc.TakeoverLayer{ID: l.ID, Name: l.Name, Kind: string(l.Kind), Stage: l.Stage, Keys: l.Keys, Rules: l.Rules})
+		out.Layers = append(out.Layers, rpc.TakeoverLayer{ID: l.ID, Name: l.Name, Kind: string(l.Kind), Stage: l.Stage, Keys: l.Keys, Rules: l.Rules,
+			NameCode: l.NameCode, NameArgs: l.NameArgs})
 	}
 	for _, c := range p.Changes {
-		out.Changes = append(out.Changes, rpc.TakeoverChange{Area: c.Area, What: c.What, Deliberate: c.Deliberate, Why: c.Why})
+		out.Changes = append(out.Changes, rpc.TakeoverChange{Area: c.Area, What: c.What, Deliberate: c.Deliberate, Why: c.Why,
+			Code: c.Code, Args: c.Args, WhyCode: c.WhyCode, WhyArgs: c.WhyArgs})
 	}
 	for _, w := range p.Warnings {
 		out.Warnings = append(out.Warnings, config.RedactText(w))
@@ -607,7 +609,8 @@ func (e *Engine) importPlan(plan *takeover.Plan, ps *planState, disc *takeover.D
 		}
 		undo.layers = append(undo.layers, l.ID)
 		ids = append(ids, l.ID)
-		layers = append(layers, store.Layer{ID: l.ID, Name: l.Name, Stage: l.Stage, Format: store.FormatMerge, Enabled: true})
+		layers = append(layers, store.Layer{ID: l.ID, Name: l.Name, Stage: l.Stage, Format: store.FormatMerge, Enabled: true,
+			NameCode: l.NameCode, NameArgs: l.NameArgs})
 	}
 	withURL := false
 	subName := "Adopted: " + filepath.Base(ps.BasePath)

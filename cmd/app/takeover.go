@@ -338,8 +338,11 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 		}
 		for i, l := range p.Layers {
 			ui.Row(c.Key(fmt.Sprint("l", i))).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, l.Name).FontSize(plat.bodySize).Width(180).Shrink(0).SingleLine().Tooltip(l.Name)
-				tag(c, T.StageName(l.Stage))
+				name := T.TakeoverLayerName(l.NameCode, l.NameArgs, l.Name)
+				ui.Text(c, name).FontSize(plat.bodySize).Width(180).Shrink(0).SingleLine().Tooltip(name)
+				if stage := T.StageName(l.Stage); stage != name {
+					tag(c, stage)
+				}
 				if l.Kind == "managed" { // as the 订阅与覆写 page marks it; "user" needs no mark
 					tag(c, T.LayerManaged)
 				}
@@ -426,9 +429,9 @@ func changeList(c *ui.Context, key, title string, list []rpc.TakeoverChange, col
 			ui.Row(c.Key(fmt.Sprint(i))).Gap(8).AlignItems(ui.Start).Children(func() {
 				dot(c, col, 6).Margin(5, 0, 0, 0)
 				ui.Column(c).Gap(1).Shrink(1).Children(func() {
-					ui.Text(c, ch.Area+" · "+ch.What).FontSize(plat.calloutSize).Wrap().Selectable()
+					ui.Text(c, ch.Area+" · "+i18n.T.TakeoverChange(ch.Code, ch.Args, ch.What)).FontSize(plat.calloutSize).Wrap().Selectable()
 					if ch.Why != "" {
-						ui.Text(c, ch.Why).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap()
+						ui.Text(c, i18n.T.TakeoverWhy(ch.WhyCode, ch.WhyArgs, ch.Why)).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap()
 					}
 				})
 			})

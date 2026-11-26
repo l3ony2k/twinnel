@@ -9,6 +9,7 @@ import (
 	"github.com/l3ony2k/duet/core/config"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/duet/core/takeover"
 )
 
 func reservedLayer(id string) bool { return id == CoexistLayerID || id == LeakGuardLayerID }
@@ -22,11 +23,14 @@ func (e *Engine) Layers() ([]rpc.Layer, error) {
 	out := []rpc.Layer{}
 	for _, l := range st.Layers {
 		b, _ := e.Store.ReadLayer(l.ID)
-		out = append(out, rpc.Layer{ID: l.ID, Name: l.Name, Stage: l.Stage, Format: l.Format, Enabled: l.Enabled, Size: len(b)})
+		out = append(out, rpc.Layer{ID: l.ID, Name: l.Name, Stage: l.Stage, Format: l.Format, Enabled: l.Enabled, Size: len(b),
+			NameCode: l.NameCode, NameArgs: l.NameArgs})
 	}
 	out = append(out,
-		rpc.Layer{ID: CoexistLayerID, Name: "Tailscale coexist", Stage: "coexist", Format: store.FormatMerge, Enabled: st.Tailscale.Coexist, Managed: true},
-		rpc.Layer{ID: LeakGuardLayerID, Name: "Leak guard", Stage: "guard", Format: "transform", Enabled: len(st.LeakGuardGroups) > 0, Managed: true},
+		rpc.Layer{ID: CoexistLayerID, Name: "Tailscale coexist", Stage: "coexist", Format: store.FormatMerge, Enabled: st.Tailscale.Coexist, Managed: true,
+			NameCode: takeover.LayerNameCoexist},
+		rpc.Layer{ID: LeakGuardLayerID, Name: "Leak guard", Stage: "guard", Format: "transform", Enabled: len(st.LeakGuardGroups) > 0, Managed: true,
+			NameCode: takeover.LayerNameLeakGuard},
 	)
 	return out, nil
 }
@@ -109,8 +113,8 @@ func (e *Engine) PutLayer(p rpc.LayerPutParams) (rpc.Layer, error) {
 			i = len(st.Layers) - 1
 		}
 		l := &st.Layers[i]
-		if p.Name != "" {
-			l.Name = p.Name
+		if p.Name != "" && p.Name != l.Name {
+			l.Name, l.NameCode, l.NameArgs = p.Name, "", nil
 		}
 		if p.Stage != "" {
 			l.Stage = p.Stage
@@ -135,7 +139,8 @@ func (e *Engine) PutLayer(p rpc.LayerPutParams) (rpc.Layer, error) {
 		return rpc.Layer{}, err
 	}
 	e.publish(rpc.EventStateChanged, map[string]string{"layer": p.ID})
-	return rpc.Layer{ID: meta.ID, Name: meta.Name, Stage: meta.Stage, Format: meta.Format, Enabled: meta.Enabled, Size: len(p.Content)}, nil
+	return rpc.Layer{ID: meta.ID, Name: meta.Name, Stage: meta.Stage, Format: meta.Format, Enabled: meta.Enabled, Size: len(p.Content),
+		NameCode: meta.NameCode, NameArgs: meta.NameArgs}, nil
 }
 
 // DeleteLayer removes a stored layer.
