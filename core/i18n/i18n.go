@@ -43,6 +43,7 @@ type Strings struct {
 	PrimaryGroup, Node, Delay, Exit                            string
 	DelayTimeout, DelayUnknown                                 string
 	Traffic, Upload, Download, Total                           string
+	TrafficLastSec, TrafficLastMin                             string // %d: seconds / minutes shown by the chart
 	Connections                                                string
 	State, SelfIP, SelfName, OnlinePeers, ExitNode, NoExitNode string
 	MagicDNS, ShieldsUp, KeyExpiry, Account, Install           string
@@ -63,6 +64,7 @@ type Strings struct {
 
 	// Proxies page.
 	TestGroupDelay, TestingDelay, Members, Selected, NoGroups string
+	TestAllDelay                                              string
 
 	// Tailscale page.
 	PeerName, PeerIP, PeerOS, PeerPath, PeerLastSeen, PeerRelay string
@@ -162,6 +164,10 @@ type Strings struct {
 	TSVersionHint, TSNotInstalled, UpdateAvailable                                              string
 	TSInstallKinds, TSUpdateHints                                                               map[string]string
 
+	// Helper warnings (warnings.go): kind → template, captures in order.
+	WarningTexts map[string]string
+	ListSep      string // joins a list in running text
+
 	// Services card (kernel page).
 	Services, ServicesHint, Refresh, ServiceRunning, ServiceStopped, ServiceLoaded string
 	ServiceNotInstalled, ServiceStart, ServiceStop, ServiceRestart                 string
@@ -211,6 +217,9 @@ type Strings struct {
 	OnboardTitle, OnboardIntro, OnboardReadOnly, OnboardPlan, OnboardPlanHint string
 	OnboardInstall, OnboardInstalling, OnboardOpen, CLINotFound               string
 	OnboardPoints                                                             []string
+	OnboardSteps, OnboardShowFile, OnboardHideFile                            string
+	PlanMkdir, PlanCopy, PlanWrite, PlanRemove                                string // %s: path
+	PlanBootout, PlanBootstrap, PlanEnable, PlanDaemonReload                  string
 
 	// Units and time.
 	JustNow, SecondsAgo, MinutesAgo, HoursAgo, DaysAgo string // %d
@@ -280,6 +289,8 @@ var zh = Strings{
 	Upload:             "上传",
 	Download:           "下载",
 	Total:              "累计",
+	TrafficLastSec:     "最近 %d 秒",
+	TrafficLastMin:     "最近 %d 分钟",
 	Connections:        "连接数",
 	State:              "状态",
 	SelfIP:             "本机 IP",
@@ -327,6 +338,7 @@ var zh = Strings{
 	PageSettings:  "设置",
 
 	TestGroupDelay: "测速",
+	TestAllDelay:   "全部测速",
 	TestingDelay:   "测速中…",
 	Members:        "成员",
 	Selected:       "当前",
@@ -577,6 +589,28 @@ var zh = Strings{
 		"static":     "从 pkgs.tailscale.com 下载新版替换。",
 	},
 
+	WarningTexts: map[string]string{
+		"group-missing":    "防泄漏：找不到策略组「%s」",
+		"group-empty":      "防泄漏：策略组「%s」去掉直连后没有成员了，已改为 REJECT",
+		"group-direct":     "防泄漏：策略组「%s」仍能经由 %s 走直连（嵌套的策略组可能还承载别的流量，没有改动）",
+		"nested-shared":    "防泄漏：嵌套策略组「%s」运行时没有成员就会走直连；它也承载别的流量，所以没有改动",
+		"nested-direct":    "防泄漏：嵌套策略组「%s」运行时没有成员就会走直连。打开 leak_guard_nested 后，只被受保护策略组使用的嵌套组会加上 empty-fallback: REJECT",
+		"fakeip-whitelist": "dns.fake-ip-filter-mode 是 whitelist，Tailscale 的 fake-ip-filter 条目没有加入（白名单模式下它们会让 tailnet 名字拿到 fake-ip）。请确认白名单里没有覆盖 ts.net 或单段名字的条目",
+		"fakeip-unknown":   "不认识的 dns.fake-ip-filter-mode「%s」，Tailscale 的 fake-ip-filter 条目没有加入",
+		"new-secret":       "已生成新的控制接口密钥，保存在后台助手的密钥库里",
+		"reload-disrupts":  "这次重载会短暂中断网络：%s",
+		"restart-needed":   "热重载不会应用 %s；控制接口的地址和密钥在 mihomo 重启后才变",
+		"mihomo-stopped":   "mihomo 没有运行（%s）；配置已写入，下次启动时生效",
+		"exposed":          "%s：%s 可以从网络访问，只有密钥保护",
+		"adopt-refuses":    "接管会拒绝这套配置：%s",
+		"adopt-profiles":   "找到 %s 个订阅配置；接管不导入订阅地址，之后用 duet sub put 设置",
+		"adopt-disrupts":   "接管时的重载会短暂中断网络：%s",
+		"adopt-differs":    "应用的配置和计划里的 composed.yaml 不同：做计划之后 tailnet 设备或网卡变了",
+		"binary-writable":  "mihomo 程序 %s 不需要 root 就能被替换（%s），而服务以 root 运行它：能以那个用户运行的程序都能拿到 root。要消除这个风险，安装一个由 duet 管理的内核（duet kernel install），并让服务改用它",
+		"secret-clients":   "控制接口的客户端（网页面板、本 app、脚本）需要新密钥。它保存在后台助手的密钥库里，可用 %s 读取",
+	},
+	ListSep: "、",
+
 	Services:              "服务",
 	ServicesHint:          "由 launchd 管理的服务。停止或重启 mihomo 会让网络短暂中断。",
 	Refresh:               "刷新",
@@ -715,10 +749,21 @@ var zh = Strings{
 	},
 	OnboardReadOnly:   "不安装也可以用：总览、策略组、Tailscale、健康检查和日志都只读取状态。",
 	OnboardPlan:       "安装时会做什么",
-	OnboardPlanHint:   "下面是 duet helper install --dry-run 的输出，什么都没有执行。点击安装后会弹出一次管理员密码框。",
+	OnboardPlanHint:   "这些步骤来自 duet helper install --dry-run，现在什么都没有执行。点击安装后会弹出一次管理员密码框，然后依次执行。",
 	OnboardInstall:    "安装后台助手",
 	OnboardInstalling: "正在安装…",
 	OnboardOpen:       "了解并安装",
+	OnboardSteps:      "安装步骤 · %d 步",
+	OnboardShowFile:   "显示文件内容",
+	OnboardHideFile:   "隐藏文件内容",
+	PlanMkdir:         "创建目录 %s",
+	PlanCopy:          "把后台助手复制到 %s",
+	PlanWrite:         "写入服务定义 %s",
+	PlanRemove:        "删除 %s",
+	PlanBootout:       "停掉旧的后台助手（如果有）",
+	PlanBootstrap:     "加载服务：后台助手以 root 启动",
+	PlanEnable:        "设为开机自动启动",
+	PlanDaemonReload:  "让 systemd 重新读取服务定义",
 	CLINotFound:       "找不到 duet 命令行工具（可用 DUET_CLI 指定）",
 
 	JustNow:    "刚刚",

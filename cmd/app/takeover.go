@@ -161,19 +161,17 @@ func (a *app) takeoverIntro(c *ui.Context, s status.Snapshot) {
 		if v.listErr != "" {
 			ui.Text(c, T.ErrorPrefix+v.listErr).FontSize(12).TextColor(pal(t).badText).Wrap()
 		}
-		if len(v.plans) == 0 {
-			if v.loaded && !v.unsupported {
-				ui.Text(c, T.TakeoverNoPlans).FontSize(12).TextColor(t.TextMuted)
-			}
-			return
+		if len(v.plans) == 0 && v.loaded && !v.unsupported {
+			hintText(c, T.TakeoverNoPlans)
 		}
-		ui.Text(c, T.TakeoverPlans).FontSize(12).TextColor(t.TextMuted)
-		ui.Column(c).Gap(4).Children(func() {
+	})
+	if len(v.plans) > 0 {
+		listCard(c, listHead(c, nil, T.TakeoverPlans, nil), func() {
 			for _, p := range v.plans {
 				a.takeoverPlanRow(c, s, p)
 			}
 		})
-	})
+	}
 }
 
 func (a *app) takeoverPlanRow(c *ui.Context, s status.Snapshot, p rpc.TakeoverPlan) {
@@ -181,17 +179,16 @@ func (a *app) takeoverPlanRow(c *ui.Context, s status.Snapshot, p rpc.TakeoverPl
 	T := i18n.T
 	v := &a.hd.take
 	sel := v.plan != nil && v.plan.PlanID == p.PlanID
-	bg, line := pal(t).code, pal(t).groupLine
-	if sel {
-		bg, line = pal(t).accentSoft, t.Accent.Alpha(0.5)
+	row := ui.Row(c.Key(p.PlanID)).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).PaddingY(8)
+	if sel { // the open plan: a tinted row, as a selected list row
+		row.Background(pal(t).accentSoft).Radius(plat.controlRadius).MarginX(-8).PaddingX(8)
 	}
-	row := ui.Row(c.Key(p.PlanID)).Gap(10).AlignItems(ui.Center).Padding(6, 10).Radius(plat.controlRadius+2).Background(bg).Border(1, line)
 	row.Children(func() {
-		ui.Text(c, p.CreatedAt.Local().Format("01-02 15:04")).FontSize(12).Width(90).Shrink(0)
+		num(ui.Text(c, p.CreatedAt.Local().Format("01-02 15:04")).SingleLine().Shrink(0))
 		tag(c, T.PlanState(p.State))
-		ui.Text(c, filepath.Base(p.Base)).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		ui.Text(c, filepath.Base(p.Base)).TextColor(t.TextMuted).SingleLine().Shrink(1)
 		ui.Spacer(c)
-		ui.Text(c, p.PlanID).Font("monospace").FontSize(11).TextColor(t.TextMuted)
+		ui.Text(c, p.PlanID).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1)
 		if !sel && ui.Button(c.Key("open"), T.TakeoverOpen).Disabled(a.hd.busy != "").Clicked() {
 			a.takeoverSelect(p.PlanID)
 		}
@@ -284,28 +281,39 @@ func (a *app) takeoverFoundCards(c *ui.Context, p *rpc.TakeoverPlan) {
 		kv(c, T.Subscription, sub)
 	})
 
-	card(c, T.TakeoverBase, func() {
-		kv(c, T.TakeoverBaseChosen, orDash(p.Base))
-		if len(p.Candidates) == 0 {
-			ui.Text(c, T.TakeoverNoCandidates).FontSize(12).TextColor(t.TextMuted).Wrap()
-			return
+	listCard(c, listHead(c, nil, T.TakeoverBase, nil), func() {
+		chosenListed := false
+		for _, cd := range p.Candidates {
+			chosenListed = chosenListed || cd.Chosen || cd.Path == p.Base
 		}
-		ui.Text(c, T.TakeoverCandidates).FontSize(12).TextColor(t.TextMuted)
+		if !chosenListed || len(p.Candidates) == 0 {
+			listRow(c).Children(func() {
+				kv(c, T.TakeoverBaseChosen, orDash(p.Base))
+				if len(p.Candidates) == 0 {
+					hintText(c, T.TakeoverNoCandidates)
+				}
+			})
+		}
 		for i, cd := range p.Candidates {
-			ui.Row(c.Key(fmt.Sprint("cand", i))).Gap(10).AlignItems(ui.Center).Padding(6, 10).Radius(plat.controlRadius+2).Background(pal(t).code).Border(1, pal(t).groupLine).Children(func() {
-				col := t.TextMuted
+			ui.Row(c.Key(fmt.Sprint("cand", i))).Gap(10).AlignItems(ui.Center).PaddingY(10).Children(func() {
+				col := t.TextMuted.Alpha(0.6)
 				if cd.Explains {
 					col = t.Success
 				}
 				dot(c, col, 8)
 				ui.Column(c).Gap(2).Grow(1).Shrink(1).Children(func() {
-					ui.Text(c, cd.Path).FontSize(12).SingleLine().Selectable()
+					ui.Text(c, filepath.Base(cd.Path)).SingleLine().Selectable()
+					ui.Text(c, filepath.Dir(cd.Path)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Selectable()
 					detail := cd.Error
 					if detail == "" {
 						detail = fmt.Sprintf(T.TakeoverCandScore, cd.ProxiesSame, cd.ProxiesTotal,
 							cd.GroupsSame, cd.GroupsTotal, cd.CommonTail, cd.Rules, cd.HeadRules)
 					}
-					ui.Text(c, detail).FontSize(11).TextColor(t.TextMuted).Wrap()
+					col := t.TextMuted
+					if cd.Error != "" {
+						col = pal(t).badText
+					}
+					num(ui.Text(c, detail).FontSize(plat.smallSize).TextColor(col).Wrap())
 				})
 				if cd.Chosen || cd.Path == p.Base {
 					tag(c, T.TakeoverBaseChosen)
@@ -317,7 +325,6 @@ func (a *app) takeoverFoundCards(c *ui.Context, p *rpc.TakeoverPlan) {
 			})
 		}
 	})
-
 }
 
 func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
@@ -377,10 +384,10 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 			ui.Text(c, T.TakeoverNoChanges).FontSize(12).TextColor(t.TextMuted)
 		}
 		for _, w := range p.Warnings {
-			ui.Row(c).Gap(6).AlignItems(ui.Start).Children(func() {
-				ui.Icon(c, iconWarning).FontSize(12).TextColor(pal(t).warnText)
-				ui.Text(c, w).FontSize(12).Wrap().Shrink(1).Selectable()
-			})
+			if p.Impact != nil && i18n.WarningKind(w) == "adopt-disrupts" {
+				continue // the impact row says it
+			}
+			warningNote(c, w)
 		}
 		if p.Summary != "" || p.SemDiff != "" {
 			chev, label := iconCollapsed, T.TakeoverShowText
@@ -529,7 +536,7 @@ func (a *app) adoptResultCard(c *ui.Context, r *rpc.AdoptResult) {
 			healthCompare(c, r)
 		}
 		for _, w := range r.Warnings {
-			ui.Text(c, w).FontSize(12).TextColor(pal(t).warnText).Wrap().Selectable()
+			warningNote(c, w)
 		}
 	})
 }
@@ -666,7 +673,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 				ui.Text(c, T.ErrorPrefix+r.Apply.Error).FontSize(12).TextColor(pal(t).badText).Wrap()
 			}
 			for _, w := range r.Warnings {
-				ui.Text(c, w).FontSize(12).TextColor(pal(t).warnText).Wrap()
+				warningNote(c, w)
 			}
 		}
 	})

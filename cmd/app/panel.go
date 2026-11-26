@@ -172,7 +172,7 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 		kv(c, T.SelfIP, ip.String()+" · "+st.Self.Name)
 	}
 	kv(c, T.OnlinePeers, fmt.Sprintf("%d / %d", st.OnlinePeers(), len(st.Peers)))
-	kvWith(c, T.ExitNode, func() { a.exitNodePicker(c, s).Grow(1) })
+	kvWith(c, T.ExitNode, func() { kvControl(a.exitNodePicker(c, s)) })
 }
 
 func versionSuffix(v string) string {

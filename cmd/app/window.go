@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/chart"
 
@@ -45,31 +47,70 @@ func (a *app) mainView(c *ui.Context) {
 		if c.Vibrancy() {
 			content.BorderWidth(0, 0, 0, 1).BorderColor(pal(t).separator)
 		}
+		barH := toolbarHeight(c)
+		pageBar = toolbarSpec{} // the page fills it in (pageHeader)
 		content.Children(func() {
+			scrolled := false
 			switch a.page {
 			case pageLogs:
-				a.logsPage(c) // has its own scrolling list
+				a.logsPage(c, barH) // has its own scrolling list, below the bar
 			default:
-				ui.Scroll(c).Grow(1).Children(func() {
-					ui.Column(c).Padding(pagePadTop(c), plat.pagePadX, 32).AlignItems(ui.Center).Children(func() {
+				st := a.pageScroll[a.page]
+				if st == nil {
+					st = &ui.ScrollState{}
+					a.pageScroll[a.page] = st
+				}
+				ui.Scroll(c.Key("page:"+a.page)).TrackScroll(st).Grow(1).ScrollbarInsets(barH, 0, 0, 0).Children(func() {
+					ui.Column(c).Padding(barH+4, plat.pagePadX, 32).AlignItems(ui.Center).Children(func() {
 						ui.Column(c).Gap(gapGroup).FillWidth().MaxWidth(plat.contentMax).Children(func() {
 							a.pageBody(c, s)
 						})
 					})
 				})
+				scrolled = st.Y > 0.5
 			}
+			a.toolbar(c, barH, scrolled)
 		})
 	})
 }
 
-// pagePadTop is the room above a page's title. Under a hidden title bar
-// the title row (32 high) sits on the traffic lights' line, as the title of
-// a unified toolbar does, and drags the window (pageHeader).
-func pagePadTop(c *ui.Context) float32 {
-	if bar := c.TitleBar(); bar.Height > 0 {
-		return max((bar.Height-32)/2, 4)
+// The toolbar: the page's title and actions on the traffic lights' line,
+// pinned while the page scrolls under it, as a unified toolbar on macOS
+// (System Settings, Finder). At the top of the page it has no background;
+// once content scrolls under it, the scroll edge of macOS 26 (content
+// frosted under the window's background, a hairline below) sets it off.
+
+type toolbarSpec struct {
+	title    string
+	trailing func()
+}
+
+// pageBar is what the current page puts in the toolbar (pageHeader);
+// mainView builds the toolbar after the page. Main thread only.
+var pageBar toolbarSpec
+
+// toolbarHeight is the toolbar's height: the title bar's under a hidden
+// title bar (the traffic lights centered in it), at least a unified
+// toolbar's 52.
+func toolbarHeight(c *ui.Context) float32 {
+	return max(c.TitleBar().Height, 52)
+}
+
+func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
+	t := c.Theme()
+	if scrolled {
+		ui.Box(c.Key("toolbar-edge")).Absolute().Top(0).Left(0).Right(0).Height(h).PassThrough().
+			Material(glass.ScrollEdge{Hard: true, Background: t.Background})
 	}
-	return plat.pagePadTop
+	spec := pageBar
+	ui.Row(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).PaddingX(plat.pagePadX).
+		Gap(8).AlignItems(ui.Center).DragWindow().Role(ui.RoleToolbar).Label(spec.title).Children(func() {
+		ui.Text(c, spec.title).FontSize(plat.titleSize).FontWeight(plat.titleWeight).SingleLine().Shrink(1)
+		ui.Spacer(c)
+		if spec.trailing != nil {
+			spec.trailing()
+		}
+	})
 }
 
 func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
@@ -314,7 +355,7 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	kv(c, T.Mode, T.ModeName(string(m.Config.Mode)))
 	tun := T.TunOff
 	if m.Config.Tun.Enable {
-		tun = fmt.Sprintf("%s · %s · %s", T.TunOn, m.Config.Tun.Device, m.Config.Tun.Stack)
+		tun = m.Config.Tun.Device + sourceSuffix(m.Config.Tun.Stack) // the switch says it is on
 	}
 	kvWith(c, T.Tun, func() {
 		a.tunSwitch(c, s)
@@ -350,7 +391,7 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 		kv(c, T.SelfIP, ip.String())
 	}
 	kv(c, T.OnlinePeers, fmt.Sprintf("%d / %d", st.OnlinePeers(), len(st.Peers)))
-	kvWith(c, T.ExitNode, func() { a.exitNodePicker(c, s).Grow(1) })
+	kvWith(c, T.ExitNode, func() { kvControl(a.exitNodePicker(c, s)) })
 	kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
 	if st.KeyExpiry != nil {
 		kv(c, T.KeyExpiry, st.KeyExpiry.Local().Format("2006-01-02")+" ("+status.Until(s.Time, *st.KeyExpiry)+")")
@@ -370,6 +411,15 @@ func onOff(b bool) string {
 		return i18n.T.On
 	}
 	return i18n.T.Off
+}
+
+// trafficSpan names how much time the chart shows: 最近 45 秒, 最近 2 分钟.
+func trafficSpan(d time.Duration) string {
+	sec := int(d.Round(time.Second) / time.Second)
+	if sec < 60 {
+		return fmt.Sprintf(i18n.T.TrafficLastSec, max(sec, 1))
+	}
+	return fmt.Sprintf(i18n.T.TrafficLastMin, sec/60)
 }
 
 // trafficChart draws the last two minutes of download and upload rates:
@@ -394,7 +444,12 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 		figure(T.Upload, up, s.Mihomo.Traffic.Up)
 		ui.Spacer(c)
 		if s.Mihomo.Reachable {
-			num(small(c, fmt.Sprintf("%s ↓ %s  ↑ %s", T.Total, status.Bytes(s.Mihomo.Traffic.DownTotal), status.Bytes(s.Mihomo.Traffic.UpTotal))))
+			ui.Column(c).Gap(2).AlignItems(ui.End).Children(func() {
+				if len(hist) > 1 {
+					num(small(c, trafficSpan(hist[len(hist)-1].Time.Sub(hist[0].Time))))
+				}
+				num(small(c, fmt.Sprintf("%s ↓ %s  ↑ %s", T.Total, status.Bytes(s.Mihomo.Traffic.DownTotal), status.Bytes(s.Mihomo.Traffic.UpTotal))))
+			})
 		}
 	})
 	const n = 120
@@ -410,8 +465,12 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 	xs := make([]float32, len(hist))
 	down := make([]float32, len(hist))
 	upv := make([]float32, len(hist))
+	// The time axis spans the samples there are, so the graph fills the
+	// width from the first seconds and widens to the n-sample window as
+	// samples come in; the caption above names the span.
+	span := min(max(len(hist), 2), n)
 	for i, h := range hist {
-		xs[i] = float32(n-len(hist)+i) / float32(n-1)
+		xs[i] = float32(span-len(hist)+i) / float32(span-1)
 		down[i] = y.At(float64(h.Down))
 		upv[i] = y.At(float64(h.Up))
 	}
@@ -439,8 +498,33 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
-	pageTitle(c, T.PageProxies)
 	m := s.Mihomo
+	pageHeader(c, T.PageProxies, func() {
+		if !m.Reachable || len(m.Groups) == 0 {
+			return
+		}
+		busy := false
+		for _, g := range m.Groups {
+			busy = busy || a.mon.Testing(g.Name)
+		}
+		label := T.TestAllDelay
+		if busy {
+			label = T.TestingDelay
+		}
+		if iconButton(c.Key("test-all"), iconSpeed, label, false).Disabled(busy).Clicked() {
+			names, mon := make([]string, 0, len(m.Groups)), a.mon
+			for _, g := range m.Groups {
+				names = append(names, g.Name)
+			}
+			go func() { // one group at a time: the controller tests every node of each
+				for _, name := range names {
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					_ = mon.TestGroup(ctx, name)
+					cancel()
+				}
+			}()
+		}
+	})
 	if !m.Reachable {
 		groupBox(c, t).Children(func() {
 			emptyState(c, iconError, T.Unreachable, m.Err)
@@ -461,6 +545,33 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 			a.groupRow(c.Key("group:"+g.Name), g, s.WritesAllowed)
 		}
 	})
+}
+
+// Node tiles: a grid whose columns share the row's width evenly, each
+// tile between tileMin and tileMax wide (the owner's 220–320), so every
+// full row spans the width with equal gaps. A group with fewer nodes than
+// columns gets one column per node, its grid no wider than tiles of
+// tileMax: no empty columns at the right.
+const (
+	tileMin = 220
+	tileMax = 320
+	tileGap = 8
+)
+
+// tileLayout is the tile grid for n nodes in a row w wide: its columns,
+// and the widest the grid may be (0: the whole row). Before the first
+// layout (w 0) it guesses 3 columns.
+func tileLayout(w float32, n int) (cols int, maxW float32) {
+	if w <= 0 {
+		return min(3, max(n, 1)), 0
+	}
+	fit := max(1, int((w+tileGap)/(tileMin+tileGap)))                      // most columns of at least tileMin
+	need := max(1, int(math.Ceil(float64((w+tileGap)/(tileMax+tileGap))))) // fewest of at most tileMax
+	cols = min(need, fit)
+	if n < cols {
+		return max(n, 1), float32(n)*tileMax + float32(n-1)*tileGap
+	}
+	return cols, 0
 }
 
 func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
@@ -502,10 +613,20 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 		if !open {
 			return
 		}
-		ui.Row(c).Gap(8).Wrap().PaddingStart(24).PaddingY(2).Children(func() {
+		// The head row spans the list's width; the grid is 24 in from it.
+		cols, maxW := tileLayout(head.Bounds().W-24, len(g.Members))
+		if cols != a.tileCols[g.Name] { // the width changed: lay out again with the new count
+			a.tileCols[g.Name] = cols
+			c.Invalidate()
+		}
+		grid := ui.Grid(c.Key("tiles")).Gap(tileGap).MarginStart(24).MarginY(2).Columns(cols)
+		if maxW > 0 {
+			grid.MaxWidth(maxW)
+		}
+		grid.Children(func() {
 			for _, mem := range g.Members {
 				selected := mem.Name == g.Now
-				chip := ui.Column(c.Key(mem.Name)).Width(176).Padding(8, 10).Gap(2).Radius(8).
+				chip := ui.Column(c.Key(mem.Name)).MinWidth(0).Padding(8, 10).Gap(2).Radius(8).
 					Background(p.code).Border(1, p.groupLine).Transition(ui.ElementTransition{})
 				if selected {
 					chip.Background(p.accentSoft).Border(1, t.Accent.Alpha(0.6))
@@ -565,7 +686,7 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 			ui.Column(c).Gap(gapRow).Basis(0).Grow(1).Children(func() {
 				kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
 				kv(c, T.ShieldsUp, onOff(st.Prefs.ShieldsUp))
-				kvWith(c, T.ExitNode, func() { a.exitNodePicker(c, s).Grow(1) })
+				kvWith(c, T.ExitNode, func() { kvControl(a.exitNodePicker(c, s)) })
 			})
 		})
 	})
@@ -577,13 +698,15 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 			return
 		}
 		a.peers.RowHeight = 32
+		// The name takes the room the others leave, so the table fits a
+		// narrow window (900 px) and the last column is never cut.
 		cols := []ui.TableColumn{
-			{Title: T.PeerName, Width: 170},
+			{Title: T.PeerName, MinWidth: 100},
 			{Title: T.PeerIP, Width: 140},
-			{Title: T.PeerOS, Width: 80},
-			{Title: T.PeerPath, Width: 120},
-			{Title: T.PeerRelay, Width: 70},
-			{Title: T.PeerLastSeen},
+			{Title: T.PeerOS, Width: 72},
+			{Title: T.PeerPath, Width: 108},
+			{Title: T.PeerRelay, Width: 56},
+			{Title: T.PeerLastSeen, Width: 88},
 		}
 		ui.Table(c, &a.peers, cols, len(peers), func(row, col int) {
 			p := peers[row]
@@ -654,7 +777,7 @@ func (l *logsView) levelName() string {
 	return logLevels[l.level]
 }
 
-func (a *app) logsPage(c *ui.Context) {
+func (a *app) logsPage(c *ui.Context, barH float32) {
 	t := c.Theme()
 	T := i18n.T
 	p := pal(t)
@@ -663,7 +786,7 @@ func (a *app) logsPage(c *ui.Context) {
 	if a.logs.paused {
 		entries = a.logs.frozen
 	}
-	ui.Column(c).Grow(1).Padding(pagePadTop(c), plat.pagePadX, 20).Gap(16).Children(func() {
+	ui.Column(c).Grow(1).Padding(barH+4, plat.pagePadX, 20).Gap(16).Children(func() {
 		pageHeader(c, T.PageLogs, func() {
 			small(c, T.LogLevel)
 			if ui.Segmented(c.Key("level"), &a.logs.level, logLevels...).Changed() {
@@ -847,5 +970,6 @@ func (a *app) saveSettings() {
 	f.msg, f.failed = "", false
 	a.toast = i18n.T.Saved
 	a.groupsOpen = map[string]bool{}
+	a.tileCols = map[string]int{}
 	a.start()
 }
