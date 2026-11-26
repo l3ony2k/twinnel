@@ -618,13 +618,15 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 			return
 		}
 		a.peers.RowHeight = 32
+		// The name takes the room the others leave, so the table fits a
+		// narrow window (900 px) and the last column is never cut.
 		cols := []ui.TableColumn{
-			{Title: T.PeerName, Width: 170},
+			{Title: T.PeerName, MinWidth: 100},
 			{Title: T.PeerIP, Width: 140},
-			{Title: T.PeerOS, Width: 80},
-			{Title: T.PeerPath, Width: 120},
-			{Title: T.PeerRelay, Width: 70},
-			{Title: T.PeerLastSeen},
+			{Title: T.PeerOS, Width: 72},
+			{Title: T.PeerPath, Width: 108},
+			{Title: T.PeerRelay, Width: 56},
+			{Title: T.PeerLastSeen, Width: 88},
 		}
 		ui.Table(c, &a.peers, cols, len(peers), func(row, col int) {
 			p := peers[row]

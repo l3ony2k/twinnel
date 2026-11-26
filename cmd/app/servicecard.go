@@ -115,7 +115,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		return
 	}
 	state, col := serviceState(t, st)
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Height(28).Children(func() { // one height with or without buttons
 		dot(c, col, 8)
 		ui.Text(c, name).FontWeight(600)
 		ui.Text(c, state).FontSize(12).TextColor(t.TextMuted)

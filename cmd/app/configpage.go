@@ -101,23 +101,19 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 	d := &a.hd
 	v := &d.cfg
 	w := a.helperWrites(s)
-	headedCard(c, func() {
-		ui.Icon(c, iconSubscription).FontSize(15).TextColor(t.TextMuted)
-		ui.Text(c, T.Subscriptions).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
-		ui.Spacer(c)
+	listCard(c, listHead(c, iconSubscription, T.Subscriptions, func() {
 		if !v.subOpen && ui.Button(c.Key("sub-add"), T.SubAdd).Disabled(!w).Clicked() {
 			v.subOpen, v.subMins = true, "1440"
 		}
-	}, func() {
+	}), func() {
 		if len(d.subs) == 0 {
-			ui.Text(c, T.SubNone).FontSize(13).TextColor(t.TextMuted)
+			listRow(c).Children(func() { ui.Text(c, T.SubNone).TextColor(t.TextMuted) })
 		}
 		for _, sub := range d.subs {
 			a.subscriptionRow(c.Key("sub:"+sub.ID), sub, s, w)
 		}
 		if v.subOpen {
-			ui.Divider(c)
-			a.subscriptionForm(c, w)
+			listRow(c).Children(func() { a.subscriptionForm(c, w) })
 		}
 	})
 }
@@ -125,8 +121,8 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snapshot, w bool) {
 	t := c.Theme()
 	T := i18n.T
-	ui.Column(c).Gap(4).Padding(10, 12).Radius(plat.controlRadius+2).Background(pal(t).code).Border(1, pal(t).groupLine).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Gap(4).PaddingY(10).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Height(28).Children(func() {
 			ui.Text(c, sub.Name).FontWeight(600).SingleLine().Shrink(1)
 			ui.Text(c, sub.ID).Font("monospace").FontSize(11).TextColor(t.TextMuted).SingleLine()
 			if sub.Active {
@@ -165,7 +161,7 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 		if sub.Hash != "" {
 			parts = append(parts, shortHash(sub.Hash))
 		}
-		ui.Text(c, strings.Join(parts, " · ")).FontSize(12).TextColor(t.TextMuted).SingleLine()
+		num(small(c, strings.Join(parts, " · ")).SingleLine())
 		fetched := T.SubNeverFetched
 		if !sub.LastFetch.IsZero() {
 			fetched = fmt.Sprintf(T.SubFetched, status.Ago(s.Time, sub.LastFetch))
@@ -173,9 +169,9 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 				fetched += " · " + fmt.Sprintf(T.SubChanged, status.Ago(s.Time, sub.LastChange))
 			}
 		}
-		ui.Text(c, fetched).FontSize(12).TextColor(t.TextMuted).SingleLine()
+		num(small(c, fetched).SingleLine())
 		if sub.LastError != "" {
-			ui.Text(c, T.ErrorPrefix+sub.LastError).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
+			errorNote(c, T.ErrorPrefix+sub.LastError)
 		}
 	})
 }
@@ -290,10 +286,10 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 			stored = append(stored, l.ID)
 		}
 	}
-	headedCard(c, func() {
+	listCard(c, func() {
 		ui.Icon(c, iconLayer).FontSize(15).TextColor(t.TextMuted)
-		ui.Text(c, T.Layers).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
-		ui.Text(c, T.LayersHint).FontSize(12).TextColor(t.TextMuted).Shrink(1).SingleLine()
+		ui.Text(c, T.Layers).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Shrink(0)
+		ui.Text(c, T.LayersHint).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).Shrink(1).SingleLine()
 		ui.Spacer(c)
 		if ui.Button(c.Key("layer-new"), T.LayerNew).Disabled(!w).Clicked() {
 			a.newLayer()
@@ -310,11 +306,15 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, stored []string, w bool) {
 	T := i18n.T
 	v := &a.hd.cfg
 	selected := v.sel == l.ID
-	border := t.Border
-	if selected {
-		border = t.Accent
+	// A list row; the open layer is tinted, as a selected row, and hover
+	// is a faint fill where a click opens one.
+	row := ui.Row(c).Gap(10).AlignItems(ui.Center).PaddingY(8).PaddingX(8).MarginX(-8).Radius(plat.controlRadius).Cursor(ui.CursorPointer)
+	switch {
+	case selected:
+		row.Background(pal(t).accentSoft)
+	case row.Hovered():
+		row.Background(t.Text.Alpha(0.04))
 	}
-	row := ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8, 12).Radius(8).Background(t.Background).Border(1, border).Cursor(ui.CursorPointer)
 	row.Children(func() {
 		on := l.Enabled
 		sw := ui.Switch(c.Key("on"), &on).Label(T.LayerEnabled)
@@ -348,7 +348,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, stored []string, w bool) {
 			if !l.Managed {
 				info += " · " + status.Bytes(int64(l.Size))
 			}
-			ui.Text(c, info).Font("monospace").FontSize(11).TextColor(t.TextMuted).SingleLine()
+			ui.Text(c, info).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine()
 		})
 		if !l.Managed {
 			i := slices.Index(stored, l.ID)
