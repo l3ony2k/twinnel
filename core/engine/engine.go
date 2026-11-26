@@ -160,7 +160,20 @@ func (e *Engine) httpClient(proxy *url.URL) *http.Client {
 	if proxy != nil {
 		tr.Proxy = http.ProxyURL(proxy)
 	}
-	return &http.Client{Transport: tr, Timeout: 2 * time.Minute}
+	return &http.Client{Transport: tr, Timeout: 2 * time.Minute, CheckRedirect: noDowngrade}
+}
+
+// noDowngrade follows at most 10 redirects and never from https to plain
+// http: a subscription or a geo/UI download that started over TLS must not
+// be handed to a network attacker by a redirect.
+func noDowngrade(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	if len(via) > 0 && via[0].URL.Scheme == "https" && req.URL.Scheme != "https" {
+		return fmt.Errorf("refusing redirect from https to %s", req.URL.Scheme)
+	}
+	return nil
 }
 
 // controllerSecret is the secret from Secrets, or "".

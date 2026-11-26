@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -246,5 +247,18 @@ func TestAdoptDirOwner(t *testing.T) {
 		Service: &takeover.ServiceDef{Kind: "launchd-agent", Path: filepath.Join(home, "agent.plist")}}
 	if _, err := adoptDirOwner(homeProbe{home: home}, m); err == nil {
 		t.Fatal("root-owned dir from a LaunchAgent accepted")
+	}
+}
+
+func TestNoDowngrade(t *testing.T) {
+	mk := func(u string) *http.Request { r, _ := http.NewRequest("GET", u, nil); return r }
+	if err := noDowngrade(mk("http://x/b"), []*http.Request{mk("https://x/a")}); err == nil {
+		t.Error("https -> http redirect allowed")
+	}
+	if err := noDowngrade(mk("https://y/b"), []*http.Request{mk("https://x/a")}); err != nil {
+		t.Error(err)
+	}
+	if err := noDowngrade(mk("http://y/b"), []*http.Request{mk("http://x/a")}); err != nil {
+		t.Error(err)
 	}
 }

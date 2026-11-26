@@ -15,6 +15,7 @@ import (
 
 	"github.com/l3ony2k/duet/core/config"
 	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/duet/core/kernel"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/store"
 	"github.com/l3ony2k/duet/core/takeover"
@@ -441,6 +442,13 @@ func (e *Engine) Adopt(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult,
 	dirUID, err := adoptDirOwner(probe, m)
 	if err != nil {
 		return res, rpc.ErrInvalid("%v", err)
+	}
+	// The binary comes from a service definition, possibly a LaunchAgent the
+	// user wrote; the helper will run it for mihomo -t. It must be mihomo.
+	if m.Binary != "" {
+		if _, err := kernel.ProbeVersion(ctx, m.Binary); err != nil {
+			return res, rpc.ErrInvalid("the adopted binary %s does not answer -v like mihomo: %v", m.Binary, err)
+		}
 	}
 	step("verify", "ok", fmt.Sprintf("live config %s unchanged since the plan (sha256 %s)", plan.Live, short(plan.LiveHash)))
 
