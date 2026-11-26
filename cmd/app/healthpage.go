@@ -42,7 +42,7 @@ func iconButton(c *ui.Context, icon *ui.SVG, label string, primary bool) ui.Elem
 		b = ui.Button(c, "")
 	}
 	return b.Label(label).Children(func() {
-		ui.Icon(c, icon).FontSize(14)
+		ui.Icon(c, icon).FontSize(iconInline)
 		ui.Text(c, label).SingleLine()
 	})
 }
@@ -179,7 +179,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 	expandable := len(cr.Evidence) > 0 || cr.Fix != nil
 	icon, col, _ := healthStatusLook(t, cr.Status)
 	_, _, stateText := healthStatusLook(t, cr.Status)
-	ui.Column(c).PaddingY(10).Gap(8).Clip().Transition(expandMotion).Children(func() {
+	ui.Column(c).PaddingY(10).Gap(8).Clip().Transition(expandFor(open)).Children(func() {
 		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).MinHeight(20).Label(stateText + "：" + cr.Title)
 		head.ContextMenu(func(m *ui.Menu) {
 			if m.Item(T.HealthCopySummary).Chosen() {
@@ -199,7 +199,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 			}
 			ui.Spacer(c)
 			if expandable {
-				disclosureChevron(c, open)
+				disclosure(c, open)
 			}
 		})
 		if expandable {
@@ -219,7 +219,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 			if len(cr.Evidence) > 0 {
 				ui.Column(c).Gap(6).Children(func() {
 					small(c, T.HealthEvidence)
-					ui.Column(c).Gap(3).Padding(10, 12).Radius(plat.controlRadius+2).Background(p.code).Border(1, p.groupLine).Children(func() {
+					ui.Column(c).Gap(3).Padding(10, 12).Radius(plat.innerRadius).Background(p.code).Border(1, p.groupLine).Children(func() {
 						evidenceLines(c, cr.Evidence)
 					})
 				})
@@ -231,7 +231,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 					if f.Command != "" {
 						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 							ui.Text(c, "$ "+strings.ReplaceAll(f.Command, "\n", "\n$ ")).Font("monospace").FontSize(12).
-								Padding(8, 10).Radius(plat.controlRadius+2).Background(p.code).Border(1, p.groupLine).Grow(1).Wrap().Selectable()
+								Padding(8, 10).Radius(plat.innerRadius).Background(p.code).Border(1, p.groupLine).Grow(1).Wrap().Selectable()
 							if iconButton(c.Key("copy-cmd"), iconCopy, T.CopyCmd, false).Clicked() {
 								copyText(c, f.Command)
 							}
@@ -269,9 +269,9 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 	row := ui.Row(c.Key("health-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).Cursor(ui.CursorPointer).
 		Focusable().Role(ui.RoleButton).Label(text)
 	row.Children(func() {
-		ui.Icon(c, icon).FontSize(14).TextColor(col)
+		ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
 		ui.Text(c, text).Grow(1).SingleLine()
-		ui.Icon(c, iconCollapsed).FontSize(12).TextColor(t.TextMuted)
+		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
 	})
 	if row.Hovered() {
 		row.Background(t.Text.Alpha(0.08))

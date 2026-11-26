@@ -298,10 +298,6 @@ func shortHash(h string) string {
 
 // --- layers ---
 
-// rowMove is how the layer rows glide to their new places after a drag
-// or a move (same curve as rowMotion).
-var rowMove = ui.Animation{Duration: 220 * time.Millisecond, Ease: easeInOutConfig}
-
 // layersCard lists the layers in compose order. The stored (user) layers
 // are a list that reorders by dragging, as macOS lists do (a drop line,
 // rows move on drop; review-a 005), by ⌥⌘↑ / ⌥⌘↓ on the open layer, and
@@ -327,7 +323,7 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 		ids[i] = l.ID
 	}
 	listCard(c, func() {
-		ui.Icon(c, iconLayer).FontSize(15).TextColor(t.TextMuted)
+		ui.Icon(c, iconLayer).FontSize(iconInline).TextColor(t.TextMuted)
 		ui.Text(c, T.Layers).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Shrink(0)
 		ui.Text(c, T.LayersHint).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).Shrink(1).SingleLine().Tooltip(T.LayersHint)
 		ui.Spacer(c)
@@ -416,7 +412,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 		}
 		head.ContextMenu(func(m *ui.Menu) { a.layerMenu(c, m, l, ids, w) })
 		head.Children(func() {
-			disclosureChevron(c, open)
+			disclosure(c, open)
 			on := l.Enabled
 			sw := ui.Switch(c.Key("on"), &on).Label(T.LayerEnabled + " " + l.Name)
 			switch {
@@ -518,7 +514,7 @@ func (a *app) newLayerRow(c *ui.Context, s status.Snapshot, w bool) {
 	ui.Column(c).Transition(rowMotion).Clip().MarginX(-8).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8).MarginY(4).Radius(plat.controlRadius).
 			Background(pal(t).accentSoft).Children(func() {
-			disclosureChevron(c, true)
+			disclosure(c, true)
 			ui.Text(c, T.LayerNew).FontWeight(600).Grow(1).SingleLine()
 			if ui.Button(c.Key("ed-cancel"), T.Cancel).Clicked() {
 				v.isNew, v.ed = false, nil
@@ -673,7 +669,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 		if v.ed == nil {
 			// Hold the editor's height while it loads, so the page does
 			// not jump when the text comes (review-b 017 #6).
-			ui.Column(c).Height(320).Radius(plat.controlRadius+2).Border(1, pal(t).groupLine).
+			ui.Column(c).Height(320).Radius(plat.innerRadius).Border(1, pal(t).groupLine).
 				AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Spinner(c)
@@ -682,7 +678,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 			})
 			return
 		}
-		editor.View(c.Key("ed:"+v.sel), v.ed).Height(320).Radius(plat.controlRadius+2).Border(1, pal(t).groupLine)
+		editor.View(c.Key("ed:"+v.sel), v.ed).Height(320).Radius(plat.innerRadius).Border(1, pal(t).groupLine)
 		if v.managed {
 			return
 		}
@@ -806,7 +802,7 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 			add, del := v.diff.Stats()
 			ui.Text(c, fmt.Sprintf(T.DiffStats, add, del)).FontSize(12).TextColor(t.TextMuted)
 			if add+del > 0 {
-				editor.DiffView(c.Key("preview-diff"), v.diff).Height(380).Radius(plat.controlRadius+2).Border(1, pal(t).groupLine)
+				editor.DiffView(c.Key("preview-diff"), v.diff).Height(380).Radius(plat.innerRadius).Border(1, pal(t).groupLine)
 			}
 		}
 		ui.Divider(c)

@@ -406,7 +406,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 						continue
 					}
 					ui.Text(c, strings.TrimRight(txt, "\n")).Font("monospace").FontSize(11).Wrap().Selectable().
-						Padding(8, 10).Radius(plat.controlRadius+2).Background(pal(t).code).Border(1, pal(t).groupLine)
+						Padding(8, 10).Radius(plat.innerRadius).Background(pal(t).code).Border(1, pal(t).groupLine)
 				}
 			}
 		}

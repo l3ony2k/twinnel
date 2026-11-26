@@ -156,6 +156,16 @@ func (a *app) helperShots(dir string, save func(*mygo.Window, string)) {
 	})
 	wait(time.Second)
 	save(a.win, "config-managed-layer")
+	on(func() {
+		for _, l := range a.hd.layers {
+			if !l.Managed && l.Stage != stageBase {
+				a.selectLayer(l) // a stored layer, its editor inline under its row
+				break
+			}
+		}
+	})
+	wait(time.Second)
+	save(a.win, "config-user-layer")
 	if writes {
 		on(func() {
 			a.newLayer()

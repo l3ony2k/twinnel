@@ -201,7 +201,7 @@ func (a *app) installPlanCard(c *ui.Context) {
 				head := ui.Row(c.Key("steps")).Gap(8).AlignItems(ui.Center).PaddingY(10).Cursor(ui.CursorPointer).
 					Focusable().Role(ui.RoleDisclosure).Expanded(v.stepsOpen).Label(i18n.F(T.OnboardSteps, len(steps)))
 				head.Children(func() {
-					disclosureChevron(c, v.stepsOpen)
+					disclosure(c, v.stepsOpen)
 					ui.Text(c, i18n.F(T.OnboardSteps, len(steps))).FontWeight(500)
 				})
 				if head.Clicked() {
@@ -222,7 +222,7 @@ func (a *app) installStepRow(c *ui.Context, n int, st planStep) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.onb
-	ui.Row(c).Gap(10).AlignItems(ui.Start).PaddingY(8).PaddingStart(22).Clip().Transition(expandMotion).Children(func() {
+	ui.Row(c).Gap(10).AlignItems(ui.Start).PaddingY(8).PaddingStart(22).Clip().Transition(expandFor(true)).Children(func() {
 		num(ui.Text(c, i18n.F("%d", n)).FontSize(plat.smallSize).TextColor(t.TextMuted).Width(14).TextAlign(ui.End).MarginY(2).Shrink(0))
 		ui.Column(c).Gap(3).Grow(1).Shrink(1).Children(func() {
 			ui.Text(c, st.what).Wrap()
@@ -239,7 +239,7 @@ func (a *app) installStepRow(c *ui.Context, n int, st planStep) {
 			disc := ui.Row(c.Key("file")).Gap(4).AlignItems(ui.Center).Cursor(ui.CursorPointer).
 				Focusable().Role(ui.RoleDisclosure).Expanded(v.fileOpen).Label(label)
 			disc.Children(func() {
-				ui.Icon(c, iconCollapsed).FontSize(11).TextColor(t.Accent).Transition(chevronMotion).Rotate(map[bool]float32{true: 90}[v.fileOpen])
+				ui.Icon(c, iconCollapsed).FontSize(11).TextColor(t.Accent).Transition(turnMotion).Rotate(map[bool]float32{true: 90}[v.fileOpen])
 				ui.Text(c, label).FontSize(plat.smallSize).TextColor(t.Accent)
 			})
 			if disc.Clicked() {
