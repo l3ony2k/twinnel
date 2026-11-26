@@ -44,8 +44,10 @@ type configView struct {
 	subID, subName, subURL, subMins string
 	subContent, subFile             string
 
-	// Layer editor.
-	sel       string // selected layer ID; "" = none
+	// Layer list and its inline editor.
+	list      ui.ListState
+	reveal    bool   // scroll the editor into view in the next frame
+	sel       string // open layer ID; "" = none
 	isNew     bool
 	managed   bool
 	loading   bool
@@ -87,9 +89,6 @@ func (a *app) configPage(c *ui.Context, s status.Snapshot) {
 	a.opNotes(c, s)
 	a.subscriptionsCard(c, s)
 	a.layersCard(c, s)
-	if a.hd.cfg.sel != "" || a.hd.cfg.isNew {
-		a.layerEditorCard(c, s)
-	}
 	a.previewCard(c, s)
 }
 
@@ -210,9 +209,7 @@ func (a *app) subscriptionForm(c *ui.Context, w bool) {
 			a.saveSubscription()
 		}
 		if ui.Button(c.Key("sub-cancel"), T.Cancel).Clicked() {
-			*v = configView{sel: v.sel, isNew: v.isNew, managed: v.managed, edID: v.edID, edName: v.edName,
-				edStage: v.edStage, edFormat: v.edFormat, edEnabled: v.edEnabled, ed: v.ed, reason: v.reason,
-				preview: v.preview, applied: v.applied, diff: v.diff, diffErr: v.diffErr}
+			v.subOpen, v.subID, v.subName, v.subURL, v.subMins, v.subContent, v.subFile = false, "", "", "", "", "", ""
 		}
 	})
 }
@@ -275,94 +272,231 @@ func shortHash(h string) string {
 
 // --- layers ---
 
+// rowMove is how the layer rows glide to their new places after a drag
+// or a move (same curve as rowMotion).
+var rowMove = ui.Animation{Duration: 220 * time.Millisecond, Ease: easeInOutConfig}
+
+// layersCard lists the layers in compose order. The stored (user) layers
+// are a list that reorders by dragging, as macOS lists do (a drop line,
+// rows move on drop; review-a 005), by ⌥⌘↑ / ⌥⌘↓ on the open layer, and
+// from each row's context menu. The managed layers (coexist, leak guard)
+// follow, pinned. A layer opens its editor inline, under its row, with
+// a disclosure motion (review-b 015 #1).
 func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	d := &a.hd
+	v := &d.cfg
 	w := a.helperWrites(s)
-	stored := []string{}
+	var user, managed []rpc.Layer
 	for _, l := range d.layers {
-		if !l.Managed {
-			stored = append(stored, l.ID)
+		if l.Managed {
+			managed = append(managed, l)
+		} else {
+			user = append(user, l)
 		}
+	}
+	ids := make([]string, len(user))
+	for i, l := range user {
+		ids[i] = l.ID
 	}
 	listCard(c, func() {
 		ui.Icon(c, iconLayer).FontSize(15).TextColor(t.TextMuted)
 		ui.Text(c, T.Layers).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Shrink(0)
-		ui.Text(c, T.LayersHint).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).Shrink(1).SingleLine()
+		ui.Text(c, T.LayersHint).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).Shrink(1).SingleLine().Tooltip(T.LayersHint)
 		ui.Spacer(c)
-		if ui.Button(c.Key("layer-new"), T.LayerNew).Disabled(!w).Clicked() {
+		if !v.isNew && ui.Button(c.Key("layer-new"), T.LayerNew).Disabled(!w).Clicked() {
 			a.newLayer()
 		}
 	}, func() {
-		for _, l := range d.layers {
-			a.layerRow(c.Key("layer:"+l.ID), l, stored, w)
+		if len(user) > 0 {
+			st := &v.list
+			st.Key = func(i int) any { return ids[i] }
+			st.Label = func(i int) string { return user[i].Name }
+			st.MoveAnimation = &rowMove
+			st.Reorder = nil
+			if w && len(user) > 1 {
+				st.Reorder = func(rows []int, to int) { a.reorderLayers(reorderIDs(ids, rows, to)) }
+			}
+			// The rows reach 8 past the box's padding, so the open row's
+			// tint has room around its text (r = 10 − 4 = 6, review-a 004).
+			ui.List(c.Key("layers"), st, len(user)).Background(ui.Transparent).MarginX(-8).Rows(func(row ui.ListRow) {
+				a.layerRow(row.Context, user[row.Index], ids, s, w, row.Index > 0, false)
+			})
+		}
+		for _, l := range managed {
+			a.layerRow(c.Key("layer:"+l.ID), l, nil, s, w, false, true)
+		}
+		if v.isNew {
+			a.newLayerRow(c.Key("layer-new-row"), s, w)
+		}
+	})
+	if i := slices.Index(ids, v.sel); i >= 0 && w && !v.isNew {
+		c.OnWindowShortcut(ui.Alt|ui.Cmd, ui.KeyUp, func() { a.moveLayer(ids, i, -1) })
+		c.OnWindowShortcut(ui.Alt|ui.Cmd, ui.KeyDown, func() { a.moveLayer(ids, i, 1) })
+	}
+}
+
+// reorderIDs moves the rows (indices into ids, in order) to before row
+// to (len(ids) for the end), as ListState.Reorder reports a drop.
+func reorderIDs(ids []string, rows []int, to int) []string {
+	moving := map[int]bool{}
+	var moved []string
+	for _, r := range rows {
+		if r >= 0 && r < len(ids) && !moving[r] {
+			moving[r] = true
+			moved = append(moved, ids[r])
+		}
+	}
+	out := make([]string, 0, len(ids))
+	for i := 0; i <= len(ids); i++ {
+		if i == to {
+			out = append(out, moved...)
+		}
+		if i < len(ids) && !moving[i] {
+			out = append(out, ids[i])
+		}
+	}
+	return out
+}
+
+// layerRow is one layer: its head (disclosure, switch, name, meta), and
+// its editor under it while it is open. ids are the stored layers' IDs
+// in order (nil for a managed layer); bare draws the row on its own in
+// the list box (pulled out 8 for its tint) rather than inside the list.
+func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapshot, w, divider, bare bool) {
+	t := c.Theme()
+	T := i18n.T
+	v := &a.hd.cfg
+	open := v.sel == l.ID && !v.isNew
+	col := ui.Column(c).Transition(rowMotion).Clip()
+	if bare {
+		col.MarginX(-8)
+	}
+	col.Children(func() {
+		if divider { // the list's own hairline, as the box draws between its rows
+			ui.Box(c).Height(1).MarginX(8).Background(pal(t).separator).AccessHidden(true)
+		}
+		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).Padding(8).MarginY(4).Radius(plat.controlRadius).
+			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(l.Name)
+		switch {
+		case open:
+			head.Background(pal(t).accentSoft)
+		case head.Hovered():
+			head.Background(t.Text.Alpha(0.04))
+		}
+		head.ContextMenu(func(m *ui.Menu) { a.layerMenu(c, m, l, ids, w) })
+		head.Children(func() {
+			disclosureChevron(c, open)
+			on := l.Enabled
+			sw := ui.Switch(c.Key("on"), &on).Label(T.LayerEnabled + " " + l.Name)
+			switch {
+			case l.ID == coexistLayerID:
+				sw.Disabled(!w)
+			case l.Managed: // leak guard: on while groups are set (settings)
+				sw.Disabled(true)
+			default:
+				sw.Disabled(!w)
+			}
+			if sw.Changed() {
+				a.setLayerEnabled(l, on)
+			}
+			ui.Column(c).Gap(2).Grow(1).Shrink(1).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					if l.Managed {
+						icon := iconManaged
+						if l.Stage == "guard" {
+							icon = iconLeakGuard
+						}
+						ui.Icon(c, icon).FontSize(14).TextColor(t.TextMuted).Tooltip(T.LayerManagedFixed)
+					}
+					ui.Text(c, l.Name).FontWeight(600).SingleLine().Shrink(1).Tooltip(l.Name)
+					tag(c, T.StageName(l.Stage))
+					if l.Managed {
+						tag(c, T.LayerManaged)
+					}
+				})
+				// The ID is an identifier (mono, copyable from the menu);
+				// the rest is sans meta with even digits (review-a 007-8).
+				ui.Row(c).Gap(0).AlignItems(ui.Baseline).Children(func() {
+					ui.Text(c, l.ID).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1)
+					info := " · " + l.Format
+					if !l.Managed {
+						info += " · " + status.Bytes(int64(l.Size))
+					}
+					num(meta(c, info))
+				})
+			})
+		})
+		if head.Clicked() {
+			if open {
+				v.sel, v.ed = "", nil
+			} else {
+				a.selectLayer(l)
+			}
+		}
+		if open {
+			a.layerEditor(c.Key("editor"), s, w)
 		}
 	})
 }
 
-func (a *app) layerRow(c *ui.Context, l rpc.Layer, stored []string, w bool) {
+// layerMenu is a layer row's context menu: what its row and editor do.
+func (a *app) layerMenu(c *ui.Context, m *ui.Menu, l rpc.Layer, ids []string, w bool) {
+	T := i18n.T
+	v := &a.hd.cfg
+	if v.sel == l.ID && !v.isNew {
+		if m.Item(T.Close).Chosen() {
+			v.sel, v.ed = "", nil
+		}
+	} else if m.Item(T.LayerOpen).Chosen() {
+		a.selectLayer(l)
+	}
+	toggle := T.LayerEnable
+	if l.Enabled {
+		toggle = T.LayerDisable
+	}
+	if m.Item(toggle).Disabled(!w || (l.Managed && l.ID != coexistLayerID)).Chosen() {
+		a.setLayerEnabled(l, !l.Enabled)
+	}
+	if i := slices.Index(ids, l.ID); i >= 0 {
+		m.Separator()
+		if m.Item(T.MoveUp).Shortcut(ui.Alt|ui.Cmd, ui.KeyUp).Disabled(!w || i == 0).Chosen() {
+			a.moveLayer(ids, i, -1)
+		}
+		if m.Item(T.MoveDown).Shortcut(ui.Alt|ui.Cmd, ui.KeyDown).Disabled(!w || i == len(ids)-1).Chosen() {
+			a.moveLayer(ids, i, 1)
+		}
+	}
+	m.Separator()
+	if m.Item(T.CopyID).Chosen() {
+		copyText(c, l.ID)
+	}
+	if !l.Managed {
+		m.Separator()
+		if m.Item(T.Remove + "…").Danger().Disabled(!w).Chosen() {
+			a.removeLayer(l.ID, l.Name)
+		}
+	}
+}
+
+// newLayerRow is the row of a layer being made: its title and the editor,
+// at the end of the list, coming in as a new row does.
+func (a *app) newLayerRow(c *ui.Context, s status.Snapshot, w bool) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.cfg
-	selected := v.sel == l.ID
-	// A list row; the open layer is tinted, as a selected row, and hover
-	// is a faint fill where a click opens one.
-	row := ui.Row(c).Gap(10).AlignItems(ui.Center).PaddingY(8).PaddingX(8).MarginX(-8).Radius(plat.controlRadius).Cursor(ui.CursorPointer)
-	switch {
-	case selected:
-		row.Background(pal(t).accentSoft)
-	case row.Hovered():
-		row.Background(t.Text.Alpha(0.04))
-	}
-	row.Children(func() {
-		on := l.Enabled
-		sw := ui.Switch(c.Key("on"), &on).Label(T.LayerEnabled)
-		switch {
-		case l.ID == coexistLayerID:
-			sw.Disabled(!w)
-		case l.Managed: // leak guard: on while groups are set (settings)
-			sw.Disabled(true)
-		default:
-			sw.Disabled(!w)
-		}
-		if sw.Changed() {
-			a.setLayerEnabled(l, on)
-		}
-		ui.Column(c).Gap(2).Grow(1).Shrink(1).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				if l.Managed {
-					icon := iconManaged
-					if l.Stage == "guard" {
-						icon = iconLeakGuard
-					}
-					ui.Icon(c, icon).FontSize(14).TextColor(t.TextMuted)
-				}
-				ui.Text(c, l.Name).FontWeight(600).SingleLine().Shrink(1)
-				tag(c, T.StageName(l.Stage))
-				if l.Managed {
-					tag(c, T.LayerManaged)
-				}
-			})
-			info := l.ID + " · " + l.Format
-			if !l.Managed {
-				info += " · " + status.Bytes(int64(l.Size))
+	ui.Column(c).Transition(rowMotion).Clip().MarginX(-8).Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8).MarginY(4).Radius(plat.controlRadius).
+			Background(pal(t).accentSoft).Children(func() {
+			disclosureChevron(c, true)
+			ui.Text(c, T.LayerNew).FontWeight(600).Grow(1).SingleLine()
+			if ui.Button(c.Key("ed-cancel"), T.Cancel).Clicked() {
+				v.isNew, v.ed = false, nil
 			}
-			ui.Text(c, info).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine()
 		})
-		if !l.Managed {
-			i := slices.Index(stored, l.ID)
-			if ui.Button(c.Key("up"), "↑").Label(T.MoveUp).Disabled(!w || i <= 0).Clicked() {
-				a.moveLayer(stored, i, -1)
-			}
-			if ui.Button(c.Key("down"), "↓").Label(T.MoveDown).Disabled(!w || i < 0 || i >= len(stored)-1).Clicked() {
-				a.moveLayer(stored, i, 1)
-			}
-		}
+		a.layerEditor(c.Key("editor-new"), s, w)
 	})
-	if row.Clicked() && !selected {
-		a.selectLayer(l)
-	}
 }
 
 func (a *app) setLayerEnabled(l rpc.Layer, on bool) {
@@ -383,6 +517,12 @@ func (a *app) moveLayer(ids []string, i, delta int) {
 	}
 	ids = slices.Clone(ids)
 	ids[i], ids[j] = ids[j], ids[i]
+	a.reorderLayers(ids)
+}
+
+// reorderLayers sends the stored layers' new order. The helper's list
+// comes back in it, and the rows glide there (rowMove).
+func (a *app) reorderLayers(ids []string) {
 	a.helperOp(i18n.T.LayerReorder, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
 		return hc.Call(ctx, rpc.MethodLayerReorder, rpc.ReorderParams{IDs: ids}, nil)
 	}, nil)
@@ -406,7 +546,7 @@ func (a *app) selectLayer(l rpc.Layer) {
 	v.edID, v.edName, v.edEnabled = l.ID, l.Name, l.Enabled
 	v.edStage = max(0, slices.Index(layerStages, l.Stage))
 	v.edFormat = max(0, slices.Index(layerFormats, l.Format))
-	v.ed = nil
+	v.ed, v.reveal = nil, true
 	a.loadLayerContent(l.ID)
 }
 
@@ -460,30 +600,22 @@ func (a *app) newLayer() {
 	v.sel, v.isNew, v.managed, v.loading = "", true, false, false
 	v.edID, v.edName, v.edStage, v.edFormat, v.edEnabled = "", "", 0, 0, true
 	v.ed = &editor.State{Buffer: yamlBuffer(i18n.T.LayerTemplate)}
+	v.reveal = true
 }
 
-func (a *app) layerEditorCard(c *ui.Context, s status.Snapshot) {
+// layerEditor is the open layer's editor, inline under its row: the
+// form, the YAML, lint notes, save and delete. It scrolls into view in
+// the frame it opens.
+func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.cfg
-	w := a.helperWrites(s)
-	headedCard(c, func() {
-		title := T.LayerEdit
-		switch {
-		case v.isNew:
-			title = T.LayerNew
-		case v.managed:
-			title = T.LayerGenerated
-		}
-		ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
-		if !v.isNew {
-			ui.Text(c, v.edID).Font("monospace").FontSize(12).TextColor(t.TextMuted)
-		}
-		ui.Spacer(c)
-		if ui.Button(c.Key("ed-close"), T.Close).Clicked() {
-			v.sel, v.isNew, v.ed = "", false, nil
-		}
-	}, func() {
+	ed := ui.Column(c).Gap(gapRow).Padding(4, 8, 12)
+	if v.reveal {
+		v.reveal = false
+		ed.ScrollIntoView(ui.ScrollIntoViewOptions{Animation: &rowMove})
+	}
+	ed.Children(func() {
 		if v.managed {
 			ui.Text(c, T.LayerManagedHint).FontSize(12).TextColor(t.TextMuted).Wrap()
 		} else {
@@ -510,19 +642,22 @@ func (a *app) layerEditorCard(c *ui.Context, s status.Snapshot) {
 			})
 		}
 		if v.ed == nil {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Spinner(c)
-				ui.Text(c, T.Loading).FontSize(12).TextColor(t.TextMuted)
+			// Hold the editor's height while it loads, so the page does
+			// not jump when the text comes (review-b 017 #6).
+			ui.Column(c).Height(320).Radius(plat.controlRadius+2).Border(1, pal(t).groupLine).
+				AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Spinner(c)
+					ui.Text(c, T.Loading).FontSize(12).TextColor(t.TextMuted)
+				})
 			})
 			return
 		}
 		editor.View(c.Key("ed:"+v.sel), v.ed).Height(320).Radius(plat.controlRadius+2).Border(1, pal(t).groupLine)
-		if !v.managed {
-			a.lintNotes(c)
-		}
 		if v.managed {
 			return
 		}
+		a.lintNotes(c)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			id := strings.TrimSpace(v.edID)
 			if ui.PrimaryButton(c.Key("ed-save"), T.Save).Disabled(!w || id == "").Clicked() {
@@ -533,16 +668,23 @@ func (a *app) layerEditorCard(c *ui.Context, s status.Snapshot) {
 			}
 			ui.Spacer(c)
 			if !v.isNew && ui.Button(c.Key("ed-delete"), T.Remove).Disabled(!w).Clicked() {
-				name := v.edName
-				a.confirm(fmt.Sprintf(T.LayerRemoveTitle, name), T.LayerRemoveBody, T.Remove, func() {
-					a.helperOp(T.Remove+" "+id, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
-						return hc.Call(ctx, rpc.MethodLayerDelete, rpc.IDParams{ID: id}, nil)
-					}, func(err error) {
-						if err == nil {
-							v.sel, v.ed = "", nil
-						}
-					})
-				})
+				a.removeLayer(id, v.edName)
+			}
+		})
+	})
+}
+
+// removeLayer asks, then deletes a stored layer; its content is gone for
+// good, which the question says.
+func (a *app) removeLayer(id, name string) {
+	T := i18n.T
+	v := &a.hd.cfg
+	a.confirm(fmt.Sprintf(T.LayerRemoveTitle, name), T.LayerRemoveDetail, T.Remove, func() {
+		a.helperOp(T.Remove+" "+id, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
+			return hc.Call(ctx, rpc.MethodLayerDelete, rpc.IDParams{ID: id}, nil)
+		}, func(err error) {
+			if err == nil && v.sel == id {
+				v.sel, v.ed = "", nil
 			}
 		})
 	})
