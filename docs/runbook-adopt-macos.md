@@ -124,6 +124,72 @@ sudo security find-generic-password -s duet.controller-secret -w /Library/Keycha
 
 To undo it, roll back to the history entry before it (`duet history list`, then `duet history rollback <id>`). Then delete the keychain item; otherwise the next apply puts the secret back.
 
+## 8. Move mihomo to a root-owned kernel and config (one restart, a few seconds offline)
+
+After the adopt, `com.mihomo.proxy` still runs `~/mihomo-migration/bin/mihomo` **as root**, and that file and the `-d` dir `~/mihomo-migration/conf` belong to you. Any program running as you could replace the binary and get root at the next restart (security review, finding 5). This step moves mihomo to:
+
+- the managed kernel `/Library/Application Support/duet/kernels/mihomo/current/mihomo` (root-owned, same version as now unless you pass `--kernel`);
+- a root-owned config dir `/Library/Application Support/duet/mihomo` (0700): the composed config, the geo databases, `cache.db` (selected nodes, fake-ip pool) and the dashboard are copied there. Absolute paths into the old dir (`external-ui: ~/mihomo-migration/conf/ui`) become relative (`ui`);
+- duet's LaunchDaemon `com.l3ony2k.duet.mihomo`.
+
+It needs **one restart** of mihomo, which rebuilds the TUN: the network is down for a few seconds (estimate 2–8 s; nothing was measured on this Mac). Do it when no agent or download is running. Put every other restart-only change into the same restart:
+
+- the controller secret: with `--new-secret` the new mihomo starts with a new one. Without it, a secret that step 7 stored but mihomo has not loaded yet becomes active now;
+- a kernel update: `--kernel vX.Y.Z`.
+
+### 8a. Plan (changes nothing)
+
+```sh
+duet helper harden plan [--new-secret] [--kernel vX.Y.Z]
+```
+
+It shows both sides (label, plist, binary, config, owner), the kernel download if the version is not installed yet, what is copied (and what is not, e.g. symlinks), the config changes, the secret, the expected downtime and every step. Steps marked `!` run while mihomo is down. Check:
+
+- `from` is `com.mihomo.proxy`, `to` is `com.l3ony2k.duet.mihomo`;
+- `copy` lists the geo files, `cache.db` and `ui/`;
+- each `change` line is expected. "the composed config differs from the running file in more than paths" means the subscription, a layer or the tailnet changed since the last apply; `duet compose --preview` shows it, and you may want to apply that first, on its own.
+
+### 8b. Apply
+
+```sh
+duet helper harden apply            # shows the newest ready plan again, then y/N
+```
+
+Before the cut (network unaffected): installs or selects the kernel, copies into a staging dir, writes the config, runs `mihomo -t` with the new kernel, renames the staging dir into place, saves a copy of the old plist in `/Library/Application Support/duet/harden/<plan id>/old-service.plist`, writes `/Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist`, and runs the health checks.
+
+The cut: `launchctl bootout system/com.mihomo.proxy`, wait until its controller stops answering, `launchctl bootstrap system /Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist`, wait for `GET /version` (at most 45 s), health checks again.
+
+- **Success:** `launchctl disable system/com.mihomo.proxy` (the plist stays, it just does not load at boot any more) and settings switch to the new kernel, dir and label. The result shows the measured time offline.
+- **Failure** (the new one does not answer, or health is worse): the new label is booted out and its plist removed, `com.mihomo.proxy` is bootstrapped again, the previous secret is restored, and the new dir is moved to `…/harden/<plan id>/failed-config-dir` for inspection. Settings are not changed. Offline time is then about twice as long.
+- If the helper itself dies during the cut, it boots `com.mihomo.proxy` back in when it starts again (if neither service runs).
+
+Afterwards check:
+
+```sh
+sudo launchctl print system/com.l3ony2k.duet.mihomo | grep -E 'state|program'
+sudo launchctl print-disabled system | grep -E 'mihomo'   # com.mihomo.proxy => disabled
+duet status
+duet helper health --run
+```
+
+Zashboard keeps working at the same address. With `--new-secret` it needs the new secret (see step 7 for how to read it).
+
+### 8c. Roll back by hand
+
+The old binary, `~/mihomo-migration/conf` and `/Library/LaunchDaemons/com.mihomo.proxy.plist` are untouched. To go back (a few seconds offline again):
+
+```sh
+sudo launchctl bootout system/com.l3ony2k.duet.mihomo
+sudo launchctl enable system/com.mihomo.proxy
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.mihomo.proxy.plist
+curl -s http://127.0.0.1:9090/version          # add -H "Authorization: Bearer <secret>" if it has one
+sudo mv /Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist "/Library/Application Support/duet/harden/"
+```
+
+If the network is down at any point, `bash ~/mihomo-migration/emergency-restore.sh` still works (it uses the old setup).
+
+The helper's settings still point at the new dir after a manual rollback. Either uninstall the helper (step 6 B), or edit `/Library/Application Support/duet/settings.json` as root: put back the `mihomo` values recorded under `hardened` (`old_binary`, `old_config_dir`, `old_config_file`, `old_config_dir_uid`, `old_label` as `service_label`, `service_adopted: true`), remove `hardened`, and restart the helper (`sudo launchctl kickstart -k system/com.l3ony2k.duet.helper`). Note that the old config file is the one from before step 8; changes applied after it are only in the new dir.
+
 ## Network impact (when to do what)
 
 Measured and read from the mihomo v1.19.34 source; details in `docs/reload-behavior.md`.
@@ -133,15 +199,17 @@ Measured and read from the mihomo v1.19.34 source; details in `docs/reload-behav
 | 1 rehearse, 3 plan | No. Reads files, `tailscale status`, `route get`, controller `GET /version`, `mihomo -t` on temp files. |
 | 2 install the helper | No. It starts a LaunchDaemon that only reads (controller GETs, health checks: DNS queries to 127.0.0.1:53, `scutil`, `netstat`, `route get`). With no subscription it applies nothing. |
 | 4 adopt | One hot reload (two if it rolls back). TUN, DNS server and ports stay as they are; open connections, fake-ip mappings and the selected nodes are kept. Connections **opened** during a pause of about 1–15 ms are closed at once, and UDP packets in that pause are dropped. A program that opens a connection at that instant gets one connection error; most retry. |
-| 7 secure the controller | One more hot reload (same as above); the secret needs a restart of mihomo, which does cut the network. |
+| 7 secure the controller | One more hot reload (same as above); the secret needs a restart of mihomo, which does cut the network. Step 8 is that restart. |
+| 8a harden plan | No. Reads, `launchctl print`, controller `GET /version`, a GitHub release lookup, `mihomo -t` on temp files. |
+| 8b harden apply | **Yes: one restart of mihomo**, a few seconds without network (TUN rebuilt, open connections cut). The kernel download and the copy happen before it, while the network is up. |
 
-Safest moment for step 4: when no agent or download is starting new connections (e.g. between tasks). Steps 1–3 can be done any time.
+Safest moment for step 4: when no agent or download is starting new connections (e.g. between tasks). Steps 1–3 and 8a can be done any time. Step 8b only when nothing is running.
 
 After the adopt, the helper reloads mihomo again only when the composed config changes: a Tailscale peer joins or leaves the tailnet, its MagicDNS name or IP changes, or tailscaled restarts on a new utun. Each such reload is the same short pause.
 
 ## Notes
 
-- The helper never replaces or removes `com.mihomo.proxy`: `duet service install|uninstall mihomo` is refused for an adopted service. start/stop/restart work.
+- The helper never replaces or removes `com.mihomo.proxy`: `duet service install|uninstall mihomo` is refused for an adopted service. start/stop/restart work. Step 8 only boots it out and disables it; the plist stays.
 - The adopted subscription has no refresh interval. To have the helper fetch it, use `duet sub put adopted … --interval 720`. Be aware that a fetched subscription can differ from `raw-sub-original.yaml`.
 - The leak guard is off after the adopt. Turn it on with `duet settings --leak-guard Google,Meta` (or whichever groups you want).
 - `duet helper discard <plan id>` refuses the adopted plan, because it holds the exact backup (`--force` deletes it anyway).
