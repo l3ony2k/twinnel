@@ -64,6 +64,7 @@ type Strings struct {
 
 	// Proxies page.
 	TestGroupDelay, TestingDelay, Members, Selected, NoGroups string
+	TestAllDelay                                              string
 
 	// Tailscale page.
 	PeerName, PeerIP, PeerOS, PeerPath, PeerLastSeen, PeerRelay string
@@ -337,6 +338,7 @@ var zh = Strings{
 	PageSettings:  "设置",
 
 	TestGroupDelay: "测速",
+	TestAllDelay:   "全部测速",
 	TestingDelay:   "测速中…",
 	Members:        "成员",
 	Selected:       "当前",

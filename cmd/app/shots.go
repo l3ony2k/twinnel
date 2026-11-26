@@ -59,6 +59,23 @@ func (a *app) shots(dir string) {
 				time.Sleep(700 * time.Millisecond)
 			}
 			save(a.win, "main-"+p)
+			if p == pageProxies { // the toolbar over scrolled content
+				mygo.RunOnMain(func() {
+					a.win.SetSize(a.winWidth(), 560) // short, so the page scrolls
+					if st := a.pageScroll[p]; st != nil {
+						st.Y = 240
+					}
+					a.win.Invalidate()
+				})
+				time.Sleep(500 * time.Millisecond)
+				save(a.win, "main-proxies-scrolled")
+				mygo.RunOnMain(func() {
+					a.win.SetSize(a.winWidth(), a.winHeight())
+					if st := a.pageScroll[p]; st != nil {
+						st.Y = 0
+					}
+				})
+			}
 		}
 		if os.Getenv("DUET_SHOTS_QUICK") == "" { // quick: the main pages and the panel only
 			a.helperShots(dir, save)

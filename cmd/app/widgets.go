@@ -236,15 +236,10 @@ func hintText(c *ui.Context, s string) ui.Element {
 	return ui.Text(c, s).FontSize(plat.bodySize - 1).TextColor(c.Theme().TextMuted).Wrap()
 }
 
-// pageHeader draws a page's title with actions at the right.
+// pageHeader puts the page's title, and its actions at the right, in
+// the window's toolbar (mainView builds it after the page).
 func pageHeader(c *ui.Context, title string, trailing func()) {
-	ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(32).DragWindow().Children(func() {
-		ui.Text(c, title).FontSize(plat.titleSize).FontWeight(plat.titleWeight).SingleLine()
-		ui.Spacer(c)
-		if trailing != nil {
-			trailing()
-		}
-	})
+	pageBar = toolbarSpec{title: title, trailing: trailing}
 }
 
 // meta draws a quiet label: a type, a role, a count. Badges are for

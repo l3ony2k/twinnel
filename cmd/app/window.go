@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/chart"
 
@@ -45,31 +47,70 @@ func (a *app) mainView(c *ui.Context) {
 		if c.Vibrancy() {
 			content.BorderWidth(0, 0, 0, 1).BorderColor(pal(t).separator)
 		}
+		barH := toolbarHeight(c)
+		pageBar = toolbarSpec{} // the page fills it in (pageHeader)
 		content.Children(func() {
+			scrolled := false
 			switch a.page {
 			case pageLogs:
-				a.logsPage(c) // has its own scrolling list
+				a.logsPage(c, barH) // has its own scrolling list, below the bar
 			default:
-				ui.Scroll(c).Grow(1).Children(func() {
-					ui.Column(c).Padding(pagePadTop(c), plat.pagePadX, 32).AlignItems(ui.Center).Children(func() {
+				st := a.pageScroll[a.page]
+				if st == nil {
+					st = &ui.ScrollState{}
+					a.pageScroll[a.page] = st
+				}
+				ui.Scroll(c.Key("page:"+a.page)).TrackScroll(st).Grow(1).ScrollbarInsets(barH, 0, 0, 0).Children(func() {
+					ui.Column(c).Padding(barH+4, plat.pagePadX, 32).AlignItems(ui.Center).Children(func() {
 						ui.Column(c).Gap(gapGroup).FillWidth().MaxWidth(plat.contentMax).Children(func() {
 							a.pageBody(c, s)
 						})
 					})
 				})
+				scrolled = st.Y > 0.5
 			}
+			a.toolbar(c, barH, scrolled)
 		})
 	})
 }
 
-// pagePadTop is the room above a page's title. Under a hidden title bar
-// the title row (32 high) sits on the traffic lights' line, as the title of
-// a unified toolbar does, and drags the window (pageHeader).
-func pagePadTop(c *ui.Context) float32 {
-	if bar := c.TitleBar(); bar.Height > 0 {
-		return max((bar.Height-32)/2, 4)
+// The toolbar: the page's title and actions on the traffic lights' line,
+// pinned while the page scrolls under it, as a unified toolbar on macOS
+// (System Settings, Finder). At the top of the page it has no background;
+// once content scrolls under it, the scroll edge of macOS 26 (content
+// frosted under the window's background, a hairline below) sets it off.
+
+type toolbarSpec struct {
+	title    string
+	trailing func()
+}
+
+// pageBar is what the current page puts in the toolbar (pageHeader);
+// mainView builds the toolbar after the page. Main thread only.
+var pageBar toolbarSpec
+
+// toolbarHeight is the toolbar's height: the title bar's under a hidden
+// title bar (the traffic lights centered in it), at least a unified
+// toolbar's 52.
+func toolbarHeight(c *ui.Context) float32 {
+	return max(c.TitleBar().Height, 52)
+}
+
+func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
+	t := c.Theme()
+	if scrolled {
+		ui.Box(c.Key("toolbar-edge")).Absolute().Top(0).Left(0).Right(0).Height(h).PassThrough().
+			Material(glass.ScrollEdge{Hard: true, Background: t.Background})
 	}
-	return plat.pagePadTop
+	spec := pageBar
+	ui.Row(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).PaddingX(plat.pagePadX).
+		Gap(8).AlignItems(ui.Center).DragWindow().Role(ui.RoleToolbar).Label(spec.title).Children(func() {
+		ui.Text(c, spec.title).FontSize(plat.titleSize).FontWeight(plat.titleWeight).SingleLine().Shrink(1)
+		ui.Spacer(c)
+		if spec.trailing != nil {
+			spec.trailing()
+		}
+	})
 }
 
 func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
@@ -457,8 +498,33 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
-	pageTitle(c, T.PageProxies)
 	m := s.Mihomo
+	pageHeader(c, T.PageProxies, func() {
+		if !m.Reachable || len(m.Groups) == 0 {
+			return
+		}
+		busy := false
+		for _, g := range m.Groups {
+			busy = busy || a.mon.Testing(g.Name)
+		}
+		label := T.TestAllDelay
+		if busy {
+			label = T.TestingDelay
+		}
+		if iconButton(c.Key("test-all"), iconSpeed, label, false).Disabled(busy).Clicked() {
+			names, mon := make([]string, 0, len(m.Groups)), a.mon
+			for _, g := range m.Groups {
+				names = append(names, g.Name)
+			}
+			go func() { // one group at a time: the controller tests every node of each
+				for _, name := range names {
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					_ = mon.TestGroup(ctx, name)
+					cancel()
+				}
+			}()
+		}
+	})
 	if !m.Reachable {
 		groupBox(c, t).Children(func() {
 			emptyState(c, iconError, T.Unreachable, m.Err)
@@ -481,21 +547,31 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 	})
 }
 
-// Node tiles: columns of equal width that fill the row, each tile at
-// least tileMin wide (so at most about twice that before another column
-// fits).
+// Node tiles: a grid whose columns share the row's width evenly, each
+// tile between tileMin and tileMax wide (the owner's 220–320), so every
+// full row spans the width with equal gaps. A group with fewer nodes than
+// columns gets one column per node, its grid no wider than tiles of
+// tileMax: no empty columns at the right.
 const (
-	tileMin = 168
+	tileMin = 220
+	tileMax = 320
 	tileGap = 8
 )
 
-// tileColumns is how many tile columns fit in w; 4 before the first
-// layout.
-func tileColumns(w float32) int {
+// tileLayout is the tile grid for n nodes in a row w wide: its columns,
+// and the widest the grid may be (0: the whole row). Before the first
+// layout (w 0) it guesses 3 columns.
+func tileLayout(w float32, n int) (cols int, maxW float32) {
 	if w <= 0 {
-		return 4
+		return min(3, max(n, 1)), 0
 	}
-	return max(1, int((w+tileGap)/(tileMin+tileGap)))
+	fit := max(1, int((w+tileGap)/(tileMin+tileGap)))                      // most columns of at least tileMin
+	need := max(1, int(math.Ceil(float64((w+tileGap)/(tileMax+tileGap))))) // fewest of at most tileMax
+	cols = min(need, fit)
+	if n < cols {
+		return max(n, 1), float32(n)*tileMax + float32(n-1)*tileGap
+	}
+	return cols, 0
 }
 
 func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
@@ -537,13 +613,17 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 		if !open {
 			return
 		}
-		grid := ui.Grid(c.Key("tiles")).Gap(tileGap).MarginStart(24).MarginY(2)
-		cols := tileColumns(grid.Bounds().W)
+		// The head row spans the list's width; the grid is 24 in from it.
+		cols, maxW := tileLayout(head.Bounds().W-24, len(g.Members))
 		if cols != a.tileCols[g.Name] { // the width changed: lay out again with the new count
 			a.tileCols[g.Name] = cols
 			c.Invalidate()
 		}
-		grid.Columns(cols).Children(func() {
+		grid := ui.Grid(c.Key("tiles")).Gap(tileGap).MarginStart(24).MarginY(2).Columns(cols)
+		if maxW > 0 {
+			grid.MaxWidth(maxW)
+		}
+		grid.Children(func() {
 			for _, mem := range g.Members {
 				selected := mem.Name == g.Now
 				chip := ui.Column(c.Key(mem.Name)).MinWidth(0).Padding(8, 10).Gap(2).Radius(8).
@@ -697,7 +777,7 @@ func (l *logsView) levelName() string {
 	return logLevels[l.level]
 }
 
-func (a *app) logsPage(c *ui.Context) {
+func (a *app) logsPage(c *ui.Context, barH float32) {
 	t := c.Theme()
 	T := i18n.T
 	p := pal(t)
@@ -706,7 +786,7 @@ func (a *app) logsPage(c *ui.Context) {
 	if a.logs.paused {
 		entries = a.logs.frozen
 	}
-	ui.Column(c).Grow(1).Padding(pagePadTop(c), plat.pagePadX, 20).Gap(16).Children(func() {
+	ui.Column(c).Grow(1).Padding(barH+4, plat.pagePadX, 20).Gap(16).Children(func() {
 		pageHeader(c, T.PageLogs, func() {
 			small(c, T.LogLevel)
 			if ui.Segmented(c.Key("level"), &a.logs.level, logLevels...).Changed() {

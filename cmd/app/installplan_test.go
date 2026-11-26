@@ -42,3 +42,26 @@ func TestParsePlan(t *testing.T) {
 		t.Error("parsed garbage")
 	}
 }
+
+func TestTileLayout(t *testing.T) {
+	for _, tc := range []struct {
+		w       float32
+		n, cols int
+		capped  bool
+	}{
+		{850, 12, 3, false}, {600, 12, 2, false}, {1100, 12, 4, false}, {300, 12, 1, false},
+		{850, 2, 2, true}, {1100, 1, 1, true}, {0, 12, 3, false},
+	} {
+		cols, maxW := tileLayout(tc.w, tc.n)
+		if cols != tc.cols || (maxW > 0) != tc.capped {
+			t.Errorf("tileLayout(%v, %d) = %d, %v", tc.w, tc.n, cols, maxW)
+			continue
+		}
+		if tc.w > 0 && !tc.capped && tc.cols > 1 {
+			tile := (tc.w - float32(cols-1)*tileGap) / float32(cols)
+			if tile < tileMin || tile > tileMax {
+				t.Errorf("w %v: tile %v outside %d–%d", tc.w, tile, tileMin, tileMax)
+			}
+		}
+	}
+}

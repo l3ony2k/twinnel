@@ -69,20 +69,21 @@ type app struct {
 	theme       string // DUET_THEME=light|dark forces a theme (development, shots)
 	peers       ui.ListState
 	groupsOpen  map[string]bool
-	tileCols    map[string]int  // node tile columns per group, from the last layout
-	healthOpen  map[string]bool // check ID → expanded, once the user toggled it
-	exitPick    string          // exit node select value (peer name or ExitNodeNone)
-	hd          helperData      // what the helper pages show
-	creds       credsState      // controller credentials from the helper
-	toast       string          // shown once by the next frame of the main window
-	shotNav     struct {        // shot mode: force the sidebar's key/hover looks
+	tileCols    map[string]int             // node tile columns per group, from the last layout
+	pageScroll  map[string]*ui.ScrollState // each page's scroll place; the toolbar's edge shows once scrolled
+	healthOpen  map[string]bool            // check ID → expanded, once the user toggled it
+	exitPick    string                     // exit node select value (peer name or ExitNodeNone)
+	hd          helperData                 // what the helper pages show
+	creds       credsState                 // controller credentials from the helper
+	toast       string                     // shown once by the next frame of the main window
+	shotNav     struct {                   // shot mode: force the sidebar's key/hover looks
 		active *bool
 		hover  string
 	}
 }
 
 func main() {
-	a := &app{page: pageOverview, groupsOpen: map[string]bool{}, tileCols: map[string]int{}, healthOpen: map[string]bool{}}
+	a := &app{page: pageOverview, groupsOpen: map[string]bool{}, tileCols: map[string]int{}, pageScroll: map[string]*ui.ScrollState{}, healthOpen: map[string]bool{}}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		log.Fatal(err)
