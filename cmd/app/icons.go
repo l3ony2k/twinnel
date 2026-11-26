@@ -45,17 +45,11 @@ var (
 	iconKernel  = svgIcon("gauge")
 )
 
-// trayIcon returns the menu bar template icon for a level (32×32 PNG, black
-// on transparent): two interlocked rings, with a "!" or an "x" in the corner.
-func trayIcon(l status.Level) []byte {
-	name := "duet"
-	switch l {
-	case status.LevelWarn:
-		name = "duet-warn"
-	case status.LevelError:
-		name = "duet-error"
-	}
-	b, err := icons.FS.ReadFile("tray/" + name + ".png")
+// trayIcon returns a menu bar template icon (32×32 PNG = 16 pt @2x, black
+// on transparent): two interlocked rings whose shape tells the state
+// (status.TrayIconFor picks it; never color, the icon is a template).
+func trayIcon(v status.TrayIcon) []byte {
+	b, err := icons.FS.ReadFile("tray/" + string(v) + ".png")
 	if err != nil {
 		panic(err)
 	}

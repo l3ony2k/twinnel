@@ -2,6 +2,14 @@
 // Two rings that cross: mihomo and Tailscale, the two cores running side by side. The right
 // ring is in front and cuts the left one where they cross. Status variants put a mark in a
 // round notch at the bottom right (a "!" for a warning, an "x" for an error), as kit.badge does.
+// The menu bar icon is a monochrome template: every state is told apart by shape alone.
+//   duet            all fine
+//   duet-warn       "!" in the notch
+//   duet-error      "x" in the notch
+//   duet-unknown    both rings dashed: still connecting / not known yet
+//   duet-tsdown     right ring (Tailscale) dashed, left ring (mihomo) whole: Tailscale is down
+//   duet-mode       "→" in the notch: mihomo is not in rule mode (direct or global)
+//   duet-nohelper   a small hollow ring in the notch: the helper is not installed / not connected
 import { n, P, shell, line, solid } from '../parts.mjs';
 import { gapOf } from '../kit.mjs';
 import { circ } from '../smooth.mjs';
@@ -54,8 +62,47 @@ function marked(mark, label) {
   };
 }
 
+// dashed draws a ring as short arcs with round ends: n dashes, each `on` of its share of the turn.
+function dashed(g, cx, cy, { n: count = 7, on = 0.55, start = -90 } = {}) {
+  const r = R - g.h, step = 360 / count, len = step * on;
+  let d = '';
+  for (let i = 0; i < count; i++) {
+    const a = start + i * step;
+    d += g.arc(cx, cy, r, a, a + len);
+  }
+  return d;
+}
+
+// The interlocked pair with one or both rings dashed (no cuts: a dashed ring has its own gaps).
+function broken(which, label) {
+  return {
+    ...duet, label, name: `duet-${which}`, base: 'duet', weights: null,
+    allow: { ...duet.allow, open: '虚线环表示“未连接 / 未知”，短弧端点是有意留的开口' },
+    draw(g) {
+      // Few, wide gaps: they must still read as gaps at 16 px (1x).
+      const left = which === 'unknown'
+        ? line(dashed(g, LX, CY, { n: 5, on: 0.5, start: -54 }), { n: 'left', role: P, part: 'left' })
+        : shell(g.ring(LX, CY, R), { n: 'left', role: P, part: 'left' });
+      const right = which === 'unknown' ? { n: 5, on: 0.5, start: -126 } : { n: 3, on: 0.42, start: -150 };
+      return [left, line(dashed(g, RX, CY, right), { n: 'right', role: P, part: 'right' })];
+    },
+    fx: [{ t: 'keys', on: ['right'], o: [RX, CY], r: [0, 120], ms: 900 }]
+  };
+}
+
+// Extra notch marks (same notch as warn/error).
+MARKS.nohelper = (g, x, y) => [line(circ(x, y, MARK * 0.78 - g.h * 0.2))];
+MARKS.mode = (g, x, y) => {
+  const k = MARK * 0.95 - g.h * 0.5, a = MARK * 0.7;
+  return [line(`${g.seg(x - k, y, x + k, y)}M${n(x + k - a)} ${n(y - a)}L${n(x + k)} ${n(y)}L${n(x + k - a)} ${n(y + a)}`)];
+};
+
 export default {
   duet,
   'duet-warn': marked('warn', '双核（警告）'),
-  'duet-error': marked('error', '双核（错误）')
+  'duet-error': marked('error', '双核（错误）'),
+  'duet-unknown': broken('unknown', '双核（连接中）'),
+  'duet-tsdown': broken('tsdown', '双核（Tailscale 断开）'),
+  'duet-mode': marked('mode', '双核（非规则模式）'),
+  'duet-nohelper': marked('nohelper', '双核（后台助手未连接）')
 };

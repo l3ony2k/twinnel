@@ -53,6 +53,7 @@ type app struct {
 	tray       *mygo.Tray
 	trayTitle  string
 	trayLevel  status.Level
+	trayShape  status.TrayIcon
 	panel      *mygo.Window
 	win        *mygo.Window
 	page       string
@@ -102,7 +103,7 @@ func (a *app) ready() {
 	var err error
 	a.tray, err = mygo.NewTray(mygo.TrayOptions{
 		ID:              "duet",
-		Icon:            trayIcon(status.LevelUnknown),
+		Icon:            trayIcon(status.TrayUnknown),
 		IconIsTemplate:  true,
 		MonospacedTitle: true,
 		ToolTip:         i18n.T.AppName,
@@ -223,9 +224,12 @@ func (a *app) changed(mon *status.Monitor) {
 			a.trayTitle = title
 			a.tray.SetTitle(title)
 		}
+		if shape := status.TrayIconFor(s); shape != a.trayShape {
+			a.trayShape = shape
+			a.tray.SetIcon(trayIcon(shape), true)
+		}
 		if s.Level != a.trayLevel {
 			a.trayLevel = s.Level
-			a.tray.SetIcon(trayIcon(s.Level), true)
 			a.tray.SetToolTip(i18n.T.AppName + " · " + s.Level.Text())
 		}
 		if a.panel != nil {
