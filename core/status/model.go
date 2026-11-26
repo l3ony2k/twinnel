@@ -96,6 +96,7 @@ type Snapshot struct {
 	Time          time.Time
 	Mihomo        Mihomo
 	Tailscale     Tailscale
+	Health        Health
 	Level         Level
 	Reasons       []Reason
 	WritesAllowed bool
@@ -104,8 +105,9 @@ type Snapshot struct {
 
 // Reason explains a level other than OK.
 type Reason struct {
-	Level Level
-	Text  string
+	Level  Level
+	Text   string
+	Health bool // comes from the health checks (the panel shows those on a line of their own)
 }
 
 // BuildGroups turns a /proxies answer into groups in configuration order.
@@ -160,7 +162,7 @@ const KeyExpiryWarning = 7 * 24 * time.Hour
 func Evaluate(s *Snapshot) {
 	t := i18n.T
 	var rs []Reason
-	add := func(l Level, text string) { rs = append(rs, Reason{l, text}) }
+	add := func(l Level, text string) { rs = append(rs, Reason{Level: l, Text: text}) }
 	m := s.Mihomo
 	switch {
 	case m.Unauthorized:
@@ -202,6 +204,15 @@ func Evaluate(s *Snapshot) {
 	if ts.Install.UsesSystemVPN {
 		add(LevelWarn, t.ReasonTSSystemVPN)
 	}
+	// The health checks overlap the reasons above (mihomo down fails some of
+	// them too), but they also see what the snapshot cannot: routes, DNS,
+	// rules. Their worst result counts.
+	switch warn, fail := s.Health.Counts(); {
+	case fail > 0:
+		rs = append(rs, Reason{LevelError, fmt.Sprintf(t.ReasonHealthFail, fail), true})
+	case warn > 0:
+		rs = append(rs, Reason{LevelWarn, fmt.Sprintf(t.ReasonHealthWarn, warn), true})
+	}
 	s.Reasons = rs
 	switch {
 	case !s.Loaded:
@@ -213,3 +224,19 @@ func Evaluate(s *Snapshot) {
 		}
 	}
 }
+
+// String returns the level's machine name: ok, warn, error, unknown.
+func (l Level) String() string {
+	switch l {
+	case LevelOK:
+		return "ok"
+	case LevelWarn:
+		return "warn"
+	case LevelError:
+		return "error"
+	}
+	return "unknown"
+}
+
+// MarshalText encodes the level by its machine name (JSON output).
+func (l Level) MarshalText() ([]byte, error) { return []byte(l.String()), nil }
