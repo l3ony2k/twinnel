@@ -8,6 +8,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -73,7 +74,13 @@ func newMap() *yaml.Node { return &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map
 func newSeq() *yaml.Node { return &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"} }
 
 func newStr(s string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: s}
+	n := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: s}
+	if strings.HasPrefix(s, "+") {
+		// Plain "+.ts.net" is valid YAML but easy to misread; quote it like
+		// hand-written configs do.
+		n.Style = yaml.SingleQuotedStyle
+	}
+	return n
 }
 
 func strSeq(items ...string) *yaml.Node {

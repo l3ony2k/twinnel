@@ -1,0 +1,24 @@
+# Local settings: ports, DNS, TUN, controller.
+mixed-port: 7899
+allow-lan: false
+bind-address: 127.0.0.1
+mode: rule
+secret: ""
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  listen: 127.0.0.1:53
+  nameserver:
+    - https://doh.example/dns-query
+  fake-ip-filter:
+    - '+.lan'
+    - '+.ts.net'
+  nameserver-policy:
+    '<+.lan>': [system]
+tun:
+  enable: true
+  stack: mixed
+  auto-route: true
+  route-exclude-address:
+    - 192.168.0.0/16
