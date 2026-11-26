@@ -131,14 +131,18 @@ func skeletonRows(c *ui.Context, rows int) {
 			ui.Box(c).Basis(0).Grow(1 - part)
 		})
 	}
-	ui.Column(c).Busy(true).Role(ui.RoleStatus).Label(i18n.T.Loading).Children(func() {
-		for i := range rows {
-			listRow(c.Key(i)).Children(func() {
-				bar(10, 0.4-float32(i%2)*0.08)
-				bar(8, 0.6+float32(i%3)*0.06)
-			})
+	// The rows are the list's own children, so a listBox draws its
+	// dividers between them as between real rows.
+	for i := range rows {
+		r := listRow(c.Key(i)).Busy(true)
+		if i == 0 {
+			r.Role(ui.RoleStatus).Label(i18n.T.Loading)
 		}
-	})
+		r.Children(func() {
+			bar(10, 0.4-float32(i%2)*0.08)
+			bar(8, 0.6+float32(i%3)*0.06)
+		})
+	}
 }
 
 // loadingBox keeps the space of content that is loading (an editor) with a

@@ -327,7 +327,7 @@ func (a *app) togglePanel() {
 	}
 	if a.shotMode { // a hidden window of the flyout's width, captured from memory
 		a.panel = mygo.NewWindow(mygo.WindowOptions{
-			Title: i18n.T.AppName, Hidden: true, Width: 340, Height: 500,
+			Title: i18n.T.AppName, Hidden: true, Width: 340, Height: 620, // the flyout fits its content; this is its usual height
 			Content: ui.View(a.panelView),
 		})
 		a.panel.OnClosed(func() { a.panel = nil })

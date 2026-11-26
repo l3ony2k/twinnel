@@ -176,7 +176,10 @@ func (a *app) opButton(c *ui.Context, icon *ui.SVG, label string, primary bool, 
 	}
 	return b.Label(label).Busy(spin).Children(func() {
 		if spin {
-			ui.Spinner(c).FontSize(14).Width(14).Height(14)
+			sp := ui.Spinner(c).FontSize(14).Width(14).Height(14)
+			if primary { // on the accent, in the label's color
+				sp.TextColor(c.Theme().AccentText)
+			}
 		} else {
 			ui.Icon(c, icon).FontSize(14)
 		}
