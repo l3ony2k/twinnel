@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -22,6 +23,26 @@ type Controller interface {
 	// Reload makes mihomo load the config file at path
 	// (PUT /configs?force=true).
 	Reload(ctx context.Context, path string) error
+}
+
+// GentleReloader is implemented by controllers that can reload without
+// force. mihomo applies inbound port/allow-lan/bind-address changes only
+// with force=true; everything else (rules, DNS, TUN, proxies) is applied
+// either way. The engine sends force=false when those inbound settings are
+// unchanged (see ReloadImpact), so the reload does strictly less.
+type GentleReloader interface {
+	ReloadWith(ctx context.Context, path string, force bool) error
+}
+
+// ErrUnauthorized: the controller refused the secret (HTTP 401).
+var ErrUnauthorized = errors.New("controller refused the secret (401)")
+
+// reloadWith reloads with force when the controller can't do without.
+func reloadWith(ctx context.Context, c Controller, path string, force bool) error {
+	if g, ok := c.(GentleReloader); ok {
+		return g.ReloadWith(ctx, path, force)
+	}
+	return c.Reload(ctx, path)
 }
 
 // HTTPController talks to mihomo's external-controller.
@@ -73,6 +94,9 @@ func (c *HTTPController) do(ctx context.Context, method, path string, body any) 
 	}
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("%s %s: %w", method, path, ErrUnauthorized)
+	}
 	if resp.StatusCode/100 != 2 {
 		msg := strings.TrimSpace(string(b))
 		var e struct{ Message string }
@@ -109,7 +133,12 @@ func (c *HTTPController) Version(ctx context.Context) (string, error) {
 
 // Reload implements Controller.
 func (c *HTTPController) Reload(ctx context.Context, path string) error {
-	_, err := c.do(ctx, http.MethodPut, "/configs?force=true", map[string]string{"path": path})
+	return c.ReloadWith(ctx, path, true)
+}
+
+// ReloadWith implements GentleReloader.
+func (c *HTTPController) ReloadWith(ctx context.Context, path string, force bool) error {
+	_, err := c.do(ctx, http.MethodPut, fmt.Sprintf("/configs?force=%v", force), map[string]string{"path": path})
 	return err
 }
 

@@ -32,6 +32,7 @@ type Controller struct {
 	KernelVer  string
 	Down       bool     // /version fails
 	Reloads    []string // paths passed to PUT /configs
+	Forces     []bool   // the force flag of each reload
 	Loaded     []byte   // content of the last loaded file
 	BadAuth    int
 	VersionHit int
@@ -68,10 +69,7 @@ func (c *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		json.NewEncoder(w).Encode(map[string]any{"meta": true, "version": c.KernelVer})
 	case r.Method == http.MethodPut && r.URL.Path == "/configs":
-		if r.URL.Query().Get("force") != "true" {
-			http.Error(w, `{"message":"force missing"}`, http.StatusBadRequest)
-			return
-		}
+		force := r.URL.Query().Get("force") == "true"
 		var body struct {
 			Path string `json:"path"`
 		}
@@ -85,14 +83,15 @@ func (c *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		c.Reloads = append(c.Reloads, body.Path)
+		c.Forces = append(c.Forces, force)
 		if bytes.Contains(b, []byte(MarkReloadFail)) {
 			http.Error(w, `{"message":"parse config error"}`, http.StatusBadRequest)
 			return
 		}
 		c.Loaded = b
 		c.Down = bytes.Contains(b, []byte(MarkBreakController))
-		// A new secret in the config takes effect like in mihomo.
-		c.Secret = topSecret(b)
+		// Like mihomo, a hot reload does not change the controller's
+		// secret (hub.applyRoute runs only at start); see Restart.
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		http.NotFound(w, r)
@@ -106,6 +105,23 @@ func topSecret(b []byte) string {
 		}
 	}
 	return ""
+}
+
+// Restart emulates a restart of mihomo: the secret of the last loaded
+// config takes effect.
+func (c *Controller) Restart() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.Loaded != nil {
+		c.Secret = topSecret(c.Loaded)
+	}
+}
+
+// ForceFlags returns the force flag of each reload so far.
+func (c *Controller) ForceFlags() []bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]bool(nil), c.Forces...)
 }
 
 // State returns a copy of the counters (safe for concurrent use).
