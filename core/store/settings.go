@@ -51,6 +51,11 @@ type MihomoSettings struct {
 	// ConfigFile is the config the service runs with (-f). Default
 	// <ConfigDir>/config.yaml.
 	ConfigFile string `json:"config_file,omitempty"`
+	// ConfigDirUID is the uid that owns ConfigDir (and the config file's
+	// dir) when that is not root: an adopted dir in a user's home. A root
+	// helper refuses to write into a config dir owned by anyone else, so a
+	// symlink swapped in later cannot point its writes at another place.
+	ConfigDirUID *int `json:"config_dir_uid,omitempty"`
 	// Controller is the external-controller address, e.g. 127.0.0.1:9090.
 	// The secret lives in Secrets under SecretController.
 	Controller string `json:"controller"`

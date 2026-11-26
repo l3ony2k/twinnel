@@ -132,7 +132,7 @@ func (e *Engine) Preview(ctx context.Context) (rpc.ComposeResult, error) {
 	if err != nil {
 		return rpc.ComposeResult{}, err
 	}
-	current, _ := os.ReadFile(st.Mihomo.ConfigFile)
+	current, _ := readConfined(st.Mihomo.ConfigFile)
 	cr, _, err := e.check(ctx, st, res.Config, res.Applied, res.Warnings, current, layerSecret)
 	return cr, err
 }
@@ -168,6 +168,12 @@ func (e *Engine) check(ctx context.Context, st *store.Settings, cfg []byte, appl
 	}
 	cr.Valid = v.OK
 	cr.ValidateErrors = v.Errors
+	warn, errs := exposureCheck(final, st)
+	cr.Warnings = append(cr.Warnings, warn...)
+	if len(errs) > 0 {
+		cr.Valid = false
+		cr.ValidateErrors = append(cr.ValidateErrors, errs...)
+	}
 	return cr, final, nil
 }
 
@@ -213,7 +219,7 @@ func (e *Engine) Rollback(ctx context.Context, id string) (*rpc.ApplyResult, err
 
 func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, applied, warnings []string, layerSecret, kind string, p rpc.ApplyParams, res *rpc.ApplyResult, start time.Time) (*rpc.ApplyResult, error) {
 	cfgPath := st.Mihomo.ConfigFile
-	current, err := os.ReadFile(cfgPath)
+	current, err := readConfined(cfgPath)
 	hadCurrent := err == nil
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return e.fail(res, start, err)
@@ -272,20 +278,24 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		return e.fail(res, start, err)
 	}
+	cd, name, err := e.openConfigFileDir(st)
+	if err != nil {
+		return e.fail(res, start, err)
+	}
+	defer cd.Close()
 	mode := fs.FileMode(0o600)
-	oldInfo, _ := os.Stat(cfgPath)
+	oldInfo, _ := cd.Stat(name)
 	if oldInfo != nil {
 		mode = oldInfo.Mode().Perm()
 	}
-	if err := store.WriteFileAtomic(cfgPath, final, mode); err != nil {
+	if err := writeConfined(cd, name, final, mode, oldInfo); err != nil {
 		return e.fail(res, start, fmt.Errorf("write %s: %w", cfgPath, err))
 	}
-	keepOwner(cfgPath, oldInfo)
 	res.Written = true
 
 	if running {
 		if err := e.reloadAndVerify(ctx, oldCtrl, cfgPath, force); err != nil {
-			e.restore(ctx, oldCtrl, cfgPath, final, current, hadCurrent, mode)
+			e.restore(ctx, oldCtrl, cd, name, final, current, hadCurrent, mode)
 			res.Written, res.RolledBack = false, true
 			return e.fail(res, start, err)
 		}
@@ -387,17 +397,17 @@ func (e *Engine) reloadAndVerify(ctx context.Context, ctrl Controller, path stri
 }
 
 // restore puts the previous file back and asks mihomo to load it again.
-func (e *Engine) restore(ctx context.Context, ctrl Controller, path string, failed, old []byte, hadOld bool, mode fs.FileMode) {
+func (e *Engine) restore(ctx context.Context, ctrl Controller, cd *confDir, name string, failed, old []byte, hadOld bool, mode fs.FileMode) {
+	path := filepath.Join(cd.Path, name)
 	if !hadOld {
-		os.Remove(path)
+		cd.Remove(name)
 		return
 	}
-	oldInfo, _ := os.Stat(path)
-	if err := store.WriteFileAtomic(path, old, mode); err != nil {
+	oldInfo, _ := cd.Stat(name)
+	if err := writeConfined(cd, name, old, mode, oldInfo); err != nil {
 		e.log().Error("restore config failed", "path", path, "err", err)
 		return
 	}
-	keepOwner(path, oldInfo)
 	rctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if err := reloadWith(rctx, ctrl, path, ReloadImpact(failed, old).Force); err != nil {

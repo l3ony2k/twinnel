@@ -69,7 +69,9 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 // healthOptions points the checks at the mihomo the helper manages, read
 // fresh from settings for every run.
 func healthOptions(e *engine.Engine) darwin.Options {
-	var o darwin.Options
+	// The checks run the tailscale CLI, which Homebrew installs owned by
+	// the user: never as root.
+	o := darwin.Options{Run: takeoverprobe.SafeRunner(8 * time.Second)}
 	st, err := e.Store.Settings()
 	if err != nil {
 		return o

@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/l3ony2k/duet/core/kernel"
 	"github.com/l3ony2k/duet/core/mihomo"
 	"github.com/l3ony2k/duet/core/tailscale"
 	"github.com/l3ony2k/duet/core/takeover"
@@ -44,7 +46,7 @@ type Probe struct {
 
 // New returns a probe for the user's home dir.
 func New(home string) *Probe {
-	return &Probe{Run: darwin.ExecRunner(10 * time.Second), Home: home}
+	return &Probe{Run: SafeRunner(10 * time.Second), Home: home}
 }
 
 var _ takeover.Probe = (*Probe)(nil)
@@ -145,7 +147,7 @@ func (p *Probe) TailscaleStatus(ctx context.Context) ([]byte, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	b, err := exec.CommandContext(ctx, bin, "status", "--json").Output()
+	b, err := kernel.Output(ctx, bin, "status", "--json")
 	if err != nil {
 		return nil, errors.New("tailscale status --json: " + err.Error())
 	}
@@ -186,4 +188,28 @@ func FindTailscale() string {
 		}
 	}
 	return ""
+}
+
+// SafeRunner is darwin.ExecRunner, except that a binary a non-root user
+// controls is never run as root (see kernel.Command): the probe runs as root
+// in the helper, and it runs the tailscale CLI and the adopted mihomo.
+func SafeRunner(timeout time.Duration) darwin.CommandRunner {
+	return func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		cmd, err := kernel.Command(ctx, name, args...)
+		if err != nil {
+			return nil, err
+		}
+		var stderr strings.Builder
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		if err != nil {
+			if msg := strings.TrimSpace(stderr.String()); msg != "" {
+				return out, fmt.Errorf("%s: %w: %s", filepath.Base(name), err, msg)
+			}
+			return out, fmt.Errorf("%s: %w", filepath.Base(name), err)
+		}
+		return out, nil
+	}
 }

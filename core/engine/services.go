@@ -3,8 +3,10 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 
+	"github.com/l3ony2k/duet/core/kernel"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/service"
 	"github.com/l3ony2k/duet/core/store"
@@ -49,6 +51,13 @@ func (e *Engine) mihomoSpec(st *store.Settings) (service.Spec, error) {
 		bin = e.Kernels.Binary()
 		if _, err := os.Stat(bin); err != nil {
 			return service.Spec{}, errors.New("no mihomo kernel installed: run kernel.install first")
+		}
+	}
+	// The service runs as root and cannot drop privileges: its binary
+	// must not be replaceable by anyone but root.
+	if geteuid() == 0 {
+		if err := kernel.RequireTrusted(bin); err != nil {
+			return service.Spec{}, fmt.Errorf("refusing to install a root service for %w", err)
 		}
 	}
 	logDir := st.Mihomo.LogDir

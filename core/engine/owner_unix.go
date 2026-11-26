@@ -4,18 +4,14 @@ package engine
 
 import (
 	"io/fs"
-	"os"
 	"syscall"
 )
 
-// keepOwner gives path the owner of the file it replaced (old), so a root
-// helper rewriting an adopted config in a user's home does not leave it
-// root-owned. Only root can chown; for others it is a no-op.
-func keepOwner(path string, old fs.FileInfo) {
-	if old == nil || os.Geteuid() != 0 {
-		return
+// statOwner returns the owner of fi.
+func statOwner(fi fs.FileInfo) (uid, gid int, ok bool) {
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, 0, false
 	}
-	if st, ok := old.Sys().(*syscall.Stat_t); ok {
-		_ = os.Lchown(path, int(st.Uid), int(st.Gid))
-	}
+	return int(st.Uid), int(st.Gid), true
 }

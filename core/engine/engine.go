@@ -135,6 +135,16 @@ func (e *Engine) publish(typ string, data any) {
 }
 
 func (e *Engine) validate(ctx context.Context, bin string, cfg []byte, opts ...config.ValidateOption) (*config.Validation, error) {
+	// A root helper never runs a mihomo binary a user can replace as root
+	// (an adopted binary in a home dir): mihomo -t runs as that user.
+	c, err := kernel.RunAsFor(bin)
+	if err != nil {
+		return nil, fmt.Errorf("mihomo binary: %w", err)
+	}
+	if c != nil {
+		cred := *c
+		opts = append(opts, config.WithRunAs(cred.UID, cred.GID, func(cmd *exec.Cmd) { kernel.DropTo(cmd, cred) }))
+	}
 	if e.Validate != nil {
 		return e.Validate(ctx, bin, cfg, opts...)
 	}
@@ -150,7 +160,20 @@ func (e *Engine) httpClient(proxy *url.URL) *http.Client {
 	if proxy != nil {
 		tr.Proxy = http.ProxyURL(proxy)
 	}
-	return &http.Client{Transport: tr, Timeout: 2 * time.Minute}
+	return &http.Client{Transport: tr, Timeout: 2 * time.Minute, CheckRedirect: noDowngrade}
+}
+
+// noDowngrade follows at most 10 redirects and never from https to plain
+// http: a subscription or a geo/UI download that started over TLS must not
+// be handed to a network attacker by a redirect.
+func noDowngrade(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	if len(via) > 0 && via[0].URL.Scheme == "https" && req.URL.Scheme != "https" {
+		return fmt.Errorf("refusing redirect from https to %s", req.URL.Scheme)
+	}
+	return nil
 }
 
 // controllerSecret is the secret from Secrets, or "".
@@ -185,7 +208,7 @@ func (e *Engine) currentController(st *store.Settings) Controller {
 			cands = append(cands, s)
 		}
 	}
-	if b, err := os.ReadFile(st.Mihomo.ConfigFile); err == nil {
+	if b, err := readConfined(st.Mihomo.ConfigFile); err == nil {
 		s, _ := topLevel(b, "secret")
 		add(s)
 	}
@@ -371,7 +394,7 @@ func (c CLITailnet) Status(ctx context.Context) ([]byte, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, bin, "status", "--json").Output()
+	out, err := kernel.Output(ctx, bin, "status", "--json")
 	if err != nil {
 		var ee *exec.ExitError
 		if errors.As(err, &ee) && len(ee.Stderr) > 0 {
