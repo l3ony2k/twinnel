@@ -43,6 +43,7 @@ type Strings struct {
 	PrimaryGroup, Node, Delay, Exit                            string
 	DelayTimeout, DelayUnknown                                 string
 	Traffic, Upload, Download, Total                           string
+	TrafficLastSec, TrafficLastMin                             string // %d: seconds / minutes shown by the chart
 	Connections                                                string
 	State, SelfIP, SelfName, OnlinePeers, ExitNode, NoExitNode string
 	MagicDNS, ShieldsUp, KeyExpiry, Account, Install           string
@@ -162,6 +163,10 @@ type Strings struct {
 	TSVersionHint, TSNotInstalled, UpdateAvailable                                              string
 	TSInstallKinds, TSUpdateHints                                                               map[string]string
 
+	// Helper warnings (warnings.go): kind → template, captures in order.
+	WarningTexts map[string]string
+	ListSep      string // joins a list in running text
+
 	// Services card (kernel page).
 	Services, ServicesHint, Refresh, ServiceRunning, ServiceStopped, ServiceLoaded string
 	ServiceNotInstalled, ServiceStart, ServiceStop, ServiceRestart                 string
@@ -280,6 +285,8 @@ var zh = Strings{
 	Upload:             "上传",
 	Download:           "下载",
 	Total:              "累计",
+	TrafficLastSec:     "最近 %d 秒",
+	TrafficLastMin:     "最近 %d 分钟",
 	Connections:        "连接数",
 	State:              "状态",
 	SelfIP:             "本机 IP",
@@ -576,6 +583,26 @@ var zh = Strings{
 		"appstore":   "在 App Store 里更新。",
 		"static":     "从 pkgs.tailscale.com 下载新版替换。",
 	},
+
+	WarningTexts: map[string]string{
+		"group-missing":    "防泄漏：找不到策略组「%s」",
+		"group-empty":      "防泄漏：策略组「%s」去掉直连后没有成员了，已改为 REJECT",
+		"group-direct":     "防泄漏：策略组「%s」仍能经由 %s 走直连",
+		"fakeip-whitelist": "dns.fake-ip-filter-mode 是 whitelist，Tailscale 的 fake-ip-filter 条目没有加入（白名单模式下它们会让 tailnet 名字拿到 fake-ip）。请确认白名单里没有覆盖 ts.net 或单段名字的条目",
+		"fakeip-unknown":   "不认识的 dns.fake-ip-filter-mode「%s」，Tailscale 的 fake-ip-filter 条目没有加入",
+		"new-secret":       "已生成新的控制接口密钥，保存在后台助手的密钥库里",
+		"reload-disrupts":  "这次重载会短暂中断网络：%s",
+		"restart-needed":   "热重载不会应用 %s；控制接口的地址和密钥在 mihomo 重启后才变",
+		"mihomo-stopped":   "mihomo 没有运行（%s）；配置已写入，下次启动时生效",
+		"exposed":          "%s：%s 可以从网络访问，只有密钥保护",
+		"adopt-refuses":    "接管会拒绝这套配置：%s",
+		"adopt-profiles":   "找到 %s 个订阅配置；接管不导入订阅地址，之后用 duet sub put 设置",
+		"adopt-disrupts":   "接管时的重载会短暂中断网络：%s",
+		"adopt-differs":    "应用的配置和计划里的 composed.yaml 不同：做计划之后 tailnet 设备或网卡变了",
+		"binary-writable":  "mihomo 程序 %s 不需要 root 就能被替换（%s），而服务以 root 运行它：能以那个用户运行的程序都能拿到 root。要消除这个风险，安装一个由 duet 管理的内核（duet kernel install），并让服务改用它",
+		"secret-clients":   "控制接口的客户端（网页面板、本 app、脚本）需要新密钥。它保存在后台助手的密钥库里，可用 %s 读取",
+	},
+	ListSep: "、",
 
 	Services:              "服务",
 	ServicesHint:          "由 launchd 管理的服务。停止或重启 mihomo 会让网络短暂中断。",

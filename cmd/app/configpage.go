@@ -674,10 +674,7 @@ func composeSummary(c *ui.Context, r rpc.ComposeResult) {
 		ui.Text(c, e).Font("monospace").FontSize(11).TextColor(pal(t).badText).Wrap().Selectable()
 	}
 	for _, wn := range r.Warnings {
-		ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-			ui.Icon(c, iconWarning).FontSize(14).TextColor(pal(t).warnText).MarginY(1)
-			ui.Text(c, wn).FontSize(12).Grow(1).Wrap().Selectable()
-		})
+		warningNote(c, wn)
 	}
 }
 
@@ -709,8 +706,14 @@ func applySummary(c *ui.Context, r rpc.ApplyResult) {
 	}
 	ui.Text(c, strings.Join(flags, " · ")).FontSize(12).TextColor(t.TextMuted).Wrap().Selectable()
 	impactRow(c, r.Impact)
+	for _, w := range r.Warnings {
+		if k := i18n.WarningKind(w); r.Impact != nil && (k == "reload-disrupts" || k == "restart-needed") {
+			continue // the impact row says it
+		}
+		warningNote(c, w)
+	}
 	if r.Error != "" {
-		ui.Text(c, r.Error).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
+		errorNote(c, r.Error)
 	}
 }
 

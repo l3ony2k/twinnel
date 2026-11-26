@@ -1,0 +1,79 @@
+package i18n
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/l3ony2k/duet/core/config"
+)
+
+func TestWarningKnown(t *testing.T) {
+	for in, want := range map[string]string{
+		`proxy group "PROXY" not found`:                                                                               "防泄漏：找不到策略组「PROXY」",
+		`leak-guard: proxy group "A B" can still reach DIRECT through [x y]`:                                          "防泄漏：策略组「A B」仍能经由 x、y 走直连",
+		"generated a new controller secret (kept in the helper's secret store)":                                       "已生成新的控制接口密钥，保存在后台助手的密钥库里",
+		"3 subscription profiles found; adopt does not import a subscription URL (set one later with `duet sub put`)": "找到 3 个订阅配置；接管不导入订阅地址，之后用 duet sub put 设置",
+		"external-controller: 0.0.0.0:9090 is reachable from the network (protected by the secret only)":              "external-controller：0.0.0.0:9090 可以从网络访问，只有密钥保护",
+		"something new: keep me": "something new: keep me",
+		"clients of the controller (the web dashboard, the app, scripts) need the new secret; it is in the helper's secret store (macOS: sudo security find-generic-password -s duet.controller -w)": "控制接口的客户端（网页面板、本 app、脚本）需要新密钥。它保存在后台助手的密钥库里，可用 sudo security find-generic-password -s duet.controller -w 读取",
+	} {
+		if got := T.Warning(in); got != want {
+			t.Errorf("Warning(%q)\n got %q\nwant %q", in, got, want)
+		}
+	}
+	if WarningKind("x: this reload interrupts the network briefly: a") != "reload-disrupts" || WarningKind("nope") != "" {
+		t.Error("WarningKind")
+	}
+	for _, p := range warnPatterns {
+		if T.WarningTexts[p.kind] == "" {
+			t.Errorf("no text for %s", p.kind)
+		}
+	}
+}
+
+// TestWarningsFromEngine runs the real layer transforms, so a reworded
+// warning in core/config fails here instead of showing in English.
+func TestWarningsFromEngine(t *testing.T) {
+	src := `
+dns:
+  fake-ip-filter-mode: %s
+  fake-ip-filter: ["+.ts.net", "*", "+.lan"]
+proxies:
+  - {name: home, type: direct}
+proxy-groups:
+  - {name: Guarded, type: select, proxies: [Nested, home]}
+  - {name: Nested, type: select, proxies: [DIRECT]}
+  - {name: Lonely, type: select, proxies: [home]}
+`
+	var got []string
+	for _, mode := range []string{"whitelist", "odd"} {
+		root, err := config.Parse([]byte(strings.Replace(src, "%s", mode, 1)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		l, err := config.TailscaleCoexistLayer(config.TailnetInfo{MagicDNSSuffix: "example.ts.net"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		w, err := l.Transform(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, w...)
+		if mode == "whitelist" {
+			w, err = config.LeakGuard([]string{"Guarded", "Lonely", "Missing"})(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, w...)
+		}
+	}
+	if len(got) != 5 {
+		t.Fatalf("warnings: %q", got)
+	}
+	for _, w := range got {
+		if T.Warning(w) == w {
+			t.Errorf("not translated: %q", w)
+		}
+	}
+}

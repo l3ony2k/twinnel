@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -68,6 +69,7 @@ type app struct {
 	theme       string // DUET_THEME=light|dark forces a theme (development, shots)
 	peers       ui.ListState
 	groupsOpen  map[string]bool
+	tileCols    map[string]int  // node tile columns per group, from the last layout
 	healthOpen  map[string]bool // check ID → expanded, once the user toggled it
 	exitPick    string          // exit node select value (peer name or ExitNodeNone)
 	hd          helperData      // what the helper pages show
@@ -80,7 +82,7 @@ type app struct {
 }
 
 func main() {
-	a := &app{page: pageOverview, groupsOpen: map[string]bool{}, healthOpen: map[string]bool{}}
+	a := &app{page: pageOverview, groupsOpen: map[string]bool{}, tileCols: map[string]int{}, healthOpen: map[string]bool{}}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		log.Fatal(err)
@@ -345,7 +347,7 @@ func (a *app) openMain() {
 		Title:         i18n.T.AppName,
 		TitleBarStyle: plat.titleBar,
 		Vibrancy:      a.sidebarMaterial(),
-		Width:         980,
+		Width:         a.winWidth(),
 		Height:        a.winHeight(),
 		MinWidth:      760,
 		MinHeight:     480,
@@ -365,6 +367,16 @@ func (a *app) openMain() {
 	}
 	a.syncHealthVisible()
 	mygo.App.Focus()
+}
+
+// winWidth is 980, or DUET_SHOTS_WIDTH in shot mode (narrow/wide passes).
+func (a *app) winWidth() int {
+	if a.shotMode {
+		if w, err := strconv.Atoi(os.Getenv("DUET_SHOTS_WIDTH")); err == nil && w >= 760 {
+			return w
+		}
+	}
+	return 980
 }
 
 func (a *app) winHeight() int {

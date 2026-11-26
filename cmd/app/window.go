@@ -314,7 +314,7 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	kv(c, T.Mode, T.ModeName(string(m.Config.Mode)))
 	tun := T.TunOff
 	if m.Config.Tun.Enable {
-		tun = fmt.Sprintf("%s · %s · %s", T.TunOn, m.Config.Tun.Device, m.Config.Tun.Stack)
+		tun = m.Config.Tun.Device + sourceSuffix(m.Config.Tun.Stack) // the switch says it is on
 	}
 	kvWith(c, T.Tun, func() {
 		a.tunSwitch(c, s)
@@ -350,7 +350,7 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 		kv(c, T.SelfIP, ip.String())
 	}
 	kv(c, T.OnlinePeers, fmt.Sprintf("%d / %d", st.OnlinePeers(), len(st.Peers)))
-	kvWith(c, T.ExitNode, func() { a.exitNodePicker(c, s).Grow(1) })
+	kvWith(c, T.ExitNode, func() { kvControl(a.exitNodePicker(c, s)) })
 	kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
 	if st.KeyExpiry != nil {
 		kv(c, T.KeyExpiry, st.KeyExpiry.Local().Format("2006-01-02")+" ("+status.Until(s.Time, *st.KeyExpiry)+")")
@@ -370,6 +370,15 @@ func onOff(b bool) string {
 		return i18n.T.On
 	}
 	return i18n.T.Off
+}
+
+// trafficSpan names how much time the chart shows: 最近 45 秒, 最近 2 分钟.
+func trafficSpan(d time.Duration) string {
+	sec := int(d.Round(time.Second) / time.Second)
+	if sec < 60 {
+		return fmt.Sprintf(i18n.T.TrafficLastSec, max(sec, 1))
+	}
+	return fmt.Sprintf(i18n.T.TrafficLastMin, sec/60)
 }
 
 // trafficChart draws the last two minutes of download and upload rates:
@@ -394,7 +403,12 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 		figure(T.Upload, up, s.Mihomo.Traffic.Up)
 		ui.Spacer(c)
 		if s.Mihomo.Reachable {
-			num(small(c, fmt.Sprintf("%s ↓ %s  ↑ %s", T.Total, status.Bytes(s.Mihomo.Traffic.DownTotal), status.Bytes(s.Mihomo.Traffic.UpTotal))))
+			ui.Column(c).Gap(2).AlignItems(ui.End).Children(func() {
+				if len(hist) > 1 {
+					num(small(c, trafficSpan(hist[len(hist)-1].Time.Sub(hist[0].Time))))
+				}
+				num(small(c, fmt.Sprintf("%s ↓ %s  ↑ %s", T.Total, status.Bytes(s.Mihomo.Traffic.DownTotal), status.Bytes(s.Mihomo.Traffic.UpTotal))))
+			})
 		}
 	})
 	const n = 120
@@ -410,8 +424,12 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 	xs := make([]float32, len(hist))
 	down := make([]float32, len(hist))
 	upv := make([]float32, len(hist))
+	// The time axis spans the samples there are, so the graph fills the
+	// width from the first seconds and widens to the n-sample window as
+	// samples come in; the caption above names the span.
+	span := min(max(len(hist), 2), n)
 	for i, h := range hist {
-		xs[i] = float32(n-len(hist)+i) / float32(n-1)
+		xs[i] = float32(span-len(hist)+i) / float32(span-1)
 		down[i] = y.At(float64(h.Down))
 		upv[i] = y.At(float64(h.Up))
 	}
@@ -463,6 +481,23 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 	})
 }
 
+// Node tiles: columns of equal width that fill the row, each tile at
+// least tileMin wide (so at most about twice that before another column
+// fits).
+const (
+	tileMin = 168
+	tileGap = 8
+)
+
+// tileColumns is how many tile columns fit in w; 4 before the first
+// layout.
+func tileColumns(w float32) int {
+	if w <= 0 {
+		return 4
+	}
+	return max(1, int((w+tileGap)/(tileMin+tileGap)))
+}
+
 func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	t := c.Theme()
 	T := i18n.T
@@ -502,10 +537,16 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 		if !open {
 			return
 		}
-		ui.Row(c).Gap(8).Wrap().PaddingStart(24).PaddingY(2).Children(func() {
+		grid := ui.Grid(c.Key("tiles")).Gap(tileGap).MarginStart(24).MarginY(2)
+		cols := tileColumns(grid.Bounds().W)
+		if cols != a.tileCols[g.Name] { // the width changed: lay out again with the new count
+			a.tileCols[g.Name] = cols
+			c.Invalidate()
+		}
+		grid.Columns(cols).Children(func() {
 			for _, mem := range g.Members {
 				selected := mem.Name == g.Now
-				chip := ui.Column(c.Key(mem.Name)).Width(176).Padding(8, 10).Gap(2).Radius(8).
+				chip := ui.Column(c.Key(mem.Name)).MinWidth(0).Padding(8, 10).Gap(2).Radius(8).
 					Background(p.code).Border(1, p.groupLine).Transition(ui.ElementTransition{})
 				if selected {
 					chip.Background(p.accentSoft).Border(1, t.Accent.Alpha(0.6))
@@ -565,7 +606,7 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 			ui.Column(c).Gap(gapRow).Basis(0).Grow(1).Children(func() {
 				kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
 				kv(c, T.ShieldsUp, onOff(st.Prefs.ShieldsUp))
-				kvWith(c, T.ExitNode, func() { a.exitNodePicker(c, s).Grow(1) })
+				kvWith(c, T.ExitNode, func() { kvControl(a.exitNodePicker(c, s)) })
 			})
 		})
 	})
@@ -847,5 +888,6 @@ func (a *app) saveSettings() {
 	f.msg, f.failed = "", false
 	a.toast = i18n.T.Saved
 	a.groupsOpen = map[string]bool{}
+	a.tileCols = map[string]int{}
 	a.start()
 }

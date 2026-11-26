@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/l3ony2k/duet/core/i18n"
 	"github.com/l3ony2k/duet/core/status"
 )
 
@@ -120,6 +121,13 @@ func kvWith(c *ui.Context, label string, body func()) {
 	})
 }
 
+// kvControl fits a control (a select, a field) into a kv row: the row's
+// height, so a row holding one lines up with its plain neighbours, and
+// no wider than a value needs.
+func kvControl(e ui.Element) ui.Element {
+	return e.Height(plat.rowMinHeight).Grow(1).MaxWidth(260)
+}
+
 // sectionTitle draws a heading with a status dot and a state on the right.
 func sectionTitle(c *ui.Context, title string, col ui.Color, right string) {
 	t := c.Theme()
@@ -188,6 +196,46 @@ func listBox(c *ui.Context, t *ui.Theme) ui.Element {
 	return groupBox(c, t).Padding(4, groupPadX).Gap(1).Dividers(1, pal(t).separator)
 }
 
+// listCard is a group whose rows are split by hairlines (listBox), with
+// a heading row above it built by head (icon, title, actions); nil head
+// draws only the list. Each row is a listRow.
+func listCard(c *ui.Context, head func(), body func()) ui.Element {
+	t := c.Theme()
+	return ui.Column(c).Gap(8).Children(func() {
+		if head != nil {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).MinHeight(28).Children(head)
+		}
+		listBox(c, t).Children(body)
+	})
+}
+
+// listHead is the usual heading of a listCard: an optional line icon,
+// the title, then trailing (buttons) at the right.
+func listHead(c *ui.Context, icon *ui.SVG, title string, trailing func()) func() {
+	return func() {
+		t := c.Theme()
+		if icon != nil {
+			ui.Icon(c, icon).FontSize(15).TextColor(t.TextMuted)
+		}
+		ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine()
+		ui.Spacer(c)
+		if trailing != nil {
+			trailing()
+		}
+	}
+}
+
+// listRow is one row of a listCard: its lines stacked with the gap of a
+// group's rows.
+func listRow(c *ui.Context) ui.Element {
+	return ui.Column(c).Gap(gapRow - 4).PaddingY(10)
+}
+
+// hintText is a line of secondary, wrapping text: what a group is for.
+func hintText(c *ui.Context, s string) ui.Element {
+	return ui.Text(c, s).FontSize(plat.bodySize - 1).TextColor(c.Theme().TextMuted).Wrap()
+}
+
 // pageHeader draws a page's title with actions at the right.
 func pageHeader(c *ui.Context, title string, trailing func()) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(32).DragWindow().Children(func() {
@@ -231,6 +279,16 @@ func errorNote(c *ui.Context, text string) ui.Element {
 	return ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
 		ui.Icon(c, iconError).FontSize(14).TextColor(t.Danger).MarginY(1)
 		ui.Text(c, text).FontSize(plat.bodySize - 1).TextColor(pal(t).badText).Grow(1).Wrap().Selectable()
+	})
+}
+
+// warningNote shows a warning from the helper (compose, apply, takeover),
+// in the UI language when duet knows it (i18n.Warning).
+func warningNote(c *ui.Context, w string) ui.Element {
+	t := c.Theme()
+	return ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
+		ui.Icon(c, iconWarning).FontSize(14).TextColor(pal(t).warnText).MarginY(1)
+		ui.Text(c, i18n.T.Warning(w)).FontSize(plat.bodySize - 1).Grow(1).Wrap().Selectable()
 	})
 }
 

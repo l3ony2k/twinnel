@@ -81,24 +81,21 @@ func (a *app) servicesCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.kern.svc
-	iconCard(c, iconService, T.Services, func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, T.ServicesHint).FontSize(12).TextColor(t.TextMuted).Grow(1).Wrap()
-			if iconButton(c.Key("svc-refresh"), iconRefresh, T.Refresh, false).Disabled(v.loading).Clicked() {
-				a.loadServices()
-			}
-		})
+	listCard(c, listHead(c, iconService, T.Services, func() {
+		if iconButton(c.Key("svc-refresh"), iconRefresh, T.Refresh, false).Disabled(v.loading).Clicked() {
+			a.loadServices()
+		}
+	}), func() {
+		listRow(c).Children(func() { hintText(c, T.ServicesHint) })
 		if v.status == nil && len(v.errs) == 0 {
-			ui.Text(c, T.Loading).TextColor(t.TextMuted)
+			listRow(c).Children(func() { ui.Text(c, T.Loading).TextColor(t.TextMuted) })
 			return
 		}
 		for _, name := range serviceNames {
-			ui.Column(c.Key("svc-"+name)).Gap(6).Padding(10, 12).Radius(plat.controlRadius+2).Background(pal(t).code).Border(1, pal(t).groupLine).Children(func() {
-				a.serviceRow(c, s, name)
-			})
+			listRow(c.Key("svc-" + name)).Children(func() { a.serviceRow(c, s, name) })
 		}
 		if r := v.last; r != nil {
-			serviceOpResult(c, r)
+			listRow(c).Children(func() { serviceOpResult(c, r) })
 		}
 	})
 }
@@ -165,7 +162,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		kv(c, T.ServiceDefinition, st.Definition)
 	}
 	if st.Error != "" {
-		ui.Text(c, T.ErrorPrefix+st.Error).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
+		errorNote(c, T.ErrorPrefix+st.Error)
 	}
 }
 
@@ -245,46 +242,46 @@ func uiKind() accessoryKind {
 }
 
 func (a *app) accessoryCard(c *ui.Context, s status.Snapshot, k accessoryKind) {
-	t := c.Theme()
 	T := i18n.T
 	d := &a.hd
 	v := k.view(a)
 	w := a.helperWrites(s)
-	iconCard(c, k.icon, k.title, func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, k.hint).FontSize(12).TextColor(t.TextMuted).Grow(1).Wrap()
-			if iconButton(c.Key("check"), iconRefresh, T.KernelCheck, false).Disabled(d.busy != "").Clicked() {
-				a.accessoryCheck(k)
+	listCard(c, listHead(c, k.icon, k.title, func() {
+		if iconButton(c.Key("check"), iconRefresh, T.KernelCheck, false).Disabled(d.busy != "").Clicked() {
+			a.accessoryCheck(k)
+		}
+	}), func() {
+		listRow(c).Children(func() {
+			hintText(c, k.hint)
+			if ck := v.check; ck != nil && ck.Dir != "" {
+				kv(c, T.AccessoryDir, ck.Dir)
 			}
 		})
 		if ck := v.check; ck != nil {
-			if ck.Dir != "" {
-				kv(c, T.AccessoryDir, ck.Dir)
-			}
 			updates := 0
 			for i, f := range ck.Files {
 				if f.UpdateAvailable || !f.Installed {
 					updates++
 				}
-				ui.Column(c.Key(fmt.Sprint("f", i))).Gap(3).Padding(8, 12).Radius(plat.controlRadius+2).Background(pal(t).code).Border(1, pal(t).groupLine).Children(func() {
-					accessoryFile(c, f)
-				})
+				listRow(c.Key(fmt.Sprint("f", i))).Children(func() { accessoryFile(c, f) })
 			}
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Switch(c.Key("force"), &v.force).Label(T.AccessoryForce)
-				ui.Text(c, T.AccessoryForce).FontSize(12)
-				ui.Spacer(c)
-				label := T.AccessoryUpdate
-				if updates == 0 && !v.force {
-					label = T.AccessoryUpToDate
-				}
-				if iconButton(c.Key("update"), iconOK, label, updates > 0 || v.force).Disabled(!w || (updates == 0 && !v.force)).Clicked() {
-					a.accessoryUpdate(k, v.force)
-				}
+			listRow(c).Children(func() {
+				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+					ui.Switch(c.Key("force"), &v.force).Label(T.AccessoryForce)
+					ui.Text(c, T.AccessoryForce).FontSize(plat.bodySize - 1)
+					ui.Spacer(c)
+					label := T.AccessoryUpdate
+					if updates == 0 && !v.force {
+						label = T.AccessoryUpToDate
+					}
+					if iconButton(c.Key("update"), iconOK, label, updates > 0 || v.force).Disabled(!w || (updates == 0 && !v.force)).Clicked() {
+						a.accessoryUpdate(k, v.force)
+					}
+				})
 			})
 		}
 		if r := v.res; r != nil {
-			a.accessoryResult(c, s, r)
+			listRow(c).Children(func() { a.accessoryResult(c, s, r) })
 		}
 	})
 }
@@ -303,15 +300,15 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		dot(c, col, 8)
-		ui.Text(c, f.Name).FontWeight(600).Width(70).Shrink(0)
-		ui.Text(c, state).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(0)
+		ui.Text(c, f.Name).FontWeight(600).SingleLine().Shrink(0)
+		ui.Text(c, state).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).SingleLine().Shrink(0)
 		if f.Verifiable {
 			tag(c, T.AccessoryVerifiable)
 		} else {
 			tag(c, T.AccessoryUnverifiable)
 		}
 		ui.Spacer(c)
-		ui.Text(c, filepath.Base(f.File)).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
+		ui.Text(c, filepath.Base(f.File)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
 	})
 	local := T.AccessoryMissing
 	if f.Installed {
@@ -329,7 +326,7 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 		kv(c, T.AccessoryRemote, remote)
 	}
 	if f.Error != "" {
-		ui.Text(c, T.ErrorPrefix+f.Error).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
+		errorNote(c, T.ErrorPrefix+f.Error)
 	}
 }
 
