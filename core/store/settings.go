@@ -39,6 +39,26 @@ type Settings struct {
 
 	// Adopted is set when the settings came from takeover.adopt.
 	Adopted *Adoption `json:"adopted,omitempty"`
+	// Hardened is set when service.harden.apply moved mihomo to the
+	// managed kernel, a root-owned config dir and a duet LaunchDaemon.
+	Hardened *Hardening `json:"hardened,omitempty"`
+}
+
+// Hardening records what service.harden.apply replaced, so it can be put
+// back by hand (docs/runbook-adopt-macos.md, step 8) and so absolute paths
+// into the old config dir can be relocated when composing.
+type Hardening struct {
+	PlanID string    `json:"plan_id"`
+	At     time.Time `json:"at"`
+	// The previous service (left on disk, disabled in launchd).
+	OldLabel string `json:"old_label"`
+	OldPlist string `json:"old_plist"`
+	// The previous binary and config dir/file (left untouched).
+	OldBinary     string `json:"old_binary,omitempty"`
+	OldConfigDir  string `json:"old_config_dir"`
+	OldConfigFile string `json:"old_config_file"`
+	OldConfigUID  *int   `json:"old_config_dir_uid,omitempty"`
+	KernelVersion string `json:"kernel_version"`
 }
 
 // MihomoSettings locates the mihomo installation the helper manages.

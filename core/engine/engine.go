@@ -86,6 +86,10 @@ type Engine struct {
 	// AdoptSettle is the wait before the post-adopt health run (default
 	// 3s; negative: none).
 	AdoptSettle time.Duration
+	// service.harden waits at most HardenStopTimeout (default 15s) for the
+	// old mihomo to stop and HardenStartTimeout (default 45s) for the new
+	// one to answer, polling every HardenPoll (default 250ms).
+	HardenStopTimeout, HardenStartTimeout, HardenPoll time.Duration
 
 	applyMu   sync.Mutex
 	adoptMu   sync.Mutex
@@ -286,6 +290,7 @@ func (e *Engine) mihomoBinary(st *store.Settings) (string, error) {
 // network changes, health schedule)
 // and blocks until ctx ends.
 func (e *Engine) Run(ctx context.Context) {
+	e.RecoverHarden(ctx)
 	var wg sync.WaitGroup
 	wg.Add(3)
 	go func() { defer wg.Done(); e.subscriptionLoop(ctx) }()

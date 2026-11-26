@@ -45,6 +45,13 @@ type NamedDiff struct {
 	OnlyB     []string `json:"only_b,omitempty"`
 	Changed   []string `json:"changed,omitempty"`
 	Reordered bool     `json:"reordered,omitempty"`
+	// OrderMatters marks a reordering as a behaviour change. Set for
+	// proxies when a group in either config uses include-all or
+	// include-all-proxies: such a group takes its members in the order of
+	// the proxies list, and the order decides fallback priority, the
+	// load-balance hash and round-robin order, url-test ties (tolerance) and
+	// the default choice of a select group.
+	OrderMatters bool `json:"order_matters,omitempty"`
 	// Details holds per-item field differences; never set for proxies and
 	// providers (their fields hold credentials).
 	Details []SettingChange `json:"details,omitempty"`
@@ -53,9 +60,11 @@ type NamedDiff struct {
 	Hashes map[string]string `json:"hashes,omitempty"`
 }
 
-// Same reports whether the items are equal (order aside).
+// Same reports whether the items are equal: same names and contents, and
+// the same order where the order matters.
 func (n NamedDiff) Same() bool {
-	return len(n.OnlyA) == 0 && len(n.OnlyB) == 0 && len(n.Changed) == 0
+	return len(n.OnlyA) == 0 && len(n.OnlyB) == 0 && len(n.Changed) == 0 &&
+		!(n.Reordered && n.OrderMatters)
 }
 
 // SemDiff is the semantic difference between config A and config B.
@@ -157,12 +166,38 @@ func SemanticDiff(a, b []byte) (*SemDiff, error) {
 	}
 	diffSettingsIn("", settingsA, settingsB, &d.Settings, sets)
 	d.Proxies = diffNamedList(ma["proxies"], mb["proxies"], true)
+	if d.Proxies.Reordered && (includesAllProxies(ma) || includesAllProxies(mb)) {
+		d.Proxies.OrderMatters = true
+	}
 	d.ProxyGroups = diffNamedList(ma["proxy-groups"], mb["proxy-groups"], false)
 	d.ProxyProviders = diffNamedMap(ma["proxy-providers"], mb["proxy-providers"])
 	d.RuleProviders = diffNamedMap(ma["rule-providers"], mb["rule-providers"])
 	d.Rules = DiffRules(stringList(ma["rules"]), stringList(mb["rules"]))
 	d.SubRules = diffSubRules(ma["sub-rules"], mb["sub-rules"])
 	return d, nil
+}
+
+// includesAllProxies reports whether a proxy group takes every proxy of the
+// proxies list (include-all or include-all-proxies), in list order.
+// include-all-providers alone does not: it adds provider proxies only.
+func includesAllProxies(m map[string]any) bool {
+	groups, _ := m["proxy-groups"].([]any)
+	for _, g := range groups {
+		gm, _ := g.(map[string]any)
+		for _, k := range []string{"include-all", "include-all-proxies"} {
+			switch v := gm[k].(type) {
+			case bool:
+				if v {
+					return true
+				}
+			case string: // mihomo decodes weakly typed
+				if strings.EqualFold(strings.TrimSpace(v), "true") {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func decodeTop(data []byte) (map[string]any, error) {
@@ -437,7 +472,9 @@ func (d *SemDiff) Text(limit int) string {
 	}
 	named := func(title string, n NamedDiff, showDetails bool) {
 		state := "same"
-		if !n.Same() {
+		if n.Reordered && n.OrderMatters {
+			state = "same items, different order (order matters: include-all groups)"
+		} else if !n.Same() {
 			state = "differ"
 		} else if n.Reordered {
 			state = "same items, different order"

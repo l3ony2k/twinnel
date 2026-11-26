@@ -19,7 +19,7 @@ Severity: **High** means a local user gets root, or arbitrary root file write or
 | 2 | High | Geo download staged with `O_TRUNC` through a planted symlink: arbitrary root file write | Fixed |
 | 3 | High | Config dir writes (config file, geo swap, UI swap) follow symlinked directories out of the dir | Fixed |
 | 4 | High | Adopt accepts any config dir found in a user-written LaunchAgent (for example `/etc/paths.d`) | Fixed |
-| 5 | High (pre-existing, not duet's) | The live LaunchDaemon runs `~/mihomo-migration/bin/mihomo` (owned by the user) as root, with a user-writable `-d` dir | Warned; owner action |
+| 5 | High (pre-existing, not duet's) | The live LaunchDaemon runs `~/mihomo-migration/bin/mihomo` (owned by the user) as root, with a user-writable `-d` dir | Fix available: `duet helper harden apply` (owner runs it; one restart) |
 | 6 | Medium | `config.get live` and the controller secret lookup read the config through a symlink: arbitrary root file read | Fixed |
 | 7 | Medium | `service.install` would create a root LaunchDaemon for a user-replaceable binary | Fixed |
 | 8 | Medium | A subscription can open the controller to the LAN without a secret, or put an unauthenticated controller socket anywhere | Fixed (refused at apply) |
@@ -27,8 +27,8 @@ Severity: **High** means a local user gets root, or arbitrary root file write or
 | 10 | Low | geo/UI URLs from the config allowed `http://127.0.0.1` / `localhost` (request forgery against local services) | Fixed (https only, no loopback, private or link-local literals) |
 | 11 | Low | Downloads followed https→http redirects | Fixed |
 | 12 | Low | State dir: the mode of existing subdirs was never tightened; the dir was not checked for ownership | Fixed |
-| 13 | Low | Health checks (`platform/darwin`) and takeover discovery (`core/takeover`) read files in the user's config dir as root, following symlinks | TODO |
-| 14 | Low | Plain-http subscription URLs are accepted | TODO (warn) |
+| 13 | Low | Health checks (`platform/darwin`) and takeover discovery (`core/takeover`) read files in the user's config dir as root, following symlinks | Fixed (`config.ReadConfined`: `os.Root` on the dir, regular files only, size cap) |
+| 14 | Low | Plain-http subscription URLs are accepted | Fixed (warning from `subscription.put`) |
 | 15 | Info | Any `admin` member has full use of the helper (by design) | Documented |
 | 16 | Info | Controller on loopback without a secret is reachable from web pages (DNS rebinding / CORS) | Existing `controller.secure` and the app's warning |
 
@@ -70,15 +70,21 @@ The owner's real setup passes: a LaunchDaemon, with `conf` owned by the user.
 
 **Test.** `TestAdoptDirOwner`.
 
-### 5. The existing setup already hands root to the user (High, pre-existing)
+### 5. The existing setup already hands root to the user (High, pre-existing; fix available)
 
 `/Library/LaunchDaemons/com.mihomo.proxy.plist` runs `/Users/<user>/mihomo-migration/bin/mihomo` as root, and that file is owned by the user. Any process running as the user can replace it and wait for the next restart. mihomo (root) also writes provider caches, `cache.db` and so on into the user-writable `-d` dir.
 
-duet does not make this worse: it now never runs that binary as root itself, and adopt shows a warning (`binaryWarning`). Closing the hole needs a live change, so it is left to the owner. Recommended path after adopt:
+duet does not make this worse: it never runs that binary as root itself, and adopt shows a warning (`binaryWarning`). Closing the hole needs a restart of mihomo, so it is a separate step the owner runs when idle:
 
-1. `duet kernel install`, which gives a root-owned managed kernel under `/Library/Application Support/duet/kernels`.
-2. Point the service at it: a duet-managed service, or edit the plist by hand.
-3. Optionally move the config dir to the root-owned state dir.
+**`service.harden.plan` / `service.harden.apply`** (`duet helper harden plan|apply`, runbook step 8). One restart moves mihomo to:
+
+1. the managed kernel (root-owned, under the state dir; same version as running unless asked; sha256-checked download from the GitHub release);
+2. a root-owned config dir `<state>/mihomo` (0700). The composed config, geo databases, `cache.db`, the dashboard and provider files are copied through an `os.Root` on the old dir: symlinks and other non-regular entries are not copied, and the copy is capped (20 000 entries, 1 GiB). Absolute paths into the old dir are rewritten to relative ones when composing;
+3. duet's LaunchDaemon `com.l3ony2k.duet.mihomo` (`RequireTrusted` on the kernel before the cut).
+
+The cut is bootout old → bootstrap new → `/version` + health compare; on failure the old label is bootstrapped back. On success the old label is disabled in launchd (`launchctl disable`), not deleted, and the old binary and dir stay as a manual fallback. The apply also activates a pending controller secret, or a new one (`new_secret`), in the same restart.
+
+After step 8, the old binary and dir are no longer used by anything that runs as root. The owner can delete them, or keep them for rollback: they only matter if `com.mihomo.proxy` is enabled again.
 
 ### 6. Root file read through the config path (Medium, fixed)
 
@@ -115,13 +121,15 @@ The binary path comes from a plist, possibly a user-written agent. Adopt now req
 - The engine's HTTP client refuses https→http redirects and stops after 10 redirects.
 - `store.Open`: as root, refuses a state dir that is a symlink, not root-owned, or group/world-writable. It re-applies `0700` to `subscriptions/`, `layers/`, `history/` and `kernels/` on every start.
 
-### 13. Reads as root in other packages (Low, TODO)
+### 13. Reads as root in other packages (Low, fixed)
 
 `platform/darwin` (health env) reads `ConfigPath`, and `core/takeover` reads the live config and the base candidates next to it, both with `os.ReadFile`, so they follow a planted symlink. What leaks is limited: health only reports parsed controller and DNS settings; takeover keeps a candidate only if it parses as a config with `proxies`, and plan texts are redacted. **TODO:** use `os.OpenRoot` / `O_NOFOLLOW` there too. Both packages are outside this review's edit scope.
 
-### 14. Plain-http subscriptions (Low, TODO)
+### 14. Plain-http subscriptions (Low, fixed: warning)
 
-`subscription.put` accepts `http://` URLs. A network attacker on that path can serve a config, which is still bounded by finding 8 and `mihomo -t`. **TODO:** warn in `subscription.put` and in the UI.
+`subscription.put` accepts `http://` URLs. A network attacker on that path can read the URL (often a token) and serve a config, which is still bounded by finding 8 and `mihomo -t`. `subscription.put` now returns `warnings` for a plain-http URL (`rpc.Subscription.warnings`, set only by put); `duet sub put` prints it. The app should show it too.
+
+**Test.** `TestSubscriptionPutWarnsOnPlainHTTP`.
 
 ### 15. Who may use the helper (Info)
 
@@ -142,6 +150,6 @@ The binary path comes from a plist, possibly a user-written agent. Adopt now req
 ## Still to do
 
 - Finding 13: confined reads in `platform/darwin` and `core/takeover`.
-- Finding 14: warn on plain-http subscriptions.
-- Finding 5: owner decision on moving the live service to a root-owned binary.
+- Finding 5: the owner runs `duet helper harden apply` when idle (one restart).
+- Finding 14 in the app: show `warnings` from `subscription.put`.
 - Consider an `O_NOFOLLOW` open for `helper.log`. The logs dir is root-owned inside the root-owned state dir, so this is not exploitable today.

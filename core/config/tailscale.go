@@ -41,6 +41,16 @@ type TailnetInfo struct {
 	// and a query to 100.100.100.100 bound there never reaches tailscaled.
 	// The name changes when tailscaled restarts, so regenerate then.
 	Interface string
+	// MagicDNSOff means the tailnet has MagicDNS turned off (or tailscaled
+	// reports no MagicDNS suffix). quad-100 is then not authoritative for
+	// the suffix, single-label names or the tailnet reverse zones: it
+	// answers only the full node names it knows and forwards everything
+	// else to its upstream, which on this machine is the OS resolver, that
+	// is mihomo itself. So no dns.nameserver-policy entry is generated;
+	// peer names are still answered from hosts (PeerAddrs), and the CIDR
+	// rules and route-exclude stay. Zero value: MagicDNS on (the cached
+	// form of older versions stays valid).
+	MagicDNSOff bool `json:",omitempty"`
 }
 
 // DefaultTailnetResolver is Tailscale's MagicDNS resolver ("quad-100").
@@ -107,21 +117,22 @@ func TailscaleCoexist(info TailnetInfo) ([]byte, error) {
 	// list.
 	filter.Content = append(filter.Content, newStr("*"))
 	ns := func() *yaml.Node { n := strSeq(resolver); n.Style = yaml.FlowStyle; return n }
-	policy := newMap()
-	for _, d := range nsDomains {
-		policy.Content = append(policy.Content, newStr("<+."+d+">"), ns())
-	}
-	policy.Content = append(policy.Content, newStr("*"), ns())
-	for _, z := range reverse {
-		policy.Content = append(policy.Content, newStr("<+."+z+">"), ns())
-	}
 	dns := newMap()
 	if hosts != nil {
 		dns.Content = append(dns.Content, newStr("use-hosts"), newBool(true))
 	}
-	dns.Content = append(dns.Content,
-		newStr("fake-ip-filter+"), filter,
-		newStr("nameserver-policy"), policy)
+	dns.Content = append(dns.Content, newStr("fake-ip-filter+"), filter)
+	if !info.MagicDNSOff {
+		policy := newMap()
+		for _, d := range nsDomains {
+			policy.Content = append(policy.Content, newStr("<+."+d+">"), ns())
+		}
+		policy.Content = append(policy.Content, newStr("*"), ns())
+		for _, z := range reverse {
+			policy.Content = append(policy.Content, newStr("<+."+z+">"), ns())
+		}
+		dns.Content = append(dns.Content, newStr("nameserver-policy"), policy)
+	}
 
 	tun := newMap()
 	tun.Content = append(tun.Content, newStr("route-exclude-address+"), strSeq(v4, v6))
@@ -388,6 +399,8 @@ func orDefault(s, def string) string {
 }
 
 // TailnetInfoFromStatus builds TailnetInfo from `tailscale status --json`.
+// MagicDNSOff is set when CurrentTailnet.MagicDNSEnabled is false or no
+// MagicDNS suffix is reported.
 // Short names are the first label of each node's MagicDNS name (self
 // included); nodes whose name is outside this tailnet's suffix (shared-in
 // nodes) are skipped because their short name does not resolve here.
@@ -415,6 +428,9 @@ func TailnetInfoFromStatus(statusJSON []byte) (TailnetInfo, error) {
 	}
 	suffix = strings.Trim(strings.ToLower(suffix), ".")
 	info := TailnetInfo{MagicDNSSuffix: suffix}
+	// Older tailscaled versions have no CurrentTailnet; then MagicDNS is
+	// taken as on when a suffix is known.
+	info.MagicDNSOff = suffix == "" || (st.CurrentTailnet != nil && !st.CurrentTailnet.MagicDNSEnabled)
 	nodes := []*node{st.Self}
 	for _, p := range st.Peer {
 		nodes = append(nodes, p)

@@ -393,3 +393,27 @@ func TestTailscaleProbe(t *testing.T) {
 		t.Errorf("mac zip version = %s", v)
 	}
 }
+
+func TestCheckVersion(t *testing.T) {
+	gh := newFakeGitHub(t)
+	gh.addRelease("/repos/MetaCubeX/mihomo/releases/tags/v1.19.30", "v1.19.30", stableAssets("v1.19.30", t))
+	m := newManager(t, gh, "arm64")
+	r, err := m.CheckVersion(context.Background(), "v1.19.30")
+	if err != nil || r.Version != "v1.19.30" || r.Channel != ChannelStable {
+		t.Fatalf("%+v %v", r, err)
+	}
+	if m.Has("v1.19.30") {
+		t.Fatal("Has before install")
+	}
+	if _, err := m.Install(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	if !m.Has("v1.19.30") || m.Has("../x") {
+		t.Fatal("Has after install")
+	}
+	for _, v := range []string{"v1.19.31", "alpha-1a2b3c4", "../../x", ""} {
+		if _, err := m.CheckVersion(context.Background(), v); err == nil {
+			t.Errorf("%q accepted", v)
+		}
+	}
+}
