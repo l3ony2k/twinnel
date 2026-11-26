@@ -1,8 +1,9 @@
 package engine
 
 import (
+	"bytes"
 	"context"
-	"slices"
+	"encoding/json"
 	"time"
 
 	"github.com/l3ony2k/duet/core/config"
@@ -26,9 +27,13 @@ func (e *Engine) saveTailnet(info config.TailnetInfo) {
 	}
 }
 
+// sameTailnet compares the whole value through its JSON form (the form it
+// is cached in), so fields added to TailnetInfo later are covered too.
 func sameTailnet(a, b config.TailnetInfo) bool {
-	return a.MagicDNSSuffix == b.MagicDNSSuffix && a.IPv4CIDR == b.IPv4CIDR && a.IPv6CIDR == b.IPv6CIDR &&
-		slices.Equal(a.PeerShortNames, b.PeerShortNames) && slices.Equal(a.ProcessNames, b.ProcessNames)
+	a.Resolver, b.Resolver = "", ""
+	ja, err1 := json.Marshal(a)
+	jb, err2 := json.Marshal(b)
+	return err1 == nil && err2 == nil && bytes.Equal(ja, jb)
 }
 
 // RefreshTailnet reads `tailscale status --json`. When the peers or the
