@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -262,5 +263,58 @@ func TestSemanticDiffFakeIPFilterRuleModeOrdered(t *testing.T) {
 	b2 := "dns:\n  fake-ip-filter: ['+.b', '+.a']\n"
 	if d, _ := SemanticDiff([]byte(a2), []byte(b2)); !d.Equivalent() {
 		t.Fatalf("blacklist reorder not equivalent: %+v", d.Settings)
+	}
+}
+
+func TestSemanticDiffProxyOrder(t *testing.T) {
+	px := func(names ...string) string {
+		var b strings.Builder
+		b.WriteString("proxies:\n")
+		for _, n := range names {
+			fmt.Fprintf(&b, "  - {name: %s, type: socks5, server: 192.0.2.1, port: 1080}\n", n)
+		}
+		return b.String()
+	}
+	cases := []struct {
+		name, groups string
+		matters      bool
+	}{
+		{"no groups", "", false},
+		{"explicit members", "proxy-groups:\n  - {name: G, type: fallback, proxies: [a, b], url: 'http://x', interval: 300}\n", false},
+		{"include-all fallback", "proxy-groups:\n  - {name: G, type: fallback, include-all: true, url: 'http://x', interval: 300}\n", true},
+		{"include-all-proxies load-balance", "proxy-groups:\n  - {name: G, type: load-balance, include-all-proxies: true, url: 'http://x', interval: 300}\n", true},
+		{"include-all url-test", "proxy-groups:\n  - {name: G, type: url-test, include-all: true, url: 'http://x', interval: 300}\n", true},
+		{"include-all select", "proxy-groups:\n  - {name: G, type: select, include-all: true}\n", true},
+		{"include-all as string", "proxy-groups:\n  - {name: G, type: fallback, include-all: 'true'}\n", true},
+		{"include-all false", "proxy-groups:\n  - {name: G, type: fallback, include-all: false, proxies: [a]}\n", false},
+		{"providers only", "proxy-groups:\n  - {name: G, type: fallback, include-all-providers: true}\n", false},
+	}
+	for _, c := range cases {
+		a := px("a", "b") + c.groups
+		b := px("b", "a") + c.groups
+		d, err := SemanticDiff([]byte(a), []byte(b))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !d.Proxies.Reordered {
+			t.Errorf("%s: not reordered", c.name)
+		}
+		if d.Proxies.OrderMatters != c.matters || d.Proxies.Same() == c.matters || d.Equivalent() == c.matters {
+			t.Errorf("%s: order matters=%v same=%v equivalent=%v, want matters=%v",
+				c.name, d.Proxies.OrderMatters, d.Proxies.Same(), d.Equivalent(), c.matters)
+		}
+		// Same order: never a change.
+		if d, _ := SemanticDiff([]byte(a), []byte(a)); !d.Equivalent() {
+			t.Errorf("%s: identical configs not equivalent", c.name)
+		}
+	}
+	// One side using include-all is enough.
+	d, err := SemanticDiff([]byte(px("a", "b")+"proxy-groups:\n  - {name: G, type: fallback, include-all: true}\n"),
+		[]byte(px("b", "a")+"proxy-groups:\n  - {name: G, type: fallback, proxies: [a, b]}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !d.Proxies.OrderMatters || !strings.Contains(d.Text(0), "order matters") {
+		t.Errorf("one-sided include-all: %+v\n%s", d.Proxies, d.Text(0))
 	}
 }

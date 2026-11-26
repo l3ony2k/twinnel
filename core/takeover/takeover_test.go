@@ -385,3 +385,17 @@ func TestDiscoveryRefusesEscapingSymlinks(t *testing.T) {
 		t.Errorf("base %s", p.Base.Path)
 	}
 }
+
+// A live config written while MagicDNS was on still has the quad-100
+// policy; with MagicDNS off now those entries are still the coexist layer's.
+func TestManagedSetMagicDNSOff(t *testing.T) {
+	ms, err := newManagedSet(config.TailnetInfo{MagicDNSSuffix: "tn.ts.net", MagicDNSOff: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"+.tn.ts.net", "*", "+.64.100.in-addr.arpa", "+.ts.net"} {
+		if !ms.policy[k] {
+			t.Errorf("policy key %q not recognised", k)
+		}
+	}
+}

@@ -68,6 +68,9 @@ type managedSet struct {
 // writes.
 func newManagedSet(info config.TailnetInfo) (*managedSet, error) {
 	m := &managedSet{filter: map[string]bool{}, policy: map[string]bool{}, hosts: map[string]bool{}}
+	// The policy entries are recognised even when MagicDNS is off now: a
+	// live config made while it was on carries them.
+	info.MagicDNSOff = false
 	variants := []config.TailnetInfo{info}
 	if info.MagicDNSSuffix != "" {
 		v := info

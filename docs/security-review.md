@@ -27,7 +27,7 @@ Severity: **High** means a local user gets root, or arbitrary root file write or
 | 10 | Low | geo/UI URLs from the config allowed `http://127.0.0.1` / `localhost` (request forgery against local services) | Fixed (https only, no loopback, private or link-local literals) |
 | 11 | Low | Downloads followed https→http redirects | Fixed |
 | 12 | Low | State dir: the mode of existing subdirs was never tightened; the dir was not checked for ownership | Fixed |
-| 13 | Low | Health checks (`platform/darwin`) and takeover discovery (`core/takeover`) read files in the user's config dir as root, following symlinks | TODO |
+| 13 | Low | Health checks (`platform/darwin`) and takeover discovery (`core/takeover`) read files in the user's config dir as root, following symlinks | Fixed (`config.ReadConfined`: `os.Root` on the dir, regular files only, size cap) |
 | 14 | Low | Plain-http subscription URLs are accepted | TODO (warn) |
 | 15 | Info | Any `admin` member has full use of the helper (by design) | Documented |
 | 16 | Info | Controller on loopback without a secret is reachable from web pages (DNS rebinding / CORS) | Existing `controller.secure` and the app's warning |

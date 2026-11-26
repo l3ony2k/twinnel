@@ -275,3 +275,73 @@ func TestTailnetInfoFromStatusOddNames(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestTailnetInfoFromStatusMagicDNSOff(t *testing.T) {
+	cases := []struct {
+		name, st string
+		off      bool
+	}{
+		{"enabled", `{"MagicDNSSuffix":"tn.ts.net","CurrentTailnet":{"MagicDNSSuffix":"tn.ts.net","MagicDNSEnabled":true}}`, false},
+		{"disabled", `{"MagicDNSSuffix":"tn.ts.net","CurrentTailnet":{"MagicDNSSuffix":"tn.ts.net","MagicDNSEnabled":false}}`, true},
+		{"no suffix", `{"CurrentTailnet":{"MagicDNSEnabled":true}}`, true},
+		{"old tailscaled, suffix", `{"MagicDNSSuffix":"tn.ts.net"}`, false},
+		{"old tailscaled, no suffix", `{}`, true},
+	}
+	for _, c := range cases {
+		info, err := TailnetInfoFromStatus([]byte(c.st))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.MagicDNSOff != c.off {
+			t.Errorf("%s: MagicDNSOff = %v, want %v", c.name, info.MagicDNSOff, c.off)
+		}
+	}
+}
+
+// With MagicDNS off quad-100 forwards names it does not own to the OS
+// resolver (mihomo), so nothing may be routed to it; hosts, CIDR rules and
+// route-exclude stay so peer names and tailnet IPs keep working.
+func TestTailscaleCoexistMagicDNSOff(t *testing.T) {
+	for _, suffix := range []string{"tn.ts.net", ""} {
+		got, err := TailscaleCoexist(TailnetInfo{
+			MagicDNSSuffix: suffix, MagicDNSOff: true,
+			PeerShortNames: []string{"nas"},
+			PeerAddrs:      map[string][]string{"nas": {"100.64.0.2"}},
+			Interface:      "utun9",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := string(got)
+		for _, bad := range []string{"nameserver-policy", "100.100.100.100", "in-addr.arpa", "ip6.arpa"} {
+			if strings.Contains(s, bad) {
+				t.Errorf("suffix %q: output contains %q:\n%s", suffix, bad, s)
+			}
+		}
+		want := []string{
+			"route-exclude-address+:\n    - 100.64.0.0/10\n    - fd7a:115c:a1e0::/48",
+			"  nas:\n    - 100.64.0.2",
+			"use-hosts: true",
+			"IP-CIDR,100.64.0.0/10,DIRECT,no-resolve",
+			"IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve",
+			"DOMAIN,nas,DIRECT",
+			"- '*'",
+		}
+		if suffix != "" {
+			want = append(want, "  nas.tn.ts.net:\n    - 100.64.0.2")
+		}
+		for _, w := range want {
+			if !strings.Contains(s, w) {
+				t.Errorf("suffix %q: missing %q:\n%s", suffix, w, s)
+			}
+		}
+		// The composed result is a valid config.
+		l, err := TailscaleCoexistLayer(TailnetInfo{MagicDNSSuffix: suffix, MagicDNSOff: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Compose([]byte("dns:\n  enable: true\nrules:\n  - MATCH,DIRECT\n"), []Layer{l}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
