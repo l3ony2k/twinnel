@@ -20,6 +20,9 @@ const (
 	pageTailscale = "tailscale"
 	pageHealth    = "health"
 	pageLogs      = "logs"
+	pageConfig    = "config"
+	pageHistory   = "history"
+	pageKernel    = "kernel"
 	pageSettings  = "settings"
 )
 
@@ -52,12 +55,16 @@ func (a *app) mainView(c *ui.Context) {
 						ui.Badge(c, fmt.Sprint(w+f))
 					}
 				})
+				ui.SidebarItem(c, pageConfig, iconConfig, T.PageConfig)
+				ui.SidebarItem(c, pageHistory, iconHistory, T.PageHistory)
+				ui.SidebarItem(c, pageKernel, iconKernel, T.PageKernel)
 				ui.SidebarItem(c, pageLogs, iconLogs, T.PageLogs)
 				ui.SidebarItem(c, pageSettings, iconSettings, T.PageSettings)
 			}).Grow(1).Label(T.AppName).Changed() {
 				a.pageChanged(old)
 			}
 			ui.Text(c, s.Level.Text()).FontSize(12).TextColor(t.TextMuted).Padding(0, 20)
+			ui.Text(c, T.Helper+" · "+s.Helper.State.Text()).FontSize(11).TextColor(t.TextMuted).Padding(2, 20, 0)
 		})
 		ui.Column(c).Grow(1).Children(func() {
 			switch a.page {
@@ -77,6 +84,12 @@ func (a *app) mainView(c *ui.Context) {
 							a.healthPage(c, s)
 						case pageSettings:
 							a.settingsPage(c, s)
+						case pageConfig:
+							a.configPage(c, s)
+						case pageHistory:
+							a.historyPage(c, s)
+						case pageKernel:
+							a.kernelPage(c, s)
 						}
 					})
 				})
@@ -96,6 +109,15 @@ func (a *app) pageChanged(old string) {
 	}
 	if a.page == pageHealth && old != pageHealth {
 		a.runHealth()
+	}
+	switch a.page {
+	case pageConfig, pageHistory:
+		a.loadHelperData()
+	case pageKernel:
+		a.loadHelperData()
+		if a.hd.kern.ts == nil && a.hd.connected {
+			a.tailscaleCheck()
+		}
 	}
 	a.syncHealthVisible()
 }
@@ -127,7 +149,35 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 		card(c, T.Mihomo, func() { a.mihomoSummary(c, s) }).Basis(0).Grow(1)
 		card(c, T.Tailscale, func() { a.tailscaleSummary(c, s) }).Basis(0).Grow(1)
 	})
+	card(c, T.Helper, func() { a.helperSummary(c, s) })
 	card(c, T.Traffic, func() { a.trafficChart(c, s) })
+}
+
+// helperSummary is the overview's helper card.
+func (a *app) helperSummary(c *ui.Context, s status.Snapshot) {
+	T := i18n.T
+	h := s.Helper
+	kv(c, T.State, h.State.Text())
+	st := h.Status
+	if !h.Connected() || st == nil {
+		kv(c, T.HelperSocket, h.Socket)
+		if h.State == status.HelperNotInstalled && ui.Button(c.Key("onboard"), T.OnboardOpen).Clicked() {
+			old := a.page
+			a.page = pageConfig
+			a.pageChanged(old)
+		}
+		return
+	}
+	kv(c, T.Version, fmt.Sprintf("%s · pid %d", st.HelperVersion, st.PID))
+	kv(c, T.Subscription, orDash(st.ActiveSubscription))
+	kv(c, T.Layers, fmt.Sprint(st.Layers))
+	if r := st.LastApply; r != nil {
+		last := r.Time.Local().Format("01-02 15:04") + " · " + T.ApplyDone
+		if r.Error != "" {
+			last = r.Time.Local().Format("01-02 15:04") + " · " + T.ApplyFailed + "：" + r.Error
+		}
+		kv(c, T.LastApply, last)
+	}
 }
 
 func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {

@@ -3,7 +3,9 @@
 // and wires; the logic lives in core/....
 //
 // Environment: DUET_CONTROLLER (default 127.0.0.1:9090), DUET_MIHOMO_SECRET,
-// DUET_ALLOW_WRITES=1 to enable the controls that change things.
+// DUET_ALLOW_WRITES=1 to enable the controls that change things,
+// DUET_SOCKET (the helper's socket, default /var/run/duet/helper.sock),
+// DUET_CLI (the duet command line tool, for the helper install plan).
 package main
 
 import (
@@ -42,6 +44,8 @@ type app struct {
 	healthVisible atomic.Bool
 	notes         *notifier
 
+	hc *status.HelperConn // the root helper (lives across monitor restarts)
+
 	stop  context.CancelFunc
 	unsub func()
 
@@ -49,6 +53,7 @@ type app struct {
 	tray       *mygo.Tray
 	trayTitle  string
 	trayLevel  status.Level
+	trayShape  status.TrayIcon
 	panel      *mygo.Window
 	win        *mygo.Window
 	page       string
@@ -61,6 +66,7 @@ type app struct {
 	groupsOpen map[string]bool
 	healthOpen map[string]bool // check ID → expanded, once the user toggled it
 	exitPick   string          // exit node select value (peer name or ExitNodeNone)
+	hd         helperData      // what the helper pages show
 }
 
 func main() {
@@ -97,7 +103,7 @@ func (a *app) ready() {
 	var err error
 	a.tray, err = mygo.NewTray(mygo.TrayOptions{
 		ID:              "duet",
-		Icon:            trayIcon(status.LevelUnknown),
+		Icon:            trayIcon(status.TrayUnknown),
 		IconIsTemplate:  true,
 		MonospacedTitle: true,
 		ToolTip:         i18n.T.AppName,
@@ -129,6 +135,7 @@ func (a *app) ready() {
 		}
 		a.tray.Destroy()
 	})
+	a.startHelper()
 	a.start()
 	if dir := os.Getenv("DUET_SHOTS"); dir != "" {
 		a.shotMode = true
@@ -166,6 +173,9 @@ func (a *app) start() {
 		TestURL:       a.cfg.TestURL,
 		WritesAllowed: a.cfg.AllowWrites,
 	})
+	if a.hc != nil {
+		a.mon.SetHelper(a.hc.State())
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	a.stop = cancel
 	mon := a.mon
@@ -214,9 +224,12 @@ func (a *app) changed(mon *status.Monitor) {
 			a.trayTitle = title
 			a.tray.SetTitle(title)
 		}
+		if shape := status.TrayIconFor(s); shape != a.trayShape {
+			a.trayShape = shape
+			a.tray.SetIcon(trayIcon(shape), true)
+		}
 		if s.Level != a.trayLevel {
 			a.trayLevel = s.Level
-			a.tray.SetIcon(trayIcon(s.Level), true)
 			a.tray.SetToolTip(i18n.T.AppName + " · " + s.Level.Text())
 		}
 		if a.panel != nil {
@@ -334,7 +347,7 @@ func (a *app) openMain() {
 
 func (a *app) winHeight() int {
 	if a.shotMode {
-		return 1100 // the shots capture the visible part only
+		return 1500 // the shots capture the visible part only
 	}
 	return 660
 }

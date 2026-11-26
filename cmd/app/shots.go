@@ -48,8 +48,10 @@ func (a *app) shots(dir string) {
 			}
 			save(a.win, "main-"+p)
 		}
-		for _, l := range []status.Level{status.LevelOK, status.LevelWarn, status.LevelError} {
-			if err := os.WriteFile(filepath.Join(dir, "tray-"+l.String()+".png"), trayIcon(l), 0o644); err != nil {
+		a.helperShots(dir, save)
+		for _, v := range []status.TrayIcon{status.TrayOK, status.TrayWarn, status.TrayError, status.TrayUnknown,
+			status.TrayTSDown, status.TrayMode, status.TrayNoHelper} {
+			if err := os.WriteFile(filepath.Join(dir, "tray-"+string(v)+".png"), trayIcon(v), 0o644); err != nil {
 				log.Print(err)
 			}
 		}
@@ -62,4 +64,129 @@ func (a *app) shots(dir string) {
 		}
 		mygo.App.Quit()
 	}()
+}
+
+// helperShots walks the helper pages, driving the app's own handlers
+// against whatever helper DUET_SOCKET names (a dev helper with fakes).
+// With DUET_ALLOW_WRITES=1 and DUET_SHOTS_WRITE=1 it also writes: a new
+// layer, apply, rollback.
+func (a *app) helperShots(dir string, save func(*mygo.Window, string)) {
+	on := func(fn func()) { mygo.RunOnMain(func() { fn(); a.invalidate() }) }
+	wait := func(d time.Duration) {
+		// Let a helper operation finish.
+		deadline := time.Now().Add(20 * time.Second)
+		time.Sleep(d)
+		for time.Now().Before(deadline) {
+			busy := true
+			mygo.RunOnMain(func() { busy = a.hd.busy != "" || a.hd.loading })
+			time.Sleep(200 * time.Millisecond)
+			if !busy {
+				break
+			}
+		}
+		time.Sleep(400 * time.Millisecond)
+	}
+	page := func(p string) {
+		on(func() {
+			old := a.page
+			a.page = p
+			a.pageChanged(old)
+		})
+		wait(800 * time.Millisecond)
+	}
+	var snap status.Snapshot
+	mygo.RunOnMain(func() { snap = a.mon.Snapshot() })
+	writes := snap.WritesAllowed && os.Getenv("DUET_SHOTS_WRITE") == "1"
+
+	page(pageConfig)
+	for i := 0; i < 50; i++ { // the first-run view loads the install plan
+		done := true
+		mygo.RunOnMain(func() { done = snap.Helper.Connected() || a.hd.onb.loaded })
+		if done {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	time.Sleep(300 * time.Millisecond)
+	save(a.win, "main-config")
+	if !snap.Helper.Connected() {
+		return // the first-run / not-running view is the page
+	}
+	on(func() {
+		for _, l := range a.hd.layers {
+			if l.ID == coexistLayerID {
+				a.selectLayer(l)
+			}
+		}
+	})
+	wait(time.Second)
+	save(a.win, "config-managed-layer")
+	if writes {
+		on(func() {
+			a.newLayer()
+			v := &a.hd.cfg
+			v.edID, v.edName = "app3-demo", "app3 demo"
+			v.ed.Buffer.Set("# app3 dev run (synthetic)\n+rules:\n  - DOMAIN-SUFFIX,app3.example,DIRECT\nhosts:\n  +.lan: 192.0.2.10\n  '<+.home>': 192.0.2.11\n")
+		})
+		wait(500 * time.Millisecond)
+		save(a.win, "config-new-layer")
+		on(a.saveLayer)
+		wait(time.Second)
+		save(a.win, "config-save-error") // the helper refuses +.lan: it needs a list
+		// The +.lan key fails compose (it needs a list): fix it, as a user would.
+		on(func() {
+			a.hd.cfg.ed.Buffer.Set("# app3 dev run (synthetic)\n+rules:\n  - DOMAIN-SUFFIX,app3.example,DIRECT\nhosts:\n  '<+.lan>': 192.0.2.10\n")
+			a.saveLayer()
+		})
+		wait(time.Second)
+		on(func() { a.moveLayerByID("app3-demo", -1) })
+		wait(time.Second)
+	}
+	on(func() { a.hd.cfg.sel, a.hd.cfg.isNew, a.hd.cfg.ed = "", false, nil }) // room for the diff
+	on(func() { a.runPreview(a.mon.Snapshot()) })
+	wait(2 * time.Second)
+	save(a.win, "config-preview")
+	if writes {
+		on(func() { a.hd.cfg.reason = "app3 shots: demo layer"; a.runApply() })
+		wait(2 * time.Second)
+		save(a.win, "config-applied")
+	}
+
+	page(pageHistory)
+	var hist []string
+	mygo.RunOnMain(func() {
+		for _, e := range a.hd.history {
+			hist = append(hist, e.ID)
+		}
+	})
+	if len(hist) > 0 {
+		oldest := hist[len(hist)-1] // history.list is newest first
+		on(func() { a.hd.hist.sel = oldest; a.historyDiff(a.mon.Snapshot(), oldest) })
+		wait(time.Second)
+		save(a.win, "history-diff")
+		if writes && len(hist) > 1 {
+			on(func() {
+				for _, e := range a.hd.history {
+					if e.ID == oldest {
+						a.historyRollbackNow(e)
+					}
+				}
+			})
+			wait(2 * time.Second)
+			save(a.win, "history-rollback")
+		}
+	}
+
+	page(pageKernel)
+	on(a.kernelCheck)
+	wait(3 * time.Second)
+	for i := 0; i < 50; i++ { // tailscale.info reads pkgs.tailscale.com
+		done := false
+		mygo.RunOnMain(func() { done = !a.hd.kern.tsLoading })
+		if done {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	save(a.win, "main-kernel")
 }

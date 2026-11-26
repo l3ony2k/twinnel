@@ -97,6 +97,7 @@ type Snapshot struct {
 	Mihomo        Mihomo
 	Tailscale     Tailscale
 	Health        Health
+	Helper        Helper
 	Level         Level
 	Reasons       []Reason
 	WritesAllowed bool
