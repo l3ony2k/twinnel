@@ -90,3 +90,10 @@ func TestParseMihomoConfigFile(t *testing.T) {
 		t.Fatal("secret not returned")
 	}
 }
+
+func TestParseRuleLineRegexWithCommas(t *testing.T) {
+	r := ParseRuleLine(3, `DOMAIN-REGEX,^a{1,3}\.example$,PROXY`)
+	if r.Type != "DOMAINREGEX" || r.Payload != `^a{1,3}\.example$` || r.Target != "PROXY" {
+		t.Fatalf("%+v", r)
+	}
+}

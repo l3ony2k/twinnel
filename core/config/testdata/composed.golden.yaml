@@ -120,6 +120,7 @@ proxy-groups:
   - name: Google
     type: select
     proxies: [PROXY, node-a, node-b]
+    empty-fallback: REJECT
   - name: Domestic
     type: select
     proxies: [DIRECT, PROXY]

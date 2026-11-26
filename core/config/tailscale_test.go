@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestTailscaleCoexist(t *testing.T) {
@@ -201,5 +203,75 @@ func TestReverseZones(t *testing.T) {
 		if !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%s %s: got %v, want %v", c.v4, c.v6, got, c.want)
 		}
+	}
+}
+
+func TestTailscaleCoexistFakeIPFilterMode(t *testing.T) {
+	l, err := TailscaleCoexistLayer(TailnetInfo{MagicDNSSuffix: "tn-1.ts.net"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	compose := func(sub string) ([]string, []string) {
+		t.Helper()
+		r, err := ComposeReport([]byte(sub), []Layer{l})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var c struct {
+			DNS struct {
+				Filter []string `yaml:"fake-ip-filter"`
+			} `yaml:"dns"`
+		}
+		if err := yaml.Unmarshal(r.Config, &c); err != nil {
+			t.Fatal(err)
+		}
+		return c.DNS.Filter, r.Warnings
+	}
+
+	// Default (blacklist): plain entries.
+	f, w := compose("dns:\n  enhanced-mode: fake-ip\n  fake-ip-filter: ['+.lan']\n")
+	if strings.Join(f, " ") != "+.lan +.tailscale.com +.tailscale.io +.ts.net +.beta.tailscale.net *" || len(w) != 0 {
+		t.Fatalf("blacklist: %q %q", f, w)
+	}
+
+	// Rule mode: every entry must be a rule (a bare "+.ts.net" makes mihomo
+	// refuse the config), and the real-ip rules must come before the user's
+	// catch-all.
+	f, w = compose("dns:\n  enhanced-mode: fake-ip\n  fake-ip-filter-mode: rule\n  fake-ip-filter:\n    - DOMAIN-SUFFIX,lan,real-ip\n    - MATCH,fake-ip\n")
+	want := []string{
+		"DOMAIN-SUFFIX,tailscale.com,real-ip", "DOMAIN-SUFFIX,tailscale.io,real-ip", "DOMAIN-SUFFIX,ts.net,real-ip",
+		"DOMAIN-SUFFIX,beta.tailscale.net,real-ip", "DOMAIN-REGEX,^[^.]+$,real-ip",
+		"DOMAIN-SUFFIX,lan,real-ip", "MATCH,fake-ip",
+	}
+	if !reflect.DeepEqual(f, want) || len(w) != 0 {
+		t.Fatalf("rule:\n got %q\nwant %q\n%q", f, want, w)
+	}
+	for _, e := range f {
+		if r := ParseRule(e); r.Target != "real-ip" && r.Target != "fake-ip" {
+			t.Errorf("rule-mode entry %q has no fake-ip/real-ip action", e)
+		}
+	}
+
+	// Whitelist mode: listed names get fake-ips; the entries are dropped.
+	f, w = compose("dns:\n  enhanced-mode: fake-ip\n  fake-ip-filter-mode: Whitelist\n  fake-ip-filter: ['+.google.com']\n")
+	if strings.Join(f, " ") != "+.google.com" || len(w) != 1 {
+		t.Fatalf("whitelist: %q %q", f, w)
+	}
+}
+
+func TestTailnetInfoFromStatusOddNames(t *testing.T) {
+	st := `{"MagicDNSSuffix":"tn.ts.net","Self":{"DNSName":"me.tn.ts.net.","TailscaleIPs":["100.64.0.1"]},
+"Peer":{"a":{"DNSName":"localhost.tn.ts.net.","TailscaleIPs":["100.64.0.2"]},
+"b":{"DNSName":"bad_name.tn.ts.net.","TailscaleIPs":["100.64.0.3"]},
+"c":{"DNSName":"xn--caf-dma.tn.ts.net.","TailscaleIPs":["100.64.0.4"]}}}`
+	info, err := TailnetInfoFromStatus([]byte(st))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(info.PeerShortNames, ",") != "me,xn--caf-dma" {
+		t.Fatalf("peers %v", info.PeerShortNames)
+	}
+	if _, err := TailscaleCoexist(info); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -33,11 +33,13 @@ type Candidate struct {
 	CommonTail int `json:"common_tail"`
 	HeadRules  int `json:"head_rules"`
 	// SettingsDiffer counts top-level settings that differ from live.
-	SettingsDiffer int    `json:"settings_differ"`
-	Explains       bool   `json:"explains"` // all proxies, groups and rules carried over unchanged
-	Chosen         bool   `json:"chosen,omitempty"`
-	Explicit       bool   `json:"explicit,omitempty"`
-	Error          string `json:"error,omitempty"`
+	SettingsDiffer int `json:"settings_differ"`
+	// Explains: all proxies, groups, rules, providers and sub-rules carried
+	// over unchanged.
+	Explains bool   `json:"explains"`
+	Chosen   bool   `json:"chosen,omitempty"`
+	Explicit bool   `json:"explicit,omitempty"`
+	Error    string `json:"error,omitempty"`
 }
 
 func (c Candidate) String() string {
@@ -55,6 +57,9 @@ type doc struct {
 	rules   []string
 	proxies map[string]string // name → content hash
 	groups  map[string]any
+	// other is a content hash of the data sections DeriveLayers does not
+	// carry over (providers, sub-rules): the base must have them as is.
+	other string
 }
 
 func decodeDoc(data []byte) (*doc, error) {
@@ -78,6 +83,7 @@ func decodeDoc(data []byte) (*doc, error) {
 			d.proxies[fmt.Sprint(m["name"])] = config.ContentHash(m)
 		}
 	}
+	d.other = config.ContentHash([]any{d.top["proxy-providers"], d.top["rule-providers"], d.top["sub-rules"]})
 	for _, g := range asList(d.top["proxy-groups"]) {
 		if m, ok := g.(map[string]any); ok {
 			d.groups[fmt.Sprint(m["name"])] = m
@@ -122,7 +128,7 @@ func FindCandidates(live string) []string {
 // ScoreCandidate measures how well the file at path explains live.
 func ScoreCandidate(live *doc, path string) Candidate {
 	c := Candidate{Path: path}
-	fi, err := os.Stat(path)
+	fi, err := os.Lstat(path)
 	if err != nil {
 		c.Error = err.Error()
 		return c
@@ -132,7 +138,8 @@ func ScoreCandidate(live *doc, path string) Candidate {
 		c.Error = "too large"
 		return c
 	}
-	b, err := os.ReadFile(path)
+	// Confined to the file's dir: a symlink out of it is refused.
+	b, err := config.ReadConfined(path)
 	if err != nil {
 		c.Error = err.Error()
 		return c
@@ -177,7 +184,7 @@ func scoreDoc(live, d *doc, c *Candidate) {
 	c.Explains = c.ProxiesTotal > 0 && c.ProxiesSame == c.ProxiesTotal &&
 		len(live.proxies) == c.ProxiesTotal &&
 		c.GroupsSame == c.GroupsTotal && len(live.groups) == c.GroupsTotal &&
-		c.CommonTail == c.Rules
+		c.CommonTail == c.Rules && live.other == d.other
 }
 
 func commonTail(a, b []string) int {

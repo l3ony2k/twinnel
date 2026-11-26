@@ -306,3 +306,18 @@ func TestEnvWithFakes(t *testing.T) {
 		}
 	}
 }
+
+// Finding 13: with the default reader the config is read confined to its dir.
+func TestMihomoConfigRefusesEscapingSymlink(t *testing.T) {
+	dir := t.TempDir()
+	conf := filepath.Join(dir, "conf")
+	os.Mkdir(conf, 0o755)
+	os.WriteFile(filepath.Join(dir, "secret"), []byte("external-controller: 127.0.0.1:1\n"), 0o600)
+	link := filepath.Join(conf, "config.yaml")
+	if err := os.Symlink(filepath.Join(dir, "secret"), link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(Options{ConfigPath: link, UnitDirs: []string{}}).MihomoConfig(context.Background()); err == nil {
+		t.Fatal("read a config through a symlink leaving its dir")
+	}
+}

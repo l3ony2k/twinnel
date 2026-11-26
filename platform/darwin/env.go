@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/l3ony2k/duet/core/config"
 	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/health/dnswire"
 )
@@ -274,7 +275,9 @@ func (e *Env) loadConfig(ctx context.Context) {
 		if path == "" {
 			path = DiscoverConfigPath(ctx, e.opt.Run)
 		}
-		b, err := os.ReadFile(path)
+		// The config dir belongs to a user and this may run as root: do not
+		// follow a symlink out of it.
+		b, err := config.ReadConfined(path)
 		if err != nil {
 			e.cfgErr = err
 			return

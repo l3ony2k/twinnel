@@ -79,13 +79,10 @@ func TailscaleCoexist(info TailnetInfo) ([]byte, error) {
 	}
 
 	suffix := strings.Trim(strings.ToLower(info.MagicDNSSuffix), ".")
-	domains := append([]string(nil), tailscaleDomains...)
+	domains := coexistDomains(suffix)
 	nsDomains := tailnetResolverDomains
 	if suffix != "" {
 		nsDomains = []string{suffix}
-		if !coveredBy(suffix, tailscaleDomains) {
-			domains = append(domains, suffix)
-		}
 	}
 
 	peers, err := normalizePeers(info.PeerShortNames)
@@ -155,16 +152,81 @@ func TailscaleCoexist(info TailnetInfo) ([]byte, error) {
 	return Encode(root)
 }
 
-// TailscaleCoexistLayer wraps TailscaleCoexist in a managed layer.
+// coexistDomains are the domains that go DIRECT and skip fake-ip.
+func coexistDomains(suffix string) []string {
+	domains := append([]string(nil), tailscaleDomains...)
+	if suffix != "" && !coveredBy(suffix, tailscaleDomains) {
+		domains = append(domains, suffix)
+	}
+	return domains
+}
+
+// TailscaleCoexistLayer wraps TailscaleCoexist in a managed layer. Its
+// transform adapts the fake-ip-filter entries to dns.fake-ip-filter-mode,
+// which the override (written for the default blacklist mode) cannot know.
 func TailscaleCoexistLayer(info TailnetInfo) (Layer, error) {
 	b, err := TailscaleCoexist(info)
 	if err != nil {
 		return Layer{}, err
 	}
+	suffix := strings.Trim(strings.ToLower(info.MagicDNSSuffix), ".")
+	domains := coexistDomains(suffix)
 	return Layer{
 		ID: "tailscale-coexist", Name: "Tailscale coexist", Kind: KindManaged,
 		Stage: StageCoexist, Enabled: true, Override: b,
+		Transform: func(root *yaml.Node) ([]string, error) { return fixFakeIPFilterMode(root, domains) },
 	}, nil
+}
+
+// fixFakeIPFilterMode rewrites the blacklist-style entries the coexist
+// override appended to dns.fake-ip-filter ("+.<domain>" and "*") for the
+// configured fake-ip-filter-mode:
+//
+//   - blacklist (default): kept;
+//   - rule: the list holds rules ("TYPE,payload,fake-ip|real-ip"), first match
+//     wins, and a bare "+.ts.net" makes mihomo refuse the config. The entries
+//     are removed and equivalent real-ip rules are put first;
+//   - whitelist: listed names get fake-ips, so the entries would do the
+//     opposite of what they are for. They are removed (tailnet names then get
+//     real answers unless another whitelist entry covers them).
+func fixFakeIPFilterMode(root *yaml.Node, domains []string) ([]string, error) {
+	dns := lookup(root, "dns")
+	filter := lookup(dns, "fake-ip-filter")
+	if filter == nil || filter.Kind != yaml.SequenceNode {
+		return nil, nil
+	}
+	mode := ""
+	if m := lookup(dns, "fake-ip-filter-mode"); m != nil && m.Kind == yaml.ScalarNode {
+		mode = strings.ToLower(strings.TrimSpace(m.Value))
+	}
+	if mode == "" || mode == "blacklist" {
+		return nil, nil
+	}
+	ours := map[string]bool{"*": true}
+	for _, d := range domains {
+		ours["+."+d] = true
+	}
+	kept := filter.Content[:0]
+	for _, it := range filter.Content {
+		if it.Kind == yaml.ScalarNode && ours[strings.TrimSpace(it.Value)] {
+			continue
+		}
+		kept = append(kept, it)
+	}
+	filter.Content = kept
+	switch mode {
+	case "rule":
+		var head []*yaml.Node
+		for _, d := range domains {
+			head = append(head, newStr("DOMAIN-SUFFIX,"+d+",real-ip"))
+		}
+		head = append(head, newStr(`DOMAIN-REGEX,^[^.]+$,real-ip`))
+		filter.Content = append(head, filter.Content...)
+		return nil, nil
+	case "whitelist":
+		return []string{"dns.fake-ip-filter-mode is whitelist: the Tailscale fake-ip-filter entries were left out (in whitelist mode they would give tailnet names fake-ips); make sure no whitelist entry covers ts.net or single-label names"}, nil
+	}
+	return []string{fmt.Sprintf("dns.fake-ip-filter-mode %q is unknown; the Tailscale fake-ip-filter entries were left out", mode)}, nil
 }
 
 func normalizePeers(in []string) ([]string, error) {
@@ -364,6 +426,12 @@ func TailnetInfoFromStatus(statusJSON []byte) (TailnetInfo, error) {
 		name := strings.Trim(strings.ToLower(n.DNSName), ".")
 		short, rest, ok := strings.Cut(name, ".")
 		if !ok || short == "" || (suffix != "" && rest != suffix) {
+			continue
+		}
+		// One odd name must not make the whole layer fail to generate
+		// (normalizePeers rejects non-labels), and "localhost" must never
+		// be pointed at a tailnet address.
+		if !labelRE.MatchString(short) || short == "localhost" {
 			continue
 		}
 		info.PeerShortNames = append(info.PeerShortNames, short)

@@ -126,14 +126,17 @@ const (
 
 // tailscale-direct-rules
 const (
-	msgRulesOK    = "tailscaled、控制面、DERP 和 tailnet 网段都先命中 DIRECT"
-	msgRulesBad   = "这些流量没有命中 DIRECT：%s"
-	msgRulesRisky = "前面有可能截走流量的非 DIRECT 规则：%s"
-	evRuleCount   = "规则来源：%s，共 %d 条"
-	evNoMatch     = "没有规则命中"
-	evNotDirect   = "不是 DIRECT"
-	evShadowed    = "前面的 %s 可能先命中"
-	fixRules      = "把 PROCESS-NAME,tailscaled,DIRECT、DOMAIN-SUFFIX,tailscale.com,DIRECT、IP-CIDR,100.64.0.0/10,DIRECT,no-resolve 和 IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve 放到规则最前面（启用“Tailscale 共存”覆写）。"
+	msgRulesOK     = "tailscaled、控制面、DERP 和 tailnet 网段都先命中 DIRECT"
+	msgRulesBad    = "这些流量没有命中 DIRECT：%s"
+	msgRulesRisky  = "前面有可能截走流量的非 DIRECT 规则：%s"
+	evRuleCount    = "规则来源：%s，共 %d 条"
+	msgRulesGlobal = "mihomo 处于全局模式（GLOBAL → %s）：规则不生效，tailscaled 和 tailnet 流量都走代理"
+	msgRulesDirect = "mihomo 处于直连模式：所有流量直连，规则不生效"
+	fixRulesGlobal = "把 mihomo 切回规则模式（mode: rule），或把 GLOBAL 选为 DIRECT。"
+	evNoMatch      = "没有规则命中"
+	evNotDirect    = "不是 DIRECT"
+	evShadowed     = "前面的 %s 可能先命中"
+	fixRules       = "把 PROCESS-NAME,tailscaled,DIRECT、DOMAIN-SUFFIX,tailscale.com,DIRECT、IP-CIDR,100.64.0.0/10,DIRECT,no-resolve 和 IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve 放到规则最前面（启用“Tailscale 共存”覆写）。"
 )
 
 // magicdns

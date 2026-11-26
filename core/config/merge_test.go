@@ -299,3 +299,14 @@ func TestMergeDoesNotModifyPatch(t *testing.T) {
 		t.Errorf("second merge: %s", out)
 	}
 }
+
+func TestParseRejectsDuplicateKeys(t *testing.T) {
+	for _, s := range []string{"a: 1\na: 2\n", "dns:\n  x: 1\n  x: 2\n", "l:\n  - {n: 1, n: 2}\n"} {
+		if _, err := Parse([]byte(s)); err == nil || !strings.Contains(err.Error(), "already defined") {
+			t.Errorf("%q: err = %v", s, err)
+		}
+	}
+	if _, err := Parse([]byte("b: &b {x: 1}\nc:\n  <<: *b\n  <<: {y: 2}\n  x: 3\n")); err != nil {
+		t.Errorf("merge keys: %v", err)
+	}
+}

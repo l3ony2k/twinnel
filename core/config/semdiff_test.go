@@ -13,6 +13,10 @@ func TestParseRule(t *testing.T) {
 		{"MATCH,PROXY", "MATCH,PROXY", "PROXY"},
 		{"AND,((DOMAIN,a.com),(NETWORK,UDP)),REJECT", "AND,((DOMAIN,a.com),(NETWORK,UDP)),REJECT", "REJECT"},
 		{"GEOIP,CN,DIRECT,no-resolve", "GEOIP,CN,DIRECT,no-resolve", "DIRECT"},
+		{"DOMAIN-REGEX, ^a{1, 3}$ ,Proxy", "DOMAIN-REGEX,^a{1,3}$,Proxy", "Proxy"},
+		{"AND, ((DOMAIN,a.com), (NETWORK,UDP)), REJECT", "AND,((DOMAIN,a.com),(NETWORK,UDP)),REJECT", "REJECT"},
+		{"SUB-RULE,(OR,((NETWORK,tcp),(DST-PORT,443))),s1", "SUB-RULE,(OR,((NETWORK,tcp),(DST-PORT,443))),s1", "s1"},
+		{"DOMAIN-SUFFIX,.Example.com.,DIRECT", "DOMAIN-SUFFIX,.example.com.,DIRECT", "DIRECT"},
 		{"DIRECT", "DIRECT,,", ""}, // malformed: kept, no panic
 		{"", ",,", ""},
 	}
@@ -34,7 +38,27 @@ func TestCovers(t *testing.T) {
 		{"DOMAIN-SUFFIX,tailscale.com,DIRECT", "DOMAIN,xtailscale.com,DIRECT", false},
 		{"DOMAIN-SUFFIX,a.com,DIRECT", "DOMAIN-SUFFIX,b.a.com,DIRECT", true},
 		{"DOMAIN-SUFFIX,b.a.com,DIRECT", "DOMAIN-SUFFIX,a.com,DIRECT", false},
-		{"DOMAIN-KEYWORD,goog,PROXY", "DOMAIN-SUFFIX,google.com,DIRECT", true},
+		// PROXY may lack UDP or select PASS: mihomo then moves on to later
+		// rules, so a rule with another target is not provably shadowed.
+		{"DOMAIN-KEYWORD,goog,PROXY", "DOMAIN-SUFFIX,google.com,DIRECT", false},
+		{"DOMAIN-KEYWORD,goog,PROXY", "DOMAIN-SUFFIX,google.com,PROXY", true},
+		{"DOMAIN-KEYWORD,goog,REJECT", "DOMAIN-SUFFIX,google.com,PROXY", true},
+		{"MATCH,PROXY", "DOMAIN,a.com,DIRECT", false},
+		{"MATCH,PROXY", "DOMAIN,a.com,PROXY", true},
+		{"DOMAIN-SUFFIX,a.com,Proxy", "DOMAIN,b.a.com,proxy", false},
+		// No dot trimming: ".cn" as a keyword does not match "cnn.com", and
+		// ".a.com" as a suffix matches nothing.
+		{"DOMAIN-KEYWORD,.cn,DIRECT", "DOMAIN,cnn.com,DIRECT", false},
+		{"DOMAIN-KEYWORD,.cn,DIRECT", "DOMAIN-SUFFIX,x.cn,DIRECT", true},
+		{"DOMAIN-SUFFIX,.a.com,DIRECT", "DOMAIN,b.a.com,DIRECT", false},
+		// SUB-RULE falls through when no sub-rule matches.
+		{"SUB-RULE,(NETWORK,tcp),s1", "SUB-RULE,(NETWORK,tcp),s2", false},
+		{"SUB-RULE,(NETWORK,tcp),s1", "SUB-RULE,(NETWORK,tcp),s1", true},
+		{"MATCH,s1", "SUB-RULE,(NETWORK,tcp),s1", false},
+		// Regex payloads may contain commas (mihomo takes the last field as
+		// the target).
+		{"DOMAIN-REGEX,^a{1,3}\\.com$,PROXY", "DOMAIN-REGEX,^a{1,3}\\.com$,proxy", false},
+		{"DOMAIN-REGEX,^a{1,3}\\.com$,DIRECT", "DOMAIN-REGEX,^a{1,4}\\.com$,DIRECT", false},
 		{"IP-CIDR,100.64.0.0/10,DIRECT,no-resolve", "IP-CIDR,100.100.100.100/32,DIRECT,no-resolve", true},
 		{"IP-CIDR,100.64.0.0/10,DIRECT,no-resolve", "IP-CIDR,100.100.100.100/32,DIRECT", false},
 		{"IP-CIDR,100.64.0.0/10,DIRECT", "IP-CIDR,100.100.100.100/32,DIRECT,no-resolve", true},
@@ -221,4 +245,22 @@ func TestRealSemDiff(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log("\n" + d.Text(60))
+}
+
+func TestSemanticDiffFakeIPFilterRuleModeOrdered(t *testing.T) {
+	a := "dns:\n  fake-ip-filter-mode: rule\n  fake-ip-filter: ['DOMAIN,a.com,real-ip', 'MATCH,fake-ip']\n"
+	b := "dns:\n  fake-ip-filter-mode: rule\n  fake-ip-filter: ['MATCH,fake-ip', 'DOMAIN,a.com,real-ip']\n"
+	d, err := SemanticDiff([]byte(a), []byte(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Equivalent() {
+		t.Fatalf("reordered rule-mode fake-ip-filter reported equivalent: %+v", d.Settings)
+	}
+	// Blacklist mode: a set.
+	a2 := "dns:\n  fake-ip-filter: ['+.a', '+.b']\n"
+	b2 := "dns:\n  fake-ip-filter: ['+.b', '+.a']\n"
+	if d, _ := SemanticDiff([]byte(a2), []byte(b2)); !d.Equivalent() {
+		t.Fatalf("blacklist reorder not equivalent: %+v", d.Settings)
+	}
 }

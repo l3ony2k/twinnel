@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/netip"
 	"reflect"
-	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -24,6 +23,9 @@ type DerivedLayer struct {
 	Comment string       `json:"comment,omitempty"`
 	stage   config.Stage `json:"-"`
 	data    []byte
+	// transform is the layer's transform, if any (the coexist layer adapts
+	// fake-ip-filter to fake-ip-filter-mode).
+	transform config.Transform
 }
 
 // Data is the layer's override YAML (may contain credentials of the live
@@ -32,7 +34,9 @@ func (l DerivedLayer) Data() []byte { return l.data }
 
 // Layer converts to a compose layer.
 func (l DerivedLayer) Layer() config.Layer {
-	return config.OverrideLayer(l.ID, l.Name, l.Kind, l.stage, l.data)
+	cl := config.OverrideLayer(l.ID, l.Name, l.Kind, l.stage, l.data)
+	cl.Transform = l.transform
+	return cl
 }
 
 // Replaced is a live item that the managed Tailscale coexist layer replaces.
@@ -93,6 +97,7 @@ func newManagedSet(info config.TailnetInfo) (*managedSet, error) {
 		for _, f := range o.DNS.Filter {
 			m.filter[f] = true
 		}
+		m.filter[`DOMAIN-REGEX,^[^.]+$,real-ip`] = true
 		for k := range o.DNS.Policy {
 			m.policy[unwrap(k)] = true
 		}
@@ -109,6 +114,9 @@ func newManagedSet(info config.TailnetInfo) (*managedSet, error) {
 			m.rules = append(m.rules, pr)
 			if pr.Type == "DOMAIN-SUFFIX" {
 				m.domains = append(m.domains, pr.Payload)
+				// The same entry as the layer writes it in
+				// fake-ip-filter-mode: rule.
+				m.filter["DOMAIN-SUFFIX,"+pr.Payload+",real-ip"] = true
 			}
 		}
 	}
@@ -151,9 +159,6 @@ func (m *managedSet) inTailnet(s string) bool {
 	return false
 }
 
-// singleLabel matches MagicDNS short names in DOMAIN rules.
-var singleLabel = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
-
 // ruleExplained reports whether a live rule is produced, or made redundant,
 // by the coexist layer, and why.
 func (m *managedSet) ruleExplained(r config.Rule) (bool, string) {
@@ -170,9 +175,10 @@ func (m *managedSet) ruleExplained(r config.Rule) (bool, string) {
 			return true, "covered by coexist rule " + g.Canonical()
 		}
 	}
-	if r.Type == "DOMAIN" && singleLabel.MatchString(r.Payload) {
-		return true, "single-label (MagicDNS short name) rule; tailnet short names are handled by the coexist layer"
-	}
+	// A single-label DOMAIN rule for a name that is not a current peer
+	// ("router", "nas" on the LAN, a removed peer) is not explained: the
+	// coexist layer only writes rules for current peers (matched above), so
+	// dropping it would route that name by later rules instead.
 	return false, ""
 }
 

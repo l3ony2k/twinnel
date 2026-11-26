@@ -17,19 +17,32 @@ type Rule struct {
 }
 
 // ParseRule parses a rule line such as "DOMAIN-SUFFIX,example.com,DIRECT" or
-// "AND,((DOMAIN,a),(NETWORK,UDP)),REJECT". Unknown shapes are kept with their
-// fields as given.
+// "AND,((DOMAIN,a),(NETWORK,UDP)),REJECT" the way mihomo does
+// (rules/common.ParseRulePayload): fields are split on every comma and
+// trimmed; for logical rules, SUB-RULE and the regex types the target is the
+// last field and the payload is everything in between (so a regex may contain
+// commas); other types take payload, target, then options.
 func ParseRule(line string) Rule {
 	r := Rule{Raw: line}
-	f := splitTopLevel(strings.TrimSpace(line))
-	if len(f) == 0 {
-		return r
+	f := strings.Split(strings.TrimSpace(line), ",")
+	for i := range f {
+		f[i] = strings.TrimSpace(f[i])
 	}
 	r.Type = strings.ToUpper(f[0])
 	if r.Type == "MATCH" || r.Type == "FINAL" {
 		r.Type = "MATCH"
 		if len(f) > 1 {
 			r.Target = f[1]
+		}
+		return r
+	}
+	switch r.Type {
+	case "NOT", "OR", "AND", "SUB-RULE", "DOMAIN-REGEX", "PROCESS-NAME-REGEX", "PROCESS-PATH-REGEX":
+		if len(f) > 2 {
+			r.Target = f[len(f)-1]
+			r.Payload = strings.Join(f[1:len(f)-1], ",")
+		} else if len(f) == 2 {
+			r.Payload = f[1]
 		}
 		return r
 	}
@@ -53,7 +66,10 @@ func ParseRule(line string) Rule {
 			r.Payload = p.Masked().String()
 		}
 	case "DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD":
-		r.Payload = strings.ToLower(strings.Trim(r.Payload, "."))
+		// mihomo lower-cases these and nothing else: a leading or trailing
+		// dot is part of the pattern (".example.com" as a suffix matches
+		// nothing), so it must not be trimmed here.
+		r.Payload = strings.ToLower(r.Payload)
 	}
 	sort.Strings(r.Opts)
 	return r
@@ -101,32 +117,41 @@ func (r Rule) onlyNoResolve() bool {
 	return true
 }
 
-// splitTopLevel splits s on commas outside parentheses and trims each field.
-func splitTopLevel(s string) []string {
-	var out []string
-	depth, start := 0, 0
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '(':
-			depth++
-		case ')':
-			if depth > 0 {
-				depth--
-			}
-		case ',':
-			if depth == 0 {
-				out = append(out, strings.TrimSpace(s[start:i]))
-				start = i + 1
-			}
-		}
+// terminal reports whether a rule with this target always ends rule
+// matching when it matches. mihomo goes on to the next rule when the target
+// is (or a group currently selects) PASS, when the target does not support
+// UDP and the connection is UDP, and for SUB-RULE when no sub-rule matches.
+// Only the built-in DIRECT, REJECT and REJECT-DROP are known to stop.
+func terminal(r Rule) bool {
+	if r.Type == "SUB-RULE" {
+		return false
 	}
-	return append(out, strings.TrimSpace(s[start:]))
+	switch r.Target {
+	case "DIRECT", "REJECT", "REJECT-DROP":
+		return true
+	}
+	return false
 }
 
-// Covers reports whether every connection matched by later is provably also
-// matched by earlier, so later can never fire when earlier comes first.
-// It is conservative: false means "not provable", not "disjoint".
+// Covers reports whether later can never fire when earlier comes first: every
+// connection matched by later is provably also matched by earlier, and
+// earlier then ends rule matching or would let later through only in cases
+// where later would let it through too (same target). It is conservative:
+// false means "not provable", not "disjoint".
 func Covers(earlier, later Rule) bool {
+	if earlier.Target != later.Target && !terminal(earlier) {
+		return false
+	}
+	return matchCovers(earlier, later)
+}
+
+// matchCovers reports whether every connection matched by later is matched
+// by earlier, ignoring targets.
+func matchCovers(earlier, later Rule) bool {
+	if earlier.Type == "SUB-RULE" || later.Type == "SUB-RULE" {
+		// A SUB-RULE "matches" only when one of its sub-rules does.
+		return earlier.Type == later.Type && earlier.Target == later.Target && earlier.Matcher() == later.Matcher()
+	}
 	if earlier.Type == "MATCH" {
 		return true
 	}
@@ -179,7 +204,8 @@ type DeadRule struct {
 	Redundant bool `json:"redundant,omitempty"`
 }
 
-// ruleIndex answers "is r covered by any rule seen so far" quickly.
+// ruleIndex answers "does any rule seen so far match everything r matches"
+// quickly, ignoring targets (see coverIndex).
 type ruleIndex struct {
 	matcher  map[string]int
 	suffix   map[string]int
@@ -219,6 +245,12 @@ func (x *ruleIndex) add(i int, r Rule) {
 
 // coveredBy returns the index of an indexed rule covering r, or -1.
 func (x *ruleIndex) coveredBy(r Rule) int {
+	if r.Type == "SUB-RULE" {
+		if i, ok := x.matcher[r.Matcher()]; ok {
+			return i
+		}
+		return -1
+	}
 	if x.match >= 0 {
 		return x.match
 	}
@@ -245,13 +277,13 @@ func (x *ruleIndex) coveredBy(r Rule) int {
 	switch r.Type {
 	case "DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD":
 		for k, kw := range x.keywords {
-			if Covers(kw, r) {
+			if matchCovers(kw, r) {
 				return x.kwIdx[k]
 			}
 		}
 	case "IP-CIDR":
 		for k, c := range x.cidrs {
-			if Covers(c, r) {
+			if matchCovers(c, r) {
 				return x.cidrIdx[k]
 			}
 		}
@@ -259,19 +291,54 @@ func (x *ruleIndex) coveredBy(r Rule) int {
 	return -1
 }
 
+// coverIndex is ruleIndex made target aware, like Covers: a rule is shadowed
+// by an earlier rule with a terminal target, or by one with the same target.
+type coverIndex struct {
+	terminal *ruleIndex
+	byTarget map[string]*ruleIndex
+}
+
+func newCoverIndex() *coverIndex {
+	return &coverIndex{terminal: newRuleIndex(), byTarget: map[string]*ruleIndex{}}
+}
+
+func (c *coverIndex) add(i int, r Rule) {
+	if terminal(r) {
+		c.terminal.add(i, r)
+	}
+	x := c.byTarget[r.Target]
+	if x == nil {
+		x = newRuleIndex()
+		c.byTarget[r.Target] = x
+	}
+	x.add(i, r)
+}
+
+func (c *coverIndex) coveredBy(r Rule) int {
+	best := c.terminal.coveredBy(r)
+	if x := c.byTarget[r.Target]; x != nil {
+		if j := x.coveredBy(r); j >= 0 && (best < 0 || j < best) {
+			best = j
+		}
+	}
+	return best
+}
+
 // LiveRules returns the rules that can fire under first-match semantics, in
 // order, and the dead ones (exact duplicates and rules shadowed by an
 // earlier rule whatever its target).
 func LiveRules(lines []string) (live []Rule, liveIdx []int, dead []DeadRule) {
-	x := newRuleIndex()
+	x := newCoverIndex()
 	seen := map[string]bool{}
 	for i, l := range lines {
 		r := ParseRule(l)
 		c := r.Canonical()
 		if seen[c] {
-			j, ok := x.matcher[r.Matcher()]
-			if !ok {
-				j = -1
+			j := -1
+			if t := x.byTarget[r.Target]; t != nil {
+				if k, ok := t.matcher[r.Matcher()]; ok {
+					j = k
+				}
 			}
 			dead = append(dead, DeadRule{Index: i, Rule: l, CoveredBy: j, Duplicate: true})
 			continue
@@ -304,7 +371,9 @@ func CanonicalRules(lines []string) ([]RuleBlock, []DeadRule) {
 	var blocks []RuleBlock
 	for i := 0; i < len(live); {
 		j := i
-		for j < len(live) && strings.EqualFold(live[j].Target, live[i].Target) {
+		// Targets are case sensitive in mihomo ("Proxy" and "proxy" are
+		// different groups).
+		for j < len(live) && live[j].Target == live[i].Target {
 			j++
 		}
 		run := live[i:j]
@@ -416,7 +485,7 @@ func blocksEqual(a, b []RuleBlock) bool {
 		return false
 	}
 	for i := range a {
-		if !strings.EqualFold(a[i].Target, b[i].Target) || !equalStrings(a[i].Rules, b[i].Rules) {
+		if a[i].Target != b[i].Target || !equalStrings(a[i].Rules, b[i].Rules) {
 			return false
 		}
 	}

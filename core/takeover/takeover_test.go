@@ -2,6 +2,7 @@ package takeover
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -162,7 +163,10 @@ func TestBuildPlan(t *testing.T) {
 	for _, l := range p.Layers {
 		ids = append(ids, l.ID)
 	}
-	if strings.Join(ids, ",") != "base,user-1,user-2,tailscale-coexist" {
+	// "oldbox" is a single-label DIRECT rule for a name that is not a
+	// current peer: it is kept as a user layer, not dropped as a Tailscale
+	// rule (dropping it would route "oldbox" by later rules).
+	if strings.Join(ids, ",") != "base,user-1,user-2,user-3,tailscale-coexist" {
 		t.Fatalf("layers: %v", ids)
 	}
 	baseLayer := string(p.Layers[0].Data())
@@ -177,17 +181,18 @@ func TestBuildPlan(t *testing.T) {
 		}
 	}
 	// user-1 is applied first and lands below user-2 (prepends).
-	if !strings.Contains(string(p.Layers[1].Data()), "fd00::/8") || !strings.Contains(string(p.Layers[2].Data()), "nas.example.org") {
-		t.Fatalf("user layers:\n%s\n%s", p.Layers[1].Data(), p.Layers[2].Data())
+	if !strings.Contains(string(p.Layers[1].Data()), "fd00::/8") || !strings.Contains(string(p.Layers[2].Data()), "DOMAIN,oldbox,DIRECT") ||
+		!strings.Contains(string(p.Layers[3].Data()), "nas.example.org") {
+		t.Fatalf("user layers:\n%s\n%s\n%s", p.Layers[1].Data(), p.Layers[2].Data(), p.Layers[3].Data())
 	}
-	if p.Layers[2].Name != "My NAS" {
-		t.Errorf("layer name %q", p.Layers[2].Name)
+	if p.Layers[3].Name != "My NAS" {
+		t.Errorf("layer name %q", p.Layers[3].Name)
 	}
 	replaced := map[string]int{}
 	for _, r := range p.Replaced {
 		replaced[r.Path]++
 	}
-	if replaced["rules"] != 10 || replaced["dns.nameserver-policy"] != 1 || replaced["dns.fake-ip-filter"] != 2 || replaced["tun.route-exclude-address"] != 2 {
+	if replaced["rules"] != 9 || replaced["dns.nameserver-policy"] != 1 || replaced["dns.fake-ip-filter"] != 2 || replaced["tun.route-exclude-address"] != 2 {
 		t.Fatalf("replaced: %v\n%+v", replaced, p.Replaced)
 	}
 
@@ -203,9 +208,9 @@ func TestBuildPlan(t *testing.T) {
 			t.Errorf("missing deliberate change %s:\n%s", a, p.Text())
 		}
 	}
-	// The live rules lack tailscale.io / beta.tailscale.net and have a stale
-	// peer: all three edits are the coexist layer's.
-	if p.SemDiff.Rules.Equivalent || !strings.Contains(p.Text(), "3 Tailscale rule edit(s)") {
+	// The live rules lack tailscale.io / beta.tailscale.net: both edits are
+	// the coexist layer's. The stale peer "oldbox" is kept (user layer).
+	if p.SemDiff.Rules.Equivalent || !strings.Contains(p.Text(), "2 Tailscale rule edit(s)") || strings.Contains(p.Text(), "- DOMAIN,oldbox") {
 		t.Fatalf("rules:\n%s", p.Text())
 	}
 
@@ -213,7 +218,7 @@ func TestBuildPlan(t *testing.T) {
 	if err := p.WriteFiles(out); err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"plan.json", "composed.yaml", "semdiff.txt", "summary.txt", "layers/00-base.yaml", "layers/03-tailscale-coexist.yaml"} {
+	for _, f := range []string{"plan.json", "composed.yaml", "semdiff.txt", "summary.txt", "layers/00-base.yaml", "layers/04-tailscale-coexist.yaml"} {
 		fi, err := os.Stat(filepath.Join(out, f))
 		if err != nil {
 			t.Fatal(err)
@@ -334,5 +339,49 @@ func TestNeedsReplaceUsesBang(t *testing.T) {
 	}
 	if !sd.Equivalent() {
 		t.Fatalf("not equivalent:\n%s", sd.Text(0))
+	}
+}
+
+func TestScoreExplainsNeedsSameProviders(t *testing.T) {
+	cfg := "proxies:\n  - {name: a, type: ss}\nproxy-groups:\n  - {name: G, type: select, proxies: [a]}\nrule-providers:\n  r: {type: http, url: 'https://example.invalid/%s'}\nrules: ['RULE-SET,r,G', 'MATCH,G']\n"
+	live, _ := decodeDoc([]byte(fmt.Sprintf(cfg, "new")))
+	same, _ := decodeDoc([]byte(fmt.Sprintf(cfg, "new")))
+	old, _ := decodeDoc([]byte(fmt.Sprintf(cfg, "old")))
+	var c1, c2 Candidate
+	scoreDoc(live, same, &c1)
+	scoreDoc(live, old, &c2)
+	if !c1.Explains || c2.Explains {
+		t.Fatalf("explains: same %v, old provider %v", c1.Explains, c2.Explains)
+	}
+}
+
+// Finding 13: discovery runs as root in the helper. A candidate that is a
+// symlink out of its dir is not read, and a symlinked backup dir is not
+// searched.
+func TestDiscoveryRefusesEscapingSymlinks(t *testing.T) {
+	live := liveHeader + subBody[:strings.Index(subBody, "rules:")] + liveRules
+	dir := setup(t, live)
+	outside := t.TempDir()
+	os.WriteFile(filepath.Join(outside, "victim.yaml"), []byte(subFile), 0o600)
+	if err := os.Symlink(filepath.Join(outside, "victim.yaml"), filepath.Join(dir, "conf", "evil.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "conf", "backup-link")); err != nil {
+		t.Fatal(err)
+	}
+	p, err := BuildPlan(context.Background(), fakeProbe{dir}, Options{NoValidate: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range p.Candidates {
+		if strings.Contains(c.Path, "backup-link") {
+			t.Errorf("searched a symlinked dir: %s", c.Path)
+		}
+		if strings.HasSuffix(c.Path, "evil.yaml") && (c.Error == "" || c.ProxiesTotal > 0) {
+			t.Errorf("read a symlink leaving the dir: %+v", c)
+		}
+	}
+	if filepath.Base(p.Base.Path) != "raw-sub.yaml" {
+		t.Errorf("base %s", p.Base.Path)
 	}
 }
