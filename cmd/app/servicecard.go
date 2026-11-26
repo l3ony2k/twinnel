@@ -81,7 +81,7 @@ func (a *app) servicesCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.kern.svc
-	card(c, T.Services, func() {
+	iconCard(c, iconService, T.Services, func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, T.ServicesHint).FontSize(12).TextColor(t.TextMuted).Grow(1).Wrap()
 			if iconButton(c.Key("svc-refresh"), iconRefresh, T.Refresh, false).Disabled(v.loading).Clicked() {
@@ -223,13 +223,14 @@ func (a *app) serviceOp(method, name, label string) {
 
 type accessoryKind struct {
 	title, hint   string
+	icon          *ui.SVG
 	check, update string
 	view          func(a *app) *accessoryView
 }
 
 func geoKind() accessoryKind {
 	return accessoryKind{
-		title: i18n.T.GeoTitle, hint: i18n.T.GeoHint,
+		title: i18n.T.GeoTitle, hint: i18n.T.GeoHint, icon: iconGeo,
 		check: rpc.MethodGeoCheck, update: rpc.MethodGeoUpdate,
 		view: func(a *app) *accessoryView { return &a.hd.kern.geo },
 	}
@@ -237,7 +238,7 @@ func geoKind() accessoryKind {
 
 func uiKind() accessoryKind {
 	return accessoryKind{
-		title: i18n.T.UITitle, hint: i18n.T.UIHint,
+		title: i18n.T.UITitle, hint: i18n.T.UIHint, icon: iconDashboard,
 		check: rpc.MethodUICheck, update: rpc.MethodUIUpdate,
 		view: func(a *app) *accessoryView { return &a.hd.kern.ui },
 	}
@@ -249,7 +250,7 @@ func (a *app) accessoryCard(c *ui.Context, s status.Snapshot, k accessoryKind) {
 	d := &a.hd
 	v := k.view(a)
 	w := a.helperWrites(s)
-	card(c, k.title, func() {
+	iconCard(c, k.icon, k.title, func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, k.hint).FontSize(12).TextColor(t.TextMuted).Grow(1).Wrap()
 			if iconButton(c.Key("check"), iconRefresh, T.KernelCheck, false).Disabled(d.busy != "").Clicked() {

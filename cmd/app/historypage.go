@@ -94,7 +94,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		if ui.Button(c.Key("hist-diff"), T.HistoryDiff).Disabled(a.hd.busy != "").Clicked() {
 			a.historyDiff(s, entry.ID)
 		}
-		if iconButton(c.Key("hist-rollback"), iconRefresh, T.HistoryRollback, true).Disabled(!a.helperWrites(s)).Clicked() {
+		if iconButton(c.Key("hist-rollback"), iconRollback, T.HistoryRollback, true).Disabled(!a.helperWrites(s)).Clicked() {
 			a.historyRollback(*entry)
 		}
 	}, func() {

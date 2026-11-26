@@ -162,7 +162,7 @@ func TestEvaluate(t *testing.T) {
 		{"healthy", func(*Snapshot) {}, LevelOK, ""},
 		{"loading", func(s *Snapshot) { s.Loaded = false }, LevelUnknown, ""},
 		{"mihomo down", func(s *Snapshot) { s.Mihomo = Mihomo{Err: "connection refused"} }, LevelError, "connection refused"},
-		{"mihomo auth", func(s *Snapshot) { s.Mihomo = Mihomo{Unauthorized: true, Err: "x"} }, LevelError, "secret"},
+		{"mihomo auth", func(s *Snapshot) { s.Mihomo = Mihomo{Unauthorized: true, Err: "x"} }, LevelError, "密钥"},
 		{"tun off", func(s *Snapshot) { s.Mihomo.Config.Tun.Enable = false }, LevelWarn, "TUN"},
 		{"primary dead", func(s *Snapshot) {
 			gs := BuildGroups(proxies())

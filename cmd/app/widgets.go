@@ -157,6 +157,15 @@ func cardWith(c *ui.Context, title string, trailing func(), body func()) ui.Elem
 	})
 }
 
+// iconCard is card with a line icon before the heading.
+func iconCard(c *ui.Context, icon *ui.SVG, title string, body func()) ui.Element {
+	t := c.Theme()
+	return headedCard(c, func() {
+		ui.Icon(c, icon).FontSize(15).TextColor(t.TextMuted)
+		ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine()
+	}, body)
+}
+
 // headedCard is card with a heading row the caller builds (title, hints,
 // buttons), above the box.
 func headedCard(c *ui.Context, head func(), body func()) ui.Element {

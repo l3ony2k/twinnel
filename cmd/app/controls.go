@@ -57,19 +57,6 @@ func (a *app) reloadMihomo(s status.Snapshot) {
 	a.do(func(ctx context.Context) error { return a.mh.Reload(ctx, "") })
 }
 
-// tsPowerButton connects or disconnects Tailscale.
-func (a *app) tsPowerButton(c *ui.Context, s status.Snapshot) {
-	T := i18n.T
-	st := s.Tailscale.State
-	label, fn := T.TSUp, a.ts.Up
-	if st.Prefs.WantRunning {
-		label, fn = T.TSDown, a.ts.Down
-	}
-	if iconButton(c.Key("ts-power"), iconPower, label, false).Disabled(!s.WritesAllowed || !s.Tailscale.Reachable).Clicked() {
-		a.do(fn)
-	}
-}
-
 // tsPowerSwitch connects or disconnects Tailscale: on is "wants to run".
 func (a *app) tsPowerSwitch(c *ui.Context, s status.Snapshot) {
 	on := s.Tailscale.State.Prefs.WantRunning

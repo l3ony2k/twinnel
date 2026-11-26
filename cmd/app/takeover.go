@@ -139,7 +139,7 @@ func (a *app) takeoverIntro(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	d := &a.hd
 	v := &d.take
-	card(c, T.TakeoverTitle, func() {
+	iconCard(c, iconTakeover, T.TakeoverTitle, func() {
 		ui.Text(c, T.TakeoverIntro).FontSize(13).Wrap()
 		if v.unsupported {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -461,7 +461,7 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 			} else {
 				ui.Spacer(c)
 			}
-			if iconButton(c.Key("adopt"), iconOK, T.TakeoverAdopt, true).Disabled(!ok).Clicked() {
+			if iconButton(c.Key("adopt"), iconTakeover, T.TakeoverAdopt, true).Disabled(!ok).Clicked() {
 				plan := *p
 				a.confirm(T.TakeoverAdoptTitle, fmt.Sprintf(T.TakeoverAdoptBody, plan.LiveConfig), T.TakeoverAdopt, func() {
 					a.takeoverAdopt(plan)
@@ -641,7 +641,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.take
-	card(c, T.SecureTitle, func() {
+	iconCard(c, iconSecure, T.SecureTitle, func() {
 		ui.Text(c, T.SecureHint).FontSize(12).TextColor(t.TextMuted).Wrap()
 		if p := v.plan; p != nil && !p.SecretSet && v.secure == nil {
 			ui.Text(c, T.TakeoverNoSecret).FontSize(12).TextColor(pal(t).warnText)
@@ -649,7 +649,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 		ui.Row(c).Children(func() {
 			ui.Spacer(c)
 			can := a.helperWrites(s) && !v.unsupported && !v.fixture
-			if iconButton(c.Key("secure"), iconPower, T.SecureRun, false).Disabled(!can).Clicked() {
+			if iconButton(c.Key("secure"), iconSecure, T.SecureRun, false).Disabled(!can).Clicked() {
 				a.confirm(T.SecureTitle+"？", T.SecureBody, T.SecureRun, a.controllerSecure)
 			}
 		})

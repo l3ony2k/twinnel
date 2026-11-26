@@ -113,7 +113,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 			if iconButton(c.Key("k-check"), iconRefresh, T.KernelCheck, false).Disabled(d.busy != "").Clicked() {
 				a.kernelCheck()
 			}
-			if k.Previous != "" && ui.Button(c.Key("k-rollback"), T.KernelRollback).Disabled(!w).Clicked() {
+			if k.Previous != "" && iconButton(c.Key("k-rollback"), iconRollback, T.KernelRollback, false).Disabled(!w).Clicked() {
 				a.confirm(fmt.Sprintf(T.KernelRollbackTitle, k.Previous), T.KernelRollbackBody, T.KernelRollback, func() {
 					a.helperOp(T.KernelRollback, time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
 						return hc.Call(ctx, rpc.MethodKernelRollback, nil, nil)

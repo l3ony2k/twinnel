@@ -102,6 +102,7 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 	v := &d.cfg
 	w := a.helperWrites(s)
 	headedCard(c, func() {
+		ui.Icon(c, iconSubscription).FontSize(15).TextColor(t.TextMuted)
 		ui.Text(c, T.Subscriptions).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 		ui.Spacer(c)
 		if !v.subOpen && ui.Button(c.Key("sub-add"), T.SubAdd).Disabled(!w).Clicked() {
@@ -290,6 +291,7 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 		}
 	}
 	headedCard(c, func() {
+		ui.Icon(c, iconLayer).FontSize(15).TextColor(t.TextMuted)
 		ui.Text(c, T.Layers).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 		ui.Text(c, T.LayersHint).FontSize(12).TextColor(t.TextMuted).Shrink(1).SingleLine()
 		ui.Spacer(c)
@@ -329,6 +331,13 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, stored []string, w bool) {
 		}
 		ui.Column(c).Gap(2).Grow(1).Shrink(1).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				if l.Managed {
+					icon := iconManaged
+					if l.Stage == "guard" {
+						icon = iconLeakGuard
+					}
+					ui.Icon(c, icon).FontSize(14).TextColor(t.TextMuted)
+				}
 				ui.Text(c, l.Name).FontWeight(600).SingleLine().Shrink(1)
 				tag(c, T.StageName(l.Stage))
 				if l.Managed {

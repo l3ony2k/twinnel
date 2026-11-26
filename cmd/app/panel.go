@@ -117,6 +117,7 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	}
 	kvWith(c, T.Tun, func() {
 		a.tunSwitch(c, s)
+		ui.Icon(c, iconTun).FontSize(13).TextColor(t.TextMuted)
 		small(c, tun).SingleLine().Shrink(1)
 	})
 	if p := m.Primary; p != nil {
