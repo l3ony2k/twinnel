@@ -96,7 +96,19 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 		groupBox(c, t).Children(func() { emptyState(c, iconHealth, T.HealthUnavailable, "") })
 		return
 	case h.Report == nil && h.Err != "":
-		groupBox(c, t).Children(func() { errorNote(c, fmt.Sprintf(T.HealthError, h.Err)) })
+		// Failed, page size (022 d): what did not happen and that nothing
+		// changed, the raw error secondary and selectable, and a retry.
+		groupBox(c, t).Children(func() {
+			ui.Column(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				emptyState(c, iconError, T.HealthFailedTitle, T.HealthFailedHint)
+				ui.Text(c, h.Err).Font("monospace").FontSize(11).TextColor(t.TextMuted).TextAlign(ui.Center).
+					Wrap().MaxWidth(520).Selectable()
+				if a.healthSrc != nil && iconButton(c.Key("retry"), iconRefresh, T.HealthRerun, false).Disabled(h.Running).Clicked() {
+					a.rerunHealth()
+				}
+				ui.Box(c).Height(16)
+			})
+		})
 		return
 	case h.Report == nil:
 		groupBox(c, t).Children(func() {

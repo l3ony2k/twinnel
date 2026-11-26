@@ -335,6 +335,9 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 			a.newLayer()
 		}
 	}, func() {
+		if len(user) == 0 && !v.isNew {
+			listRow(c).Children(func() { ui.Text(c, T.LayersNone).TextColor(t.TextMuted) })
+		}
 		if len(user) > 0 {
 			st := &v.list
 			st.Key = func(i int) any { return ids[i] }

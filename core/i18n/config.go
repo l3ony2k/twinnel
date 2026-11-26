@@ -23,11 +23,16 @@ type ConfigStrings struct {
 	CopyLine          string
 	CopyText          string
 
+	// Layers, empty: a row-size line under the heading's 新建覆写.
+	LayersNone string
+
 	// History.
 	HistoryEmptyHint string
 
 	// Health.
 	HealthCopySummary string
+	HealthFailedTitle string
+	HealthFailedHint  string
 
 	// Sidebar state, as a tooltip and spoken label: "mihomo：运行中".
 	StateLabel string // %s: name, %s: state
@@ -48,9 +53,13 @@ var zhConfig = ConfigStrings{
 	CopyLine:          "复制这一行",
 	CopyText:          "复制",
 
+	LayersNone: "还没有自己的覆写，用「新建覆写」写第一层",
+
 	HistoryEmptyHint: "每次应用配置都会在这里留一条记录，可以对比或回滚到任一条。",
 
 	HealthCopySummary: "复制这项检查",
+	HealthFailedTitle: "没能完成健康检查",
+	HealthFailedHint:  "检查本身出了错，网络设置没有被改动。可以重新检查一次。",
 
 	StateLabel: "%s：%s",
 }
