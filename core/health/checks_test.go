@@ -366,6 +366,13 @@ func TestVPNConflict(t *testing.T) {
 	e = healthyEnv()
 	e.routes["1.1.1.1"] = RouteLookup{Interface: "utun3"}
 	want(t, VPNConflict{}, e, StatusFail, "utun3")
+
+	// Controller down: the file's "device: utun" (number picked by macOS)
+	// says nothing about which utun is mihomo's.
+	e = healthyEnv()
+	e.rtErr = errors.New("refused")
+	e.cfg.TUN.Device = "utun"
+	want(t, VPNConflict{}, e, StatusOK, "utun5")
 }
 
 func TestDirectPeers(t *testing.T) {
