@@ -356,7 +356,7 @@ func (a *app) accessoryResult(c *ui.Context, s status.Snapshot, r *rpc.Accessory
 			ui.Text(c, T.AccessoryRolledBack).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Wrap()
 		}
 		if r.Error != "" {
-			ui.Text(c, T.ErrorPrefix+r.Error).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().Selectable()
+			errorNote(c, T.ErrorPrefix+r.Error)
 		}
 		if r.ReloadNeeded {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {

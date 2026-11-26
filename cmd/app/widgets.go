@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -389,12 +390,24 @@ func notice(c *ui.Context, icon *ui.SVG, text string) ui.Element {
 	})
 }
 
-// errorNote shows what failed, next to where it failed.
+// errorNote shows what failed, next to where it failed. A network error
+// duet knows (i18n.PlainNetError: 没能连上 GitHub …) is said in words, the
+// raw error under it small and selectable, as unreachableState does.
 func errorNote(c *ui.Context, text string) ui.Element {
 	t := c.Theme()
+	raw := strings.TrimPrefix(text, i18n.T.ErrorPrefix)
+	plain := i18n.PlainNetError(raw)
 	return ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
 		ui.Icon(c, iconError).FontSize(iconInline).TextColor(t.Danger).MarginY(1)
-		ui.Text(c, text).FontSize(plat.calloutSize).TextColor(pal(t).badText).Grow(1).Wrap().Selectable()
+		if plain == "" {
+			ui.Text(c, text).FontSize(plat.calloutSize).TextColor(pal(t).badText).Grow(1).Wrap().Selectable()
+			return
+		}
+		ui.Column(c).Gap(2).Grow(1).Shrink(1).Children(func() {
+			ui.Text(c, plain).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().Selectable()
+			ui.Text(c, raw).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().
+				Selectable().Label(i18n.T.UnreachableDetail + "：" + raw)
+		})
 	})
 }
 
