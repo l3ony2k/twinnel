@@ -35,7 +35,7 @@ func runCompose(args []string) error {
 	}
 	var (
 		sub, base, out, validate, geoDir string
-		tailnetJSON, tsResolver          string
+		tailnetJSON, tsResolver, tsIface string
 		leakGuard                        string
 		fromStatus, force                bool
 		userLayers                       []userLayer
@@ -53,7 +53,8 @@ func runCompose(args []string) error {
 	})
 	fs.BoolVar(&fromStatus, "tailnet-from-status", false, "add the Tailscale coexist layer from `tailscale status --json` (read-only)")
 	fs.StringVar(&tailnetJSON, "tailnet-json", "", "add the Tailscale coexist layer from a saved `tailscale status --json` FILE")
-	fs.StringVar(&tsResolver, "tailnet-resolver", "", "nameserver for tailnet names (default \"system\")")
+	fs.StringVar(&tsResolver, "tailnet-resolver", "", "nameserver for tailnet names (default \"100.100.100.100\"; never \"system\" when the system DNS is mihomo)")
+	fs.StringVar(&tsIface, "tailnet-iface", "auto", "Tailscale interface appended to the default resolver (\"100.100.100.100#utun9\"), needed when mihomo binds to the physical interface: `NAME`, \"auto\" (detect, only with --tailnet-from-status) or \"none\"")
 	fs.StringVar(&leakGuard, "leak-guard", "", "comma-separated proxy `GROUPS` that must never use DIRECT")
 	fs.StringVar(&validate, "validate", "", "check the result with this mihomo `BIN` (mihomo -t in a temp dir)")
 	fs.StringVar(&geoDir, "geo-dir", "", "`DIR` with geo databases to copy into the validation dir")
@@ -125,6 +126,20 @@ func runCompose(args []string) error {
 			return err
 		}
 		info.Resolver = tsResolver
+		switch tsIface {
+		case "none", "":
+		case "auto":
+			if fromStatus {
+				if iface, err := tailscaleIface(); err == nil {
+					info.Interface = iface
+					fmt.Fprintf(os.Stderr, "compose: Tailscale interface %s\n", iface)
+				} else {
+					fmt.Fprintf(os.Stderr, "compose: Tailscale interface not detected (%v); using plain 100.100.100.100\n", err)
+				}
+			}
+		default:
+			info.Interface = tsIface
+		}
 		l, err := config.TailscaleCoexistLayer(info)
 		if err != nil {
 			return err
