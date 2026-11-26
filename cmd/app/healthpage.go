@@ -115,8 +115,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			ui.Icon(c, icon).FontSize(22).TextColor(col).Shrink(0)
 			ui.Column(c).Gap(4).Grow(1).Children(func() {
 				ui.Text(c, label).FontSize(15).FontWeight(600)
-				num(small(c, fmt.Sprintf(T.HealthSummary, cnt[health.StatusOK], cnt[health.StatusWarn],
-					cnt[health.StatusFail], cnt[health.StatusSkip])))
+				num(small(c, healthCountsText(cnt)))
 				last := fmt.Sprintf(T.HealthLastRun, rep.Started.Format("15:04:05"), fmt.Sprintf(T.Seconds, rep.Duration.Seconds()))
 				if a.health != nil && a.health.FromHelper() {
 					last += " · " + T.HealthFromHelper
@@ -167,25 +166,32 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 	}
 	expandable := len(cr.Evidence) > 0 || cr.Fix != nil
 	icon, col, _ := healthStatusLook(t, cr.Status)
+	_, _, stateText := healthStatusLook(t, cr.Status)
 	ui.Column(c).PaddingY(10).Gap(8).Clip().Transition(expandMotion).Children(func() {
-		head := ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(20)
+		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).MinHeight(20).Label(stateText + "：" + cr.Title)
+		head.ContextMenu(func(m *ui.Menu) {
+			if m.Item(T.HealthCopySummary).Chosen() {
+				copyText(c, checkText(cr))
+			}
+			if f := cr.Fix; f != nil && f.Command != "" && m.Item(T.CopyCmd).Chosen() {
+				copyText(c, f.Command)
+			}
+		})
 		head.Children(func() {
-			ui.Icon(c, icon).FontSize(16).TextColor(col).Shrink(0)
+			ui.Icon(c, icon).FontSize(16).TextColor(col).Shrink(0).AccessHidden(true)
 			ui.Text(c, cr.Title).FontWeight(500).SingleLine().Shrink(0)
 			if !open {
-				ui.Text(c, cr.Summary).TextColor(t.TextMuted).SingleLine().Shrink(1)
+				// Cut to one line; the whole sentence on hover, as
+				// macOS shows a truncated cell's text.
+				ui.Text(c, cr.Summary).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(cr.Summary)
 			}
 			ui.Spacer(c)
 			if expandable {
-				chev := iconCollapsed
-				if open {
-					chev = iconExpanded
-				}
-				ui.Icon(c, chev).FontSize(12).TextColor(t.TextMuted)
+				disclosureChevron(c, open)
 			}
 		})
 		if expandable {
-			head.Cursor(ui.CursorPointer)
+			head.Cursor(ui.CursorPointer).Focusable().Role(ui.RoleDisclosure).Expanded(open)
 			if head.Clicked() {
 				a.healthOpen[cr.ID] = !open
 			}
@@ -202,9 +208,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 				ui.Column(c).Gap(6).Children(func() {
 					small(c, T.HealthEvidence)
 					ui.Column(c).Gap(3).Padding(10, 12).Radius(plat.controlRadius+2).Background(p.code).Border(1, p.groupLine).Children(func() {
-						for _, e := range cr.Evidence {
-							ui.Text(c, e).Font("monospace").FontSize(11).Wrap().Selectable()
-						}
+						evidenceLines(c, cr.Evidence)
 					})
 				})
 			}
@@ -250,7 +254,8 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 	default:
 		icon, col, text = iconOK, t.Success, T.PanelHealthOK
 	}
-	row := ui.Row(c.Key("health-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).Cursor(ui.CursorPointer)
+	row := ui.Row(c.Key("health-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).Cursor(ui.CursorPointer).
+		Focusable().Role(ui.RoleButton).Label(text)
 	row.Children(func() {
 		ui.Icon(c, icon).FontSize(14).TextColor(col)
 		ui.Text(c, text).Grow(1).SingleLine()
@@ -265,4 +270,98 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 		a.openMain()
 		a.pageChanged(old)
 	}
+}
+
+// healthCountsText is the report's counts: 通过 always, the others only
+// when there are some (review-a: no zero counts).
+func healthCountsText(cnt map[health.Status]int) string {
+	T := i18n.T
+	parts := []string{fmt.Sprintf("%s %d", T.HealthOK, cnt[health.StatusOK])}
+	for _, k := range []struct {
+		st    health.Status
+		label string
+	}{{health.StatusWarn, T.HealthWarn}, {health.StatusFail, T.HealthFail}, {health.StatusSkip, T.HealthSkip}} {
+		if n := cnt[k.st]; n > 0 {
+			parts = append(parts, fmt.Sprintf("%s %d", k.label, n))
+		}
+	}
+	return strings.Join(parts, " · ")
+}
+
+// splitEvidence splits an evidence line that starts with a label padded
+// by spaces ("系统   macbook …") into the label and the value; a line
+// without one comes back as the value alone.
+func splitEvidence(line string) (label, value string) {
+	i := strings.Index(line, "  ")
+	if i <= 0 {
+		return "", line
+	}
+	label = line[:i]
+	if strings.TrimSpace(label) != label || strings.ContainsAny(label, ":=") || len([]rune(label)) > 8 {
+		return "", line
+	}
+	value = strings.TrimLeft(line[i:], " ")
+	if value == "" {
+		return "", line
+	}
+	return label, value
+}
+
+// evidenceLines draws evidence as two columns where lines carry a label
+// padded with spaces: the label in the UI face, the value in mono.
+// Aligning with spaces in a mono face drifts once a label is Chinese
+// (review-a 007-7). In a block where one line is padded that way
+// ("系统   a → b"), its siblings with a one-word label ("mihomo a → b")
+// split at their first space, so the values line up.
+func evidenceLines(c *ui.Context, lines []string) {
+	t := c.Theme()
+	padded := false
+	for _, l := range lines {
+		if lb, _ := splitEvidence(l); lb != "" {
+			padded = true
+			break
+		}
+	}
+	for _, l := range lines {
+		lb, val := splitEvidence(l)
+		if padded && lb == "" {
+			lb, val = splitFirstWord(l)
+		}
+		if !padded || lb == "" {
+			ui.Text(c, l).Font("monospace").FontSize(11).Wrap().Selectable()
+			continue
+		}
+		ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
+			ui.Text(c, lb).FontSize(11).TextColor(t.TextMuted).Width(56).Shrink(0).SingleLine()
+			ui.Text(c, val).Font("monospace").FontSize(11).Grow(1).Shrink(1).Wrap().Selectable()
+		})
+	}
+}
+
+// splitFirstWord splits "mihomo a → b" into "mihomo" and "a → b" when the
+// first word is short enough to be a label.
+func splitFirstWord(line string) (label, value string) {
+	i := strings.IndexByte(line, ' ')
+	if i <= 0 || len([]rune(line[:i])) > 8 || strings.ContainsAny(line[:i], ":：=") {
+		return "", line
+	}
+	return line[:i], strings.TrimLeft(line[i:], " ")
+}
+
+// checkText is one check as plain text, for the clipboard.
+func checkText(cr health.CheckReport) string {
+	T := i18n.T
+	_, _, st := healthStatusLook(&ui.Theme{}, cr.Status)
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s：%s\n%s\n", st, cr.Title, cr.Summary)
+	if len(cr.Evidence) > 0 {
+		fmt.Fprintf(&b, "\n%s\n%s\n", T.HealthEvidence, strings.Join(cr.Evidence, "\n"))
+	}
+	if f := cr.Fix; f != nil {
+		fmt.Fprintf(&b, "\n%s\n%s\n", T.HealthFix, f.Text)
+		if f.Command != "" {
+			fmt.Fprintf(&b, "$ %s\n", f.Command)
+		}
+	}
+	return b.String()
 }
