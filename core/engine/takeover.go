@@ -711,9 +711,11 @@ func (e *Engine) restoreExact(ctx context.Context, path string, data []byte, mod
 	vctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	_, verr := ctrl.Version(vctx)
 	cancel()
+	oldInfo, _ := os.Stat(path)
 	if err := store.WriteFileAtomic(path, data, mode); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
+	keepOwner(path, oldInfo)
 	if verr == nil {
 		if err := e.reloadAndVerify(ctx, ctrl, path, data); err != nil {
 			return err

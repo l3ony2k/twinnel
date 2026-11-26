@@ -259,12 +259,14 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 		return e.fail(res, start, err)
 	}
 	mode := fs.FileMode(0o600)
-	if fi, err := os.Stat(cfgPath); err == nil {
-		mode = fi.Mode().Perm()
+	oldInfo, _ := os.Stat(cfgPath)
+	if oldInfo != nil {
+		mode = oldInfo.Mode().Perm()
 	}
 	if err := store.WriteFileAtomic(cfgPath, final, mode); err != nil {
 		return e.fail(res, start, fmt.Errorf("write %s: %w", cfgPath, err))
 	}
+	keepOwner(cfgPath, oldInfo)
 	res.Written = true
 
 	if running {
@@ -378,10 +380,12 @@ func (e *Engine) restore(ctx context.Context, ctrl Controller, path string, old 
 		os.Remove(path)
 		return
 	}
+	oldInfo, _ := os.Stat(path)
 	if err := store.WriteFileAtomic(path, old, mode); err != nil {
 		e.log().Error("restore config failed", "path", path, "err", err)
 		return
 	}
+	keepOwner(path, oldInfo)
 	rctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if err := ctrl.Reload(rctx, path); err != nil {
