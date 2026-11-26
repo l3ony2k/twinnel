@@ -216,6 +216,9 @@ type Strings struct {
 	OnboardTitle, OnboardIntro, OnboardReadOnly, OnboardPlan, OnboardPlanHint string
 	OnboardInstall, OnboardInstalling, OnboardOpen, CLINotFound               string
 	OnboardPoints                                                             []string
+	OnboardSteps, OnboardShowFile, OnboardHideFile                            string
+	PlanMkdir, PlanCopy, PlanWrite, PlanRemove                                string // %s: path
+	PlanBootout, PlanBootstrap, PlanEnable, PlanDaemonReload                  string
 
 	// Units and time.
 	JustNow, SecondsAgo, MinutesAgo, HoursAgo, DaysAgo string // %d
@@ -742,10 +745,21 @@ var zh = Strings{
 	},
 	OnboardReadOnly:   "不安装也可以用：总览、策略组、Tailscale、健康检查和日志都只读取状态。",
 	OnboardPlan:       "安装时会做什么",
-	OnboardPlanHint:   "下面是 duet helper install --dry-run 的输出，什么都没有执行。点击安装后会弹出一次管理员密码框。",
+	OnboardPlanHint:   "这些步骤来自 duet helper install --dry-run，现在什么都没有执行。点击安装后会弹出一次管理员密码框，然后依次执行。",
 	OnboardInstall:    "安装后台助手",
 	OnboardInstalling: "正在安装…",
 	OnboardOpen:       "了解并安装",
+	OnboardSteps:      "安装步骤 · %d 步",
+	OnboardShowFile:   "显示文件内容",
+	OnboardHideFile:   "隐藏文件内容",
+	PlanMkdir:         "创建目录 %s",
+	PlanCopy:          "把后台助手复制到 %s",
+	PlanWrite:         "写入服务定义 %s",
+	PlanRemove:        "删除 %s",
+	PlanBootout:       "停掉旧的后台助手（如果有）",
+	PlanBootstrap:     "加载服务：后台助手以 root 启动",
+	PlanEnable:        "设为开机自动启动",
+	PlanDaemonReload:  "让 systemd 重新读取服务定义",
 	CLINotFound:       "找不到 duet 命令行工具（可用 DUET_CLI 指定）",
 
 	JustNow:    "刚刚",

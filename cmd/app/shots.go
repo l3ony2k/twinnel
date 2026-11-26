@@ -124,7 +124,11 @@ func (a *app) helperShots(dir string, save func(*mygo.Window, string)) {
 	time.Sleep(300 * time.Millisecond)
 	save(a.win, "main-config")
 	if !snap.Helper.Connected() {
-		return // the first-run / not-running view is the page
+		// The first-run / not-running view is the page; then its plan open.
+		on(func() { a.hd.onb.stepsOpen, a.hd.onb.fileOpen = true, true })
+		wait(600 * time.Millisecond)
+		save(a.win, "onboarding-steps")
+		return
 	}
 	on(func() {
 		for _, l := range a.hd.layers {
