@@ -266,6 +266,29 @@ func TestTailscaleRules(t *testing.T) {
 	e = healthyEnv()
 	e.rt.Rules = []MihomoRule{{0, "MATCH", "", "PROXY"}}
 	want(t, TailscaleRules{}, e, StatusFail, "tailscaled")
+
+	// Rule types the evaluator cannot decide must not count as "no match":
+	// a SUB-RULE (runtime type "SubRules"), SRC-IP-CIDR or IP rule that may
+	// resolve the domain can take the traffic first.
+	for _, r := range []MihomoRule{
+		{0, NormRuleType("SubRules"), "(NETWORK,udp)", "PROXY"},
+		{0, NormRuleType("SrcIPCIDR"), "198.18.0.1/16", "PROXY"},
+		{0, NormRuleType("GeoIP"), "US", "PROXY"},
+		{0, NormRuleType("DstPort"), "443", "PROXY"},
+		{0, NormRuleType("ProcessPath"), "/opt/old/tailscaled", "PROXY"},
+		{0, "SOMEFUTURETYPE", "x", "PROXY"},
+	} {
+		e = healthyEnv()
+		e.rt.Rules = append([]MihomoRule{r}, e.rt.Rules...)
+		if res := (TailscaleRules{}).Run(context.Background(), e); res.Status == StatusOK {
+			t.Errorf("%s in front: got OK: %s", r.Type, res.Summary)
+		}
+	}
+
+	// Global mode ignores the rules.
+	e = healthyEnv()
+	e.rt.Configs.Mode = "global"
+	want(t, TailscaleRules{}, e, StatusFail, "GLOBAL")
 }
 
 func TestMagicDNS(t *testing.T) {

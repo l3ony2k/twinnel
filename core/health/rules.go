@@ -25,7 +25,10 @@ func (p probe) String() string {
 }
 
 // matchRule reports whether rule r definitely matches p, or might match
-// (rule types whose content we cannot see, such as GEOSITE or RULE-SET).
+// (rule types whose content we cannot see, such as GEOSITE or RULE-SET, and
+// conditions on things the probe does not pin down). Unknown types are
+// "might match": a false "does not match" could turn a broken setup into an
+// OK result.
 func matchRule(r MihomoRule, p probe) (match, maybe bool) {
 	payload := strings.ToLower(r.Payload)
 	switch r.Type {
@@ -41,23 +44,36 @@ func matchRule(r MihomoRule, p probe) (match, maybe bool) {
 	case "DOMAINREGEX", "DOMAINWILDCARD", "GEOSITE":
 		return false, p.domain != ""
 	case "PROCESSNAME":
-		return p.process != "" && strings.EqualFold(p.process, r.Payload), false
-	case "PROCESSPATH":
-		return p.process != "" && strings.HasSuffix(r.Payload, "/"+p.process), false
-	case "PROCESSNAMEREGEX", "PROCESSPATHREGEX":
-		return false, p.process != ""
+		if p.process != "" {
+			return strings.EqualFold(p.process, r.Payload), false
+		}
+		// Any process may open a connection to a domain or IP.
+		return false, true
+	case "PROCESSPATH", "PROCESSNAMEREGEX", "PROCESSPATHREGEX", "PROCESSNAMEWILDCARD", "PROCESSPATHWILDCARD":
+		// The binary's path is unknown: a path ending in /tailscaled may
+		// still not be the running one.
+		return false, true
 	case "IPCIDR", "IPCIDR6":
 		if !p.ip.IsValid() {
-			return false, false
+			// A domain is resolved for IP rules unless no-resolve (which
+			// the runtime API does not report); a process connects to IPs.
+			return false, true
 		}
 		pre, ok := ParsePrefixLoose(strings.Split(r.Payload, ",")[0])
 		return ok && pre.Contains(p.ip), false
-	case "GEOIP", "IPASN":
-		return false, p.ip.IsValid()
-	case "RULESET", "AND", "OR", "NOT", "SUBRULE":
+	case "GEOIP", "IPASN", "IPSUFFIX":
+		return false, true
+	case "DOMAINSET", "IPSET":
+		return false, true
+	case "NETWORK", "DSTPORT", "SRCPORT", "INPORT", "INTYPE", "INUSER", "INNAME",
+		"SRCIPCIDR", "SRCGEOIP", "SRCIPASN", "SRCIPSUFFIX", "UID", "DSCP":
+		// Conditions on the network, ports, source or inbound: the probe
+		// leaves them open.
+		return false, true
+	case "RULESET", "AND", "OR", "NOT", "SUBRULE", "SUBRULES":
 		return false, true
 	}
-	return false, false
+	return false, true
 }
 
 // evalRules finds the first rule that matches p. shadow lists earlier

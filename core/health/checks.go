@@ -212,6 +212,22 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 	if err != nil {
 		return skip(msgMihomoUnavailable, err)
 	}
+	// Rules only apply in rule mode: global sends everything to GLOBAL,
+	// direct sends everything DIRECT.
+	if rt, err := env.MihomoRuntime(ctx); err == nil {
+		switch strings.ToLower(rt.Configs.Mode) {
+		case "direct":
+			return Result{Status: StatusOK, Summary: msgRulesDirect}
+		case "global":
+			ch := followNow(rt.Proxies, "GLOBAL")
+			final := ch[len(ch)-1]
+			if final != "DIRECT" {
+				return Result{Status: StatusFail, Summary: fmt.Sprintf(msgRulesGlobal, final),
+					Evidence: []string{strings.Join(ch, " → ")}, Fix: &FixHint{Text: fixRulesGlobal}}
+			}
+			return Result{Status: StatusOK, Summary: msgRulesDirect, Evidence: []string{strings.Join(ch, " → ")}}
+		}
+	}
 	if len(rules) == 0 {
 		return skip(msgNoRules)
 	}
