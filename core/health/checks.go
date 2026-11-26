@@ -15,7 +15,8 @@ func DefaultRegistry() *Registry {
 	r := NewRegistry()
 	for _, c := range []Check{
 		TailnetRoute{}, TUNExclude{}, TailscaleRules{}, MagicDNS{}, PeerNames{},
-		SystemDNS{}, VPNConflict{}, DirectPeers{}, LeakGuard{}, Controller{},
+		ResolverBinding{}, FakeIPMode{},
+		SystemDNS{}, VPNConflict{}, DirectPeers{}, LeakGuard{}, LeakEgress{}, Controller{},
 	} {
 		r.Register(c)
 	}
@@ -372,8 +373,10 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 		}
 	}
 	if cfg != nil {
-		if pol, ok := cfg.DNS.NameserverPolicy["+.ts.net"]; ok {
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evPolicy, "+.ts.net", strings.Join(pol, ", ")))
+		for _, k := range []string{"+." + strings.Trim(ts.MagicDNSSuffix, "."), "+.ts.net", "*"} {
+			if pol, ok := cfg.DNS.NameserverPolicy[k]; ok {
+				res.Evidence = append(res.Evidence, fmt.Sprintf(evPolicy, k, strings.Join(pol, ", ")))
+			}
 		}
 	}
 
@@ -394,7 +397,11 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 		res.Summary = strings.Join(parts, "；")
 		fix := fixMagicMihomo
 		if cfg != nil {
-			if pol := cfg.DNS.NameserverPolicy["+.ts.net"]; len(pol) == 1 && pol[0] == "system" {
+			pol := cfg.DNS.NameserverPolicy["+."+strings.Trim(ts.MagicDNSSuffix, ".")]
+			if len(pol) == 0 {
+				pol = cfg.DNS.NameserverPolicy["+.ts.net"]
+			}
+			if len(pol) == 1 && pol[0] == "system" {
 				fix = fixMagicSystemLoop + fix
 			}
 		}
@@ -832,17 +839,9 @@ func (LeakGuard) Run(ctx context.Context, env Env) Result {
 			continue
 		}
 		// Follow the current selection down to a real proxy.
-		chain := []string{g}
-		cur := p
-		for i := 0; i < 10 && cur.IsGroup() && cur.Now != ""; i++ {
-			chain = append(chain, cur.Now)
-			next, ok := rt.Proxies[cur.Now]
-			if !ok {
-				break
-			}
-			cur = next
-		}
+		chain := followNow(rt.Proxies, g)
 		final := chain[len(chain)-1]
+		cur := rt.Proxies[final]
 		line := fmt.Sprintf(evLeakChain, strings.Join(chain, " → "))
 		if final == "DIRECT" || cur.Type == "Direct" {
 			line += "  ← " + evLeakDirect

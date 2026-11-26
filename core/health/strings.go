@@ -33,6 +33,52 @@ const (
 	titleDirectPeers    = "打洞质量"
 	titleLeakGuard      = "防泄露"
 	titleController     = "控制接口安全"
+	titleResolverBind   = "tailnet DNS 出口绑定"
+	titleFakeIPMode     = "fake-ip 过滤模式"
+	titleEgress         = "出口 IP 实测"
+)
+
+// tailnet-resolver-binding
+const (
+	msgBindNone      = "mihomo 没有把自己的连接绑定到物理接口，发往 100.100.100.100 的查询能进 Tailscale"
+	msgBindOK        = "tailnet 解析器都带 #%s，查询走 Tailscale 接口"
+	msgBindHostsOnly = "tailnet 解析器没带 #接口，但有设备 hosts：正向解析不受影响，反向解析和 hosts 之外的名字可能超时"
+	msgBindMissing   = "mihomo 绑定了物理接口，tailnet 解析器却没带 #接口，也没有设备 hosts：tailnet 名字的查询会发到路由器，超时"
+	msgBindStale     = "tailnet 解析器绑定的接口 %s 已不是 Tailscale 当前的接口 %s"
+	msgBindNoQuad    = "tailnet 名字没交给 100.100.100.100（见 MagicDNS 检查）"
+	evBindIface      = "绑定物理接口：%s"
+	evBindResolver   = "nameserver-policy %s → %s"
+	evBindHosts      = "hosts 里的设备名：%d 个"
+	evBindCurrent    = "Tailscale 当前接口：%s"
+	fixBind          = "重新生成“Tailscale 共存”覆写，让 tailnet 解析器写成 100.100.100.100#<Tailscale 接口>，并生成设备 hosts。tailscaled 重启后接口名会变，也需要重新生成。"
+)
+
+// fake-ip-filter-mode
+const (
+	msgFakeIPNotUsed  = "没有使用 fake-ip"
+	msgWildcardNone   = "fake-ip-filter 里没有 '*'"
+	msgWildcardOK     = "fake-ip-filter 的 '*' 配合 blacklist 模式：单标签名字拿真实地址"
+	msgWildcardBad    = "fake-ip-filter 里有 '*'，但 fake-ip-filter-mode 是 %s：'*' 只在 blacklist 模式下表示“单标签名字不用 fake-ip”"
+	evFakeIPMode      = "fake-ip-filter-mode：%s"
+	fixWildcard       = "把 fake-ip-filter-mode 改回 blacklist（默认），或在当前模式下用对应写法排除单标签名字，然后重新生成“Tailscale 共存”覆写。"
+	labelDefaultBlack = "blacklist（默认）"
+)
+
+// leak-guard-egress
+const (
+	msgEgressOff         = "未开启（duet doctor --egress）"
+	msgEgressErr         = "出口测试失败：%v"
+	msgEgressOK          = "敏感策略组的出口 IP 和本机直连出口不同：%s"
+	msgEgressSame        = "经 mihomo 代理（%s）的出口 IP 和本机直连出口相同"
+	msgEgressNotMeasured = "测试请求走的是 %s，敏感策略组当前用别的节点，没测到它们的出口"
+	msgEgressDirectPath  = "测试请求本身被规则送去了 DIRECT，测不到代理出口"
+	evEgressDirect       = "直连出口：%s"
+	evEgressDirectErr    = "直连请求失败：%v（改用 tailscaled 的 STUN 结果）"
+	evEgressSTUN         = "直连出口（tailscaled STUN）：%s"
+	evEgressProxied      = "经 mihomo 出口：%s（链路：%s）"
+	evEgressGroup        = "%s 当前节点：%s"
+	evEgressURL          = "测试地址：%s（只发一次 GET，不带任何个人数据）"
+	fixEgress            = "检查敏感策略组当前节点：节点的出口和本机相同，说明它没有真正代理（例如本地转发或 DIRECT 类节点）。"
 )
 
 // Labels and evidence fragments.
@@ -100,9 +146,9 @@ const (
 	evDNSTimeout       = "超时，2 秒内没有应答（mihomo 可能在等一个绕回自己的上游）"
 	evResolverCfg      = "系统 resolver：%s → 100.100.100.100 %s；100.x 反解 zone %d 个"
 	evPolicy           = "mihomo nameserver-policy %s：%s"
-	fixMagicSys        = "确认 Tailscale 的 MagicDNS 已开启、tailscaled 在运行；mihomo 的 fake-ip-filter 要包含 '+.ts.net' 和设备短名。"
-	fixMagicSystemLoop = "nameserver-policy 把 '+.ts.net' 交给了 system，而系统 DNS 指向 mihomo 自己，查询绕回来失败。"
-	fixMagicMihomo     = "把 nameserver-policy 中 '+.ts.net'（以及设备短名）的上游改成 100.100.100.100，并把设备短名加入 fake-ip-filter。直接查询 127.0.0.1:53 或被 dns-hijack 劫持的程序才会受影响，走系统解析的程序不受影响。"
+	fixMagicSys        = "确认 Tailscale 的 MagicDNS 已开启、tailscaled 在运行，然后重新生成“Tailscale 共存”覆写（它让 tailnet 名字跳过 fake-ip）。"
+	fixMagicSystemLoop = "nameserver-policy 把 tailnet 域名交给了 system，而系统 DNS 指向 mihomo 自己，查询绕回来失败。"
+	fixMagicMihomo     = "重新生成“Tailscale 共存”覆写：它把 tailnet 域名、单标签短名和 tailnet 反解交给 100.100.100.100（开了 auto-detect-interface / interface-name 时写成 100.100.100.100#<Tailscale 接口>），让短名跳过 fake-ip，并为设备生成 hosts。直接查询 127.0.0.1:53 或被 dns-hijack 劫持的程序才会受影响，走系统解析的程序不受影响。"
 )
 
 // peer-short-names

@@ -55,7 +55,30 @@ type Settings struct {
 	SensitiveGroups []string `json:"sensitiveGroups,omitempty"`
 	// AllowExitNode accepts a Tailscale exit node without failing.
 	AllowExitNode bool `json:"allowExitNode,omitempty"`
+	// Egress enables the opt-in egress test (leak-guard-egress): one HTTPS
+	// request to EgressURL directly and one through mihomo.
+	Egress bool `json:"egress,omitempty"`
+	// EgressURL is a neutral IP-echo endpoint. Default DefaultEgressURL.
+	EgressURL string `json:"egressURL,omitempty"`
 }
+
+// DefaultEgressURL is Cloudflare's trace endpoint on an IP literal: it
+// answers "ip=<your address>" and needs no DNS lookup.
+const DefaultEgressURL = "https://1.1.1.1/cdn-cgi/trace"
+
+// EgressEnv is implemented by Envs that can run the egress test. Both
+// methods make one HTTPS GET to url and return the client IP it reports.
+type EgressEnv interface {
+	// DirectEgress bypasses mihomo (socket bound to the physical interface).
+	DirectEgress(ctx context.Context, url string) (netip.Addr, error)
+	// ProxiedEgress goes through mihomo's mixed/HTTP port and also returns
+	// the proxy chain mihomo used for it (from GET /connections), outermost
+	// group last, e.g. ["node-a", "PROXY", "Final"].
+	ProxiedEgress(ctx context.Context, url string) (netip.Addr, []string, error)
+}
+
+// ErrNotSupported is returned by optional Env features an Env lacks.
+var ErrNotSupported = errors.New("not supported on this platform")
 
 // DefaultSettings returns the defaults used when the user set nothing.
 func DefaultSettings() Settings {
@@ -195,6 +218,7 @@ type TUNConfig struct {
 	DNSHijack           []string
 	RouteExcludeAddress []string
 	Inet4Address        []string
+	AutoDetectInterface bool
 }
 
 // MihomoProxy is a proxy or group from GET /proxies.
@@ -224,8 +248,12 @@ type MihomoConfig struct {
 	SecretSet          bool // the secret value itself is never kept
 	DNS                MihomoDNSConfig
 	TUN                TUNConfig
-	Rules              []MihomoRule
-	ProxyGroups        []MihomoProxy
+	// InterfaceName is the top-level interface-name (outbound binding).
+	InterfaceName string
+	// HostNames are the keys of the top-level hosts map (values not kept).
+	HostNames   []string
+	Rules       []MihomoRule
+	ProxyGroups []MihomoProxy
 }
 
 // MihomoDNSConfig is the DNS part of the mihomo config file.
@@ -235,6 +263,8 @@ type MihomoDNSConfig struct {
 	EnhancedMode     string
 	FakeIPRange      string
 	FakeIPFilter     []string
+	FakeIPFilterMode string // "" (= blacklist), "blacklist", "whitelist", "rule"
+	UseHosts         *bool  // nil when unset (mihomo default: true)
 	NameserverPolicy map[string][]string
 }
 

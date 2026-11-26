@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"net/netip"
 	"sync"
 )
 
@@ -74,4 +75,29 @@ func (m *memoEnv) LookupMihomo(_ context.Context, name string) (DNSAnswer, error
 }
 func (m *memoEnv) LookupSystem(_ context.Context, name string) (DNSAnswer, error) {
 	return memo(m, "dns-system:"+name, func() (DNSAnswer, error) { return m.inner.LookupSystem(m.ctx, name) })
+}
+
+func (m *memoEnv) DirectEgress(_ context.Context, url string) (netip.Addr, error) {
+	e, ok := m.inner.(EgressEnv)
+	if !ok {
+		return netip.Addr{}, ErrNotSupported
+	}
+	return memo(m, "egress-direct:"+url, func() (netip.Addr, error) { return e.DirectEgress(m.ctx, url) })
+}
+
+type proxiedEgress struct {
+	addr  netip.Addr
+	chain []string
+}
+
+func (m *memoEnv) ProxiedEgress(_ context.Context, url string) (netip.Addr, []string, error) {
+	e, ok := m.inner.(EgressEnv)
+	if !ok {
+		return netip.Addr{}, nil, ErrNotSupported
+	}
+	v, err := memo(m, "egress-proxied:"+url, func() (proxiedEgress, error) {
+		a, c, err := e.ProxiedEgress(m.ctx, url)
+		return proxiedEgress{a, c}, err
+	})
+	return v.addr, v.chain, err
 }

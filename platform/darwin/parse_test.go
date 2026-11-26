@@ -320,3 +320,14 @@ func TestEnvWithFakes(t *testing.T) {
 		t.Fatalf("dns server %s", s)
 	}
 }
+
+func TestParseConnectionChain(t *testing.T) {
+	body := []byte(`{"connections":[{"metadata":{"sourcePort":"5000"},"chains":["a","G"]},{"metadata":{"sourcePort":"6123"},"chains":["node-x","PROXY","Final"]}]}`)
+	c, ok := ParseConnectionChain(body, 6123)
+	if !ok || len(c) != 3 || c[0] != "node-x" {
+		t.Fatal(c, ok)
+	}
+	if _, ok := ParseConnectionChain(body, 7); ok {
+		t.Fatal("unexpected match")
+	}
+}
