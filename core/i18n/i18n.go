@@ -542,7 +542,7 @@ var zh = Strings{
 	HistoryHash:          "哈希",
 	HistoryReason:        "说明",
 	HistoryPick:          "点一行查看、对比或回滚",
-	HistoryEntry:         "历史",
+	HistoryEntry:         "记录",
 	HistoryDiff:          "与当前对比",
 	HistoryDiffHint:      "旧：这条记录 · 新：当前生效的配置",
 	HistoryRollback:      "回滚到这里",

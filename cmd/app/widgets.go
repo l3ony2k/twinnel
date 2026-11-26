@@ -498,3 +498,10 @@ func toolIcon(c *ui.Context, icon *ui.SVG, label string, busy bool) ui.Element {
 	})
 	return b
 }
+
+// codeFrame is the frame of an editor or a diff view: the inner radius and
+// a hairline, as code and evidence blocks have. The editor's own element
+// does not draw a radius or a border, so the frame clips it.
+func codeFrame(c *ui.Context, height float32, view func()) ui.Element {
+	return ui.Column(c).Height(height).Radius(plat.innerRadius).Border(1, pal(c.Theme()).groupLine).Clip().Children(view)
+}

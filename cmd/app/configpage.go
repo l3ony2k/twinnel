@@ -692,7 +692,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 			a.loadingBox(c, "layer-editor", 320)
 			return
 		}
-		editor.View(c.Key("ed:"+v.sel), v.ed).Height(320).Radius(plat.innerRadius).Border(1, pal(t).groupLine)
+		codeFrame(c, 320, func() { editor.View(c.Key("ed:"+v.sel), v.ed).Grow(1) })
 		if v.managed {
 			return
 		}
@@ -817,7 +817,7 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 			add, del := v.diff.Stats()
 			ui.Text(c, fmt.Sprintf(T.DiffStats, add, del)).FontSize(12).TextColor(t.TextMuted)
 			if add+del > 0 {
-				editor.DiffView(c.Key("preview-diff"), v.diff).Height(380).Radius(plat.innerRadius).Border(1, pal(t).groupLine)
+				codeFrame(c, 380, func() { editor.DiffView(c.Key("preview-diff"), v.diff).Grow(1) })
 			}
 		}
 		ui.Divider(c)

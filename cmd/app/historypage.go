@@ -19,6 +19,7 @@ import (
 type historyView struct {
 	list    ui.ListState
 	sel     string
+	selRow  int // the table's chosen row (list.Selected), kept in step with sel
 	diffID  string
 	diff    *editor.DiffState
 	diffErr string
@@ -52,11 +53,19 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		{Title: T.HistoryReason},
 	}
 	v.list.RowHeight = 30
+	// The chosen row is the table's own selection (the accent row, as
+	// every macOS table), which the arrow keys also move.
+	v.selRow = -1
+	for i := range hist {
+		if hist[i].ID == v.sel {
+			v.selRow = i
+		}
+	}
+	v.list.Selected, v.list.RoundRows = &v.selRow, true
 	card(c, "", func() {
-		ui.Table(c, &v.list, cols, len(hist), func(row, col int) {
+		tbl := ui.Table(c, &v.list, cols, len(hist), func(row, col int) {
 			e := hist[row]
 			cell := ui.Text
-			sel := e.ID == v.sel
 			var el ui.Element
 			switch col {
 			case 0:
@@ -85,13 +94,11 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 					copyText(c, e.ID)
 				}
 			})
-			if sel {
-				el.FontWeight(600)
-			}
-			if el.Clicked() && v.sel != e.ID {
-				v.sel, v.reveal = e.ID, true
-			}
-		}).Height(float32(min(len(hist), 10)*30 + 40)).Background(ui.Transparent).MarginX(-8)
+		})
+		tbl.Height(float32(min(len(hist), 10)*30 + 40)).Background(ui.Transparent).MarginX(-8)
+		if tbl.Changed() && v.selRow >= 0 && v.selRow < len(hist) && hist[v.selRow].ID != v.sel {
+			v.sel, v.reveal = hist[v.selRow].ID, true
+		}
 		if v.sel == "" {
 			small(c, T.HistoryPick)
 		}
@@ -128,7 +135,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 			add, del := v.diff.Stats()
 			ui.Text(c, T.HistoryDiffHint+" · "+fmt.Sprintf(T.DiffStats, add, del)).FontSize(12).TextColor(t.TextMuted)
 			if add+del > 0 {
-				editor.DiffView(c.Key("hist-diff-view"), v.diff).Height(380).Radius(plat.innerRadius).Border(1, pal(t).groupLine)
+				codeFrame(c, 380, func() { editor.DiffView(c.Key("hist-diff-view"), v.diff).Grow(1) })
 			}
 		}
 		if r := v.result; r != nil {
