@@ -103,6 +103,9 @@ func (a *app) mainView(c *ui.Context) {
 }
 
 func (a *app) pageChanged(old string) {
+	if a.page != old && a.hd.busy == "" {
+		a.hd.msg, a.hd.msgErr = "", false // the last outcome belongs to the page it ran on
+	}
 	if a.page == pageLogs {
 		a.mon.SetLogLevel(a.logs.levelName())
 	} else if old == pageLogs {

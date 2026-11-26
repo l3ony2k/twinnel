@@ -45,12 +45,20 @@ func (a *app) kernelPage(c *ui.Context, s status.Snapshot) {
 		}
 	}
 	a.opNotes(c, s)
-	a.kernelCard(c, s)
-	a.servicesCard(c, s)
-	for _, k := range []accessoryKind{geoKind(), uiKind()} {
-		ui.Column(c.Key(k.check)).Children(func() { a.accessoryCard(c, s, k) })
+	if a.section("kernel") {
+		a.kernelCard(c, s)
 	}
-	a.tailscaleVersionCard(c, s)
+	if a.section("services") {
+		a.servicesCard(c, s)
+	}
+	for _, k := range []accessoryKind{geoKind(), uiKind()} {
+		if a.section(k.check) {
+			ui.Column(c.Key(k.check)).Children(func() { a.accessoryCard(c, s, k) })
+		}
+	}
+	if a.section("kernel") {
+		a.tailscaleVersionCard(c, s)
+	}
 }
 
 func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {

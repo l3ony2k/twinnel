@@ -8,6 +8,8 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/status"
 )
 
@@ -189,4 +191,98 @@ func (a *app) helperShots(dir string, save func(*mygo.Window, string)) {
 		time.Sleep(200 * time.Millisecond)
 	}
 	save(a.win, "main-kernel")
+	a.kernelShots(save, wait, on, writes)
+	a.takeoverShots(save, wait, on, page)
+}
+
+// kernelShots: the 服务, GEO and UI cards, one at a time (shotSection).
+// With writes: a service restart (a dry run on a helper that is not root),
+// geo and UI updates (downloads into the dev config dir), then 应用以生效.
+func (a *app) kernelShots(save func(*mygo.Window, string), wait func(time.Duration), on func(func()), writes bool) {
+	long := func() { // downloads can take a while
+		for i := 0; i < 600; i++ {
+			busy := true
+			mygo.RunOnMain(func() { busy = a.hd.busy != "" })
+			if !busy {
+				break
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		wait(500 * time.Millisecond)
+	}
+	on(func() { a.shotSection = "services"; a.loadServices() })
+	wait(1500 * time.Millisecond)
+	save(a.win, "kernel-services")
+	if writes {
+		on(func() { a.serviceOp(rpc.MethodServiceRestart, "mihomo", i18n.T.ServiceRestart) })
+		wait(2 * time.Second)
+		save(a.win, "kernel-service-restart-dryrun")
+	}
+	for _, k := range []accessoryKind{geoKind(), uiKind()} {
+		on(func() { a.shotSection = k.check; a.accessoryCheck(k) })
+		long()
+		save(a.win, "kernel-"+k.check)
+		if writes {
+			on(func() { a.accessoryUpdate(k, false) })
+			long()
+			save(a.win, "kernel-"+k.update)
+			if k.check == rpc.MethodGeoCheck {
+				var r *rpc.AccessoryUpdateResult
+				mygo.RunOnMain(func() { r = a.hd.kern.geo.res })
+				if r != nil && r.ReloadNeeded {
+					on(func() { a.applyForce(i18n.T.AccessoryApplyReason, func() { r.ReloadNeeded = false }) })
+					long()
+					save(a.win, "kernel-geo-applied")
+				}
+			}
+		}
+	}
+	on(func() { a.shotSection = "" })
+}
+
+// takeoverShots: the 接管 page against the helper (which on main says it
+// is too old), then the wizard from DUET_TAKEOVER_FIXTURE in sections.
+func (a *app) takeoverShots(save func(*mygo.Window, string), wait func(time.Duration), on func(func()), page func(string)) {
+	page(pageTakeover)
+	wait(time.Second)
+	save(a.win, "takeover-helper")
+	planOK := false
+	mygo.RunOnMain(func() { planOK = a.hd.connected && !a.hd.take.unsupported })
+	if planOK {
+		on(func() { a.takeoverMakePlan("") })
+		wait(5 * time.Second)
+		save(a.win, "takeover-helper-plan")
+	}
+	dir := os.Getenv("DUET_TAKEOVER_FIXTURE")
+	if dir == "" {
+		return
+	}
+	var adopt *adoptResult
+	on(func() {
+		if err := a.loadTakeoverFixture(dir); err != nil {
+			log.Print(err)
+		}
+		adopt, a.hd.take.adopt = a.hd.take.adopt, nil
+		a.shotSection = "plan"
+	})
+	wait(500 * time.Millisecond)
+	save(a.win, "takeover-plan")
+	on(func() { a.shotSection = "verdict" })
+	wait(500 * time.Millisecond)
+	save(a.win, "takeover-verdict")
+	on(func() { a.hd.take.showText = true })
+	wait(500 * time.Millisecond)
+	save(a.win, "takeover-report")
+	if adopt != nil {
+		on(func() { a.hd.take.adopt, a.hd.take.showText, a.shotSection = adopt, false, "result" })
+		wait(500 * time.Millisecond)
+		save(a.win, "takeover-result")
+	}
+	on(func() { a.shotSection = "" })
+}
+
+// section reports whether a page section draws: always, except in shot
+// mode when shotSection names another one.
+func (a *app) section(name string) bool {
+	return a.shotSection == "" || a.shotSection == name
 }

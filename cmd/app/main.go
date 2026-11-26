@@ -51,23 +51,26 @@ type app struct {
 	unsub func()
 
 	// main thread
-	tray       *mygo.Tray
-	trayTitle  string
-	trayLevel  status.Level
-	trayShape  status.TrayIcon
-	panel      *mygo.Window
-	win        *mygo.Window
-	page       string
-	actionErr  string
-	settings   settingsForm
-	logs       logsView
-	shotMode   bool   // DUET_SHOTS: the panel draws its own background
-	theme      string // DUET_THEME=light|dark forces a theme (development, shots)
-	peers      ui.ListState
-	groupsOpen map[string]bool
-	healthOpen map[string]bool // check ID → expanded, once the user toggled it
-	exitPick   string          // exit node select value (peer name or ExitNodeNone)
-	hd         helperData      // what the helper pages show
+	tray      *mygo.Tray
+	trayTitle string
+	trayLevel status.Level
+	trayShape status.TrayIcon
+	panel     *mygo.Window
+	win       *mygo.Window
+	page      string
+	actionErr string
+	settings  settingsForm
+	logs      logsView
+	shotMode  bool // DUET_SHOTS: the panel draws its own background
+	// shotSection limits a long page to one section in shot mode (MyGo
+	// captures only the top of a page); "" draws everything.
+	shotSection string
+	theme       string // DUET_THEME=light|dark forces a theme (development, shots)
+	peers       ui.ListState
+	groupsOpen  map[string]bool
+	healthOpen  map[string]bool // check ID → expanded, once the user toggled it
+	exitPick    string          // exit node select value (peer name or ExitNodeNone)
+	hd          helperData      // what the helper pages show
 }
 
 func main() {
@@ -138,7 +141,7 @@ func (a *app) ready() {
 	})
 	a.startHelper()
 	a.start()
-	if dir := os.Getenv("DUET_TAKEOVER_FIXTURE"); dir != "" { // development: a recorded plan
+	if dir := os.Getenv("DUET_TAKEOVER_FIXTURE"); dir != "" && os.Getenv("DUET_SHOTS") == "" { // development: a recorded plan (shots load it later)
 		if err := a.loadTakeoverFixture(dir); err != nil {
 			log.Printf("takeover fixture: %v", err)
 		}

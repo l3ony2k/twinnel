@@ -96,7 +96,7 @@ func (a *app) loadTakeoverFixture(dir string) error {
 	if err := json.Unmarshal(b, &p); err != nil {
 		return fmt.Errorf("plan.json: %w", err)
 	}
-	v.fixture, v.loaded = true, true
+	v.fixture, v.loaded, v.unsupported, v.listErr = true, true, false, ""
 	v.plans = []takeoverPlan{p}
 	v.plan = &p
 	if b, err := os.ReadFile(filepath.Join(dir, "adopt.json")); err == nil {
@@ -120,14 +120,18 @@ func (a *app) takeoverPage(c *ui.Context, s status.Snapshot) {
 	if v.fixture {
 		ui.Badge(c, T.TakeoverFixture)
 	}
-	a.takeoverIntro(c, s)
+	if a.section("plan") {
+		a.takeoverIntro(c, s)
+	}
 	if v.plan != nil {
 		a.takeoverPlanCards(c, s, v.plan)
 	}
-	if v.adopt != nil {
+	if v.adopt != nil && a.section("result") {
 		a.adoptResultCard(c, v.adopt)
 	}
-	a.secureCard(c, s)
+	if a.section("result") {
+		a.secureCard(c, s)
+	}
 }
 
 func (a *app) takeoverIntro(c *ui.Context, s status.Snapshot) {
@@ -241,10 +245,18 @@ func (a *app) takeoverSelect(id string) {
 }
 
 func (a *app) takeoverPlanCards(c *ui.Context, s status.Snapshot, p *takeoverPlan) {
+	if a.section("plan") {
+		a.takeoverFoundCards(c, p)
+	}
+	if a.section("verdict") {
+		a.takeoverVerdictCards(c, s, p)
+	}
+}
+
+func (a *app) takeoverFoundCards(c *ui.Context, p *takeoverPlan) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.take
-
 	card(c, T.TakeoverFound, func() {
 		kv(c, T.TakeoverLive, p.LiveConfig)
 		kv(c, "SHA-256", shortDigest(p.LiveSHA256))
@@ -306,6 +318,12 @@ func (a *app) takeoverPlanCards(c *ui.Context, s status.Snapshot, p *takeoverPla
 		}
 	})
 
+}
+
+func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *takeoverPlan) {
+	t := c.Theme()
+	T := i18n.T
+	v := &a.hd.take
 	card(c, T.Layers, func() {
 		if len(p.Layers) == 0 {
 			ui.Text(c, T.TakeoverNoLayers).FontSize(12).TextColor(t.TextMuted)
@@ -368,9 +386,11 @@ func (a *app) takeoverPlanCards(c *ui.Context, s status.Snapshot, p *takeoverPla
 			if v.showText {
 				chev, label = iconExpanded, T.TakeoverHideText
 			}
-			if iconButton(c.Key("text"), chev, label, false).Clicked() {
-				v.showText = !v.showText
-			}
+			ui.Row(c).Children(func() {
+				if iconButton(c.Key("text"), chev, label, false).Clicked() {
+					v.showText = !v.showText
+				}
+			})
 			if v.showText {
 				for _, txt := range []string{p.Summary, p.SemDiff} {
 					if txt == "" {

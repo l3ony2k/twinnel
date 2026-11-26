@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -302,14 +303,14 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		dot(c, col, 8)
 		ui.Text(c, f.Name).FontSize(13).Bold().Width(70).Shrink(0)
-		ui.Text(c, state).FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, state).FontSize(12).TextColor(t.TextMuted).SingleLine().Shrink(0)
 		if f.Verifiable {
 			ui.Badge(c, T.AccessoryVerifiable)
 		} else {
 			ui.Badge(c, T.AccessoryUnverifiable)
 		}
 		ui.Spacer(c)
-		ui.Text(c, f.File).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
+		ui.Text(c, filepath.Base(f.File)).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
 	})
 	local := T.AccessoryMissing
 	if f.Installed {
