@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io/fs"
-	"os"
 
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/store"
@@ -22,7 +21,7 @@ func (e *Engine) ConfigText(ctx context.Context, p rpc.ConfigGetParams) (rpc.Con
 	var b []byte
 	switch p.Source {
 	case rpc.ConfigLive:
-		raw, err := os.ReadFile(st.Mihomo.ConfigFile)
+		raw, err := readConfined(st.Mihomo.ConfigFile)
 		if errors.Is(err, fs.ErrNotExist) {
 			return out, rpc.ErrNotFound("config file", st.Mihomo.ConfigFile)
 		}

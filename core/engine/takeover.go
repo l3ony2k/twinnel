@@ -731,15 +731,20 @@ func (e *Engine) restoreExact(ctx context.Context, path string, data []byte, mod
 	vctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	_, verr := ctrl.Version(vctx)
 	cancel()
-	oldInfo, _ := os.Stat(path)
+	cd, err := openConfDir(filepath.Dir(path), st.Mihomo.ConfigDirUID)
+	if err != nil {
+		return err
+	}
+	defer cd.Close()
+	name := filepath.Base(path)
+	oldInfo, _ := cd.Stat(name)
 	force := true
-	if cur, err := os.ReadFile(path); err == nil {
+	if cur, err := cd.ReadFile(name); err == nil {
 		force = ReloadImpact(cur, data).Force
 	}
-	if err := store.WriteFileAtomic(path, data, mode); err != nil {
+	if err := writeConfined(cd, name, data, mode, oldInfo); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
-	keepOwner(path, oldInfo)
 	if verr == nil {
 		if err := e.reloadAndVerify(ctx, ctrl, path, force); err != nil {
 			return err

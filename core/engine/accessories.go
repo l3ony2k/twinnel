@@ -28,7 +28,7 @@ type accessorySettings struct {
 
 func readAccessorySettings(cfgFile string) accessorySettings {
 	var a accessorySettings
-	b, err := os.ReadFile(cfgFile)
+	b, err := readConfined(cfgFile)
 	if err != nil {
 		return a
 	}
@@ -124,6 +124,11 @@ func (e *Engine) GeoUpdate(ctx context.Context, p rpc.AccessoryUpdateParams) (rp
 	if err := os.MkdirAll(st.Mihomo.ConfigDir, 0o755); err != nil {
 		return out, err
 	}
+	dir, err := openConfDir(st.Mihomo.ConfigDir, st.Mihomo.ConfigDirUID)
+	if err != nil {
+		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
+	}
+	defer dir.Close()
 	files, remotes := e.geoCheck(ctx, st)
 	items := e.geoItems(st)
 	var swaps []*kernel.Swap
@@ -142,7 +147,7 @@ func (e *Engine) GeoUpdate(ctx context.Context, p rpc.AccessoryUpdateParams) (rp
 			out.Skipped = append(out.Skipped, it.Name)
 			continue
 		}
-		sw, _, err := e.fetcher(ctx, st).PrepareGeo(ctx, it, remotes[i])
+		sw, _, err := e.fetcher(ctx, st).PrepareGeo(ctx, dir.Root, it, remotes[i])
 		if err != nil {
 			return fail(fmt.Errorf("%s: %w", it.Name, err))
 		}
@@ -173,7 +178,7 @@ func (e *Engine) GeoUpdate(ctx context.Context, p rpc.AccessoryUpdateParams) (rp
 // revalidate runs mihomo -t on the config on disk with the config dir as
 // geo dir. Without a config or a binary there is nothing to check.
 func (e *Engine) revalidate(ctx context.Context, st *store.Settings) error {
-	cfg, err := os.ReadFile(st.Mihomo.ConfigFile)
+	cfg, err := readConfined(st.Mihomo.ConfigFile)
 	if err != nil {
 		return nil
 	}
@@ -231,7 +236,14 @@ func (e *Engine) uiCheck(ctx context.Context, st *store.Settings) (rpc.Accessory
 	if fi, err := os.Stat(filepath.Join(dir, "index.html")); err == nil && !fi.IsDir() {
 		af.Installed = true
 	}
-	stamp, stamped := kernel.ReadUIStamp(dir)
+	var stamp kernel.UIStampData
+	stamped := false
+	if r, err := os.OpenRoot(st.Mihomo.ConfigDir); err == nil {
+		if rel, err := filepath.Rel(st.Mihomo.ConfigDir, dir); err == nil {
+			stamp, stamped = kernel.ReadUIStamp(r, rel)
+		}
+		r.Close()
+	}
 	if stamped {
 		af.SHA256 = stamp.Tag
 		if af.SHA256 == "" {
@@ -290,7 +302,18 @@ func (e *Engine) UIUpdate(ctx context.Context, p rpc.AccessoryUpdateParams) (rpc
 		out.Skipped = []string{"ui"}
 		return out, nil
 	}
-	sw, _, err := e.fetcher(ctx, st).PrepareUI(ctx, af.File, r)
+	cd, err := openConfDir(st.Mihomo.ConfigDir, st.Mihomo.ConfigDirUID)
+	if err != nil {
+		out.Error = err.Error()
+		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
+	}
+	defer cd.Close()
+	rel, err := cd.Rel(af.File)
+	if err != nil {
+		out.Error = err.Error()
+		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
+	}
+	sw, _, err := e.fetcher(ctx, st).PrepareUI(ctx, cd.Root, rel, r)
 	if err == nil {
 		if err = kernel.Commit([]*kernel.Swap{sw}); err != nil {
 			out.RolledBack = true

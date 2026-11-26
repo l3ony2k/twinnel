@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -362,7 +361,7 @@ var probeRE = regexp.MustCompile(`Mihomo Meta (\S+)`)
 func ProbeVersion(ctx context.Context, bin string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, bin, "-v").CombinedOutput()
+	out, err := CombinedOutput(ctx, bin, "-v")
 	if err != nil {
 		return "", fmt.Errorf("%s -v: %w: %s", bin, err, strings.TrimSpace(string(out)))
 	}

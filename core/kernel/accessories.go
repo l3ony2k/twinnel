@@ -64,6 +64,7 @@ type GeoItem struct {
 	Name string // "geoip", "geosite", "mmdb", "asn"
 	URL  string
 	File string // absolute path in the config dir
+	Rel  string // File relative to the config dir (a plain file name)
 }
 
 // GeoItems lists the geo databases of a config dir with mihomo's file
@@ -80,11 +81,11 @@ func GeoItems(confDir string, urls map[string]string) []GeoItem {
 			}
 			for _, n := range names {
 				if strings.EqualFold(e.Name(), n) {
-					return filepath.Join(confDir, e.Name())
+					return e.Name()
 				}
 			}
 		}
-		return filepath.Join(confDir, def)
+		return def
 	}
 	u := func(k, def string) string {
 		if v := strings.TrimSpace(urls[k]); v != "" {
@@ -92,12 +93,16 @@ func GeoItems(confDir string, urls map[string]string) []GeoItem {
 		}
 		return def
 	}
-	return []GeoItem{
-		{Name: "geoip", URL: u("geoip", DefaultGeoIPURL), File: find("GeoIP.dat", "GeoIP.dat")},
-		{Name: "geosite", URL: u("geosite", DefaultGeoSiteURL), File: find("GeoSite.dat", "GeoSite.dat")},
-		{Name: "mmdb", URL: u("mmdb", DefaultMMDBURL), File: find("geoip.metadb", "Country.mmdb", "geoip.db", "geoip.metadb")},
-		{Name: "asn", URL: u("asn", DefaultASNURL), File: find("ASN.mmdb", "ASN.mmdb")},
+	items := []GeoItem{
+		{Name: "geoip", URL: u("geoip", DefaultGeoIPURL), Rel: find("GeoIP.dat", "GeoIP.dat")},
+		{Name: "geosite", URL: u("geosite", DefaultGeoSiteURL), Rel: find("GeoSite.dat", "GeoSite.dat")},
+		{Name: "mmdb", URL: u("mmdb", DefaultMMDBURL), Rel: find("geoip.metadb", "Country.mmdb", "geoip.db", "geoip.metadb")},
+		{Name: "asn", URL: u("asn", DefaultASNURL), Rel: find("ASN.mmdb", "ASN.mmdb")},
 	}
+	for i := range items {
+		items[i].File = filepath.Join(confDir, items[i].Rel)
+	}
+	return items
 }
 
 // Remote is what is known about a download before fetching it.
@@ -257,9 +262,11 @@ func getJSON(ctx context.Context, c *http.Client, u string, v any) error {
 	return json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(v)
 }
 
-// download writes the body of r.URL to dst (created 0644) and checks size
-// and digest. It returns the sha256 of what it wrote.
-func (f *Fetcher) download(ctx context.Context, r Remote, dst string, limit int64) (string, error) {
+// download writes the body of r.URL to name in root (created exclusively,
+// 0644: a file or symlink already there is removed first, never written
+// through) and checks size and digest. It returns the sha256 of what it
+// wrote.
+func (f *Fetcher) download(ctx context.Context, r Remote, root *os.Root, name string, limit int64) (string, error) {
 	if _, err := checkURL(r.URL); err != nil {
 		return "", err
 	}
@@ -275,7 +282,10 @@ func (f *Fetcher) download(ctx context.Context, r Remote, dst string, limit int6
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("download %s: %s", redact(r.URL), resp.Status)
 	}
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err := root.RemoveAll(name); err != nil {
+		return "", err
+	}
+	out, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
 		return "", err
 	}
@@ -285,7 +295,7 @@ func (f *Fetcher) download(ctx context.Context, r Remote, dst string, limit int6
 		err = cerr
 	}
 	if err != nil {
-		os.Remove(dst)
+		root.Remove(name)
 		return "", fmt.Errorf("download %s: %w", redact(r.URL), err)
 	}
 	sum := hex.EncodeToString(h.Sum(nil))
@@ -300,7 +310,7 @@ func (f *Fetcher) download(ctx context.Context, r Remote, dst string, limit int6
 		err = fmt.Errorf("download %s: sha256 %s does not match the published digest %s", redact(r.URL), sum, r.SHA256)
 	}
 	if err != nil {
-		os.Remove(dst)
+		root.Remove(name)
 		return "", err
 	}
 	return sum, nil
@@ -325,8 +335,8 @@ func FileSHA256(p string) (string, int64, error) {
 // truncated file is never put in place: MaxMind DB files carry their
 // metadata marker; the .dat files are protobuf lists starting with field 1
 // (0x0a).
-func checkGeoFormat(name, p string) error {
-	b, err := os.ReadFile(p)
+func checkGeoFormat(name string, root *os.Root, p string) error {
+	b, err := root.ReadFile(p)
 	if err != nil {
 		return err
 	}
@@ -343,9 +353,12 @@ func checkGeoFormat(name, p string) error {
 	return nil
 }
 
-// Swap is one prepared replacement: New is renamed to Dst, the old Dst
-// (if any) to Dst+BackupSuffix.
+// Swap is one prepared replacement inside Root: New is renamed to Dst, the
+// old Dst (if any) to Dst+BackupSuffix. Dst and New are relative to Root,
+// so a symlink planted in a user-owned config dir can never redirect the
+// helper's renames and removals outside it.
 type Swap struct {
+	Root     *os.Root
 	Dst, New string
 	moved    bool
 	hadOld   bool
@@ -356,18 +369,18 @@ type Swap struct {
 func Commit(swaps []*Swap) error {
 	for i, s := range swaps {
 		bak := s.Dst + BackupSuffix
-		if _, err := os.Lstat(s.Dst); err == nil {
-			os.RemoveAll(bak)
-			if err := os.Rename(s.Dst, bak); err != nil {
+		if _, err := s.Root.Lstat(s.Dst); err == nil {
+			s.Root.RemoveAll(bak)
+			if err := s.Root.Rename(s.Dst, bak); err != nil {
 				Rollback(swaps[:i])
 				Discard(swaps)
 				return err
 			}
 			s.hadOld = true
 		}
-		if err := os.Rename(s.New, s.Dst); err != nil {
+		if err := s.Root.Rename(s.New, s.Dst); err != nil {
 			if s.hadOld {
-				os.Rename(bak, s.Dst)
+				s.Root.Rename(bak, s.Dst)
 			}
 			Rollback(swaps[:i])
 			Discard(swaps)
@@ -386,9 +399,9 @@ func Rollback(swaps []*Swap) {
 		if !s.moved {
 			continue
 		}
-		os.RemoveAll(s.Dst)
+		s.Root.RemoveAll(s.Dst)
 		if s.hadOld {
-			os.Rename(s.Dst+BackupSuffix, s.Dst)
+			s.Root.Rename(s.Dst+BackupSuffix, s.Dst)
 		}
 		s.moved = false
 	}
@@ -398,23 +411,27 @@ func Rollback(swaps []*Swap) {
 func Discard(swaps []*Swap) {
 	for _, s := range swaps {
 		if !s.moved {
-			os.RemoveAll(s.New)
+			s.Root.RemoveAll(s.New)
 		}
 	}
 }
 
-// PrepareGeo downloads one database next to its target and checks it.
-func (f *Fetcher) PrepareGeo(ctx context.Context, it GeoItem, r Remote) (*Swap, string, error) {
-	tmp := it.File + NewSuffix
-	sum, err := f.download(ctx, r, tmp, maxGeoSize)
+// PrepareGeo downloads one database next to its target (it.Rel in root)
+// and checks it.
+func (f *Fetcher) PrepareGeo(ctx context.Context, root *os.Root, it GeoItem, r Remote) (*Swap, string, error) {
+	if !filepath.IsLocal(it.Rel) {
+		return nil, "", fmt.Errorf("%s: bad file name %q", it.Name, it.Rel)
+	}
+	tmp := it.Rel + NewSuffix
+	sum, err := f.download(ctx, r, root, tmp, maxGeoSize)
 	if err != nil {
 		return nil, "", err
 	}
-	if err := checkGeoFormat(it.Name, tmp); err != nil {
-		os.Remove(tmp)
+	if err := checkGeoFormat(it.Name, root, tmp); err != nil {
+		root.Remove(tmp)
 		return nil, "", err
 	}
-	return &Swap{Dst: it.File, New: tmp}, sum, nil
+	return &Swap{Root: root, Dst: it.Rel, New: tmp}, sum, nil
 }
 
 // UIStampData is the content of UIStamp.
@@ -424,53 +441,82 @@ type UIStampData struct {
 	SHA256 string `json:"sha256"`
 }
 
-// ReadUIStamp reads the stamp of an installed UI dir.
-func ReadUIStamp(dir string) (UIStampData, bool) {
+// ReadUIStamp reads the stamp of an installed UI dir (dir relative to root).
+func ReadUIStamp(root *os.Root, dir string) (UIStampData, bool) {
 	var s UIStampData
-	b, err := os.ReadFile(filepath.Join(dir, UIStamp))
+	b, err := root.ReadFile(filepath.Join(dir, UIStamp))
 	if err != nil || json.Unmarshal(b, &s) != nil {
 		return UIStampData{}, false
 	}
 	return s, true
 }
 
-// PrepareUI downloads the UI zip, extracts it into dir+NewSuffix and
-// stamps it.
-func (f *Fetcher) PrepareUI(ctx context.Context, dir string, r Remote) (*Swap, string, error) {
+// PrepareUI downloads the UI zip, extracts it into dir+NewSuffix and stamps
+// it. dir is relative to root.
+func (f *Fetcher) PrepareUI(ctx context.Context, root *os.Root, dir string, r Remote) (*Swap, string, error) {
+	if !filepath.IsLocal(dir) {
+		return nil, "", fmt.Errorf("ui dir %q is not inside the config dir", dir)
+	}
 	zipPath := dir + ".zip" + NewSuffix
-	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
+	if err := root.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return nil, "", err
 	}
-	sum, err := f.download(ctx, r, zipPath, maxUIZip)
+	sum, err := f.download(ctx, r, root, zipPath, maxUIZip)
 	if err != nil {
 		return nil, "", err
 	}
-	defer os.Remove(zipPath)
+	defer root.Remove(zipPath)
 	tmp := dir + NewSuffix
-	os.RemoveAll(tmp)
-	if err := extractZip(zipPath, tmp); err != nil {
-		os.RemoveAll(tmp)
+	if err := root.RemoveAll(tmp); err != nil {
+		return nil, "", err
+	}
+	if err := extractZip(root, zipPath, tmp); err != nil {
+		root.RemoveAll(tmp)
 		return nil, "", err
 	}
 	stamp, _ := json.MarshalIndent(UIStampData{URL: r.URL, Tag: r.Tag, SHA256: sum}, "", "  ")
-	if err := os.WriteFile(filepath.Join(tmp, UIStamp), stamp, 0o644); err != nil {
-		os.RemoveAll(tmp)
+	if err := writeNew(root, filepath.Join(tmp, UIStamp), stamp); err != nil {
+		root.RemoveAll(tmp)
 		return nil, "", err
 	}
-	return &Swap{Dst: dir, New: tmp}, sum, nil
+	return &Swap{Root: root, Dst: dir, New: tmp}, sum, nil
+}
+
+func writeNew(root *os.Root, name string, data []byte) error {
+	f, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return err
 }
 
 // extractZip unpacks regular files and dirs only (no symlinks), refusing
 // paths that leave dst, and strips a single top-level directory (as
 // mihomo's own UI updater does). The bundle must contain index.html.
-func extractZip(zipPath, dst string) error {
-	zr, err := zip.OpenReader(zipPath)
+// zipPath and dst are relative to root; nothing is written outside it.
+func extractZip(root *os.Root, zipPath, dst string) error {
+	zf, err := root.Open(zipPath)
 	if err != nil {
 		return fmt.Errorf("ui bundle: %w", err)
 	}
-	defer zr.Close()
+	defer zf.Close()
+	fi, err := zf.Stat()
+	if err != nil {
+		return err
+	}
+	zr, err := zip.NewReader(zf, fi.Size())
+	if err != nil {
+		return fmt.Errorf("ui bundle: %w", err)
+	}
 	if len(zr.File) > maxUIFiles {
 		return fmt.Errorf("ui bundle: too many files (%d)", len(zr.File))
+	}
+	if err := root.Mkdir(dst, 0o755); err != nil {
+		return err
 	}
 	prefix := commonTopDir(zr.File)
 	var total int64
@@ -488,7 +534,7 @@ func extractZip(zipPath, dst string) error {
 		mode := f.Mode()
 		switch {
 		case mode.IsDir():
-			if err := os.MkdirAll(target, 0o755); err != nil {
+			if err := root.MkdirAll(target, 0o755); err != nil {
 				return err
 			}
 			continue
@@ -502,10 +548,10 @@ func extractZip(zipPath, dst string) error {
 		if clean == "index.html" {
 			hasIndex = true
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		if err := root.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
-		if err := writeZipFile(f, target); err != nil {
+		if err := writeZipFile(root, f, target); err != nil {
 			return err
 		}
 	}
@@ -515,13 +561,13 @@ func extractZip(zipPath, dst string) error {
 	return nil
 }
 
-func writeZipFile(f *zip.File, target string) error {
+func writeZipFile(root *os.Root, f *zip.File, target string) error {
 	rc, err := f.Open()
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
-	out, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	out, err := root.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}

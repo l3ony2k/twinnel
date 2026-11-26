@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -112,7 +111,7 @@ func (p *TailscaleProbe) run(ctx context.Context, bin string, args ...string) ([
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	return exec.CommandContext(ctx, bin, args...).Output()
+	return Output(ctx, bin, args...)
 }
 
 // LocalVersion runs `tailscale version --json`.
