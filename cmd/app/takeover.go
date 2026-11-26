@@ -143,8 +143,8 @@ func (a *app) takeoverIntro(c *ui.Context, s status.Snapshot) {
 		hintText(c, T.TakeoverIntro)
 		if v.unsupported {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, iconWarning).FontSize(14).TextColor(pal(t).warnText)
-				ui.Text(c, T.TakeoverTooOld).FontSize(12).TextColor(pal(t).warnText).Wrap().Shrink(1)
+				ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText)
+				ui.Text(c, T.TakeoverTooOld).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Wrap().Shrink(1)
 			})
 		}
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -159,7 +159,7 @@ func (a *app) takeoverIntro(c *ui.Context, s status.Snapshot) {
 			}
 		})
 		if v.listErr != "" {
-			ui.Text(c, T.ErrorPrefix+v.listErr).FontSize(12).TextColor(pal(t).badText).Wrap()
+			ui.Text(c, T.ErrorPrefix+v.listErr).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap()
 		}
 		if len(v.plans) == 0 && v.loaded && !v.unsupported {
 			hintText(c, T.TakeoverNoPlans)
@@ -266,11 +266,11 @@ func (a *app) takeoverFoundCards(c *ui.Context, p *rpc.TakeoverPlan) {
 		kv(c, T.TakeoverBinary, bin)
 		kvWith(c, T.TakeoverController, func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, orDash(p.Controller)).FontSize(13)
+				ui.Text(c, orDash(p.Controller)).FontSize(plat.bodySize)
 				if p.SecretSet {
 					tag(c, T.TakeoverSecretSet)
 				} else {
-					ui.Text(c, T.TakeoverNoSecret).FontSize(12).TextColor(pal(t).warnText)
+					ui.Text(c, T.TakeoverNoSecret).FontSize(plat.calloutSize).TextColor(pal(t).warnText)
 				}
 			})
 		})
@@ -334,11 +334,11 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 	v := &a.hd.take
 	card(c, T.Layers, func() {
 		if len(p.Layers) == 0 {
-			ui.Text(c, T.TakeoverNoLayers).FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, T.TakeoverNoLayers).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 		}
 		for i, l := range p.Layers {
 			ui.Row(c.Key(fmt.Sprint("l", i))).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, l.Name).FontSize(13).Width(180).Shrink(0).SingleLine().Tooltip(l.Name)
+				ui.Text(c, l.Name).FontSize(plat.bodySize).Width(180).Shrink(0).SingleLine().Tooltip(l.Name)
 				tag(c, T.StageName(l.Stage))
 				if l.Kind == "managed" { // as the 订阅与覆写 page marks it; "user" needs no mark
 					tag(c, T.LayerManaged)
@@ -350,7 +350,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 					}
 					what += fmt.Sprintf(T.TakeoverRules, l.Rules)
 				}
-				ui.Text(c, what).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(what)
+				ui.Text(c, what).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(what)
 			})
 		}
 	})
@@ -371,7 +371,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 		kvWith(c, T.ComposeValid, func() { ui.Text(c, valid).TextColor(vcol) })
 		impactRow(c, p.Impact)
 		for _, e := range p.ValidateErr {
-			ui.Text(c, e).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
+			ui.Text(c, e).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().Selectable()
 		}
 		var deliberate, other []rpc.TakeoverChange
 		for _, ch := range p.Changes {
@@ -384,7 +384,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 		changeList(c, "deliberate", T.TakeoverDeliberate, deliberate, t.Accent)
 		changeList(c, "other", T.TakeoverOtherChanges, other, t.Warning)
 		if len(p.Changes) == 0 {
-			ui.Text(c, T.TakeoverNoChanges).FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, T.TakeoverNoChanges).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 		}
 		for _, w := range p.Warnings {
 			if p.Impact != nil && i18n.WarningKind(w) == "adopt-disrupts" {
@@ -405,7 +405,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 					if txt == "" {
 						continue
 					}
-					ui.Text(c, strings.TrimRight(txt, "\n")).Font("monospace").FontSize(11).Wrap().Selectable().
+					ui.Text(c, strings.TrimRight(txt, "\n")).Font("monospace").FontSize(plat.smallSize).Wrap().Selectable().
 						Padding(8, 10).Radius(plat.innerRadius).Background(pal(t).code).Border(1, pal(t).groupLine)
 				}
 			}
@@ -426,9 +426,9 @@ func changeList(c *ui.Context, key, title string, list []rpc.TakeoverChange, col
 			ui.Row(c.Key(fmt.Sprint(i))).Gap(8).AlignItems(ui.Start).Children(func() {
 				dot(c, col, 6).Margin(5, 0, 0, 0)
 				ui.Column(c).Gap(1).Shrink(1).Children(func() {
-					ui.Text(c, ch.Area+" · "+ch.What).FontSize(12).Wrap().Selectable()
+					ui.Text(c, ch.Area+" · "+ch.What).FontSize(plat.calloutSize).Wrap().Selectable()
 					if ch.Why != "" {
-						ui.Text(c, ch.Why).FontSize(11).TextColor(t.TextMuted).Wrap()
+						ui.Text(c, ch.Why).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap()
 					}
 				})
 			})
@@ -447,25 +447,25 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 			if !p.AdoptedAt.IsZero() {
 				at = p.AdoptedAt.Local().Format("2006-01-02 15:04")
 			}
-			ui.Text(c, fmt.Sprintf(T.TakeoverAdoptedAt, at)).FontSize(13).TextColor(pal(t).okText)
+			ui.Text(c, fmt.Sprintf(T.TakeoverAdoptedAt, at)).FontSize(plat.bodySize).TextColor(pal(t).okText)
 			if p.Backup != "" {
 				kv(c, T.TakeoverBackup, p.Backup)
 			}
 			return
 		case rpc.PlanRolledBack, rpc.PlanFailed:
-			ui.Text(c, T.PlanState(p.State)+" · "+T.TakeoverReplan).FontSize(13).TextColor(pal(t).warnText).Wrap()
+			ui.Text(c, T.PlanState(p.State)+" · "+T.TakeoverReplan).FontSize(plat.bodySize).TextColor(pal(t).warnText).Wrap()
 			return
 		}
-		ui.Text(c, T.TakeoverAdoptHint).FontSize(12).TextColor(t.TextMuted).Wrap()
+		ui.Text(c, T.TakeoverAdoptHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap()
 		for i, step := range T.TakeoverAdoptSteps {
-			ui.Text(c.Key(fmt.Sprint("s", i)), fmt.Sprintf("%d. %s", i+1, step)).FontSize(12).Wrap()
+			ui.Text(c.Key(fmt.Sprint("s", i)), fmt.Sprintf("%d. %s", i+1, step)).FontSize(plat.calloutSize).Wrap()
 		}
 		ok := a.helperWrites(s) && p.Validated && !v.fixture
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			if !p.Validated {
-				ui.Text(c, T.TakeoverNotValid).FontSize(12).TextColor(pal(t).badText).Grow(1).Wrap()
+				ui.Text(c, T.TakeoverNotValid).FontSize(plat.calloutSize).TextColor(pal(t).badText).Grow(1).Wrap()
 			} else if !p.Equivalent {
-				ui.Text(c, T.TakeoverCheckChanges).FontSize(12).TextColor(pal(t).warnText).Grow(1).Wrap()
+				ui.Text(c, T.TakeoverCheckChanges).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Grow(1).Wrap()
 			} else {
 				ui.Spacer(c)
 			}
@@ -514,15 +514,15 @@ func (a *app) adoptResultCard(c *ui.Context, r *rpc.AdoptResult) {
 			ui.Text(c, head).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 		})
 		if r.Error != "" {
-			ui.Text(c, T.ErrorPrefix+r.Error).FontSize(12).TextColor(pal(t).badText).Wrap().Selectable()
+			ui.Text(c, T.ErrorPrefix+r.Error).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().Selectable()
 		}
 		ui.Column(c).Gap(3).Children(func() {
 			for i, st := range r.Steps {
 				ui.Row(c.Key(fmt.Sprint("st", i))).Gap(8).AlignItems(ui.Start).Children(func() {
 					icon, icol := stepIcon(t, st.Status)
-					ui.Icon(c, icon).FontSize(13).TextColor(icol)
-					ui.Text(c, st.Name).FontSize(12).Width(160).Shrink(0)
-					ui.Text(c, st.Detail).FontSize(11).TextColor(t.TextMuted).Wrap().Shrink(1).Selectable()
+					ui.Icon(c, icon).FontSize(iconInline).TextColor(icol)
+					ui.Text(c, st.Name).FontSize(plat.calloutSize).Width(160).Shrink(0)
+					ui.Text(c, st.Detail).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().Shrink(1).Selectable()
 				})
 			}
 		})
@@ -589,17 +589,17 @@ func healthCompare(c *ui.Context, r *rpc.AdoptResult) {
 	ui.Row(c).Gap(10).Children(func() {
 		ui.Text(c, "").Width(200).Shrink(0)
 		for _, h := range cols {
-			ui.Text(c, h).FontSize(11).TextColor(t.TextMuted).Width(90).Shrink(0)
+			ui.Text(c, h).FontSize(plat.smallSize).TextColor(t.TextMuted).Width(90).Shrink(0)
 		}
 	})
 	cell := func(ch rpc.AdoptCheck, ok bool) {
 		if !ok {
-			ui.Text(c, "—").FontSize(12).TextColor(t.TextMuted).Width(90).Shrink(0)
+			ui.Text(c, "—").FontSize(plat.calloutSize).TextColor(t.TextMuted).Width(90).Shrink(0)
 			return
 		}
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Width(90).Shrink(0).Children(func() {
 			dot(c, checkColor(t, ch.Status), 8)
-			ui.Text(c, ch.Status).FontSize(12)
+			ui.Text(c, ch.Status).FontSize(plat.calloutSize)
 		})
 	}
 	for _, id := range ids {
@@ -612,7 +612,7 @@ func healthCompare(c *ui.Context, r *rpc.AdoptResult) {
 			if worse[id] {
 				col = t.Danger
 			}
-			ui.Text(c, name).FontSize(12).TextColor(col).Width(200).Shrink(0).SingleLine().Tooltip(name)
+			ui.Text(c, name).FontSize(plat.calloutSize).TextColor(col).Width(200).Shrink(0).SingleLine().Tooltip(name)
 			b, ok := before[id]
 			cell(b, ok)
 			af, ok := after[id]
@@ -624,7 +624,7 @@ func healthCompare(c *ui.Context, r *rpc.AdoptResult) {
 		})
 	}
 	if len(r.Worse) > 0 {
-		ui.Text(c, fmt.Sprintf(T.TakeoverWorse, strings.Join(r.Worse, ", "))).FontSize(12).TextColor(pal(t).badText).Wrap()
+		ui.Text(c, fmt.Sprintf(T.TakeoverWorse, strings.Join(r.Worse, ", "))).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap()
 	}
 }
 
@@ -652,7 +652,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 	card(c, T.SecureTitle, func() {
 		hintText(c, T.SecureHint)
 		if p := v.plan; p != nil && !p.SecretSet && v.secure == nil {
-			ui.Text(c, T.TakeoverNoSecret).FontSize(12).TextColor(pal(t).warnText)
+			ui.Text(c, T.TakeoverNoSecret).FontSize(plat.calloutSize).TextColor(pal(t).warnText)
 		}
 		ui.Row(c).Children(func() {
 			ui.Spacer(c)
@@ -666,12 +666,12 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 			if r.Replaced {
 				msg = T.SecureReplaced
 			}
-			ui.Text(c, msg).FontSize(12).TextColor(pal(t).okText).Wrap()
+			ui.Text(c, msg).FontSize(plat.calloutSize).TextColor(pal(t).okText).Wrap()
 			if r.Apply != nil && r.Apply.HistoryID != "" {
 				kv(c, T.TakeoverHistory, r.Apply.HistoryID)
 			}
 			if r.Apply != nil && r.Apply.Error != "" {
-				ui.Text(c, T.ErrorPrefix+r.Apply.Error).FontSize(12).TextColor(pal(t).badText).Wrap()
+				ui.Text(c, T.ErrorPrefix+r.Apply.Error).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap()
 			}
 			for _, w := range r.Warnings {
 				warningNote(c, w)

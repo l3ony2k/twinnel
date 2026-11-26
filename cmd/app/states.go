@@ -39,7 +39,7 @@ func (a *app) unreachableState(c *ui.Context, svc netService, err string) {
 		ui.Column(c).Gap(6).AlignItems(ui.Center).Padding(28, 16).Children(func() {
 			ui.Icon(c, iconError).FontSize(iconLarge).TextColor(t.TextMuted)
 			ui.Text(c, title).FontWeight(500)
-			ui.Text(c, body).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().MaxWidth(420)
+			ui.Text(c, body).FontSize(plat.calloutSize).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().MaxWidth(420)
 			if err != "" {
 				ui.Text(c, err).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).
 					TextAlign(ui.Center).Wrap().MaxWidth(420).Selectable().Label(T.UnreachableDetail + "：" + err)

@@ -385,17 +385,17 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 					col = t.TextMuted
 				}
 				dot(c, col, 10)
-				ui.Text(c, i18n.T.Helper+" · "+h.State.Text()).FontSize(15).Bold()
+				ui.Text(c, i18n.T.Helper+" · "+h.State.Text()).FontSize(plat.leadSize).Bold()
 			})
 			switch h.State {
 			case status.HelperNotRunning:
-				ui.Text(c, i18n.T.HelperNotRunningHint).FontSize(13).Wrap()
+				ui.Text(c, i18n.T.HelperNotRunningHint).FontSize(plat.bodySize).Wrap()
 			case status.HelperDenied:
-				ui.Text(c, i18n.T.HelperDeniedHint).FontSize(13).Wrap()
+				ui.Text(c, i18n.T.HelperDeniedHint).FontSize(plat.bodySize).Wrap()
 			}
 			kv(c, i18n.T.HelperSocket, h.Socket)
 			if h.Err != "" {
-				ui.Text(c, h.Err).FontSize(12).TextColor(t.TextMuted).Wrap().Selectable()
+				ui.Text(c, h.Err).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().Selectable()
 			}
 			if pushButton(c.Key("retry"), i18n.T.HelperRetry).Clicked() {
 				a.hc.Retry()

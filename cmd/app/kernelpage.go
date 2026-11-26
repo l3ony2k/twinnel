@@ -88,7 +88,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 		for _, kv := range k.Installed {
 			listRow(c.Key(kv.Version)).Children(func() {
 				ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Children(func() {
-					num(ui.Text(c, kv.Version).Font("monospace").FontSize(plat.bodySize - 1).SingleLine().Shrink(0))
+					num(ui.Text(c, kv.Version).Font("monospace").FontSize(plat.calloutSize).SingleLine().Shrink(0))
 					if kv.Current {
 						tag(c, T.KernelCurrent)
 					}

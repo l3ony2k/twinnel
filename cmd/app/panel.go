@@ -35,7 +35,7 @@ func (a *app) panelView(c *ui.Context) {
 		// Overall state and the live rates.
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			stateDot(c, levelMark(s.Level), levelColor(t, s.Level), 10)
-			ui.Text(c, s.Level.Text()).FontSize(15).FontWeight(600)
+			ui.Text(c, s.Level.Text()).FontSize(plat.leadSize).FontWeight(600)
 			ui.Spacer(c)
 			if s.Mihomo.Reachable {
 				num(small(c, "↓ "+status.Rate(s.Mihomo.Traffic.Down)+"   ↑ "+status.Rate(s.Mihomo.Traffic.Up)))
@@ -55,7 +55,7 @@ func (a *app) panelView(c *ui.Context) {
 				small(c, fmt.Sprintf("… +%d", len(reasons)-3))
 				break
 			}
-			ui.Text(c, r.Text).FontSize(plat.bodySize - 1).TextColor(levelText(t, r.Level)).Wrap()
+			ui.Text(c, r.Text).FontSize(plat.calloutSize).TextColor(levelText(t, r.Level)).Wrap()
 		}
 		a.healthLine(c, s)
 		a.helperLine(c, s)
@@ -157,7 +157,7 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 			kvWith(c, T.Exit, func() {
 				ui.Text(c, p.Node).SingleLine().Shrink(1)
 				ui.Spacer(c)
-				num(ui.Text(c, status.DelayText(p.Delay, p.Tested)).FontSize(plat.bodySize - 1).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
+				num(ui.Text(c, status.DelayText(p.Delay, p.Tested)).FontSize(plat.calloutSize).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
 			})
 		}
 	}

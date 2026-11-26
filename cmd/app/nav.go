@@ -121,7 +121,7 @@ func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 		row.Background(navHoverFill(t))
 	}
 	row.Children(func() {
-		ui.Icon(c, it.icon).FontSize(16).TextColor(iconCol).Width(18).Shrink(0)
+		ui.Icon(c, it.icon).FontSize(iconNav).TextColor(iconCol).Width(18).Shrink(0)
 		ui.Text(c, it.label).TextColor(textCol).Grow(1).Shrink(1).SingleLine()
 		if it.count > 0 {
 			countBadge(c, it.count, it.tone, onAccent)

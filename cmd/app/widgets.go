@@ -69,6 +69,7 @@ const (
 	iconInline = 14 // in buttons, headings, notices, rows
 	iconSmall  = 12 // disclosure chevrons, tiny keys
 	iconLarge  = 22 // the verdict and empty states
+	iconHero   = 28 // the app mark on the welcome page
 )
 
 // Motion tokens (vibedesign 011). One curve per role; no call site picks
@@ -231,7 +232,7 @@ func num(e ui.Element) ui.Element { return e.FontFeatures("tnum") }
 
 // small draws secondary text.
 func small(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(plat.bodySize - 1).TextColor(c.Theme().TextMuted)
+	return ui.Text(c, s).FontSize(plat.calloutSize).TextColor(c.Theme().TextMuted)
 }
 
 // kv draws a label and a value on one row.
@@ -362,7 +363,7 @@ func listRow(c *ui.Context) ui.Element {
 
 // hintText is a line of secondary, wrapping text: what a group is for.
 func hintText(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(plat.bodySize - 1).TextColor(c.Theme().TextMuted).Wrap()
+	return ui.Text(c, s).FontSize(plat.calloutSize).TextColor(c.Theme().TextMuted).Wrap()
 }
 
 // pageHeader puts the page's title, and its actions at the right, in
@@ -393,7 +394,7 @@ func notice(c *ui.Context, icon *ui.SVG, text string) ui.Element {
 	return ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 12).Radius(plat.groupRadius).
 		Background(pal(t).group).Border(1, pal(t).groupLine).Children(func() {
 		ui.Icon(c, icon).FontSize(iconInline).TextColor(t.TextMuted)
-		ui.Text(c, text).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).Grow(1).Wrap()
+		ui.Text(c, text).FontSize(plat.calloutSize).TextColor(t.TextMuted).Grow(1).Wrap()
 	})
 }
 
@@ -402,7 +403,7 @@ func errorNote(c *ui.Context, text string) ui.Element {
 	t := c.Theme()
 	return ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
 		ui.Icon(c, iconError).FontSize(iconInline).TextColor(t.Danger).MarginY(1)
-		ui.Text(c, text).FontSize(plat.bodySize - 1).TextColor(pal(t).badText).Grow(1).Wrap().Selectable()
+		ui.Text(c, text).FontSize(plat.calloutSize).TextColor(pal(t).badText).Grow(1).Wrap().Selectable()
 	})
 }
 
@@ -412,7 +413,7 @@ func warningNote(c *ui.Context, w string) ui.Element {
 	t := c.Theme()
 	return ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
 		ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText).MarginY(1)
-		ui.Text(c, i18n.T.Warning(w)).FontSize(plat.bodySize - 1).Grow(1).Wrap().Selectable()
+		ui.Text(c, i18n.T.Warning(w)).FontSize(plat.calloutSize).Grow(1).Wrap().Selectable()
 	})
 }
 
@@ -423,7 +424,7 @@ func emptyState(c *ui.Context, icon *ui.SVG, title, hint string) ui.Element {
 		ui.Icon(c, icon).FontSize(iconLarge).TextColor(t.TextMuted)
 		ui.Text(c, title).FontWeight(500)
 		if hint != "" {
-			ui.Text(c, hint).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().MaxWidth(420)
+			ui.Text(c, hint).FontSize(plat.calloutSize).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().MaxWidth(420)
 		}
 	})
 }
@@ -436,7 +437,7 @@ func cardEmpty(c *ui.Context, icon *ui.SVG, title string) ui.Element {
 	return ui.Row(c).Gap(12).AlignItems(ui.Center).Role(ui.RoleStatus).Label(title).Children(func() {
 		ui.Box(c).Size(40, 40).Radius(plat.innerRadius).Background(t.TextMuted.Alpha(0.12)).Shrink(0).
 			AlignItems(ui.Center).Justify(ui.Center).AccessHidden(true).Children(func() {
-			ui.Icon(c, icon).FontSize(22).TextColor(t.TextMuted)
+			ui.Icon(c, icon).FontSize(iconLarge).TextColor(t.TextMuted)
 		})
 		ui.Text(c, title).TextColor(t.TextMuted).Grow(1).SingleLine()
 	})

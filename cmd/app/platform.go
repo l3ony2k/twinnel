@@ -40,6 +40,9 @@ type platformStyle struct {
 	rowMinHeight    float32
 	bodySize        float32 // body text
 	smallSize       float32 // secondary text, captions
+	calloutSize     float32 // notes, hints, table cells, code: one step under body
+	leadSize        float32 // a verdict or state line that leads a card
+	figureSize      float32 // a large number (the traffic rate)
 	titleSize       float32 // page titles
 	headingSize     float32 // group headings
 	titleWeight     int
@@ -61,7 +64,7 @@ func platformFor(goos string) platformStyle {
 			titleBar: mygo.TitleBarDefault, sidebarMat: mygo.VibrancyMica,
 			sidebarWidth: 240, contentMax: 1000, pagePadX: 32, pagePadTop: 24,
 			groupRadius: 8, controlRadius: 4, innerRadius: 6, rowMinHeight: 40,
-			bodySize: 14, smallSize: 12, titleSize: 28, headingSize: 14,
+			bodySize: 14, smallSize: 12, calloutSize: 13, leadSize: 16, figureSize: 20, titleSize: 28, headingSize: 14,
 			titleWeight: 600, headingWeight: 600, panelPad: 16,
 			titleBarSize: 28, titleBarWeight: 600, // Windows 11 Settings: the page title stays large
 		}
@@ -70,7 +73,7 @@ func platformFor(goos string) platformStyle {
 			titleBar:     mygo.TitleBarDefault,
 			sidebarWidth: 220, contentMax: 900, pagePadX: 24, pagePadTop: 24,
 			groupRadius: 12, controlRadius: 6, innerRadius: 8, rowMinHeight: 46,
-			bodySize: 14, smallSize: 12, titleSize: 20, headingSize: 14,
+			bodySize: 14, smallSize: 12, calloutSize: 13, leadSize: 16, figureSize: 20, titleSize: 20, headingSize: 14,
 			titleWeight: 700, headingWeight: 700, panelPad: 16, trayMenuOnly: true,
 			titleBarSize: 15, titleBarWeight: 700,
 		}
@@ -79,7 +82,7 @@ func platformFor(goos string) platformStyle {
 		titleBar: mygo.TitleBarHiddenInset, sidebarMat: mygo.VibrancySidebar,
 		sidebarWidth: 216, contentMax: 920, pagePadX: 28, pagePadTop: 20,
 		groupRadius: 10, controlRadius: 6, innerRadius: 8, rowMinHeight: 24,
-		bodySize: 13, smallSize: 11, titleSize: 20, headingSize: 13,
+		bodySize: 13, smallSize: 11, calloutSize: 12, leadSize: 15, figureSize: 20, titleSize: 20, headingSize: 13,
 		titleWeight: 600, headingWeight: 600, panelPad: 14, panelMaterialOK: true,
 		pushFace: true,
 		// A unified toolbar's window title (System Settings, Finder): about

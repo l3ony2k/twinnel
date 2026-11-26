@@ -345,7 +345,7 @@ func (a *app) verdict(c *ui.Context, s status.Snapshot) {
 		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
 			ui.Icon(c, icon).FontSize(iconLarge).TextColor(levelColor(t, s.Level)).Shrink(0)
 			ui.Column(c).Gap(4).Grow(1).Children(func() {
-				ui.Text(c, s.Level.Text()).FontSize(15).FontWeight(600)
+				ui.Text(c, s.Level.Text()).FontSize(plat.leadSize).FontWeight(600)
 				for _, r := range s.Reasons {
 					ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().Selectable()
 				}
@@ -493,7 +493,7 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 					ui.Box(c).Size(10, 2).Radius(1).Background(col)
 					small(c, label)
 				})
-				num(ui.Text(c, status.Rate(rate)).FontSize(20).FontWeight(500))
+				num(ui.Text(c, status.Rate(rate)).FontSize(plat.figureSize).FontWeight(500))
 			})
 		}
 		figure(T.Download, t.Accent, s.Mihomo.Traffic.Down)
@@ -590,7 +590,7 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 						ui.Box(c).Size(8, 2).Radius(1).Background(col)
 						small(c, label).NoWrap()
-						num(ui.Text(c, status.Rate(rate)).FontSize(plat.bodySize - 1).NoWrap())
+						num(ui.Text(c, status.Rate(rate)).FontSize(plat.calloutSize).NoWrap())
 					})
 				}
 				readout(t.Accent, T.Download, h.Down)

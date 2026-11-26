@@ -161,7 +161,7 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 	row.Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Height(28).Children(func() {
 			ui.Text(c, sub.Name).FontWeight(600).SingleLine().Shrink(1).Tooltip(sub.Name)
-			ui.Text(c, sub.ID).Font("monospace").FontSize(11).TextColor(t.TextMuted).SingleLine()
+			ui.Text(c, sub.ID).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine()
 			if sub.Active {
 				tag(c, T.SubActive)
 			}
@@ -210,7 +210,7 @@ func (a *app) subscriptionForm(c *ui.Context, w bool) {
 	field := func(key, label string, val *string, placeholder string) ui.Element {
 		var in ui.Element
 		ui.Column(c).Gap(4).Basis(0).Grow(1).Children(func() {
-			ui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, label).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 			in = ui.TextInput(c.Key(key), val).Label(label).Placeholder(placeholder)
 		})
 		return in
@@ -222,15 +222,15 @@ func (a *app) subscriptionForm(c *ui.Context, w bool) {
 	})
 	ui.Row(c).Gap(12).AlignItems(ui.End).Children(func() {
 		field("sub-url", T.SubURL, &v.subURL, "https://…")
-		ui.Text(c, T.Or).FontSize(12).TextColor(t.TextMuted).MarginY(8)
+		ui.Text(c, T.Or).FontSize(plat.calloutSize).TextColor(t.TextMuted).MarginY(8)
 		if pushButton(c.Key("sub-file"), T.SubImportFile).Clicked() {
 			a.pickSubscriptionFile()
 		}
 	})
 	if v.subFile != "" {
-		ui.Text(c, fmt.Sprintf(T.SubFileChosen, v.subFile, status.Bytes(int64(len(v.subContent))))).FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, fmt.Sprintf(T.SubFileChosen, v.subFile, status.Bytes(int64(len(v.subContent))))).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 	}
-	ui.Text(c, T.SubURLHint).FontSize(11).TextColor(t.TextMuted).Wrap()
+	ui.Text(c, T.SubURLHint).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap()
 	ui.Row(c).Gap(8).Children(func() {
 		ready := strings.TrimSpace(v.subID) != "" && (strings.TrimSpace(v.subURL) != "" || v.subContent != "")
 		if ui.PrimaryButton(c.Key("sub-save"), T.Save).Disabled(!w || !ready).Clicked() {
@@ -331,7 +331,7 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 	}
 	listCard(c, func() {
 		ui.Text(c, T.Layers).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Shrink(0)
-		ui.Text(c, T.LayersHint).FontSize(plat.bodySize - 1).TextColor(t.TextMuted).Shrink(1).SingleLine().Tooltip(T.LayersHint)
+		ui.Text(c, T.LayersHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).Shrink(1).SingleLine().Tooltip(T.LayersHint)
 		ui.Spacer(c)
 		if !v.isNew && pushButton(c.Key("layer-new"), T.LayerNew).Disabled(!w).Clicked() {
 			a.newLayer()
@@ -449,7 +449,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 						if l.Stage == "guard" {
 							icon = iconLeakGuard
 						}
-						ui.Icon(c, icon).FontSize(14).TextColor(t.TextMuted).Tooltip(T.LayerManagedFixed)
+						ui.Icon(c, icon).FontSize(iconInline).TextColor(t.TextMuted).Tooltip(T.LayerManagedFixed)
 					}
 					ui.Text(c, l.Name).FontWeight(600).SingleLine().Shrink(1).Tooltip(l.Name)
 					tag(c, T.StageName(l.Stage))
@@ -682,26 +682,26 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 	}
 	ed.Children(func() {
 		if v.managed {
-			ui.Text(c, T.LayerManagedHint).FontSize(12).TextColor(t.TextMuted).Wrap()
+			ui.Text(c, T.LayerManagedHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap()
 		} else {
 			ui.Row(c).Gap(12).AlignItems(ui.End).Children(func() {
 				ui.Column(c).Gap(4).Basis(0).Grow(1).Children(func() {
-					ui.Text(c, T.LayerID).FontSize(12).TextColor(t.TextMuted)
+					ui.Text(c, T.LayerID).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 					in := ui.TextInput(c.Key("ed-id"), &v.edID).Label(T.LayerID).Placeholder("my-rules")
 					if !v.isNew {
 						in.Disabled(true)
 					}
 				})
 				ui.Column(c).Gap(4).Basis(0).Grow(1).Children(func() {
-					ui.Text(c, T.LayerName).FontSize(12).TextColor(t.TextMuted)
+					ui.Text(c, T.LayerName).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 					ui.TextInput(c.Key("ed-name"), &v.edName).Label(T.LayerName)
 				})
 				ui.Column(c).Gap(4).Children(func() {
-					ui.Text(c, T.LayerStage).FontSize(12).TextColor(t.TextMuted)
+					ui.Text(c, T.LayerStage).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 					ui.Segmented(c.Key("ed-stage"), &v.edStage, T.StageName(stageUser), T.StageName(stageBase))
 				})
 				ui.Column(c).Gap(4).Children(func() {
-					ui.Text(c, T.LayerFormat).FontSize(12).TextColor(t.TextMuted)
+					ui.Text(c, T.LayerFormat).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 					ui.Segmented(c.Key("ed-format"), &v.edFormat, T.FormatMerge, T.FormatVerge)
 				})
 			})
@@ -723,7 +723,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 				a.saveLayer()
 			}
 			if v.ed.Buffer.Modified() {
-				ui.Text(c, T.Unsaved).FontSize(12).TextColor(pal(t).warnText)
+				ui.Text(c, T.Unsaved).FontSize(plat.calloutSize).TextColor(pal(t).warnText)
 			}
 			ui.Spacer(c)
 			if !v.isNew && pushButton(c.Key("ed-delete"), T.Remove).Disabled(!w).Clicked() {
@@ -762,7 +762,7 @@ func (a *app) lintNotes(c *ui.Context) {
 	}
 	for i, n := range v.lint {
 		if i == 8 {
-			ui.Textf(c, "… +%d", len(v.lint)-8).FontSize(12).TextColor(t.TextMuted)
+			ui.Textf(c, "… +%d", len(v.lint)-8).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 			break
 		}
 		col, icon := t.TextMuted, iconSkip
@@ -773,12 +773,12 @@ func (a *app) lintNotes(c *ui.Context) {
 			col, icon = t.Danger, iconError
 		}
 		ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-			ui.Icon(c, icon).FontSize(14).TextColor(col).MarginY(1)
+			ui.Icon(c, icon).FontSize(iconInline).TextColor(col).MarginY(1)
 			text := n.Text
 			if n.Line > 0 {
 				text = fmt.Sprintf(i18n.T.LintLine, n.Line) + text
 			}
-			ui.Text(c, text).FontSize(12).TextColor(col).Grow(1).Wrap().Selectable()
+			ui.Text(c, text).FontSize(plat.calloutSize).TextColor(col).Grow(1).Wrap().Selectable()
 		})
 	}
 }
@@ -826,16 +826,16 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 			a.runPreview(s)
 		}
 	}, func() {
-		ui.Text(c, T.PreviewHint).FontSize(12).TextColor(t.TextMuted).Wrap()
+		ui.Text(c, T.PreviewHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap()
 		if p := v.preview; p != nil {
 			composeSummary(c, *p)
 		}
 		if v.diffErr != "" {
-			ui.Text(c, v.diffErr).FontSize(12).TextColor(t.TextMuted).Wrap()
+			ui.Text(c, v.diffErr).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap()
 		}
 		if v.diff != nil {
 			add, del := v.diff.Stats()
-			ui.Text(c, fmt.Sprintf(T.DiffStats, add, del)).FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, fmt.Sprintf(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 			if add+del > 0 {
 				codeFrame(c, 380, func() { editor.DiffView(c.Key("preview-diff"), v.diff).Grow(1) })
 			}
@@ -843,7 +843,7 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 		ui.Divider(c)
 		ui.Row(c).Gap(8).AlignItems(ui.End).Children(func() {
 			ui.Column(c).Gap(4).Grow(1).Children(func() {
-				ui.Text(c, T.ApplyReason).FontSize(12).TextColor(t.TextMuted)
+				ui.Text(c, T.ApplyReason).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 				ui.TextInput(c.Key("reason"), &v.reason).Label(T.ApplyReason).Placeholder(T.ApplyReasonPlaceholder)
 			})
 			if a.opButton(c.Key("apply"), iconOK, T.Apply, a.hd.unapplied, T.Apply).Disabled(!w).Clicked() {
@@ -866,14 +866,14 @@ func composeSummary(c *ui.Context, r rpc.ComposeResult) {
 	if !r.Valid {
 		valid, col = T.ValidFail, t.Danger
 	}
-	kvWith(c, T.ComposeValid, func() { ui.Text(c, valid).FontSize(13).TextColor(col) })
+	kvWith(c, T.ComposeValid, func() { ui.Text(c, valid).FontSize(plat.bodySize).TextColor(col) })
 	changed := T.No
 	if r.Changed {
 		changed = T.Yes
 	}
 	kv(c, T.ComposeChanged, changed)
 	for _, e := range r.ValidateErrors {
-		ui.Text(c, e).Font("monospace").FontSize(11).TextColor(pal(t).badText).Wrap().Selectable()
+		ui.Text(c, e).Font("monospace").FontSize(plat.smallSize).TextColor(pal(t).badText).Wrap().Selectable()
 	}
 	for _, wn := range r.Warnings {
 		warningNote(c, wn)
@@ -894,7 +894,7 @@ func applySummary(c *ui.Context, r rpc.ApplyResult) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		dot(c, col, 8)
 		ui.Text(c, head).FontWeight(600)
-		ui.Text(c, r.Time.Local().Format("15:04:05")+" · "+r.Duration).FontSize(12).TextColor(t.TextMuted)
+		ui.Text(c, r.Time.Local().Format("15:04:05")+" · "+r.Duration).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 	})
 	flags := []string{
 		fmt.Sprintf("%s %s", T.ApplyWritten, yesNo(r.Written)),
@@ -906,7 +906,7 @@ func applySummary(c *ui.Context, r rpc.ApplyResult) {
 	if r.HistoryID != "" {
 		flags = append(flags, T.HistoryEntry+" "+r.HistoryID)
 	}
-	ui.Text(c, strings.Join(flags, " · ")).FontSize(12).TextColor(t.TextMuted).Wrap().Selectable()
+	ui.Text(c, strings.Join(flags, " · ")).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().Selectable()
 	impactRow(c, r.Impact)
 	for _, w := range r.Warnings {
 		if k := i18n.WarningKind(w); r.Impact != nil && (k == "reload-disrupts" || k == "restart-needed") {
@@ -935,7 +935,7 @@ func impactRow(c *ui.Context, im *rpc.ReloadImpact) {
 	kvWith(c, T.ImpactLabel, func() {
 		ui.Column(c).Gap(4).Grow(1).Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, icon).FontSize(14).TextColor(col)
+				ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
 				ui.Text(c, text).TextColor(map[bool]ui.Color{true: col, false: t.Text}[im.Disruptive]).Wrap()
 			})
 			if len(im.RestartNeeded) > 0 {
