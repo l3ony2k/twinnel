@@ -19,18 +19,19 @@
     {"path": "/Users/example/mihomo/conf/profiles/old-sub.yaml", "size": 39002, "proxies_same": 30, "proxies_total": 38, "groups_same": 6, "groups_total": 9, "rules": 480, "common_tail": 301, "head_rules": 225, "explains": false}
   ],
   "layers": [
-    {"id": "base", "name": "example-sub", "kind": "base", "stage": "base", "keys": ["proxies", "proxy-groups", "rules"], "rules": 512},
-    {"id": "takeover-settings", "name": "现有设置", "kind": "settings", "stage": "user", "keys": ["dns", "tun", "sniffer", "mixed-port"]},
-    {"id": "takeover-rules", "name": "现有前置规则", "kind": "rules", "stage": "user", "keys": ["+rules"], "rules": 14}
+    {"id": "base", "name": "Base settings", "name_code": "base", "kind": "managed", "stage": "base", "keys": ["dns", "tun", "sniffer", "mixed-port", "external-controller"]},
+    {"id": "user-1", "name": "Rules from the live config: DOMAIN-SUFFIX,example.com,DIRECT and 13 more", "name_code": "live-rules", "name_args": ["DOMAIN-SUFFIX,example.com,DIRECT", "13"], "kind": "user", "stage": "user", "rules": 14},
+    {"id": "tailscale-coexist", "name": "Tailscale coexist", "name_code": "tailscale-coexist", "kind": "managed", "stage": "coexist"}
   ],
   "changes": [
-    {"area": "dns", "what": "nameserver-policy: tailnet names go to 100.100.100.100 bound to the Tailscale interface", "deliberate": true, "why": "MagicDNS fix: short names and *.ts.net resolve through Tailscale"},
-    {"area": "rules", "what": "IP-CIDR,100.64.0.0/10,DIRECT,no-resolve added before the first rule", "deliberate": true, "why": "tailnet traffic stays direct"},
-    {"area": "dns", "what": "fake-ip-filter gains +.ts.net", "deliberate": true, "why": "tailnet names keep real addresses"}
+    {"area": "dns.nameserver-policy", "what": "3 added", "deliberate": true, "why": "managed tailscale-coexist layer: tailnet names (MagicDNS suffix, single-label names, tailnet reverse zones) resolve via 100.100.100.100 instead of looping through the system resolver", "code": "counts", "args": ["3", "0", "0"], "why_code": "coexist-nameserver-policy", "why_args": ["100.100.100.100"]},
+    {"area": "dns.fake-ip-filter", "what": "2 added", "deliberate": true, "why": "managed tailscale-coexist layer: tailnet names and single-label names get real answers, not fake-ips", "code": "counts", "args": ["2", "0", "0"], "why_code": "coexist-fake-ip-filter"},
+    {"area": "hosts", "what": "7 added", "deliberate": true, "why": "managed tailscale-coexist layer: peer names answered locally (7 peers)", "code": "counts", "args": ["7", "0", "0"], "why_code": "coexist-hosts", "why_args": ["7"]},
+    {"area": "rules", "what": "1 Tailscale rule edit(s): + IP-CIDR,100.64.0.0/10,DIRECT,no-resolve", "deliberate": true, "why": "managed tailscale-coexist layer", "code": "tailscale-rules", "args": ["1", "+ IP-CIDR,100.64.0.0/10,DIRECT,no-resolve"], "why_code": "coexist"}
   ],
   "equivalent": true,
   "validated": true,
   "warnings": ["the controller has no secret; run 加固控制接口 after adopt"],
-  "summary": "Takeover plan 20261126-153012-a1b2\n  live      /Users/example/mihomo/conf/config.yaml\n  base      profiles/example-sub.yaml (explains all proxies, groups and rules)\n  layers    base, takeover-settings, takeover-rules\n  coexist   on (MagicDNS fix)\n  validate  mihomo -t ok\n",
+  "summary": "Takeover plan 20261126-153012-a1b2\n  live      /Users/example/mihomo/conf/config.yaml\n  base      profiles/example-sub.yaml (explains all proxies, groups and rules)\n  layers    base, user-1, tailscale-coexist\n  coexist   on (MagicDNS fix)\n  validate  mihomo -t ok\n",
   "semdiff": "semantic diff live → composed\n  dns.nameserver-policy   + 3 entries (tailnet)\n  rules                   + 1 at head (100.64.0.0/10 DIRECT)\n  dns.fake-ip-filter      + +.ts.net\n  everything else equal\n"
 }

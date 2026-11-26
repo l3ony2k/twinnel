@@ -250,5 +250,10 @@ func (a *app) fitShotPanel(box ui.Element) {
 	}
 	a.panelShotH = h
 	p := a.panel
-	mygo.RunOnMain(func() { p.SetSize(panelWidth, h) })
+	mygo.RunOnMain(func() {
+		// SetSize sizes the frame: add what the title bar takes.
+		_, wh := p.Size()
+		_, ch := p.ContentSize()
+		p.SetSize(panelWidth, h+max(0, wh-ch))
+	})
 }
