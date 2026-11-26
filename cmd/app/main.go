@@ -138,6 +138,11 @@ func (a *app) ready() {
 	})
 	a.startHelper()
 	a.start()
+	if dir := os.Getenv("DUET_TAKEOVER_FIXTURE"); dir != "" { // development: a recorded plan
+		if err := a.loadTakeoverFixture(dir); err != nil {
+			log.Printf("takeover fixture: %v", err)
+		}
+	}
 	if dir := os.Getenv("DUET_SHOTS"); dir != "" {
 		a.shotMode = true
 		a.openMain()

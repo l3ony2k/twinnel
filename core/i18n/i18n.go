@@ -181,6 +181,31 @@ type Strings struct {
 	AccessoryReloadNeeded, AccessoryApply, AccessoryApplyReason                  string
 	HelperTooOld                                                                 string
 
+	// Takeover page.
+	PageTakeover, TakeoverFixture, TakeoverTitle, TakeoverIntro, TakeoverTooOld       string
+	TakeoverPlan, TakeoverNoPlans, TakeoverPlans, TakeoverOpen                        string
+	TakeoverDiscardTitle                                                              string // %s: plan id
+	TakeoverDiscardBody, TakeoverFound, TakeoverLive, TakeoverMihomoSvc               string
+	TakeoverBinary, TakeoverController, TakeoverSecretSet, TakeoverNoSecret           string
+	TakeoverTSSvc, TakeoverSubNoURL, TakeoverSubURL, TakeoverBase                     string
+	TakeoverBaseChosen, TakeoverNoCandidates, TakeoverCandidates, TakeoverUseBase     string
+	TakeoverCandScore                                                                 string // proxies same/total, groups same/total, tail/rules, head
+	TakeoverNoLayers                                                                  string
+	TakeoverRules                                                                     string // %d
+	TakeoverVerdict, TakeoverEquivalent, TakeoverNotEquivalent, TakeoverDeliberate    string
+	TakeoverOtherChanges, TakeoverNoChanges, TakeoverShowText, TakeoverHideText       string
+	TakeoverAdopt                                                                     string
+	TakeoverAdoptedAt                                                                 string // %s: time
+	TakeoverBackup, TakeoverReplan, TakeoverAdoptHint, TakeoverNotValid               string
+	TakeoverCheckChanges, TakeoverAdoptTitle                                          string
+	TakeoverAdoptBody                                                                 string // %s: live config path
+	TakeoverResult, TakeoverDone, TakeoverRolledBack, TakeoverFailed, TakeoverHistory string
+	TakeoverHealth, TakeoverHealthBefore, TakeoverHealthAfter, TakeoverHealthRollback string
+	TakeoverWorse                                                                     string // %s: check ids
+	TakeoverAdoptSteps                                                                []string
+	PlanStates                                                                        map[string]string
+	SecureTitle, SecureHint, SecureRun, SecureBody, SecureDone, SecureReplaced        string
+
 	// First run (helper not installed).
 	OnboardTitle, OnboardIntro, OnboardReadOnly, OnboardPlan, OnboardPlanHint string
 	OnboardInstall, OnboardInstalling, OnboardOpen, CLINotFound               string
@@ -592,6 +617,82 @@ var zh = Strings{
 	AccessoryApplyReason:  "geo update",
 	HelperTooOld:          "后台助手版本较旧，不支持这个操作，请更新后台助手",
 
+	PageTakeover:          "接管",
+	TakeoverFixture:       "示例数据（DUET_TAKEOVER_FIXTURE），不会发送任何操作",
+	TakeoverTitle:         "接管现有配置",
+	TakeoverIntro:         "后台助手只读地检查现在的 mihomo 安装（配置、服务、内核、订阅文件），把它拆成基础订阅和覆写分层，并用 mihomo -t 和语义对比确认合成结果与现在的行为一致。生成计划不会改动任何东西。",
+	TakeoverTooOld:        "后台助手版本较旧，还不支持接管（takeover.*）。请先更新后台助手。",
+	TakeoverPlan:          "生成接管计划",
+	TakeoverNoPlans:       "还没有接管计划",
+	TakeoverPlans:         "接管计划",
+	TakeoverOpen:          "查看",
+	TakeoverDiscardTitle:  "删除接管计划 %s？",
+	TakeoverDiscardBody:   "只删除后台助手保存的计划文件，不影响现在的配置。",
+	TakeoverFound:         "现有安装",
+	TakeoverLive:          "配置文件",
+	TakeoverMihomoSvc:     "mihomo 服务",
+	TakeoverBinary:        "mihomo 程序",
+	TakeoverController:    "控制接口",
+	TakeoverSecretSet:     "已设密钥",
+	TakeoverNoSecret:      "控制接口没有密钥：本机任何程序都能控制 mihomo",
+	TakeoverTSSvc:         "Tailscale 服务",
+	TakeoverSubNoURL:      "没有找到订阅地址（作为本地文件导入）",
+	TakeoverSubURL:        "找到订阅地址，接管时存入钥匙串",
+	TakeoverBase:          "基础订阅",
+	TakeoverBaseChosen:    "已选用",
+	TakeoverNoCandidates:  "这个后台助手版本没有列出其他候选文件。",
+	TakeoverCandidates:    "候选文件",
+	TakeoverUseBase:       "改用这个",
+	TakeoverCandScore:     "节点 %d/%d · 策略组 %d/%d · 规则尾部 %d/%d（前面另有 %d 条）",
+	TakeoverNoLayers:      "没有分层",
+	TakeoverRules:         "%d 条规则",
+	TakeoverVerdict:       "对比结果",
+	TakeoverEquivalent:    "合成结果与现在的配置行为一致（除下面列出的有意修改）",
+	TakeoverNotEquivalent: "合成结果与现在的配置有差异，请看下面的变化",
+	TakeoverDeliberate:    "有意的修改",
+	TakeoverOtherChanges:  "其他差异",
+	TakeoverNoChanges:     "没有行为差异",
+	TakeoverShowText:      "显示完整报告",
+	TakeoverHideText:      "收起报告",
+	TakeoverAdopt:         "接管",
+	TakeoverAdoptedAt:     "已于 %s 接管",
+	TakeoverBackup:        "备份",
+	TakeoverReplan:        "请重新生成计划",
+	TakeoverAdoptHint:     "接管时后台助手会：",
+	TakeoverAdoptSteps: []string{
+		"再次检查现在的配置，和计划时不一样就停止（需要重新生成计划）",
+		"备份现在的配置文件",
+		"导入基础订阅和分层，沿用现有的 mihomo 服务和内核",
+		"合成、用 mihomo -t 校验、写入并重载",
+		"对比接管前后的健康检查，变差就自动恢复备份",
+	},
+	TakeoverNotValid:       "合成结果没有通过 mihomo -t，不能接管",
+	TakeoverCheckChanges:   "有未说明的差异，确认没问题再接管",
+	TakeoverAdoptTitle:     "接管现有配置？",
+	TakeoverAdoptBody:      "后台助手会备份并改写 %s，然后重载 mihomo，网络可能短暂中断。健康检查变差时自动恢复。",
+	TakeoverResult:         "接管结果",
+	TakeoverDone:           "接管完成",
+	TakeoverRolledBack:     "健康检查变差，已恢复原配置",
+	TakeoverFailed:         "接管失败",
+	TakeoverHistory:        "历史记录",
+	TakeoverHealth:         "健康检查",
+	TakeoverHealthBefore:   "接管前",
+	TakeoverHealthAfter:    "接管后",
+	TakeoverHealthRollback: "恢复后",
+	TakeoverWorse:          "变差：%s",
+	PlanStates: map[string]string{
+		"ready":       "待接管",
+		"adopted":     "已接管",
+		"rolled_back": "已回滚",
+		"failed":      "失败",
+	},
+	SecureTitle:    "加固控制接口",
+	SecureHint:     "为 mihomo 控制接口生成新的随机密钥，存进系统钥匙串并应用。之后网页面板、脚本等其他客户端需要填新密钥（可以用 sudo security find-generic-password -a duet -s duet.controller-secret -w /Library/Keychains/System.keychain 查看）。",
+	SecureRun:      "生成密钥并应用",
+	SecureBody:     "mihomo 会重载，旧密钥立即失效。duet app 和其他客户端要改用新密钥。",
+	SecureDone:     "已设置新的控制接口密钥",
+	SecureReplaced: "已替换控制接口密钥",
+
 	OnboardTitle: "安装后台助手",
 	OnboardIntro: "改网络配置需要管理员权限。duet 把这些操作交给一个常驻的后台助手（root 运行的 LaunchDaemon），app 本身不需要权限：",
 	OnboardPoints: []string{
@@ -666,6 +767,14 @@ func (s *Strings) Path(p string) string {
 		return s.PathPeerRelay
 	}
 	return s.PathIdle
+}
+
+// PlanState returns the label of a takeover plan state.
+func (s *Strings) PlanState(st string) string {
+	if v, ok := s.PlanStates[st]; ok {
+		return v
+	}
+	return st
 }
 
 // StageName returns the label of a layer stage.

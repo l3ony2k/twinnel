@@ -43,8 +43,11 @@ func (a *app) startHelper() {
 			}
 			if h.Connected() && !wasUp {
 				a.loadHelperData()
-				if a.page == pageKernel {
+				switch a.page {
+				case pageKernel:
 					a.loadServices()
+				case pageTakeover:
+					a.loadTakeover()
 				}
 			}
 			if h.State == status.HelperNotInstalled && !a.hd.onb.loaded {
@@ -58,6 +61,9 @@ func (a *app) startHelper() {
 			a.hd.lastEvent = evs[len(evs)-1]
 			if serviceEvent(evs) && a.page == pageKernel {
 				a.loadServices()
+			}
+			if takeoverEvent(evs) && a.page == pageTakeover {
+				a.loadTakeover()
 			}
 			if healthEvent(evs) && a.mon != nil {
 				a.runHealth() // reads health.last; nothing runs locally
@@ -91,6 +97,7 @@ type helperData struct {
 	cfg  configView
 	hist historyView
 	kern kernelView
+	take takeoverView
 	onb  onboardingView
 }
 

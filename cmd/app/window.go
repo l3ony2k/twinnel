@@ -23,6 +23,7 @@ const (
 	pageConfig    = "config"
 	pageHistory   = "history"
 	pageKernel    = "kernel"
+	pageTakeover  = "takeover"
 	pageSettings  = "settings"
 )
 
@@ -58,6 +59,7 @@ func (a *app) mainView(c *ui.Context) {
 				ui.SidebarItem(c, pageConfig, iconConfig, T.PageConfig)
 				ui.SidebarItem(c, pageHistory, iconHistory, T.PageHistory)
 				ui.SidebarItem(c, pageKernel, iconKernel, T.PageKernel)
+				ui.SidebarItem(c, pageTakeover, iconTakeover, T.PageTakeover)
 				ui.SidebarItem(c, pageLogs, iconLogs, T.PageLogs)
 				ui.SidebarItem(c, pageSettings, iconSettings, T.PageSettings)
 			}).Grow(1).Label(T.AppName).Changed() {
@@ -90,6 +92,8 @@ func (a *app) mainView(c *ui.Context) {
 							a.historyPage(c, s)
 						case pageKernel:
 							a.kernelPage(c, s)
+						case pageTakeover:
+							a.takeoverPage(c, s)
 						}
 					})
 				})
@@ -119,6 +123,8 @@ func (a *app) pageChanged(old string) {
 			a.tailscaleCheck()
 		}
 		a.loadServices()
+	case pageTakeover:
+		a.loadTakeover()
 	}
 	a.syncHealthVisible()
 }

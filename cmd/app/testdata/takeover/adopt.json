@@ -1,0 +1,40 @@
+{
+  "plan_id": "20261126-153012-a1b2",
+  "ok": false,
+  "rolled_back": true,
+  "error": "health got worse after apply: magicdns",
+  "steps": [
+    {"name": "recheck live config", "status": "ok", "detail": "sha256 unchanged"},
+    {"name": "backup", "status": "ok", "detail": "takeover/20261126-153012-a1b2/live-config.yaml"},
+    {"name": "import", "status": "ok", "detail": "subscription example-sub, 2 layers, settings"},
+    {"name": "apply", "status": "ok", "detail": "written, reloaded (history 7c41d2e0)"},
+    {"name": "health after", "status": "failed", "detail": "magicdns: ok → fail"},
+    {"name": "rollback", "status": "ok", "detail": "backup restored, reloaded"}
+  ],
+  "history_id": "7c41d2e0",
+  "backup_history_id": "6a90b1f3",
+  "backup": "/Library/Application Support/duet/takeover/20261126-153012-a1b2/live-config.yaml",
+  "health_before": [
+    {"id": "magicdns", "status": "ok"},
+    {"id": "tailnet-resolver-binding", "status": "warn"},
+    {"id": "tailscale-direct-rules", "status": "warn"},
+    {"id": "tailnet-route", "status": "ok"},
+    {"id": "system-dns", "status": "ok"}
+  ],
+  "health_after": [
+    {"id": "magicdns", "status": "fail"},
+    {"id": "tailnet-resolver-binding", "status": "ok"},
+    {"id": "tailscale-direct-rules", "status": "ok"},
+    {"id": "tailnet-route", "status": "ok"},
+    {"id": "system-dns", "status": "ok"}
+  ],
+  "health_after_rollback": [
+    {"id": "magicdns", "status": "ok"},
+    {"id": "tailnet-resolver-binding", "status": "warn"},
+    {"id": "tailscale-direct-rules", "status": "warn"},
+    {"id": "tailnet-route", "status": "ok"},
+    {"id": "system-dns", "status": "ok"}
+  ],
+  "worse": ["magicdns"],
+  "warnings": ["synthetic fixture: a rolled-back adopt"]
+}
