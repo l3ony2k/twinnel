@@ -89,7 +89,11 @@ func runHardenApply(args []string) error {
 	}
 	if !cf.json || !yes {
 		printHardenPlan(stdout, *plan)
-		fmt.Fprintf(stdout, "\nmihomo restarts now: about %d–%d s without network.\n", plan.Downtime.MinSeconds, plan.Downtime.MaxSeconds)
+		if plan.DryRun {
+			fmt.Fprintln(stdout, "\ndry run: the helper prepares and validates; mihomo is not stopped or started.")
+		} else {
+			fmt.Fprintf(stdout, "\nmihomo restarts now: about %d–%d s without network.\n", plan.Downtime.MinSeconds, plan.Downtime.MaxSeconds)
+		}
 		if skipHealth {
 			fmt.Fprintln(stdout, "--skip-health: only /version is checked; worse health does not roll back")
 		}
