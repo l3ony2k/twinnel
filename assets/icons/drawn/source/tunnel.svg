@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" data-aliases="tun tun-mode virtual-interface 虚拟网卡" data-waive-radius="both arches are half circles (the tunnel mouth), not rounded corners">
+  <path d="M3 20H21"/>
+  <path d="M5 20V12A7 7 0 0 1 19 12V20"/>
+  <path d="M9 20V15A3 3 0 0 1 15 15V20"/>
+</svg>
