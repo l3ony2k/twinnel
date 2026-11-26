@@ -126,6 +126,9 @@ func runCompose(args []string) error {
 			return err
 		}
 		info.Resolver = tsResolver
+		if info.MagicDNSOff {
+			fmt.Fprintln(os.Stderr, "compose: MagicDNS is off on this tailnet; tailnet names are answered from hosts, nothing is sent to 100.100.100.100")
+		}
 		switch tsIface {
 		case "none", "":
 		case "auto":

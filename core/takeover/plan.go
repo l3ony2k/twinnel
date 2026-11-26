@@ -37,7 +37,8 @@ type Options struct {
 type Coexist struct {
 	MagicDNSSuffix string `json:"magicdns_suffix,omitempty"`
 	Interface      string `json:"interface,omitempty"`
-	Resolver       string `json:"resolver"`
+	Resolver       string `json:"resolver"` // unused when MagicDNSOff
+	MagicDNSOff    bool   `json:"magicdns_off,omitempty"`
 	Peers          int    `json:"peers"`
 	LeakGuard      bool   `json:"leak_guard"` // always false in a takeover plan
 }
@@ -162,7 +163,10 @@ func BuildPlan(ctx context.Context, probe Probe, opt Options) (*Plan, error) {
 		return nil, err
 	}
 	p.Coexist = Coexist{MagicDNSSuffix: info.MagicDNSSuffix, Interface: info.Interface,
-		Resolver: resolverOf(info), Peers: len(info.PeerShortNames)}
+		Resolver: resolverOf(info), MagicDNSOff: info.MagicDNSOff, Peers: len(info.PeerShortNames)}
+	if info.MagicDNSOff && disc.Tailscale != nil && disc.Tailscale.status != nil {
+		p.Warnings = append(p.Warnings, "MagicDNS is off on this tailnet: tailnet names are not sent to 100.100.100.100 (it would forward unknown names back to mihomo); peer names are answered from hosts")
+	}
 
 	// ---- layers ----
 	der, err := DeriveLayers(liveData, baseData, info)
