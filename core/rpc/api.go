@@ -567,6 +567,8 @@ type TakeoverPlan struct {
 	// SubscriptionURL: a profile index next to the setup names the
 	// subscription URL; adopt stores it in the secret store.
 	SubscriptionURL bool `json:"subscription_url"`
+	// Candidates are the possible bases the helper found (one Chosen).
+	Candidates []TakeoverCandidate `json:"candidates,omitempty"`
 
 	Layers      []TakeoverLayer  `json:"layers"`
 	Changes     []TakeoverChange `json:"changes,omitempty"`

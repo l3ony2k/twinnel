@@ -29,7 +29,7 @@ var AllMethods = []string{
 	MethodConfigGet,
 	MethodGeoCheck, MethodGeoUpdate, MethodUICheck, MethodUIUpdate,
 	MethodTakeoverPlan, MethodTakeoverPlans, MethodTakeoverDiscard, MethodTakeoverAdopt,
-	MethodControllerSecure,
+	MethodControllerSecure, MethodControllerCredentials,
 	MethodEventsWait,
 }
 

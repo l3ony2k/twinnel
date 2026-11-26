@@ -619,6 +619,9 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 		})
 	}
 	card(c, T.Mihomo, func() {
+		if a.creds.cur != nil {
+			ui.Text(c, T.ControllerFromHelper).FontSize(12).TextColor(t.TextMuted).Wrap()
+		}
 		field("controller", T.Controller, "", &f.controller, false)
 		secretHint := T.SecretHint
 		if a.cfg.SecretFromEnv {

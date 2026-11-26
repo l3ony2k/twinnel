@@ -71,6 +71,7 @@ type app struct {
 	healthOpen  map[string]bool // check ID → expanded, once the user toggled it
 	exitPick    string          // exit node select value (peer name or ExitNodeNone)
 	hd          helperData      // what the helper pages show
+	creds       credsState      // controller credentials from the helper
 }
 
 func main() {
@@ -166,13 +167,14 @@ func (a *app) start() {
 		a.unsub()
 		a.stop()
 	}
-	mh, err := mihomo.New(mihomo.Options{Address: a.cfg.Controller, Secret: a.cfg.Secret, AllowWrites: a.cfg.AllowWrites})
+	cc := controllerConfig(a.cfg, a.creds.cur) // the helper's credentials win over cfg
+	mh, err := mihomo.New(mihomo.Options{Address: cc.Controller, Secret: cc.Secret, AllowWrites: a.cfg.AllowWrites})
 	if err != nil {
 		log.Printf("mihomo: %v; using the default controller", err)
-		mh, _ = mihomo.New(mihomo.Options{Secret: a.cfg.Secret, AllowWrites: a.cfg.AllowWrites})
+		mh, _ = mihomo.New(mihomo.Options{Secret: cc.Secret, AllowWrites: a.cfg.AllowWrites})
 	}
 	a.mh = mh
-	a.health = wrapHealth(a.hc, newHealthSource(a.cfg))
+	a.health = wrapHealth(a.hc, newHealthSource(cc))
 	a.healthSrc = nil
 	if a.health != nil {
 		a.healthSrc = a.health
