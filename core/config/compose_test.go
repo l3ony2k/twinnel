@@ -125,7 +125,7 @@ func TestComposeGolden(t *testing.T) {
 		t.Errorf("composed config differs from %s (UPDATE_GOLDEN=1 to refresh):\n%s", golden, r.Config)
 	}
 	wantWarn := []string{
-		`leak-guard: proxy group "Google" can still reach DIRECT through [PROXY]`,
+		`leak-guard: proxy group "Google" can still reach DIRECT through [PROXY] (nested groups are not changed: they may carry other traffic)`,
 		`leak-guard: proxy group "Missing" not found`,
 	}
 	if !reflect.DeepEqual(r.Warnings, wantWarn) {

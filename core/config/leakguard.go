@@ -8,6 +8,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// LeakGuardOptions are generator options of the leak guard.
+type LeakGuardOptions struct {
+	// Nested also sets empty-fallback: REJECT on nested groups that only
+	// guarded groups use (directly or through other such groups) and that
+	// nothing else names: no unguarded group, rule, sub-rule, dialer-proxy
+	// or DNS "#group" reference. Such a group carries guarded traffic only,
+	// so the change cannot affect other traffic. Shared nested groups are
+	// never changed. Off by default.
+	Nested bool `json:"leak_guard_nested,omitempty"`
+}
+
 // LeakGuard returns a transform that keeps the named proxy groups from ever
 // sending traffic out of the real IP: DIRECT and proxies of "type: direct"
 // are removed from their member list, a group left with no members is set
@@ -18,10 +29,19 @@ import (
 // get "Direct" in exclude-type, so direct-type proxies brought in that way
 // are dropped.
 //
-// It warns (does not fail) when a named group does not exist, and when a
-// guarded group still reaches DIRECT through a nested group, since changing
-// shared nested groups could break other traffic.
-func LeakGuard(groups []string) Transform {
+// Nested groups (groups listed as members of a guarded group) are left as
+// they are, because they may also carry unguarded traffic: changing them
+// would change where that traffic goes. The trade-off is that a guarded
+// group can still go DIRECT through a nested group that lists DIRECT, or
+// that has no members at run time (COMPATIBLE). Both are reported as
+// warnings. LeakGuardOptions.Nested closes the second case for nested
+// groups that only guarded groups use.
+//
+// It warns (does not fail) when a named group does not exist.
+func LeakGuard(groups []string) Transform { return LeakGuardWith(groups, LeakGuardOptions{}) }
+
+// LeakGuardWith is LeakGuard with options.
+func LeakGuardWith(groups []string, opt LeakGuardOptions) Transform {
 	names := append([]string(nil), groups...)
 	return func(root *yaml.Node) ([]string, error) {
 		pg := lookup(root, "proxy-groups")
@@ -37,6 +57,7 @@ func LeakGuard(groups []string) Transform {
 			}
 		}
 		direct := directNames(root)
+		guarded := map[string]bool{}
 		var warns []string
 		for _, name := range names {
 			g := byName[name]
@@ -44,6 +65,7 @@ func LeakGuard(groups []string) Transform {
 				warns = append(warns, fmt.Sprintf("proxy group %q not found", name))
 				continue
 			}
+			guarded[name] = true
 			members := lookup(g, "proxies")
 			if members != nil && members.Kind == yaml.SequenceNode {
 				out := members.Content[:0]
@@ -60,26 +82,181 @@ func LeakGuard(groups []string) Transform {
 				warns = append(warns, fmt.Sprintf("proxy group %q has no members left; set to REJECT", name))
 				continue
 			}
-			if ef := lookup(g, "empty-fallback"); ef == nil || direct[ef.Value] || ef.Value == "COMPATIBLE" {
-				set(g, "empty-fallback", newStr("REJECT"))
-			}
+			setRejectFallback(g, direct)
 			if takesDynamicMembers(g) {
 				addExcludeType(g, "Direct")
 			}
 			if via := reachesDirect(g, byName, direct, map[string]bool{name: true}); len(via) > 0 {
 				sort.Strings(via)
-				warns = append(warns, fmt.Sprintf("proxy group %q can still reach DIRECT through %v", name, via))
+				warns = append(warns, fmt.Sprintf("proxy group %q can still reach DIRECT through %v (nested groups are not changed: they may carry other traffic)", name, via))
+			}
+		}
+		var only map[string]bool
+		if opt.Nested {
+			only = guardOnlyGroups(root, byName, guarded)
+		}
+		for _, n := range nestedOf(byName, guarded) {
+			g := byName[n]
+			switch {
+			case only[n]:
+				setRejectFallback(g, direct)
+			case takesDynamicMembers(g) && !rejectFallback(g):
+				hint := "leak_guard_nested adds empty-fallback: REJECT to nested groups that only guarded groups use"
+				if opt.Nested {
+					hint = "it is used by other traffic too, so it was not changed"
+				}
+				warns = append(warns, fmt.Sprintf("nested group %q of a guarded group goes DIRECT when it has no members at run time (%s)", n, hint))
 			}
 		}
 		return warns, nil
 	}
 }
 
+// setRejectFallback sets empty-fallback to REJECT unless it already names
+// something that is not a direct dialer.
+func setRejectFallback(g *yaml.Node, direct map[string]bool) {
+	if ef := lookup(g, "empty-fallback"); ef == nil || direct[ef.Value] || ef.Value == "COMPATIBLE" {
+		set(g, "empty-fallback", newStr("REJECT"))
+	}
+}
+
+func rejectFallback(g *yaml.Node) bool {
+	ef := lookup(g, "empty-fallback")
+	return ef != nil && (ef.Value == "REJECT" || ef.Value == "REJECT-DROP")
+}
+
+// nestedOf returns, sorted, the groups reachable from the guarded groups
+// through member lists, the guarded groups themselves excluded.
+func nestedOf(byName map[string]*yaml.Node, guarded map[string]bool) []string {
+	seen := map[string]bool{}
+	var walk func(g *yaml.Node)
+	walk = func(g *yaml.Node) {
+		for _, m := range memberNames(g) {
+			if byName[m] == nil || seen[m] || guarded[m] {
+				continue
+			}
+			seen[m] = true
+			walk(byName[m])
+		}
+	}
+	for n := range guarded {
+		walk(byName[n])
+	}
+	out := make([]string, 0, len(seen))
+	for n := range seen {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// guardOnlyGroups returns the nested groups that carry guarded traffic only:
+// every group listing them is guarded or itself guard-only, and nothing else
+// in the config names them. It is the largest such set (a fixed point), so
+// nested groups that only list each other count.
+func guardOnlyGroups(root *yaml.Node, byName map[string]*yaml.Node, guarded map[string]bool) map[string]bool {
+	cand := map[string]bool{}
+	for _, n := range nestedOf(byName, guarded) {
+		cand[n] = true
+	}
+	ext := externalRefs(root, cand)
+	parents := map[string][]string{}
+	for name, g := range byName {
+		for _, m := range memberNames(g) {
+			parents[m] = append(parents[m], name)
+		}
+	}
+	for n := range cand {
+		if ext[n] {
+			delete(cand, n)
+		}
+	}
+	for changed := true; changed; {
+		changed = false
+		for n := range cand {
+			for _, p := range parents[n] {
+				if !guarded[p] && !cand[p] {
+					delete(cand, n)
+					changed = true
+					break
+				}
+			}
+		}
+	}
+	return cand
+}
+
+// externalRefs reports which of names appear anywhere in the config other
+// than as a group's name or as an entry of a group's member list: rule and
+// sub-rule fields, dialer-proxy, "server#group" DNS entries, listeners. It
+// matches whole tokens split at "," and "#", which over-approximates (a
+// payload equal to a group name counts), the safe direction.
+func externalRefs(root *yaml.Node, names map[string]bool) map[string]bool {
+	out := map[string]bool{}
+	var walk func(n *yaml.Node, skip bool)
+	walk = func(n *yaml.Node, skip bool) {
+		if n == nil || skip {
+			return
+		}
+		switch n.Kind {
+		case yaml.ScalarNode:
+			for _, tok := range strings.FieldsFunc(n.Value, func(r rune) bool { return r == ',' || r == '#' }) {
+				if t := strings.TrimSpace(tok); names[t] {
+					out[t] = true
+				}
+			}
+		case yaml.MappingNode:
+			for i := 0; i+1 < len(n.Content); i += 2 {
+				walk(n.Content[i+1], false)
+			}
+		default:
+			for _, c := range n.Content {
+				walk(c, false)
+			}
+		}
+	}
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		k, v := root.Content[i].Value, root.Content[i+1]
+		if k != "proxy-groups" || v.Kind != yaml.SequenceNode {
+			walk(v, false)
+			continue
+		}
+		for _, g := range v.Content {
+			if g.Kind != yaml.MappingNode {
+				walk(g, false)
+				continue
+			}
+			for j := 0; j+1 < len(g.Content); j += 2 {
+				gk := g.Content[j].Value
+				walk(g.Content[j+1], gk == "name" || gk == "proxies")
+			}
+		}
+	}
+	return out
+}
+
+func memberNames(g *yaml.Node) []string {
+	members := lookup(g, "proxies")
+	if members == nil || members.Kind != yaml.SequenceNode {
+		return nil
+	}
+	var out []string
+	for _, m := range members.Content {
+		if m.Kind == yaml.ScalarNode {
+			out = append(out, m.Value)
+		}
+	}
+	return out
+}
+
 // LeakGuardLayer wraps LeakGuard in a managed layer.
-func LeakGuardLayer(groups []string) Layer {
+func LeakGuardLayer(groups []string) Layer { return LeakGuardLayerWith(groups, LeakGuardOptions{}) }
+
+// LeakGuardLayerWith wraps LeakGuardWith in a managed layer.
+func LeakGuardLayerWith(groups []string, opt LeakGuardOptions) Layer {
 	return Layer{
 		ID: "leak-guard", Name: "Leak guard", Kind: KindManaged,
-		Stage: StageGuard, Enabled: true, Transform: LeakGuard(groups),
+		Stage: StageGuard, Enabled: true, Transform: LeakGuardWith(groups, opt),
 	}
 }
 

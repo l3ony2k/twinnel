@@ -37,7 +37,7 @@ func runCompose(args []string) error {
 		sub, base, out, validate, geoDir string
 		tailnetJSON, tsResolver, tsIface string
 		leakGuard                        string
-		fromStatus, force                bool
+		fromStatus, force, guardNested   bool
 		userLayers                       []userLayer
 		safePaths                        []string
 	)
@@ -56,6 +56,7 @@ func runCompose(args []string) error {
 	fs.StringVar(&tsResolver, "tailnet-resolver", "", "nameserver for tailnet names (default \"100.100.100.100\"; never \"system\" when the system DNS is mihomo)")
 	fs.StringVar(&tsIface, "tailnet-iface", "auto", "Tailscale interface appended to the default resolver (\"100.100.100.100#utun9\"), needed when mihomo binds to the physical interface: `NAME`, \"auto\" (detect, only with --tailnet-from-status) or \"none\"")
 	fs.StringVar(&leakGuard, "leak-guard", "", "comma-separated proxy `GROUPS` that must never use DIRECT")
+	fs.BoolVar(&guardNested, "leak-guard-nested", false, "also set empty-fallback: REJECT on nested groups that only --leak-guard groups use")
 	fs.StringVar(&validate, "validate", "", "check the result with this mihomo `BIN` (mihomo -t in a temp dir)")
 	fs.StringVar(&geoDir, "geo-dir", "", "`DIR` with geo databases to copy into the validation dir")
 	fs.Func("safe-path", "`DIR` mihomo may reference during --validate, e.g. the external-ui dir (repeatable)", func(s string) error {
@@ -156,7 +157,7 @@ func runCompose(args []string) error {
 				groups = append(groups, g)
 			}
 		}
-		layers = append(layers, config.LeakGuardLayer(groups))
+		layers = append(layers, config.LeakGuardLayerWith(groups, config.LeakGuardOptions{Nested: guardNested}))
 	}
 
 	res, err := config.ComposeReport(subData, layers)

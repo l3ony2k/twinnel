@@ -11,6 +11,39 @@ directory, never in this repo.
 The Tailscale coexistence layer and the leak guard are generated in code
 (`core/config/tailscale.go`, `core/config/leakguard.go`), not stored here.
 
+## Tailscale coexist and MagicDNS
+
+With MagicDNS on, tailnet names (the MagicDNS suffix, single-label names,
+the tailnet reverse zones) go to Tailscale's resolver `100.100.100.100`
+through `dns.nameserver-policy`.
+
+With MagicDNS off (or no MagicDNS suffix in `tailscale status`), that
+resolver is not authoritative for those names: it answers only full node
+names and forwards everything else to its upstream, which here is the
+system resolver, that is mihomo. So no `nameserver-policy` entry is written.
+Peer names (`nas` and `nas.<tailnet>.ts.net`) still resolve from `hosts`,
+and the tailnet CIDR rules and `route-exclude-address` stay.
+
+## Leak guard and nested groups
+
+The leak guard changes only the groups you name. It removes DIRECT and
+`type: direct` proxies from them and sets `empty-fallback: REJECT`.
+Without that, mihomo uses a direct dialer (`COMPATIBLE`) when a group has
+no members at run time.
+
+Nested groups (groups listed inside a guarded group) are not changed by
+default, because the same group can also carry traffic that should go
+DIRECT. The trade-off: a guarded group can still leak through a nested
+group that lists DIRECT, or through one that is empty at run time (a failed
+provider, a filter that matches nothing). The leak guard warns about both.
+
+The generator option `leak_guard_nested: true` (`duet compose
+--leak-guard-nested`) also sets `empty-fallback: REJECT` on nested groups
+that only guarded groups use. A nested group counts as shared, and is left
+alone, when an unguarded group lists it or when a rule, a sub-rule, a
+`dialer-proxy` or a DNS `server#group` entry names it. DIRECT members of
+nested groups are never removed; move DIRECT out of such a group yourself.
+
 ## Syntax (Clash Party / Mihomo Party compatible)
 
 | Key form | Effect |
