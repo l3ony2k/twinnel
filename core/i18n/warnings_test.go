@@ -15,6 +15,7 @@ func TestWarningKnown(t *testing.T) {
 		"3 subscription profiles found; adopt does not import a subscription URL (set one later with `duet sub put`)":                      "找到 3 个订阅配置；接管不导入订阅地址，之后用 duet sub put 设置",
 		"external-controller: 0.0.0.0:9090 is reachable from the network (protected by the secret only)":                                   "external-controller：0.0.0.0:9090 可以从网络访问，只有密钥保护",
 		"something new: keep me": "something new: keep me",
+		"the subscription URL uses plain http: anyone on the network path can read it and replace the config it returns; use https if the provider offers it":                                        "订阅地址用的是明文 http：网络上的任何一方都能读到它，也能替换返回的配置。服务商支持的话请改用 https",
 		"clients of the controller (the web dashboard, the app, scripts) need the new secret; it is in the helper's secret store (macOS: sudo security find-generic-password -s duet.controller -w)": "控制接口的客户端（网页面板、本 app、脚本）需要新密钥。它保存在后台助手的密钥库里，可用 sudo security find-generic-password -s duet.controller -w 读取",
 	} {
 		if got := T.Warning(in); got != want {
