@@ -10,10 +10,11 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 │ duet.app  (cmd/app, MyGo)    │  JSON-RPC  │ duet-helper  (cmd/helper)        │
 │ duet CLI  (cmd/cli)          │◀──────────▶│  core/engine: compose, apply,    │
 │                              │ unix socket│  subscriptions, layers, history, │
-│ read-only, direct:           │            │  tailnet poller, kernels         │
-│  mihomo REST API             │            │  core/store: state dir           │
-│  Tailscale LocalAPI / CLI    │            │  core/service + platform/*:      │
-│  health checks (core/health) │            │  service definitions and plans   │
+│ read-only, direct:           │            │  tailnet poller, kernels, geo/UI │
+│  mihomo REST API             │            │  health scheduler (core/health)  │
+│  Tailscale LocalAPI / CLI    │            │  core/store: state dir, secrets  │
+│  health checks (core/health) │            │  core/service + platform/*:      │
+│                              │            │  service definitions and plans   │
 └──────────────────────────────┘            └──────────────────────────────────┘
             │                                          │ writes config, PUT /configs
             ▼                                          ▼
@@ -22,21 +23,21 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 
 | Path | Role |
 |---|---|
-| `cmd/app` | Menu bar app (MyGo native UI): tray icon, flyout panel, main window. Reads mihomo and Tailscale directly and runs the health checks in process. No business logic. |
+| `cmd/app` | Menu bar app (MyGo native UI): tray icon, flyout panel, main window. Reads mihomo and Tailscale directly and runs the health checks in process; the subscriptions and overrides, history and kernel pages, and 重载配置 when the helper is connected, go through the helper. No business logic. |
 | `cmd/cli` | `duet`: local commands (`doctor`, `takeover`, `compose`, `status`) and the helper client commands. |
-| `cmd/helper` | The root daemon. Thin: wires `core/engine` to `core/rpc` and the platform service manager. |
+| `cmd/helper` | The root daemon. Thin: wires `core/engine` to `core/rpc`, the secret store, the platform service manager, the Tailscale interface lookup and the health scheduler (`platform_darwin.go`, `platform_linux.go`). |
 | `core/config` | YAML node-level merge, Clash Verge import, compose, Tailscale coexist generator, leak guard, `mihomo -t` validation, semantic diff. |
 | `core/engine` | The helper's logic, platform-free: apply pipeline, subscriptions, layers, settings, tailnet refresh, kernels, status. |
-| `core/rpc` | JSON-RPC 2.0 server/client, method allowlist, peer credential check, event bus. |
-| `core/store` | The helper's state directory. |
+| `core/rpc` | JSON-RPC 2.0 server/client, method allowlist, peer credential check, event bus. `core/rpc/healthsrc`: the helper's health reports as a `status.HealthSource`. |
+| `core/store` | The helper's state directory and the `Secrets` interface (file store; migration into another store). |
 | `core/kernel` | mihomo release check, verified download, atomic switch and rollback. |
 | `core/service` | Platform-neutral service `Spec`, `Manager` interface, `Plan` of explicit steps. |
 | `core/health` | Health check framework and the checks. |
 | `core/takeover` | Discovery of a hand-made setup and the takeover plan. |
 | `core/status`, `core/mihomo`, `core/tailscale`, `core/i18n` | App-side status model and alerts, mihomo REST client, Tailscale LocalAPI client and install detection, UI strings. |
 | `platform/common` | Parsers shared by platforms (`tailscale status --json`, mihomo API and config file). |
-| `platform/darwin` | macOS facts for the health checks, network change watcher, egress test; `launchd/` service manager. |
-| `platform/linux` | Linux facts for the health checks, takeover probe; `systemd/` service manager. |
+| `platform/darwin` | macOS facts for the health checks, network change watcher, egress test; `launchd/` service manager; `keychain/` secret store. |
+| `platform/linux` | Linux facts for the health checks, takeover probe, install locations and the helper install plan; `systemd/` service manager. |
 | `overrides/` | Generic built-in layer templates. |
 
 `core/...` never imports `platform/...`; platforms implement interfaces defined in core (`health.Env`, `service.Manager`, `takeover.Probe`).
@@ -44,7 +45,7 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 ## Helper RPC
 
 - Transport: a Unix socket (`/var/run/duet/helper.sock` by default, `$DUET_SOCKET` to override), one JSON-RPC 2.0 object per line, messages up to 16 MiB. Requests on one connection run concurrently (up to 8) and are matched by id.
-- Access: the socket is mode 0660 and owned by a group (default `admin`). Each connection's peer uid comes from the kernel (`LOCAL_PEERCRED` on macOS, `SO_PEERCRED` on Linux). Allowed: root, the helper's own uid, and members of the group.
+- Access: the socket is mode 0660 and owned by a group (`--group`; `admin` on macOS; on Linux `admin` only if it exists, else `sudo`, else `wheel`, else `duet`, see [Linux](#linux)). Each connection's peer credentials come from the kernel (`LOCAL_PEERCRED` on macOS with all groups; `SO_PEERCRED` on Linux, which carries only the primary group). Allowed: root, the helper's own uid, and members of the group. On Linux a user whose *primary* group is not the socket group is refused today, even when they are a member.
 - Methods are a fixed allowlist (`core/rpc/api.go`); registering any other name panics, and unknown names get error -32601. Params are decoded with unknown fields rejected.
 
 | Group | Methods |
@@ -56,11 +57,16 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | subscriptions | `subscription.list`, `subscription.put`, `subscription.delete`, `subscription.activate`, `subscription.refresh` |
 | settings | `settings.get`, `settings.update` (only leak-guard groups, coexist on/off, tailnet resolver, history size, kernel channel, auto-apply) |
 | tailnet | `tailnet.refresh` |
-| kernels | `kernel.list`, `kernel.check`, `kernel.install` (takes a channel, never a URL), `kernel.rollback` |
-| info | `tailscale.info`, `service.status` |
-| events | `events.wait {after, timeout_ms}`: long-poll on a ring buffer. Types: `compose.applied/failed`, `state.changed`, `subscription.updated/failed`, `tailnet.changed`, `kernel.changed`, `check.changed`, `service.changed`, `helper.started/stopping`, `events.truncated`. |
+| kernels | `kernel.list`, `kernel.check`, `kernel.install` (takes a channel and optionally the version that was shown, never a URL), `kernel.rollback` |
+| accessories | `geo.check`, `geo.update {force}`, `ui.check`, `ui.update {force}` |
+| services | `service.status`, `service.start`, `service.stop`, `service.restart` (`mihomo`, `tailscaled`), `service.install`, `service.uninstall` (`mihomo` only). The client passes a name; labels come from settings. The helper's own service is refused (use `duet helper install/uninstall`). Without root the helper returns the plan with `dry_run: true` and runs nothing. |
+| health | `health.last` (the last report, no run), `health.run {reason}` (runs now, 2 min cap) |
+| config | `config.get {source: live\|preview\|history, id}`: the config text with the top-level `secret` stripped |
+| info | `tailscale.info` |
+| takeover | `takeover.adopt {plan_id}`: a stub, always error -32005 |
+| events | `events.wait {after, timeout_ms}`: long-poll on a ring buffer. Types: `compose.applied/failed`, `state.changed`, `subscription.updated/failed`, `tailnet.changed`, `kernel.changed`, `check.changed`, `health.updated`, `accessory.changed`, `service.changed`, `helper.started/stopping`, `events.truncated`. |
 
-No method takes a filesystem path or a command. Paths (mihomo binary, config dir and file, controller address, service labels) live only in the helper's `settings.json`. There are no service mutations over RPC yet.
+No method takes a filesystem path or a command. Paths (mihomo binary, config dir and file, controller address, service labels) live only in the helper's `settings.json`. Error codes besides JSON-RPC's own: -32001 unauthorized, -32002 failed, -32003 not found, -32004 busy, -32005 not implemented.
 
 ## Apply pipeline
 
@@ -71,7 +77,7 @@ No method takes a filesystem path or a command. Paths (mihomo binary, config dir
 3. **Validate** with the official `mihomo -t` in a temp dir (geo files copied in, the real config dir allowed as a safe path). If it fails, nothing is written.
 4. Unchanged bytes are a no-op unless forced. If mihomo is not running, the file is written and used at the next start (with a warning).
 5. **Back up** the file on disk if it is not already the latest history entry (its `secret:` line removed).
-6. **Write** atomically, re-inserting the controller secret (from the secret store, a layer, or the file being replaced), keeping the file mode.
+6. **Write** atomically, re-inserting the controller secret (from the secret store, a layer, or the file being replaced), keeping the file mode. When there is no secret anywhere and the helper manages the config (no file yet, or the file lives in the state dir), it generates one into the secret store and says so in a warning.
 7. **Reload** with `PUT /configs?force=true`, then poll `GET /version` for up to 10 s.
 8. On a reload or verify failure, **restore** the old bytes and reload them; the result says `rolled_back`.
 9. Record history (`applied` or `rollback`) and publish an event.
@@ -138,9 +144,11 @@ All checks are marked for every platform; what differs is the `Env`:
 | OS resolver lookup | `dscacheutil` | `getent ahostsv4` (NSS) |
 | egress test | socket bound with `IP_BOUND_IF` | not implemented (the check skips) |
 
-Linux caveats: `system-dns` labels per-link servers as manual even when they came from DHCP, and its fix hint names the macOS command. `vpn-conflict` fails hard only for another `utun*` device holding the default route (a macOS name); on Linux another tun device gives a warning.
+Linux differences, in the checks themselves:
+- `system-dns` labels each link's servers by origin. With NetworkManager it reads the connection's `ipv4.method`, `ipv4.dns`, `ipv4.ignore-auto-dns`, `ipv6.dns`, `ipv6.ignore-auto-dns`: 手动 (static only), 手动 + DHCP, DHCP/默认, or 系统全局 DNS when the link has no servers of its own. Without NetworkManager, per-link servers from resolved are labelled as of unknown origin. The fix hint names `nmcli connection modify … ipv4.dns … ipv4.ignore-auto-dns yes`, or `resolved.conf` (`DNS=`, `Domains=~.`) when there is only systemd-resolved, instead of `networksetup`.
+- `vpn-conflict` fails when any tunnel device that is neither mihomo's TUN (its `tun.device`, or `Meta*` when unset) nor `tailscale*` holds the default route (`tun*`, `tap*`, `wg*`, `ppp*`, `ipsec*`, `vti*`, `xfrm*` and common vendor names), whether or not mihomo's TUN is on. A physical link holding it is a warning only when mihomo's TUN is on. On macOS only another `utun*` fails.
 
-`core/health` also has a `Scheduler` (interval plus debounced triggers such as the macOS `NetWatcher`), meant for the helper but not wired into it yet. Today the app runs the checks in process on its own timer, and `duet doctor` runs them once.
+**Where checks run.** The helper runs them with `health.Scheduler`: every `--health-interval` (default 5 min), after an apply that wrote a file, after every service operation, and (macOS) on network changes from `darwin.NetWatcher`, debounced. `--no-health` turns it off. Only real status transitions publish `check.changed`; every run publishes `health.updated`. `duet helper health` reads `health.last`, `--run` calls `health.run`. The app still runs the checks in process on its own timer (`core/rpc/healthsrc` is the drop-in source for using the helper's reports instead), and `duet doctor` runs them once.
 
 ## Takeover
 
@@ -158,15 +166,40 @@ Linux caveats: `system-dns` labels per-link servers as manual even when they cam
 | status | `launchctl print system/<label>` | `systemctl show <unit> --property=...` |
 | keep alive | `KeepAlive`, `ThrottleInterval` | `Restart=always`, `RestartSec` |
 
-The helper uses launchd on macOS. On Linux the systemd manager exists and is tested, but `cmd/helper` does not use it yet, and `duet helper install` is macOS-only.
+The helper uses launchd on macOS and systemd on Linux, for its service RPCs and for `duet helper install`. Real `launchctl`/`systemctl` calls and file writes happen only when the helper runs as root.
+
+**`duet helper install` / `uninstall`.** The plan is printed first (with the full plist or unit file), then confirmed (`--yes` without a terminal); `--dry-run` only prints.
+- macOS: copy the binary to `/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper`, create the state, socket and log dirs, `bootout` (ignored), write `/Library/LaunchDaemons/com.l3ony2k.duet.helper.plist`, `bootstrap`, `enable`. As a normal user duet re-runs itself as root through `osascript … with administrator privileges` (one password dialog; arguments quoted for the shell and for AppleScript, control characters refused).
+- Linux: see [Linux](#linux). Run it with `sudo`; the non-root path tries macOS's `osascript` and fails.
+- Uninstall removes the service definition, the binary and the socket; the state dir is kept.
+
+## Linux
+
+The helper and CLI pick these on Linux (`platform/linux/defaults.go`):
+
+| What | Value |
+|---|---|
+| State dir | `/var/lib/duet` (the CLI maps its macOS flag default to it; an explicit `--state-dir` is kept) |
+| Helper binary | `/usr/local/libexec/duet-helper` |
+| Units | `duet-helper`, `duet-mihomo`, and the distro's `tailscaled`. On start the helper rewrites service labels still at their macOS defaults in `settings.json` to these names; labels you set are kept. |
+| Socket group | `sudo` if it exists (Debian, Ubuntu), else `wheel` (Fedora, Arch, openSUSE), else `duet`, which the install plan creates with `groupadd --system`. The unit passes it as `--group`. A helper started by hand with the default `--group admin` falls back the same way when `admin` does not exist. |
+| Tailscale interface | `ip route get 100.100.100.100` (normally `tailscale0`), for the helper's coexist resolver and `duet compose --tailnet-iface auto` |
+| Secrets | `<state>/secrets.json`, 0600 |
+
+`duet helper install` on Linux: create `/usr/local/libexec`, copy the binary, create the state and socket dirs, create the group if needed, write `/etc/systemd/system/duet-helper.service` (`Type=simple`, `Restart=always`, `RestartSec=5`, `WantedBy=multi-user.target`, no log files: stdout/stderr go to the journal), `systemctl daemon-reload`, `enable`, `restart`. Uninstall: `disable --now`, remove the unit, `daemon-reload`, remove the binary and the socket; the state dir and the group stay.
+
+Not on Linux yet: a network-change trigger for health and tailnet refresh (the helper relies on its interval and the 60 s tailnet poller), the egress test, a Secret Service store, a non-root elevation path for `duet helper install`, and the app. Nothing of this has run on a real Linux host so far; it is covered by fixture tests that run on every OS.
 
 ## Data locations
 
 | What | Where |
 |---|---|
-| Helper state (settings, subscriptions, layers, history, kernels, tailnet cache, secrets file) | `/Library/Application Support/duet` on macOS (`--state-dir`). Files 0600, directories 0700. |
+| Helper state (settings, subscriptions, layers, history, kernels, tailnet cache) | macOS `/Library/Application Support/duet`, Linux `/var/lib/duet` (`--state-dir`). Files 0600, directories 0700. |
+| Secrets (controller secret, subscription URLs) | macOS, helper as root: System keychain, generic passwords with account `duet` and service `duet.<key>` (e.g. `duet.controller-secret`). Otherwise (Linux, development helpers, `--secrets file`): `<state>/secrets.json`, 0600. Switching to the keychain moves the file's entries in and deletes the file. |
 | Helper socket | `/var/run/duet/helper.sock` |
-| Helper binary and service (planned install) | `/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper`, LaunchDaemon `com.l3ony2k.duet.helper` |
+| Helper binary and service | macOS `/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper`, LaunchDaemon `com.l3ony2k.duet.helper`; Linux `/usr/local/libexec/duet-helper`, unit `duet-helper.service` |
+| Helper log | `<state>/logs/helper.log` (on Linux the helper's stdout/stderr also go to the journal) |
+| mihomo and tailscaled services | labels from settings: macOS `com.l3ony2k.duet.mihomo`, `com.tailscale.tailscaled`; Linux `duet-mihomo`, `tailscaled` |
 | Managed mihomo kernels | `<state>/kernels/`, with `current` and `previous` symlinks |
 | App preferences | `<user config dir>/duet/app.json` |
 | Takeover plans | a new temp dir, or `--out` |
@@ -176,6 +209,6 @@ The helper uses launchd on macOS. On Linux the systemd manager exists and is tes
 - **One privileged process.** Only the helper runs as root. The app and CLI read mihomo and Tailscale directly, and everything that writes goes through the helper.
 - **Narrow RPC.** Fixed method allowlist, strict param decoding, peer uid check, no paths or commands from clients. Kernel installs take only a channel; the helper picks the asset and refuses one without a published SHA-256 digest.
 - **Validate before write, back up before write, roll back on failure.** The running config is never replaced by one `mihomo -t` rejects.
-- **Secrets.** The controller secret is kept out of history and backups and injected only into the live file. Subscription URLs are redacted in errors, logs, takeover plans and diffs. The config parser used by health checks never reads proxies or providers. The secret store is a 0600 file today; a system keychain store is planned.
+- **Secrets.** The controller secret is kept out of history and backups and injected only into the live file. Subscription URLs are redacted in errors, logs, takeover plans and diffs. The config parser used by health checks never reads proxies or providers. On macOS the root helper keeps secrets in the System keychain; values are written by piping the command to `security -i` on stdin, so they never appear in argv, the environment or a file. On Linux they are a root-owned 0600 file until a Secret Service store exists. The app cannot read the System keychain (root-only) and keeps its own copy of the controller secret in `app.json`.
 - **Read-only diagnostics.** Health checks and takeover only read files, run read-only commands and send GET requests to the controller.
 - **No personal data in the repo.** Test data is synthetic; `scripts/check-no-personal-data.sh` greps tracked files for patterns kept outside the tree.

@@ -125,3 +125,4 @@ spike 通过后进入 v0.1：写 helper、接管现有安装、做健康检查�
 ## 更新记录
 
 - 2026-11-26：Linux 平台层落地。`platform/linux` 实现了健康检查的 `Env`（`ip -j`、`resolvectl` / `resolv.conf`、`nmcli`、`getent`）、接管用的 systemd `Probe`，以及 `platform/linux/systemd` 服务管理（unit 渲染、`systemctl` 计划、`systemctl show` 解析）；`duet doctor`、`duet takeover plan` 可以在 Linux 上运行。共用的解析代码移到 `platform/common`。helper 还没有接入 systemd。整体结构见 `docs/architecture.md`。
+- 2026-11-26（续）：helper 接入 Linux。systemd 管理服务；默认状态目录 `/var/lib/duet`，helper 装在 `/usr/local/libexec/duet-helper`，unit 名 `duet-helper`、`duet-mihomo`，tailscaled 用发行版自带的 `tailscaled`；socket 组依次选 `sudo`、`wheel`，都没有就新建 `duet`。Linux 上的凭证暂时还是状态目录里 0600 的 `secrets.json`，以后接 Secret Service。`system-dns` 在 Linux 上区分手动 / DHCP（读 NetworkManager 设置），修复建议改用 `nmcli` / `resolved.conf`；`vpn-conflict` 在 Linux 上只要默认路由落在 mihomo 和 Tailscale 以外的隧道设备上就判失败。详见 `docs/architecture.md` 的 Linux 一节。

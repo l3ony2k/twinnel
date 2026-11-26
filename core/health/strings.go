@@ -89,6 +89,10 @@ const (
 	labelNo     = "没有"
 	labelManual = "手动"
 	labelDHCP   = "DHCP/默认"
+	// Linux only (NetworkService.DNSSource).
+	labelMixed     = "手动 + DHCP"
+	labelLinkDNS   = "该网卡的 DNS，分不清手动还是 DHCP"
+	labelGlobalDNS = "系统全局 DNS"
 
 	msgReadFailed        = "读取 %s 失败：%v"
 	msgTSUnavailable     = "读不到 Tailscale 状态：%v"
@@ -175,6 +179,7 @@ const (
 	evExcludedDNS     = "该 DNS 在 route-exclude-address 内，dns-hijack 管不到"
 	evDefaultResolver = "系统默认 resolver：%s"
 	fixDNS            = "把这些网络服务的 DNS 设为 %s（networksetup -setdnsservers <服务名> <地址>）。"
+	fixDNSLinux       = "把这些连接的 DNS 设为 %s。NetworkManager：nmcli connection modify <连接名> ipv4.dns %s ipv4.ignore-auto-dns yes，再 nmcli connection up <连接名>；只有 systemd-resolved 时：在 /etc/systemd/resolved.conf 写 DNS=%s 和 Domains=~.，再 systemctl restart systemd-resolved（resolvectl dns <网卡> <地址> 只到重启为止）。"
 )
 
 // vpn-conflict

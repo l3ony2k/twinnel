@@ -12,6 +12,7 @@ import (
 
 // fakeEnv is a configurable Env. All data is synthetic.
 type fakeEnv struct {
+	platform string // "" means Darwin
 	settings Settings
 	routes   map[string]RouteLookup
 	table    []Route
@@ -140,7 +141,12 @@ func healthyEnv() *fakeEnv {
 	}
 }
 
-func (f *fakeEnv) Platform() string   { return Darwin }
+func (f *fakeEnv) Platform() string {
+	if f.platform == "" {
+		return Darwin
+	}
+	return f.platform
+}
 func (f *fakeEnv) Settings() Settings { return f.settings }
 func (f *fakeEnv) RouteGet(_ context.Context, d string) (RouteLookup, error) {
 	f.calls.Add(1)

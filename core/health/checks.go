@@ -590,9 +590,9 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 			continue
 		}
 		nActive++
-		servers, how := s.DNS, labelManual
+		servers, how := s.DNS, dnsSourceLabel(s)
 		if len(servers) == 0 {
-			servers, how = defaultNS, labelDHCP
+			servers = defaultNS
 		}
 		ok := len(servers) > 0
 		for _, ns := range servers {
@@ -631,16 +631,45 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	case len(bad) > 0:
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(msgDNSBad, strings.Join(bad, ", "))
-		res.Fix = &FixHint{Text: fmt.Sprintf(fixDNS, listen), AutoFix: "system-dns"}
+		res.Fix = &FixHint{Text: dnsFixText(env.Platform(), listen), AutoFix: "system-dns"}
 	case len(viaHijack) > 0:
 		res.Status = StatusWarn
 		res.Summary = fmt.Sprintf(msgDNSHijack, strings.Join(viaHijack, ", "))
-		res.Fix = &FixHint{Text: fmt.Sprintf(fixDNS, listen), AutoFix: "system-dns"}
+		res.Fix = &FixHint{Text: dnsFixText(env.Platform(), listen), AutoFix: "system-dns"}
 	case nActive == 0:
 		res.Status = StatusWarn
 		res.Summary = msgDNSNoActive
 	}
 	return res
+}
+
+// dnsSourceLabel says where a service's DNS servers come from. Without a
+// DNSSource (macOS) configured servers are manual and none means DHCP.
+func dnsSourceLabel(s NetworkService) string {
+	switch s.DNSSource {
+	case DNSSourceManual:
+		return labelManual
+	case DNSSourceAuto:
+		return labelDHCP
+	case DNSSourceMixed:
+		return labelMixed
+	case DNSSourceUnknown:
+		return labelLinkDNS
+	case DNSSourceGlobal:
+		return labelGlobalDNS
+	}
+	if len(s.DNS) == 0 {
+		return labelDHCP
+	}
+	return labelManual
+}
+
+// dnsFixText is the system-dns fix hint in the platform's own tools.
+func dnsFixText(platform, listen string) string {
+	if platform == Linux {
+		return fmt.Sprintf(fixDNSLinux, listen, listen, listen)
+	}
+	return fmt.Sprintf(fixDNS, listen)
 }
 
 // ---------------------------------------------------------------------------
@@ -699,7 +728,12 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 	if rl, err := env.RouteGet(ctx, "1.1.1.1"); err == nil {
 		tun, _, terr := tunConfig(ctx, env)
 		line := fmt.Sprintf(evDefaultRoute, rl.Interface)
-		if terr == nil && tun.Enable && tun.Device != "" && rl.Interface != tun.Device && strings.HasPrefix(rl.Interface, "utun") {
+		if env.Platform() == Linux {
+			if st, msg := linuxDefaultRoute(rl.Interface, tun, terr == nil); st != StatusOK {
+				line += "  ← " + evNotMihomoTUN
+				fail(st, msg)
+			}
+		} else if terr == nil && tun.Enable && tun.Device != "" && rl.Interface != tun.Device && strings.HasPrefix(rl.Interface, "utun") {
 			line += "  ← " + evNotMihomoTUN
 			fail(StatusFail, fmt.Sprintf(msgOtherTUN, rl.Interface))
 		} else if terr == nil && tun.Enable && tun.Device != "" && rl.Interface != tun.Device {
@@ -714,6 +748,37 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 		res.Fix = &FixHint{Text: fixVPN}
 	}
 	return res
+}
+
+// linuxTunnelPrefixes name the tunnel devices of common VPNs on Linux:
+// OpenVPN/generic tun and tap, WireGuard (wg-quick, NetworkManager),
+// PPP-based VPNs, strongSwan/libreswan, and vendor clients.
+var linuxTunnelPrefixes = []string{"tun", "tap", "wg", "ppp", "ipsec", "vti", "xfrm", "nordlynx", "proton", "mullvad", "cscotun", "gpd", "utun"}
+
+// linuxDefaultRoute judges the interface holding the default route on
+// Linux. Another tunnel there (anything that is neither mihomo's TUN nor
+// tailscaled's tailscale*) takes traffic away from mihomo: fail, even when
+// mihomo's TUN is off. mihomo's TUN not holding it otherwise is a warning,
+// as on macOS. haveTUN is false when the mihomo state could not be read.
+func linuxDefaultRoute(iface string, tun TUNConfig, haveTUN bool) (Status, string) {
+	mihomoDev := tun.Device
+	isMihomo := iface == mihomoDev
+	if mihomoDev == "" {
+		// mihomo's default TUN name on Linux: Meta, or Meta1, ... when taken.
+		mihomoDev, isMihomo = "Meta", strings.HasPrefix(iface, "Meta")
+	}
+	if iface == "" || (haveTUN && tun.Enable && isMihomo) || strings.HasPrefix(iface, "tailscale") {
+		return StatusOK, ""
+	}
+	for _, p := range linuxTunnelPrefixes {
+		if strings.HasPrefix(iface, p) {
+			return StatusFail, fmt.Sprintf(msgOtherTUN, iface)
+		}
+	}
+	if haveTUN && tun.Enable {
+		return StatusWarn, fmt.Sprintf(msgTUNNotDefault, mihomoDev, iface)
+	}
+	return StatusOK, ""
 }
 
 // ---------------------------------------------------------------------------

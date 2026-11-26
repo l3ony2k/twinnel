@@ -241,9 +241,11 @@ func (e *Env) NetworkServices(ctx context.Context) ([]health.NetworkService, err
 		}
 	}
 	names := map[string]string{}
+	uuids := map[string]string{}
 	for _, c := range e.nmConnections(ctx) {
 		if c.Device != "" && c.State == "activated" {
 			names[c.Device] = c.Name
+			uuids[c.Device] = c.UUID
 		}
 	}
 	rc, rlinks, _ := e.dnsState(ctx)
@@ -282,9 +284,32 @@ func (e *Env) NetworkServices(ctx context.Context) ([]health.NetworkService, err
 		} else {
 			s.DNS = rc.Nameservers
 		}
+		s.DNSSource = e.dnsSource(ctx, uuids[l.Name], rlinks != nil, len(s.DNS) > 0)
 		out = append(out, s)
 	}
 	return out, nil
+}
+
+// dnsSource tells the system-dns check where a link's DNS comes from:
+// NetworkManager's connection settings when the link has an active
+// connection, else only what resolved/resolv.conf show (per-link servers of
+// unknown origin, or the global ones).
+func (e *Env) dnsSource(ctx context.Context, uuid string, resolved, perLink bool) string {
+	if uuid != "" {
+		out, err := e.opt.Run(ctx, "nmcli", "-g", NMCLIDNSFields, "connection", "show", "uuid", uuid)
+		if err == nil {
+			if src := ParseNmcliDNSSource(string(out)); src != "" {
+				if src == health.DNSSourceAuto && !perLink {
+					return health.DNSSourceGlobal // DHCP gave no servers
+				}
+				return src
+			}
+		}
+	}
+	if resolved && perLink {
+		return health.DNSSourceUnknown
+	}
+	return health.DNSSourceGlobal
 }
 
 func (e *Env) nmConnections(ctx context.Context) []NMConnection {

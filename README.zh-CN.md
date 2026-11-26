@@ -11,7 +11,7 @@ duet 在桌面上同时跑**官方的** [mihomo](https://github.com/MetaCubeX/mi
 - **谁都不占系统 VPN 通道。** mihomo 用自己的 TUN，开源版 `tailscaled` 用自己的 tun 设备；duet 负责生成让两者共存的设置（排除 tailnet 网段、Tailscale 相关流量直连、MagicDNS 的解析路径），并用健康检查持续核对。
 - 订阅保持只读。本机的改动（端口、DNS、自己的规则、Tailscale 共存设置）都写成覆写层，叠加在订阅之上，订阅更新时不会丢。
 
-> **现状：早期开发中。** 首先支持 macOS（arm64）。Linux 上已经能跑健康检查和接管分析；systemd 服务管理的代码已经写好，但还没接进 helper。Windows 能编译，但还没有平台层。接口和文件格式都可能变。
+> **现状：早期开发中。** 首先支持 macOS（arm64）。Linux 上的命令行、健康检查、接管分析和 helper（含 systemd unit）都已接好，但只用测试数据验证过，还没在真实的 Linux 机器上跑过。Windows 能编译，但还没有平台层。接口和文件格式都可能变。
 
 ## 目前能做什么
 
@@ -20,9 +20,12 @@ duet 在桌面上同时跑**官方的** [mihomo](https://github.com/MetaCubeX/mi
 | `duet doctor`：13 项共存健康检查，输出纯文本 / Markdown / JSON | macOS、Linux |
 | `duet takeover plan`：读取手工搭好的 mihomo + Tailscale，推导出能还原现有配置的覆写层，并用 `mihomo -t` 和语义 diff 证明等价 | macOS、Linux（只读，还没有"应用"这一步） |
 | `duet compose`：订阅 + 覆写层 → 配置，用 `mihomo -t` 校验 | 全平台 |
-| root helper（`duet-helper`）：合成 → 校验 → 备份 → 写入 → 热重载 → 验证，失败自动回滚；订阅、覆写层、历史版本，mihomo 内核下载 / 切换 / 回滚 | 能在 macOS 上运行；`duet helper install` 目前只打印安装计划（`--dry-run`） |
-| 菜单栏 App：状态图标和弹出面板，主窗口（总览、策略组、Tailscale 设备、健康检查、日志、设置） | macOS；会改动系统的控件默认禁用，设置 `DUET_ALLOW_WRITES=1` 才可用 |
-| 凭证存系统钥匙串 | 还没做：helper 目前把它们存在状态目录里一个 0600 权限的文件中 |
+| root helper（`duet-helper`）：合成 → 校验 → 备份 → 写入 → 热重载 → 验证，失败自动回滚；订阅、覆写层、历史版本，mihomo 内核下载 / 切换 / 回滚；geo 数据库和外部面板（按发布页公布的摘要校验） | macOS、Linux |
+| helper 内置健康检查：定时跑，配置应用和服务操作之后跑，网络变化时跑（仅 macOS）；`duet helper health` | macOS、Linux（Linux 还没有网络变化触发） |
+| 通过 RPC 管理服务：mihomo 和 tailscaled 的启动 / 停止 / 重启，mihomo 服务的安装 / 卸载 | macOS（launchd）、Linux（systemd）；helper 不是 root 时只返回计划，不执行 |
+| `duet helper install` / `uninstall`：先打印计划，再把 helper 装成系统服务 | macOS：弹一次管理员密码框；Linux：用 `sudo` 运行（`--dry-run` 不需要 root）。还没在真机上实际安装过。 |
+| 菜单栏 App：单色状态图标（不同状态只靠形状区分：角标、断开的环、不同符号）和弹出面板；主窗口有总览、策略组、Tailscale 设备、健康检查、日志、设置，以及经 helper 的订阅与覆写、历史、内核三页；helper 未安装时显示首次使用页 | macOS；会改动系统的控件默认禁用，设置 `DUET_ALLOW_WRITES=1` 才可用 |
+| 凭证（controller secret、订阅地址） | macOS：helper 以 root 运行时存在系统钥匙串（System keychain）；Linux 和开发用的 helper：状态目录里一个 0600 权限的 `secrets.json`（以后接 Secret Service） |
 
 ## 从源码安装
 
@@ -69,12 +72,17 @@ helper 相关的命令通过 Unix socket 和 `duet-helper` 通信（`$DUET_SOCKE
 ```sh
 duet helper status
 duet helper install --dry-run    # 打印服务定义和每一步操作，不做任何改动
+duet helper install              # macOS 会要管理员密码；Linux 用 sudo duet helper install
+duet helper health [--run]       # helper 最近一次健康检查报告，或者立刻重跑
 duet sub put main --url ...      # 订阅：list | put | refresh | activate | rm
 duet layer put rules rules.yaml  # 覆写层：list | get | put | rm | enable | disable | order
 duet compose --preview           # 在 helper 里合成并校验，不写入
 duet compose --apply             # 校验、备份、写入、重载、验证（失败自动回滚）
 duet history                     # 合成历史；duet history rollback ID 回滚
 duet kernel check                # mihomo 内核：list | check | install | rollback
+duet kernel geo check            # geo 数据库：check | update；面板用 duet kernel ui check|update
+duet service restart mihomo      # 服务：status | start | stop | restart（mihomo、tailscaled）| install | uninstall（仅 mihomo）
+duet settings                    # 防泄漏组、共存开关、tailnet 解析器、历史条数、内核通道、自动应用
 duet events --follow
 ```
 
@@ -85,9 +93,9 @@ duet events --follow
 ## 安全设计
 
 - 只有 helper 以 root 运行，所有改动系统、mihomo 配置或二进制文件的操作都经过它。它的 RPC 方法是固定的白名单，没有一个接受客户端传来的文件路径或命令：路径只存在 helper 自己的 root 设置文件里；客户端能传的 URL 只有订阅地址；安装内核时只能指定发布通道。
-- socket 权限是 0660，属于 `admin` 组；每个请求都通过内核提供的对端凭证核对调用方的 uid。
+- socket 权限是 0660，只开放给一个组：macOS 上是 `admin`；Linux 上依次选 `sudo`、`wheel`，都没有时由安装步骤新建 `duet` 组。每个请求都通过内核提供的对端凭证核对调用方的 uid 和组。（Linux 的对端凭证目前只带主组，所以主组不是 `sudo`/`wheel` 的成员会被拒绝；修好之前请用 root。）
 - 配置写入前必须通过官方 `mihomo -t` 校验。写入前先备份旧文件；如果重载失败或重载后的检查不通过，会恢复旧配置。
-- mihomo 内核只从官方 GitHub Release 下载，切换前校验 SHA-256，并保留上一个版本用于回滚。
+- mihomo 内核只从官方 GitHub Release 下载，切换前校验 SHA-256，并保留上一个版本用于回滚。来自 GitHub Release 的 geo 数据库和面板同样按公布的摘要校验；更新后的 geo 文件过不了 `mihomo -t` 就自动回滚。
 - controller secret 和订阅地址不会出现在历史版本、日志或错误信息里。出口测试会遮盖报告里的公网 IP；报告里的其他证据（tailnet 设备名、peer 的地址）按原样显示，分享之前请检查。仓库里没有任何个人数据，`scripts/check-no-personal-data.sh` 会用放在仓库外的特征列表检查这一点。
 
 详见 [docs/architecture.md](docs/architecture.md)。报告安全问题请看 [SECURITY.md](SECURITY.md)。

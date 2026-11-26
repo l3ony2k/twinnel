@@ -395,6 +395,43 @@ func VPNsFromNM(cs []NMConnection) []health.VPN {
 	return out
 }
 
+// NMCLIDNSFields are the fields nmDNSSource asks nmcli for, in order.
+const NMCLIDNSFields = "ipv4.method,ipv4.dns,ipv4.ignore-auto-dns,ipv6.dns,ipv6.ignore-auto-dns"
+
+// ParseNmcliDNSSource classifies where a connection's DNS servers come from,
+// from `nmcli -g <NMCLIDNSFields> connection show uuid <UUID>` (one value
+// per line; lists comma separated, ':' escaped as '\:'):
+//   - static servers, and DHCP ones ignored (or no DHCP at all): manual;
+//   - static servers next to the DHCP ones: mixed;
+//   - no static servers and DHCP/auto addressing: auto;
+//   - no static servers and manual addressing: global (resolved's or
+//     resolv.conf's servers apply).
+//
+// It returns "" when the output has an unexpected shape.
+func ParseNmcliDNSSource(out string) string {
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) < 5 {
+		return ""
+	}
+	val := func(i int) string { return strings.TrimSpace(SplitNmcliTerse(lines[i])[0]) }
+	// SplitNmcliTerse unescapes and splits at unescaped ':'; -g output has
+	// one field per line, so re-join the pieces of IPv6 lists.
+	list := func(i int) string { return strings.TrimSpace(strings.Join(SplitNmcliTerse(lines[i]), ":")) }
+	method := val(0)
+	static := list(1) != "" || list(3) != ""
+	ignore4, ignore6 := val(2) == "yes", val(4) == "yes"
+	noDHCP := method == "manual" || method == "disabled" || method == "shared"
+	switch {
+	case static && (noDHCP || ignore4 || ignore6):
+		return health.DNSSourceManual
+	case static:
+		return health.DNSSourceMixed
+	case noDHCP:
+		return health.DNSSourceGlobal
+	}
+	return health.DNSSourceAuto
+}
+
 // ---- getent ---------------------------------------------------------------
 
 // ParseGetent parses `getent ahostsv4 <name>` ("ADDR STREAM name" lines).

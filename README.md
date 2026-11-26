@@ -11,7 +11,7 @@ It is a manager for the cores you already trust. It is **not** another Clash cli
 - **Neither core takes the system VPN slot.** mihomo uses its own TUN, the open-source `tailscaled` uses its own tun device, and duet generates the settings that make them coexist (route exclusions, DIRECT rules for Tailscale, MagicDNS routing) and verifies them with health checks.
 - Your subscription stays read-only. Local changes (ports, DNS, your own rules, the Tailscale coexistence settings) are override layers composed on top of it, so a subscription update never loses them.
 
-> **Status: early development.** macOS (arm64) is the first platform. Linux has the health checks and the takeover planner; service installation there is written but not wired into the helper yet. Windows builds but has no platform layer. Interfaces and file formats may change.
+> **Status: early development.** macOS (arm64) is the first platform. On Linux the CLI, the health checks, the takeover planner and the helper (with systemd units) are wired up but have only been tested with fixtures, not on a real Linux host yet. Windows builds but has no platform layer. Interfaces and file formats may change.
 
 ## What works today
 
@@ -20,9 +20,12 @@ It is a manager for the cores you already trust. It is **not** another Clash cli
 | `duet doctor`: 13 coexistence health checks, text / Markdown / JSON | macOS, Linux |
 | `duet takeover plan`: read a hand-made mihomo + Tailscale setup and derive override layers that reproduce it, proven with `mihomo -t` and a semantic diff | macOS, Linux (read-only; there is no apply step yet) |
 | `duet compose`: subscription + override layers → config, validated with `mihomo -t` | all |
-| Root helper (`duet-helper`): compose → validate → back up → write → hot reload → verify, with automatic rollback; subscriptions, layers, history, mihomo kernel download / switch / rollback | runs on macOS; `duet helper install` only prints its plan (`--dry-run`) |
-| Menu bar app: status icon and panel, main window (overview, proxy groups, Tailscale peers, health, logs, settings) | macOS; controls that change anything are disabled unless `DUET_ALLOW_WRITES=1` |
-| Secrets in the system keychain | not yet: the helper keeps them in a 0600 file in its state dir |
+| Root helper (`duet-helper`): compose → validate → back up → write → hot reload → verify, with automatic rollback; subscriptions, layers, history, mihomo kernel download / switch / rollback; geo databases and the external dashboard, verified against published digests | macOS, Linux |
+| Health checks inside the helper: on a timer, after applies and service operations, and on network changes (macOS); `duet helper health` | macOS, Linux (no network-change trigger on Linux yet) |
+| Service control over RPC: start / stop / restart mihomo and tailscaled, install / uninstall the mihomo service | macOS (launchd), Linux (systemd); without root the helper only reports the plan |
+| `duet helper install` / `uninstall`: prints the plan, then installs the helper as a system service | macOS: one administrator password dialog; Linux: run it with `sudo` (`--dry-run` needs no root). Not yet run on a real machine. |
+| Menu bar app: monochrome status icon whose states differ by shape only (badge, broken ring, glyph), and a panel; main window with overview, proxy groups, Tailscale devices, health, logs, settings, and, through the helper, subscriptions and overrides, history, kernels; a first-run view while the helper is not installed | macOS; controls that change anything are disabled unless `DUET_ALLOW_WRITES=1` |
+| Secrets (controller secret, subscription URLs) | macOS: System keychain when the helper runs as root; Linux and development helpers: a 0600 `secrets.json` in the state dir (Secret Service later) |
 
 ## Install from source
 
@@ -69,12 +72,17 @@ The helper commands talk to `duet-helper` over its Unix socket (`$DUET_SOCKET`, 
 ```sh
 duet helper status
 duet helper install --dry-run    # print the service definition and every step; changes nothing
+duet helper install              # macOS: asks for an administrator password; Linux: sudo duet helper install
+duet helper health [--run]       # the helper's last health report, or run the checks now
 duet sub put main --url ...      # subscriptions: list | put | refresh | activate | rm
 duet layer put rules rules.yaml  # override layers: list | get | put | rm | enable | disable | order
 duet compose --preview           # compose and validate in the helper, no write
 duet compose --apply             # validate, back up, write, reload, verify (rolls back on failure)
 duet history                     # composed configs; duet history rollback ID
 duet kernel check                # mihomo releases: list | check | install | rollback
+duet kernel geo check            # geo databases: check | update; duet kernel ui check|update for the dashboard
+duet service restart mihomo      # services: status | start | stop | restart (mihomo, tailscaled) | install | uninstall (mihomo)
+duet settings                    # leak guard, coexist, tailnet resolver, history size, kernel channel, auto-apply
 duet events --follow
 ```
 
@@ -85,9 +93,9 @@ duet events --follow
 ## Safety model
 
 - Only the helper runs as root, and every change to the system, the mihomo config or a binary goes through it. Its RPC methods are a fixed allowlist; none of them accepts a file path or a command from the client. Paths live in the helper's root-owned settings file, the only URLs a client can send are subscription URLs, and a kernel install takes only a release channel.
-- The socket is mode 0660 for the `admin` group, and each request's peer uid is checked by the kernel's peer credentials.
+- The socket is mode 0660 for one group: `admin` on macOS; on Linux `sudo`, else `wheel`, else a `duet` group that the install creates. Each request's peer uid and groups come from the kernel's peer credentials. (On Linux these carry only the primary group for now, so a member of `sudo`/`wheel` whose primary group is different is refused; use root until that is fixed.)
 - Before a config is written it must pass the official `mihomo -t`. The old file is backed up first, and if the reload or the post-reload check fails, the old config is restored.
-- Mihomo kernels come only from the official GitHub releases, and their SHA-256 digests are checked before switching. The previous version is kept for rollback.
+- Mihomo kernels come only from the official GitHub releases, and their SHA-256 digests are checked before switching. The previous version is kept for rollback. Geo databases and the dashboard from GitHub releases are checked against the published digest too, and a geo update that `mihomo -t` rejects is rolled back.
 - The controller secret and subscription URLs never go into history, logs or error messages. The egress test masks the public IPs it reports; other evidence in a report (tailnet names, peer endpoints) is shown as read, so look over a report before sharing it. The repository contains no personal data; `scripts/check-no-personal-data.sh` checks that against a pattern file kept outside the tree.
 
 Details: [docs/architecture.md](docs/architecture.md). Reporting a vulnerability: [SECURITY.md](SECURITY.md).
