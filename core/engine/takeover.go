@@ -198,6 +198,14 @@ func planSummary(p *takeover.Plan, ps *planState, full bool) rpc.TakeoverPlan {
 	if t := p.Discovery.Tailscale; t != nil && t.Service != nil {
 		out.TailscaleSvc = t.Service.Label
 	}
+	for _, c := range p.Candidates {
+		out.Candidates = append(out.Candidates, rpc.TakeoverCandidate{
+			Path: c.Path, Size: c.Size, ProxiesSame: c.ProxiesSame, ProxiesTotal: c.ProxiesTotal,
+			GroupsSame: c.GroupsSame, GroupsTotal: c.GroupsTotal, Rules: c.Rules, CommonTail: c.CommonTail,
+			HeadRules: c.HeadRules, SettingsDiffer: c.SettingsDiffer, Explains: c.Explains, Chosen: c.Chosen,
+			Error: config.RedactText(c.Error),
+		})
+	}
 	for _, l := range p.Layers {
 		out.Layers = append(out.Layers, rpc.TakeoverLayer{ID: l.ID, Name: l.Name, Kind: string(l.Kind), Stage: l.Stage, Keys: l.Keys, Rules: l.Rules})
 	}

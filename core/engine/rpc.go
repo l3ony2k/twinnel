@@ -121,6 +121,7 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodControllerSecure, func(ctx context.Context, _ rpc.Empty) (rpc.ControllerSecureResult, error) {
 		return e.SecureController(ctx)
 	})
+	e.registerCredentials(s)
 
 	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, _ rpc.Empty) (rpc.HealthReport, error) { return e.HealthLast() })
 	rpc.Typed(s, rpc.MethodHealthRun, func(ctx context.Context, p rpc.HealthRunParams) (rpc.HealthReport, error) {
