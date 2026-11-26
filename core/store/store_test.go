@@ -155,3 +155,24 @@ func TestFileSecrets(t *testing.T) {
 		t.Errorf("after delete: %v", err)
 	}
 }
+
+func TestMigrateSecrets(t *testing.T) {
+	f := &FileSecrets{Path: filepath.Join(t.TempDir(), "secrets.json")}
+	f.Set("a", "1")
+	f.Set("b", "2")
+	dst := &MemSecrets{}
+	dst.Set("b", "kept")
+	copied, err := MigrateSecrets(f, dst)
+	if err != nil || len(copied) != 1 || copied[0] != "a" {
+		t.Fatalf("copied %v %v", copied, err)
+	}
+	if v, _ := dst.Get("a"); v != "1" {
+		t.Error("a not copied")
+	}
+	if v, _ := dst.Get("b"); v != "kept" {
+		t.Error("existing value overwritten")
+	}
+	if _, err := os.Stat(f.Path); !os.IsNotExist(err) {
+		t.Error("file kept")
+	}
+}

@@ -23,7 +23,12 @@ var AllMethods = []string{
 	MethodTailnetRefresh,
 	MethodKernelList, MethodKernelCheck, MethodKernelInstall, MethodKernelRollback,
 	MethodTailscaleInfo,
-	MethodServiceStatus,
+	MethodServiceStatus, MethodServiceStart, MethodServiceStop, MethodServiceRestart,
+	MethodServiceInstall, MethodServiceUninstall,
+	MethodHealthLast, MethodHealthRun,
+	MethodConfigGet,
+	MethodGeoCheck, MethodGeoUpdate, MethodUICheck, MethodUIUpdate,
+	MethodTakeoverAdopt,
 	MethodEventsWait,
 }
 

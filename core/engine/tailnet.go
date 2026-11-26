@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/l3ony2k/duet/core/config"
@@ -36,6 +37,32 @@ func sameTailnet(a, b config.TailnetInfo) bool {
 	return err1 == nil && err2 == nil && bytes.Equal(ja, jb)
 }
 
+// tailnetIface looks up the Tailscale interface. Only utun* names count:
+// while tailscaled is down the route to 100.100.100.100 follows the default
+// route (en0), which must not be used. On failure prev is kept, so a
+// transient lookup error doesn't re-apply the config.
+func (e *Engine) tailnetIface(ctx context.Context, prev string) string {
+	if e.TailnetInterface == nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	name, err := e.TailnetInterface(ctx)
+	name = strings.TrimSpace(name)
+	if err != nil || !isTunnelIface(name) {
+		if err != nil {
+			e.log().Debug("tailnet interface lookup", "err", err)
+		}
+		return prev
+	}
+	return name
+}
+
+func isTunnelIface(name string) bool {
+	// utunN on macOS, tailscale0 on Linux, "Tailscale" on Windows.
+	return strings.HasPrefix(name, "utun") || strings.HasPrefix(name, "tailscale") || name == "Tailscale"
+}
+
 // RefreshTailnet reads `tailscale status --json`. When the peers or the
 // MagicDNS suffix changed, the cache is updated and, with coexist and
 // auto-apply on, the config is composed and applied again.
@@ -51,12 +78,13 @@ func (e *Engine) RefreshTailnet(ctx context.Context) (rpc.TailnetRefreshResult, 
 		info, err = config.TailnetInfoFromStatus(raw)
 		if err == nil {
 			old, had := e.cachedTailnet()
+			info.Interface = e.tailnetIface(ctx, old.Interface)
 			out.Changed = !had || !sameTailnet(old, info)
 			if out.Changed {
 				e.saveTailnet(info)
 			}
 			e.mu.Lock()
-			e.tailnet = rpc.TailnetStatus{Peers: info.PeerShortNames, Suffix: info.MagicDNSSuffix, LastPoll: now}
+			e.tailnet = rpc.TailnetStatus{Peers: info.PeerShortNames, Suffix: info.MagicDNSSuffix, Interface: info.Interface, LastPoll: now}
 			e.mu.Unlock()
 		}
 	}

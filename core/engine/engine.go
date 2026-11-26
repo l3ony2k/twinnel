@@ -42,10 +42,20 @@ type Engine struct {
 	Kernels *kernel.Manager
 	TSProbe *kernel.TailscaleProbe
 	Tailnet TailnetSource
+	// TailnetInterface returns the name of the interface that carries
+	// Tailscale's resolver 100.100.100.100 (darwin: `route -n get`). It
+	// fills TailnetInfo.Interface, so the coexist layer binds the resolver
+	// to it. nil leaves Interface empty.
+	TailnetInterface func(ctx context.Context) (string, error)
 	// Services reads service status (nil: service.status fails).
 	Services service.Manager
-	Bus      *rpc.Bus
-	Log      *slog.Logger
+	// ServiceRunner carries out service.start/stop/... (nil: dry run).
+	ServiceRunner *ServiceRunner
+	Bus           *rpc.Bus
+	Log           *slog.Logger
+	// NetChanges delivers network change reasons (darwin.NetWatcher). Run
+	// turns each into a health trigger and a tailnet refresh.
+	NetChanges <-chan string
 
 	// NewController builds the controller client for an address and secret
 	// (default *HTTPController).
@@ -55,6 +65,9 @@ type Engine struct {
 	// HTTPClient returns the client used for subscription downloads and
 	// release checks; proxy is nil for direct.
 	HTTPClient func(proxy *url.URL) *http.Client
+	// GitHubAPI is the API base for geo/UI digests (default
+	// https://api.github.com; tests point it at a fake).
+	GitHubAPI string
 	// UserAgent for subscription downloads (default "clash.meta", which
 	// makes providers return the mihomo format).
 	UserAgent string
@@ -63,10 +76,12 @@ type Engine struct {
 	Now           func() time.Time
 
 	applyMu   sync.Mutex
+	serviceMu sync.Mutex
 	mu        sync.Mutex
 	lastApply *rpc.ApplyResult
 	tailnet   rpc.TailnetStatus
 	started   time.Time
+	health    healthState
 }
 
 // New returns an engine with defaults for everything optional.
@@ -166,13 +181,24 @@ func (e *Engine) mihomoBinary(st *store.Settings) (string, error) {
 	return "", errors.New("no mihomo binary: install a kernel or set mihomo.binary in settings.json")
 }
 
-// Run starts the background loops (subscription schedule, tailnet poll)
+// Run starts the background loops (subscription schedule, tailnet poll,
+// network changes, health schedule)
 // and blocks until ctx ends.
 func (e *Engine) Run(ctx context.Context) {
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 	go func() { defer wg.Done(); e.subscriptionLoop(ctx) }()
 	go func() { defer wg.Done(); e.tailnetLoop(ctx) }()
+	go func() { defer wg.Done(); e.netLoop(ctx) }()
+	if s := e.healthSched(); s != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.Run(ctx); err != nil && ctx.Err() == nil {
+				e.log().Warn("health scheduler", "err", err)
+			}
+		}()
+	}
 	wg.Wait()
 }
 
@@ -213,7 +239,7 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 	out.Tailnet.Coexist = st.Tailscale.Coexist
 	if out.Tailnet.Peers == nil {
 		if info, ok := e.cachedTailnet(); ok {
-			out.Tailnet.Peers, out.Tailnet.Suffix = info.PeerShortNames, info.MagicDNSSuffix
+			out.Tailnet.Peers, out.Tailnet.Suffix, out.Tailnet.Interface = info.PeerShortNames, info.MagicDNSSuffix, info.Interface
 		}
 	}
 	out.Kernel, _ = e.KernelList()

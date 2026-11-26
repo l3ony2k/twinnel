@@ -31,3 +31,16 @@ func planHelperInstall(helperBin, stateDir, socket, label string) ([]service.Ste
 	}
 	return append(steps, svc...), nil
 }
+
+// planHelperUninstall unloads the LaunchDaemon, removes the plist, the
+// installed binary and the socket. The state dir is kept.
+func planHelperUninstall(stateDir, socket, label string) ([]service.Step, error) {
+	steps, err := launchd.New().Plan(service.OpUninstall, service.Spec{Label: label})
+	if err != nil {
+		return nil, err
+	}
+	return append(steps,
+		service.Step{Kind: service.StepRemove, Path: filepath.Join(helperInstallDir, label)},
+		service.Step{Kind: service.StepRemove, Path: socket},
+	), nil
+}

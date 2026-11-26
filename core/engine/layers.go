@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 
 	"github.com/l3ony2k/duet/core/config"
 	"github.com/l3ony2k/duet/core/rpc"
@@ -246,6 +247,9 @@ func (e *Engine) UpdateSettings(u rpc.SettingsUpdate) (rpc.Settings, error) {
 			r := *u.TailscaleResolver
 			if len(r) > 256 || containsAny(r, "\n\r") {
 				return rpc.ErrInvalid("invalid resolver")
+			}
+			if strings.EqualFold(strings.TrimSpace(r), "system") {
+				return rpc.ErrInvalid("resolver \"system\" loops back into mihomo when mihomo is the system DNS; leave it empty for 100.100.100.100")
 			}
 			st.Tailscale.Resolver = r
 		}

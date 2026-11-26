@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/duet/core/service"
 )
 
 // Register wires every allowlisted method to the engine.
@@ -74,6 +75,37 @@ func (e *Engine) Register(s *rpc.Server) {
 	})
 	rpc.Typed(s, rpc.MethodServiceStatus, func(ctx context.Context, p rpc.ServiceParams) (rpc.ServiceStatus, error) {
 		return e.ServiceStatus(ctx, p.Name)
+	})
+
+	for method, op := range map[string]service.Op{
+		rpc.MethodServiceStart: service.OpStart, rpc.MethodServiceStop: service.OpStop,
+		rpc.MethodServiceRestart: service.OpRestart, rpc.MethodServiceInstall: service.OpInstall,
+		rpc.MethodServiceUninstall: service.OpUninstall,
+	} {
+		rpc.Typed(s, method, func(ctx context.Context, p rpc.ServiceParams) (rpc.ServiceOpResult, error) {
+			return e.ServiceOp(ctx, p.Name, op)
+		})
+	}
+
+	rpc.Typed(s, rpc.MethodGeoCheck, func(ctx context.Context, _ rpc.Empty) (rpc.AccessoryCheck, error) { return e.GeoCheck(ctx) })
+	rpc.Typed(s, rpc.MethodGeoUpdate, func(ctx context.Context, p rpc.AccessoryUpdateParams) (rpc.AccessoryUpdateResult, error) {
+		return e.GeoUpdate(ctx, p)
+	})
+	rpc.Typed(s, rpc.MethodUICheck, func(ctx context.Context, _ rpc.Empty) (rpc.AccessoryCheck, error) { return e.UICheck(ctx) })
+	rpc.Typed(s, rpc.MethodUIUpdate, func(ctx context.Context, p rpc.AccessoryUpdateParams) (rpc.AccessoryUpdateResult, error) {
+		return e.UIUpdate(ctx, p)
+	})
+
+	rpc.Typed(s, rpc.MethodConfigGet, func(ctx context.Context, p rpc.ConfigGetParams) (rpc.ConfigText, error) {
+		return e.ConfigText(ctx, p)
+	})
+	rpc.Typed(s, rpc.MethodTakeoverAdopt, func(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult, error) {
+		return e.Adopt(ctx, p)
+	})
+
+	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, _ rpc.Empty) (rpc.HealthReport, error) { return e.HealthLast() })
+	rpc.Typed(s, rpc.MethodHealthRun, func(ctx context.Context, p rpc.HealthRunParams) (rpc.HealthReport, error) {
+		return e.HealthRun(ctx, p.Reason)
 	})
 
 	rpc.Typed(s, rpc.MethodEventsWait, func(ctx context.Context, p rpc.EventsWaitParams) (rpc.EventsWaitResult, error) {
