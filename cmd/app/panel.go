@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"sort"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -134,8 +136,13 @@ func leading(c *ui.Context, icon *ui.SVG, col ui.Color) {
 func (a *app) panelHeader(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	// Each stays whole; the rates move under the state when a language's
-	// state leaves them no room.
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().PaddingX(rowInset + moduleInset).MinHeight(panelHeadH).Children(func() {
+	// state leaves them no room. Without rates (mihomo down) the state is
+	// the whole row, with no room kept for a second line (kubai R-19).
+	row := ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset + moduleInset).MinHeight(panelHeadH)
+	if s.Mihomo.Reachable {
+		row.Wrap()
+	}
+	row.Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Grow(1).Children(func() {
 			ui.Row(c).Width(leadCol).Justify(ui.Center).Shrink(0).Children(func() {
 				stateDot(c, levelMark(s.Level), levelColor(t, s.Level), 10)
@@ -170,6 +177,8 @@ func (a *app) panelAttention(c *ui.Context, s status.Snapshot) {
 		return
 	}
 	t := c.Theme()
+	// The worst first: a fault before a warning (R-unslop-34).
+	sort.SliceStable(reasons, func(i, j int) bool { return reasons[i].Level > reasons[j].Level })
 	panelModule(c, func() {
 		for i, r := range reasons {
 			if i == 3 {
@@ -179,14 +188,12 @@ func (a *app) panelAttention(c *ui.Context, s status.Snapshot) {
 				})
 				break
 			}
-			// The icon's shape tells a warning from a fault; the text
-			// stays in the text color.
-			icon := iconWarning
-			if r.Level == status.LevelError {
-				icon = iconError
-			}
+			// The icon's shape tells a warning from a fault, in the
+			// level's own color, the same as the health row's (one
+			// warning color in the module: R-unslop-15, kubai R-6); the
+			// text stays in the text color.
 			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).PaddingY(5).MinHeight(panelRowH).Children(func() {
-				leading(c, icon, levelText(t, r.Level))
+				leading(c, levelIcon(r.Level), levelColor(t, r.Level))
 				ui.Text(c, r.Text).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
 			})
 		}
@@ -218,7 +225,7 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 	// overview and the health page show the same.
 	n, lvl := s.HealthBadge()
 	_, fail := s.Health.Counts()
-	icon, col, text := iconWarning, t.Warning, i18n.F(T.PanelHealthWarn, n)
+	icon, col, text := iconWarning, levelColor(t, status.LevelWarn), i18n.F(T.PanelHealthWarn, n)
 	if fail > 0 {
 		icon, col, text = iconError, levelColor(t, lvl), fmt.Sprintf(T.PanelHealthFail, n)
 		if lvl == status.LevelWarn {
@@ -291,8 +298,11 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	if !m.Reachable {
 		// Down: no stale values, the plain state (the error on hover), and
 		// 启动 when the helper can start it (else the lock says why not).
+		// Never a dead end (kubai R-19): 启动 when the helper can start
+		// it, else 重试 (ask again; its icon turns).
 		moduleHeader(c, markDown, t.Danger, T.Mihomo, T.Unreachable, m.Err, func() {
-			if !s.WritesAllowed || m.Unauthorized {
+			if !s.WritesAllowed || m.Unauthorized || !s.Helper.Connected() {
+				a.panelRetry(c)
 				return
 			}
 			busy := a.hd.busy == T.StartMihomo
@@ -313,6 +323,22 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	if p := m.Primary; p != nil {
 		a.nodeRow(c, s, p)
 		a.controlError(c, nodeKey(p.Name))
+	}
+}
+
+// panelRetry is a module header's 重试: a compact push button whose
+// refresh icon turns while the monitor asks again (retryButton's timing).
+func (a *app) panelRetry(c *ui.Context) {
+	now := time.Now()
+	spin := a.retry.visible(now)
+	b := pushFace(c, ui.Button(c.Key("panel-retry"), "")).Label(i18n.T.Retry).Busy(spin).Height(22).Children(func() {
+		turningIcon(c, iconRefresh, spin)
+		ui.Text(c, i18n.T.Retry).SingleLine()
+	})
+	if b.Clicked() && !spin {
+		a.retry = busySpan{start: now.Add(-busyDelay), end: now}
+		time.AfterFunc(busyMin+10*time.Millisecond, func() { mygo.RunOnMain(a.invalidate) })
+		a.mon.Refresh()
 	}
 }
 
