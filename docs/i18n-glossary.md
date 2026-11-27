@@ -66,7 +66,7 @@ terms. Keep them when adding strings, and add new terms here.
 | 全部测速 | Test All |
 | 超时 / 未测 | Timeout / Untested |
 | 模式：规则 / 全局 / 直连 | Mode: Rule / Global / Direct |
-| 直连 / DERP 中继 / 节点中继 / 空闲 | Direct / DERP relay / Peer relay / Idle |
+| 直连 / DERP 中继 / 节点中继 / 未连接 | Direct / DERP relay / Peer relay / Not connected |
 | 预览与应用 | Preview & Apply |
 | 应用 | Apply / applied |
 | 回滚 | roll back (verb), rollback (noun) |

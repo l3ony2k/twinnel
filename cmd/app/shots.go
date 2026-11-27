@@ -134,7 +134,7 @@ func (a *app) shots(dir string) {
 
 // helperShots walks the helper pages, driving the app's own handlers
 // against whatever helper DUET_SOCKET names (a dev helper with fakes).
-// With DUET_ALLOW_WRITES=1 and DUET_SHOTS_WRITE=1 it also writes: a new
+// With DUET_READ_ONLY=0 and DUET_SHOTS_WRITE=1 it also writes: a new
 // layer, apply, rollback.
 func (a *app) helperShots(dir string, save func(*mygo.Window, string)) {
 	on := func(fn func()) { mygo.RunOnMain(func() { fn(); a.invalidate() }) }
