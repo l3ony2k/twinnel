@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"os"
 	"sort"
 )
@@ -36,6 +37,9 @@ func usage() {
 }
 
 func main() {
+	if n := legacy.EnvNotice(legacy.ApplyEnvAliases()); n != "" {
+		fmt.Fprintln(os.Stderr, "twinnel:", n)
+	}
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(2)

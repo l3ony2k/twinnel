@@ -12,6 +12,7 @@ package main
 
 import (
 	"context"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"log"
 	"os"
 	"path/filepath"
@@ -115,6 +116,9 @@ type app struct {
 }
 
 func main() {
+	if n := legacy.EnvNotice(legacy.ApplyEnvAliases()); n != "" {
+		log.Print(n)
+	}
 	a, err := newApp(os.Getenv)
 	if err != nil {
 		log.Fatal(err)

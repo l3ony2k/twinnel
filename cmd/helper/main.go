@@ -13,6 +13,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"io"
 	"log/slog"
 	"os"
@@ -78,6 +79,9 @@ func parseFlags(args []string) (*options, error) {
 }
 
 func main() {
+	if n := legacy.EnvNotice(legacy.ApplyEnvAliases()); n != "" {
+		fmt.Fprintln(os.Stderr, "twinnel-helper:", n)
+	}
 	o, err := parseFlags(os.Args[1:])
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {

@@ -21,8 +21,14 @@
 // whose stdout goes straight into the helper. find -w prints any data that
 // is not printable ASCII as hex, which would be ambiguous ("deadbeef"), so
 // values that are not printable ASCII (or that start with the marker) are
-// stored as "duet-b64:" + base64. Typical secrets (URLs, tokens) stay
-// readable in Keychain Access.
+// stored as legacy.B64Marker + base64 (a stored format, kept from before
+// the rename). Typical secrets (URLs, tokens) stay readable in Keychain
+// Access.
+//
+// Items written before the rename to Twinnel (account and service prefix
+// "duet") are read through Legacy: a Get that misses under the new name
+// looks there and copies the value over. The old item stays, so the old
+// helper still works if a migration is rolled back; Delete removes both.
 package keychain
 
 import (
@@ -37,6 +43,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"github.com/l3ony2k/twinnel/core/store"
 )
 
@@ -67,6 +74,9 @@ type Keychain struct {
 	Account string
 	// Run defaults to running /usr/bin/security.
 	Run Runner
+	// LegacyService and LegacyAccount name the items of the install
+	// before the rename (legacy.KeychainService/Account); empty: none.
+	LegacyService, LegacyAccount string
 }
 
 var _ store.Secrets = (*Keychain)(nil)
@@ -132,7 +142,7 @@ func checkName(what, s string) error {
 }
 
 // b64Marker marks values stored base64-encoded.
-const b64Marker = "duet-b64:"
+const b64Marker = legacy.B64Marker
 
 // encode returns the data stored for v: v itself when it is printable
 // ASCII, else the marker and base64.
@@ -177,13 +187,29 @@ func failure(op string, stderr []byte, code int) error {
 	return fmt.Errorf("keychain %s: security exited %d: %s", op, code, msg)
 }
 
-// Get implements store.Secrets.
+// Get implements store.Secrets. A key missing under the current name is
+// read from the legacy item, when there is one, and copied to the
+// current name (best effort: the value is returned either way).
 func (k *Keychain) Get(key string) (string, error) {
+	v, err := k.find(key, k.account(), k.service(key))
+	if !errors.Is(err, store.ErrNoSecret) || k.LegacyService == "" {
+		return v, err
+	}
+	lk := &Keychain{Path: k.Path, Service: k.LegacyService, Account: k.LegacyAccount, Run: k.Run}
+	v, err = lk.find(key, lk.account(), lk.service(key))
+	if err != nil {
+		return "", err
+	}
+	_ = k.Set(key, v)
+	return v, nil
+}
+
+func (k *Keychain) find(key, account, service string) (string, error) {
 	if err := k.check(key); err != nil {
 		return "", err
 	}
 	out, stderr, code, err := k.run(context.Background(), nil,
-		"find-generic-password", "-a", k.account(), "-s", k.service(key), "-w", k.path())
+		"find-generic-password", "-a", account, "-s", service, "-w", k.path())
 	if err != nil {
 		return "", fmt.Errorf("keychain get: %w", err)
 	}
@@ -219,13 +245,26 @@ func (k *Keychain) Set(key, value string) error {
 	return nil
 }
 
-// Delete implements store.Secrets. A missing item is not an error.
+// Delete implements store.Secrets: the item and its legacy one (so a
+// deleted secret does not come back through Get). A missing item is not an
+// error.
 func (k *Keychain) Delete(key string) error {
 	if err := k.check(key); err != nil {
 		return err
 	}
+	if err := k.del(k.account(), k.service(key)); err != nil {
+		return err
+	}
+	if k.LegacyService != "" {
+		lk := &Keychain{Service: k.LegacyService, Account: k.LegacyAccount}
+		return k.del(lk.account(), lk.service(key))
+	}
+	return nil
+}
+
+func (k *Keychain) del(account, service string) error {
 	_, stderr, code, err := k.run(context.Background(), nil,
-		"delete-generic-password", "-a", k.account(), "-s", k.service(key), k.path())
+		"delete-generic-password", "-a", account, "-s", service, k.path())
 	if err != nil {
 		return fmt.Errorf("keychain delete: %w", err)
 	}

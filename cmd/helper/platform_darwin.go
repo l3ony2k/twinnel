@@ -12,6 +12,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/engine"
 	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/core/store"
 	"github.com/l3ony2k/twinnel/platform/darwin"
@@ -23,7 +24,11 @@ import (
 const hasKeychain = true
 
 func newKeychain(path string) (store.Secrets, error) {
-	return &keychain.Keychain{Path: path}, nil
+	k := &keychain.Keychain{Path: path}
+	if path == "" { // the installed helper: read items from before the rename too
+		k.LegacyService, k.LegacyAccount = legacy.KeychainService, legacy.KeychainAccount
+	}
+	return k, nil
 }
 
 func platformServices() service.Manager { return launchd.New() }
