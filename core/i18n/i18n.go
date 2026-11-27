@@ -272,6 +272,7 @@ type Strings struct {
 	AgentStrings           // agent.go
 	ImportStrings          // importcfg.go
 	PlatformStrings        // platform.go
+	TSLoginStrings         // tslogin.go
 }
 
 // zh is the Chinese text.
@@ -295,7 +296,7 @@ var zh = Strings{
 	ReasonTSNeedsLogin:   "Tailscale 需要登录",
 	ReasonTSStopped:      "Tailscale 已断开",
 	ReasonTSExitNode:     "Tailscale 正在使用出口节点「%s」，可能和代理冲突",
-	ReasonTSKeyExpiry:    "Tailscale 密钥将在 %s 过期",
+	ReasonTSKeyExpiry:    "Tailscale 密钥%s过期",
 	ReasonTSHealth:       "Tailscale：%s",
 	ReasonTSSystemVPN:    "Tailscale 使用系统 VPN 通道，建议改用 tailscaled",
 	ReasonHealthWarn:     "健康检查：%d 项警告",
@@ -835,6 +836,7 @@ var zh = Strings{
 	StatusStrings:          zhStatus,
 	SidebarStrings:         zhSidebar,
 	OverviewStrings:        zhOverview,
+	TSLoginStrings:         zhTSLogin,
 	PagesStrings:           zhPages,
 	AgentStrings:           zhAgent,
 	ImportStrings:          zhImport,

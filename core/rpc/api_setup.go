@@ -96,7 +96,12 @@ type TailscaleInstallResult struct {
 const MethodTailscaleLogin = "tailscale.login"
 
 type TailscaleLoginParams struct {
+	// Start connects the node (WantRunning) and, when it then needs a
+	// login, starts one. A node that only was stopped just connects.
 	Start bool `json:"start,omitempty"`
+	// Reauth (with Start) starts a new login even on a running node: the
+	// way to renew a node key before it expires.
+	Reauth bool `json:"reauth,omitempty"`
 }
 
 type TailscaleLoginResult struct {
