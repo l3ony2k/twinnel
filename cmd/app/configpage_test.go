@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/l3ony2k/duet/core/rpc"
 	"slices"
 	"strings"
 	"testing"
@@ -119,5 +120,21 @@ func TestGeneratedText(t *testing.T) {
 	}
 	if h := generatedHeight(strings.Repeat("a\n", 100)); h != 360 {
 		t.Fatalf("generatedHeight is not capped: %v", h)
+	}
+}
+
+// A new override's ID follows its name (walkthrough 2, N13).
+func TestLayerIDFor(t *testing.T) {
+	ls := []rpc.Layer{{ID: "lan-direct"}, {ID: "override"}}
+	for name, want := range map[string]string{
+		"LAN Direct":   "lan-direct-2",
+		"My rules!":    "my-rules",
+		"局域网直连":        "override-2",
+		"leak guard":   "override-2",
+		"  app 3 demo": "app-3-demo",
+	} {
+		if got := layerIDFor(name, ls); got != want {
+			t.Errorf("%q: %q, want %q", name, got, want)
+		}
 	}
 }

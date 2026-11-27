@@ -91,6 +91,7 @@ type ConfigUIStrings struct {
 
 	// Drift after a rollback (U41).
 	DriftRow         string // %s: time of the entry
+	DriftRowSub      string // the drift row's second line
 	DriftRowBackup   string // %s: time of the entry (a backup: no overrides to restore)
 	DriftRestore     string
 	DriftReapply     string
@@ -229,8 +230,9 @@ var zhConfigUI = ConfigUIStrings{
 	ViewInHistory:  "在历史中查看",
 	ComposeOrder:   "合成顺序",
 
-	DriftRow:         "运行中：%s 的历史版本（不是由下面的覆写合成）",
-	DriftRowBackup:   "运行中：%s 的备份（不是由下面的覆写合成）",
+	DriftRow:         "运行中：%s 的历史版本",
+	DriftRowBackup:   "运行中：%s 的备份",
+	DriftRowSub:      "不是由下面的覆写合成",
 	DriftRestore:     "恢复这些覆写的状态",
 	DriftReapply:     "重新应用当前覆写",
 	DriftRestoreBody: "只改覆写，不会应用。",
@@ -420,8 +422,9 @@ var enConfigUI = ConfigUIStrings{
 	ViewInHistory:  "View in History",
 	ComposeOrder:   "Compose order",
 
-	DriftRow:         "Running: the history version from %s (not composed from the overrides below)",
-	DriftRowBackup:   "Running: the backup from %s (not composed from the overrides below)",
+	DriftRow:         "Running: the history version from %s",
+	DriftRowBackup:   "Running: the backup from %s",
+	DriftRowSub:      "Not composed from the overrides below",
 	DriftRestore:     "Restore These Overrides",
 	DriftReapply:     "Apply Current Overrides",
 	DriftRestoreBody: "Only the overrides change; nothing is applied.",

@@ -30,7 +30,8 @@ const (
 	formatMerge = "merge"
 	formatVerge = "verge"
 
-	coexistLayerID = "tailscale-coexist" // managed; toggled by settings.update
+	coexistLayerID   = "tailscale-coexist" // managed; toggled by settings.update
+	leakGuardLayerID = "leak-guard"        // managed
 )
 
 var (
@@ -52,6 +53,8 @@ type configView struct {
 	managed   bool
 	loading   bool
 	edID      string
+	edIDAuto  bool // a new override's ID follows its name (until edited under 高级)
+	edAdv     bool // 高级 is open
 	edName    string
 	edStage   int
 	edFormat  int
@@ -248,14 +251,20 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 		if sub.HasURL {
 			src = T.SubFromURL // the URL itself never leaves the helper
 		}
-		interval := T.SubManual
-		if sub.IntervalMinutes > 0 {
-			interval = T.Interval(sub.IntervalMinutes)
+		// A local file is never re-read on a schedule (refreshDue needs a
+		// URL): it has no interval to show (walkthrough 2, N12).
+		line := src
+		if sub.HasURL {
+			interval := T.SubManual
+			if sub.IntervalMinutes > 0 {
+				interval = T.Interval(sub.IntervalMinutes)
+			}
+			line += " · " + interval
 		}
 		// Where the content comes from, and when it last did (U32): an
 		// adopted subscription runs on the file takeover used until its
 		// first download, which is not "never downloaded".
-		num(small(c, src+" · "+interval).SingleLine())
+		num(small(c, line).SingleLine())
 		var fetched string
 		switch {
 		case !sub.LastFetch.IsZero():
@@ -869,6 +878,7 @@ func (a *app) newLayer() {
 	v := &a.hd.cfg
 	v.sel, v.isNew, v.managed, v.loading = "", true, false, false
 	v.edID, v.edName, v.edStage, v.edFormat, v.edEnabled = "", "", 0, 0, true
+	v.edIDAuto, v.edAdv = true, false
 	v.ed = &editor.State{Buffer: yamlBuffer(i18n.T.LayerTemplate)}
 	v.reveal = true
 }
@@ -887,19 +897,30 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 	}
 	ed.Children(func() {
 		{
-			ui.Row(c).Gap(12).AlignItems(ui.End).Children(func() {
-				ui.Column(c).Gap(4).Basis(0).Grow(1).Children(func() {
+			// The name is what people give; the ID (the file's name in
+			// the helper's store) follows it and waits under 高级 (N13).
+			ui.Column(c).Gap(4).Children(func() {
+				ui.Text(c, T.LayerName).FontSize(plat.calloutSize).TextColor(t.TextMuted)
+				ui.TextInput(c.Key("ed-name"), &v.edName).Label(T.LayerName)
+			})
+			if v.isNew && v.edIDAuto {
+				v.edID = layerIDFor(v.edName, a.hd.layers)
+			}
+			if linkDisclosure(c.Key("ed-adv"), v.edAdv, T.LayerAdvanced).Clicked() {
+				v.edAdv = !v.edAdv
+			}
+			if v.edAdv {
+				ui.Column(c).Gap(4).Children(func() {
 					ui.Text(c, T.LayerID).FontSize(plat.calloutSize).TextColor(t.TextMuted)
+					before := v.edID
 					in := ui.TextInput(c.Key("ed-id"), &v.edID).Label(T.LayerID).Placeholder("my-rules")
 					if !v.isNew {
 						in.Disabled(true)
+					} else if v.edID != before {
+						v.edIDAuto = false
 					}
 				})
-				ui.Column(c).Gap(4).Basis(0).Grow(1).Children(func() {
-					ui.Text(c, T.LayerName).FontSize(plat.calloutSize).TextColor(t.TextMuted)
-					ui.TextInput(c.Key("ed-name"), &v.edName).Label(T.LayerName)
-				})
-			})
+			}
 			// The options say what they change (U36). A new override is a
 			// user one: 基础 is for what takeover made, and only shows on a
 			// layer that already has it.
@@ -1167,6 +1188,39 @@ func (a *app) lintNotes(c *ui.Context) (blocked bool) {
 		})
 	}
 	return blocked
+}
+
+// layerIDFor derives a new override's ID from its name: lower-case ASCII
+// letters and digits joined by "-", else "override"; a number is added
+// when another override has it.
+func layerIDFor(name string, layers []rpc.Layer) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(name) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			if dash && b.Len() > 0 {
+				b.WriteByte('-')
+			}
+			dash = false
+			b.WriteRune(r)
+		default:
+			dash = true
+		}
+	}
+	base := b.String()
+	if len(base) > 48 {
+		base = strings.TrimRight(base[:48], "-")
+	}
+	if base == "" || base == coexistLayerID || base == leakGuardLayerID {
+		base = "override"
+	}
+	taken := func(id string) bool { return indexLayer(layers, id) >= 0 }
+	id := base
+	for n := 2; taken(id); n++ {
+		id = fmt.Sprintf("%s-%d", base, n)
+	}
+	return id
 }
 
 func (a *app) saveLayer() {

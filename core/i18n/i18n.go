@@ -131,6 +131,7 @@ type Strings struct {
 	// Layers and the layer editor.
 	Layers, LayerNew, LayerEdit, LayerGenerated, LayerEnabled             string
 	LayerManaged, LayerManagedHint, LayerID, LayerName, LayerStage        string
+	LayerAdvanced                                                         string
 	LayerFormat, FormatMerge, FormatVerge, MoveUp, MoveDown, LayerReorder string
 	LayerToggle                                                           string // %s: layer
 	LayerRemoveTitle                                                      string // %s: layer
@@ -502,6 +503,7 @@ var zh = Strings{
 	LayerManaged:     "托管",
 	LayerManagedHint: "由 duet 生成，只读",
 	LayerID:          "ID",
+	LayerAdvanced:    "高级",
 	LayerName:        "名称",
 	LayerStage:       "阶段",
 	LayerFormat:      "格式",
