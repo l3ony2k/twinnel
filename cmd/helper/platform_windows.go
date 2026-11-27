@@ -142,6 +142,9 @@ func tailnetInterface(ctx context.Context) (string, error) {
 // after applies and service operations.
 func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	windowsSettings(e)
+	// tailscaled gives SYSTEM's logins to no user: the app or the CLI
+	// starts the login in the user's session (tailscale.LoginInSession).
+	e.TSLoginInSession = true
 	switch o.tailnetIface {
 	case "", "auto":
 		e.TailnetInterface = tailnetInterface

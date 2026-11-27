@@ -77,6 +77,7 @@ var patterns = []pattern{
 	{code: "ts-no-installer", re: regexp.MustCompile(`pkgs\.tailscale\.com has no Windows installer for (\S+)$`)},
 	{code: "mihomo-no-run", re: regexp.MustCompile(`the downloaded mihomo does not run on this computer`)},
 	{code: "mihomo-no-build", re: regexp.MustCompile(`release (\S+) has no asset for (\S+)$`)},
+	{code: "ts-login-session", re: regexp.MustCompile(`Tailscale logs in from the signed-in user's session on this system`)},
 	{code: "download-damaged", re: regexp.MustCompile(`checksum mismatch: got sha256:`)},
 
 	// Layer errors (core/config merge, layer.put, compose). Args: layer,

@@ -32,6 +32,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +42,7 @@ import (
 	"github.com/l3ony2k/twinnel/core/msg"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 	"github.com/l3ony2k/twinnel/overrides"
 )
 
@@ -172,6 +174,10 @@ type Env struct {
 	// user's PATH (core/clilink: never over another tailscale) and returns
 	// the link. nil: no link.
 	LinkTailscale func(cli string) (string, error)
+	// SessionLogin starts the Tailscale login from the client's own
+	// process when the helper answers that logins run in the user's
+	// session (Windows; LocalSessionLogin). nil: that login step fails.
+	SessionLogin func(ctx context.Context) error
 	// ImportConfig restores Options.ImportZip: ImportConfig (importcfg.go,
 	// the helper's config.import). nil: an import fails with ErrNoImport.
 	// It reports whether the zip brought a subscription that is now
@@ -766,7 +772,15 @@ func (f *Flow) runLogin(ctx context.Context, hc Caller) (string, error) {
 		return ls.Tailnet, nil
 	}
 	if ls, err = state(true); err != nil {
-		return "", err
+		var re *rpc.Error
+		if !errors.As(err, &re) || re.Code != rpc.CodeNotImplemented || f.Env.SessionLogin == nil {
+			return "", err
+		}
+		// Windows: the login is the user's, started from this process.
+		if err := f.Env.SessionLogin(ctx); err != nil {
+			return "", fmt.Errorf("tailscale login: %w", err)
+		}
+		ls, err = state(false)
 	}
 	timeout := f.Opts.LoginTimeout
 	if timeout <= 0 {
@@ -793,6 +807,14 @@ func (f *Flow) runLogin(ctx context.Context, hc Caller) (string, error) {
 		ls, err = state(false)
 	}
 	return "", errors.New("the login did not finish in time; open the link again and retry")
+}
+
+// LocalSessionLogin is Env.SessionLogin over tailscaled's LocalAPI from
+// this process (the app or the CLI, running as the signed-in user). On
+// Windows the node is put in Unattended Mode, so it stays up after this
+// process exits.
+func LocalSessionLogin(ctx context.Context) error {
+	return tailscale.New(tailscale.LocalAPI(nil), true).LoginInSession(ctx, runtime.GOOS == "windows")
 }
 
 func (f *Flow) runHealth(ctx context.Context, hc Caller) (string, error) {

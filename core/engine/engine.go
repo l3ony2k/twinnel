@@ -107,6 +107,11 @@ type Engine struct {
 	// TSControl is tailscaled's LocalAPI for tailscale.login (nil: not
 	// supported).
 	TSControl TailscaleControl
+	// TSLoginInSession: tailscale.login does not start logins, the
+	// signed-in user's process does (Windows: tailscaled never gives a
+	// profile to SYSTEM; see tailscale.Client.LoginInSession). Reading the
+	// login state still works.
+	TSLoginInSession bool
 	// TSInstaller is the template of tailscale.install's installer (nil:
 	// <state>/tailscale with the public sources).
 	TSInstaller *kernel.TailscaleInstaller

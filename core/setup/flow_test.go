@@ -35,6 +35,7 @@ type fakeHelper struct {
 	tsRes     *rpc.TailscaleInstallResult // nil: the open-source tailscaled installed by Twinnel
 	health    []health.CheckReport
 	login     *fakeTailnet // tailscaled behind the helper
+	inSession bool         // Windows: tailscale.login refuses Start
 }
 
 func newFakeHelper() *fakeHelper {
@@ -181,6 +182,9 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 		ls, err := h.login.LoginState(context.Background())
 		if err != nil {
 			return err
+		}
+		if params.(rpc.TailscaleLoginParams).Start && ls.Backend != "Running" && h.inSession {
+			return &rpc.Error{Code: rpc.CodeNotImplemented, Message: "Tailscale logs in from the signed-in user's session"}
 		}
 		if params.(rpc.TailscaleLoginParams).Start && ls.Backend != "Running" {
 			h.login.StartLogin(context.Background())
@@ -442,5 +446,32 @@ func TestFlowKernelDoesNotRun(t *testing.T) {
 	var se *StepError
 	if err := f.Run(context.Background()); !errors.As(err, &se) || se.Step != StepMihomo || se.Code != CodeInstallFailed {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// Windows: the helper refuses to start the login; the flow starts it from
+// its own process (the signed-in user) and follows it through the helper.
+func TestFlowSessionLogin(t *testing.T) {
+	h := newFakeHelper()
+	h.inSession = true
+	installed := true
+	f, tn, opened := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	// Without the hook the step fails.
+	err := f.Run(context.Background())
+	var se *StepError
+	if !errors.As(err, &se) || se.Step != StepLogin {
+		t.Fatalf("no hook: %v", err)
+	}
+	sessions := 0
+	tn.polls = 0
+	f.Env.SessionLogin = func(ctx context.Context) error {
+		sessions++
+		return tn.StartLogin(ctx)
+	}
+	if err := f.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if sessions != 1 || len(*opened) != 1 || f.Step(StepLogin).Detail != "example.ts.net" {
+		t.Fatalf("sessions %d opened %v step %+v", sessions, *opened, f.Step(StepLogin))
 	}
 }

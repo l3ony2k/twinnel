@@ -427,6 +427,10 @@ type TailscaleControl interface {
 	StartLogin(ctx context.Context) error
 }
 
+// ErrLoginInSession is tailscale.login's answer to Start where the login
+// must run in the signed-in user's own process (Engine.TSLoginInSession).
+const ErrLoginInSession = "Tailscale logs in from the signed-in user's session on this system, not from the helper"
+
 // TailscaleLogin reads the login state and, with Start, connects and starts
 // an interactive login unless the node already runs.
 func (e *Engine) TailscaleLogin(ctx context.Context, p rpc.TailscaleLoginParams) (rpc.TailscaleLoginResult, error) {
@@ -439,6 +443,9 @@ func (e *Engine) TailscaleLogin(ctx context.Context, p rpc.TailscaleLoginParams)
 		return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", err)
 	}
 	if p.Start && backend != "Running" {
+		if e.TSLoginInSession {
+			return out, rpc.Errorf(rpc.CodeNotImplemented, "%s", ErrLoginInSession)
+		}
 		if err := e.TSControl.Up(ctx); err != nil {
 			return out, rpc.Errorf(rpc.CodeFailed, "tailscale up: %v", err)
 		}

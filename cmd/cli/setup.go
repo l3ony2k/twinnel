@@ -56,15 +56,18 @@ var (
 	}
 	setupOpenURL = func(u string) error {
 		fmt.Fprintf(stdout, "\nOpen this page to log in to Tailscale:\n  %s\n\n", u)
-		opener := "xdg-open"
-		if runtime.GOOS == "darwin" {
-			opener = "open"
+		if os.Getenv("SSH_CONNECTION") != "" {
+			return nil
 		}
-		if p, err := exec.LookPath(opener); err == nil && os.Getenv("SSH_CONNECTION") == "" {
-			return exec.Command(p, u).Start()
+		name, args := urlOpener(runtime.GOOS, u)
+		if p, err := exec.LookPath(name); err == nil {
+			return exec.Command(p, args...).Start()
 		}
 		return nil
 	}
+	// setupSessionLogin starts the Tailscale login from this process (the
+	// signed-in user) where the helper does not (Windows).
+	setupSessionLogin = setup.LocalSessionLogin
 	// setupImport restores an export zip through the helper's
 	// config.import; a variable for tests.
 	setupImport      = setup.ImportConfig
@@ -73,6 +76,19 @@ var (
 		return err == nil && fi.Mode()&os.ModeCharDevice != 0
 	}
 )
+
+// urlOpener is the command that opens u in the browser: open (macOS),
+// rundll32's URL handler (Windows: no shell, so the URL is never parsed
+// by cmd.exe), xdg-open elsewhere.
+func urlOpener(goos, u string) (string, []string) {
+	switch goos {
+	case "darwin":
+		return "open", []string{u}
+	case "windows":
+		return "rundll32.exe", []string{"url.dll,FileProtocolHandler", u}
+	}
+	return "xdg-open", []string{u}
+}
 
 type setupFlags struct {
 	*clientFlags
@@ -128,6 +144,7 @@ func runSetupFlow(args []string, statusOnly bool) error {
 		OpenURL:       setupOpenURL,
 		ImportConfig:  setupImport,
 		LinkTailscale: setupLinkTailscale,
+		SessionLogin:  setupSessionLogin,
 	}, f.o)
 	flow.Detect(ctx)
 	if statusOnly {

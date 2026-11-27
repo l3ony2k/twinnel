@@ -213,3 +213,24 @@ func TestKernelInstallCompatibleFallback(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// Windows: the helper reads the login state but never starts a login (it
+// would belong to SYSTEM, i.e. to no user).
+func TestTailscaleLoginInSession(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	f := &fakeTSControl{backend: "NeedsLogin"}
+	h.e.TSControl, h.e.TSLoginInSession = f, true
+	if r, err := h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{}); err != nil || r.BackendState != "NeedsLogin" {
+		t.Fatalf("read: %+v %v", r, err)
+	}
+	_, err := h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true})
+	if !isCode(err, rpc.CodeNotImplemented) || f.ups+f.logins != 0 {
+		t.Fatalf("start: %v %+v", err, f)
+	}
+	// Running already: nothing to start, no error.
+	f.backend = "Running"
+	if r, err := h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true}); err != nil || r.BackendState != "Running" {
+		t.Fatalf("running: %+v %v", r, err)
+	}
+}
