@@ -29,6 +29,13 @@ func (e *Engine) SetHealth(s *health.Scheduler) {
 	if s.Overlay == nil {
 		s.Overlay = e.egressOverlay
 	}
+	// Every run knows who holds the controller (the preflight's answer),
+	// so the checks can say which controller their evidence came from.
+	if newEnv := s.NewEnv; newEnv != nil {
+		s.NewEnv = func() health.Env {
+			return health.WithOwner(newEnv(), e.ControllerOwner)
+		}
+	}
 	prev := s.OnEvent
 	s.OnEvent = func(ev health.Event) {
 		e.onHealthEvent(ev)

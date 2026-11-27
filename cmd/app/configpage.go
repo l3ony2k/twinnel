@@ -1705,6 +1705,15 @@ func (a *app) applySummary(c *ui.Context, r rpc.ApplyResult) {
 		if r.RolledBack && m.Code != "reload-failed" && m.Code != "verify-failed" { // those say it themselves
 			small(c, T.ApplyFailedRestore).Margin(0, 0, 0, 16)
 		}
+		if r.Foreign.IsForeign() && a.page != pageHealth {
+			// Another program's mihomo holds the controller: the health
+			// row has both fixes (quit it, or move Twinnel's port).
+			ui.Row(c).Margin(4, 0, 0, 16).Children(func() {
+				if pushButton(c.Key("foreign-fix"), T.ForeignHowToFix).Clicked() {
+					a.openPage(pageHealth)
+				}
+			})
+		}
 		a.culpritNotes(c, r.Culprits)
 		validateErrors(c, r.ValidateErrors)
 	}

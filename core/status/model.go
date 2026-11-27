@@ -5,6 +5,7 @@ package status
 
 import (
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/health"
@@ -175,6 +176,10 @@ const (
 	ReasonTSHealth       = "ts-health"
 	ReasonTSSystemVPN    = "system-vpn"
 	ReasonHealth         = "health"
+	// ReasonCtlForeign: another program's mihomo holds the controller
+	// address (the helper's preflight); what the controller says is that
+	// program's, so the mihomo reasons and controls are left out.
+	ReasonCtlForeign = "controller-foreign"
 )
 
 // Can is what the app can change right now, per thing a control acts
@@ -189,10 +194,19 @@ type Can struct {
 func (s Snapshot) Can() Can {
 	w := s.WritesAllowed
 	return Can{
-		Mihomo:    w && s.Mihomo.Reachable && !s.Mihomo.Unauthorized,
+		Mihomo:    w && s.Mihomo.Reachable && !s.Mihomo.Unauthorized && s.ForeignController() == nil,
 		Tailscale: w && s.Tailscale.Reachable,
 		Helper:    w && s.Helper.Connected(),
 	}
+}
+
+// ForeignController is the owner of the controller address when the
+// helper found another program's mihomo on it, else nil.
+func (s Snapshot) ForeignController() *foreign.Owner {
+	if h := s.Helper.Status; h != nil && h.Mihomo.Owner.IsForeign() {
+		return h.Mihomo.Owner
+	}
+	return nil
 }
 
 // ExitNodeAccepted reports whether Tailscale uses an exit node the user
@@ -327,7 +341,10 @@ func Evaluate(s *Snapshot) {
 		rs = append(rs, Reason{Level: LevelError, Text: text, Code: code, Raw: err})
 	}
 	m := s.Mihomo
+	fo := s.ForeignController()
 	switch {
+	case fo != nil:
+		add(LevelError, ReasonCtlForeign, t.CtlForeign(fo.Addr, fo.Client.Name()))
 	case m.Unauthorized:
 		add(LevelError, ReasonMihomoAuth, t.ReasonMihomoAuth)
 	case !m.Reachable && m.Err != "":

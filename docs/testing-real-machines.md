@@ -168,7 +168,7 @@ $S/devfake -listen 127.0.0.1:19894 &
 #    no host health checks, no takeover probing
 $S/twinnel-helper --state-dir $S/state --socket $S/twinnel.sock --foreground \
   --secrets file --group "$(id -gn)" \
-  --tailnet-status-file $TS --no-health --tailnet-iface none \
+  --tailnet-status-file $TS --no-health --no-controller-owner --tailnet-iface none \
   --takeover-services-dir $S/empty --takeover-home $S/home &
 
 # 3. point the scratch helper at the fake controller: stop it (kill %2), set

@@ -406,6 +406,9 @@ func (a *app) bannerActs(s status.Snapshot) []bannerAct {
 	}
 	can := s.Can()
 	var acts []bannerAct
+	if has(status.ReasonCtlForeign) {
+		acts = append(acts, bannerAct{key: "foreign-fix", label: T.ForeignHowToFix, run: func() { a.openPage(pageHealth) }})
+	}
 	if has(status.ReasonMihomoDown) && can.Helper && a.hd.busy == "" {
 		acts = append(acts, bannerAct{key: "start-mihomo", label: T.StartMihomo,
 			run: func() { a.mihomoService(rpc.MethodServiceStart, T.StartMihomo) }})

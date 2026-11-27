@@ -563,6 +563,7 @@ var en = Strings{
 	TakeoverExplainStrings: enTakeoverExplain,
 	InfoTipStrings:         enInfoTips,
 	StatusStrings:          enStatus,
+	ForeignCtlStrings:      enForeignCtl,
 	SidebarStrings:         enSidebar,
 	OverviewStrings:        enOverview,
 	TSLoginStrings:         enTSLogin,

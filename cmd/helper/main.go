@@ -42,11 +42,14 @@ type options struct {
 	tailnetStatus string
 	version       bool
 
-	secrets        string
-	keychain       string
-	tailnetIface   string
-	noHealth       bool
-	noSystemDNS    bool
+	secrets      string
+	keychain     string
+	tailnetIface string
+	noHealth     bool
+	noSystemDNS  bool
+	// noCtlOwner: do not look up who listens on the controller port (a
+	// development stack whose fake controller is not a managed mihomo).
+	noCtlOwner     bool
 	healthInterval time.Duration
 	// allowSIDs (Windows) may use the pipe besides LocalSystem, elevated
 	// administrators and the helper's own user.
@@ -72,6 +75,7 @@ func parseFlags(args []string) (*options, error) {
 	fs.StringVar(&o.keychain, "keychain", "", "keychain `FILE` for --secrets keychain (default the System keychain)")
 	fs.StringVar(&o.tailnetIface, "tailnet-iface", "auto", "Tailscale interface for the coexist resolver: auto (route to 100.100.100.100), none, or a `NAME`")
 	fs.BoolVar(&o.noHealth, "no-health", false, "do not run the health checks (health.last/run then fail)")
+	fs.BoolVar(&o.noCtlOwner, "no-controller-owner", false, "development: do not check which program listens on the controller port (a fake controller); a reload refused with SAFE_PATHS still counts as another program's mihomo")
 	fs.BoolVar(&o.noSystemDNS, "no-system-dns", false, "development: do not read or set the system DNS (dns.* report it as unsupported)")
 	fs.DurationVar(&o.healthInterval, "health-interval", 5*time.Minute, "time between scheduled health runs")
 	fs.StringVar(&o.takeoverServices, "takeover-services-dir", "", "development: look for launchd plists only in `DIR` (takeover.plan/adopt)")
@@ -182,6 +186,9 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 		e.ServiceRunner = &engine.ServiceRunner{Exec: platformExecutor(), Files: service.OSFiles{}}
 	}
 	watch := setupPlatform(e, o)
+	if o.noCtlOwner {
+		e.PortOwner = nil
+	}
 	e.TakeoverDiscover.ConfigPath = o.takeoverConfig
 	e.TakeoverDiscover.MihomoBin = o.takeoverMihomo
 

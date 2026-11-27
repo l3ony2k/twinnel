@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/engine"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/legacy"
 	"github.com/l3ony2k/twinnel/core/service"
@@ -54,6 +55,10 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 		e.TailnetInterface = func(context.Context) (string, error) { return name, nil }
 	}
 	setupTakeover(e, o)
+	ownerRun := takeoverprobe.SafeRunner(5 * time.Second)
+	e.PortOwner = func(ctx context.Context, port int) (*foreign.Process, error) {
+		return foreign.LsofPortOwner(ctx, foreign.Runner(ownerRun), port)
+	}
 	if d := systemDNS(o); d != nil {
 		e.SystemDNS = d
 	}

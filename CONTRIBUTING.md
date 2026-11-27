@@ -53,7 +53,7 @@ mkdir -p $S/home $S/state $S/empty $S/out
 go build -o $S/devfake ./cmd/helper/internal/devfake && go build -o $S/twinnel-helper ./cmd/helper && go build -o $S/twinnel-app ./cmd/app
 $S/devfake -listen 127.0.0.1:19894 &                      # fake mihomo controller, invented groups and nodes
 $S/twinnel-helper --state-dir $S/state --socket $S/twinnel.sock --foreground --secrets file --group staff \
-  --tailnet-status-file $TS --no-health --tailnet-iface none \
+  --tailnet-status-file $TS --no-health --no-controller-owner --tailnet-iface none \
   --takeover-services-dir $S/empty --takeover-home $S/home &   # scratch helper: no host health, takeover probe or route lookups
 # set "controller": "127.0.0.1:19894" under "mihomo" in $S/state/settings.json, then restart the helper
 TWINNEL_SHOTS=$S/out TWINNEL_SHOTS_FLOW=status TWINNEL_SOCKET=$S/twinnel.sock TWINNEL_CONTROLLER=127.0.0.1:19894 \
