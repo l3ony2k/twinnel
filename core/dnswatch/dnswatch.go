@@ -35,6 +35,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/privfile"
 	"github.com/l3ony2k/twinnel/core/sysdns"
 )
 
@@ -245,13 +246,10 @@ func (w *Watchdog) save() {
 	}
 	b, err := json.MarshalIndent(w.state, "", "  ")
 	if err == nil {
-		err = os.MkdirAll(filepath.Dir(w.Path), 0o700)
+		err = privfile.MkdirAll(filepath.Dir(w.Path))
 	}
 	if err == nil {
-		tmp := w.Path + ".tmp"
-		if err = os.WriteFile(tmp, append(b, '\n'), 0o600); err == nil {
-			err = os.Rename(tmp, w.Path)
-		}
+		err = privfile.WriteFile(w.Path, append(b, '\n'))
 	}
 	if err != nil {
 		w.log().Warn("dns watchdog: write state", "err", err)

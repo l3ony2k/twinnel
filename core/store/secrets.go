@@ -8,6 +8,8 @@ import (
 	"os"
 	"sort"
 	"sync"
+
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // Secret keys.
@@ -71,7 +73,7 @@ func (f *FileSecrets) save(m map[string]string) error {
 			return fmt.Errorf("%s: seal: %w", f.Path, err)
 		}
 	}
-	return WriteFileAtomic(f.Path, b, 0o600)
+	return privfile.WriteFile(f.Path, b)
 }
 
 // Get implements Secrets.

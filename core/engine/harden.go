@@ -30,6 +30,7 @@ import (
 	"github.com/l3ony2k/twinnel/core/config"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/privfile"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/core/store"
@@ -662,11 +663,11 @@ func (e *Engine) HardenPlan(ctx context.Context, p rpc.HardenPlanParams) (rpc.Ha
 	if err != nil {
 		return fail(err)
 	}
-	if err := store.WriteFileAtomic(filepath.Join(dir, hardenPlanFile), append(b, '\n'), 0o600); err != nil {
+	if err := privfile.WriteFile(filepath.Join(dir, hardenPlanFile), append(b, '\n')); err != nil {
 		return fail(err)
 	}
 	ib, _ := json.MarshalIndent(in, "", "  ")
-	if err := store.WriteFileAtomic(filepath.Join(dir, hardenInternalFile), append(ib, '\n'), 0o600); err != nil {
+	if err := privfile.WriteFile(filepath.Join(dir, hardenInternalFile), append(ib, '\n')); err != nil {
 		return fail(err)
 	}
 	plan.ConfirmHash = sha256Hex(append(b, '\n'))[:16]
@@ -688,7 +689,7 @@ func writeHardenState(dir string, hs *hardenState) error {
 	if err != nil {
 		return err
 	}
-	return store.WriteFileAtomic(filepath.Join(dir, hardenStateFile), append(b, '\n'), 0o600)
+	return privfile.WriteFile(filepath.Join(dir, hardenStateFile), append(b, '\n'))
 }
 
 func readJSONFile(p string, v any) error {
@@ -933,7 +934,7 @@ func (e *Engine) HardenApply(ctx context.Context, p rpc.HardenApplyParams) (rpc.
 
 	if ob, err := os.ReadFile(oldPlist); err != nil {
 		return failPrepare("backup plist", err)
-	} else if err := store.WriteFileAtomic(filepath.Join(dir, hardenOldPlist), ob, 0o600); err != nil {
+	} else if err := privfile.WriteFile(filepath.Join(dir, hardenOldPlist), ob); err != nil {
 		return failPrepare("backup plist", err)
 	}
 	step("backup plist", "ok", filepath.Join(dir, hardenOldPlist))

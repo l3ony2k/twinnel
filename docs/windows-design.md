@@ -302,6 +302,16 @@ behind two functions, so the store's logic is tested on every OS.
 The app does not read secrets itself (it gets the controller secret over
 `controller.credentials`, as on macOS).
 
+Files with secrets that the user side writes (the export zip, `app.json`,
+`twinnel compose --out`, takeover plans, the temp dirs of `mihomo -t` and
+the temporary proxy) go through `core/privfile`: on Windows the file is
+created with a protected DACL (owner, SYSTEM, Administrators; nothing
+inherited from the folder) passed to `CreateFile`, so it is never readable
+by others, even for a moment; `os.WriteFile(…, 0o600)` would only inherit
+the folder's ACL (in `%TEMP%` that can include other accounts). On Unix the
+same calls give 0600 / 0700. The helper's store writes through it too.
+`core/privfile`'s guard test fails on a new direct 0600 write.
+
 ## 10. The app
 
 MyGo v0.10 supports Windows natively (Win32 + WebView2 through syscall/COM,
