@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"sync"
@@ -173,6 +174,7 @@ func (s *Server) serveConn(c net.Conn) {
 	if err != nil {
 		s.Log.Warn("rpc: refused connection", "uid", peer.UID, "pid", peer.PID, "err", err)
 		write(Response{Error: Errorf(CodeUnauthorized, "not allowed: %v", err)})
+		lingerRefused(c)
 		return
 	}
 
@@ -272,4 +274,26 @@ func ErrNotFound(what string, id string) *Error {
 // ErrInvalid wraps a bad parameter as an RPC error.
 func ErrInvalid(format string, args ...any) *Error {
 	return Errorf(CodeInvalidParams, format, args...)
+}
+
+// refuseLinger bounds how long a refused connection stays open for its
+// client's first request.
+const refuseLinger = time.Second
+
+// lingerRefused keeps a refused connection open until its client has sent
+// its first request (or hung up, or refuseLinger passed), with the write
+// side shut so the client reads the refusal and then EOF. Closing at once
+// races the client: a request written after the close fails with EPIPE,
+// and the client would report "broken pipe" instead of the refusal.
+func lingerRefused(c net.Conn) {
+	if cw, ok := c.(interface{ CloseWrite() error }); ok {
+		cw.CloseWrite()
+	}
+	c.SetReadDeadline(time.Now().Add(refuseLinger))
+	r := bufio.NewReaderSize(io.LimitReader(c, MaxMessageSize), 4096)
+	for {
+		if _, err := r.ReadSlice('\n'); err != bufio.ErrBufferFull {
+			return // the first request's end, EOF, the deadline or the limit
+		}
+	}
 }

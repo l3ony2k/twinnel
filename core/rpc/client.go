@@ -139,7 +139,7 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 	c.wmu.Unlock()
 	if err != nil {
 		c.forget(id)
-		return err
+		return c.writeErr(ctx, err)
 	}
 
 	select {
@@ -163,6 +163,33 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 		c.forget(id)
 		return ctx.Err()
 	}
+}
+
+// writeErrGrace is how long a failed write waits for the helper's reason.
+const writeErrGrace = time.Second
+
+// writeErr is what a call whose request could not be written returns: the
+// helper's own connection-level error when it sent one before closing
+// (unauthorized: the helper refuses a peer as soon as it connects, and may
+// close before the request is written, EPIPE), else the write's error.
+func (c *Client) writeErr(ctx context.Context, err error) error {
+	t := time.NewTimer(writeErrGrace)
+	defer t.Stop()
+	select {
+	case <-c.done:
+	case <-t.C:
+		return err
+	case <-ctx.Done():
+		return err
+	}
+	c.mu.Lock()
+	rerr := c.err
+	c.mu.Unlock()
+	var re *Error
+	if errors.As(rerr, &re) {
+		return rerr
+	}
+	return err
 }
 
 func (c *Client) forget(id string) {
