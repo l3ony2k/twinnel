@@ -13,20 +13,22 @@ import (
 
 // texts holds them.
 type texts struct {
-	titleReport      string
-	labelOverall     string
-	labelTime        string
-	labelPlatform    string
-	labelEvidence    string
-	labelFix         string
-	labelOK          string
-	labelWarn        string
-	labelFail        string
-	labelSkip        string
-	msgCounts        string
-	msgNotOnPlatform string
-	msgCheckPanicked string
-	msgCheckTimeout  string
+	titleReport       string
+	labelOverall      string
+	labelTime         string
+	labelPlatform     string
+	labelEvidence     string
+	labelFix          string
+	labelOK           string
+	labelWarn         string
+	labelFail         string
+	labelSkip         string
+	msgCounts         string
+	msgNotOnPlatform  string
+	msgCheckPanicked  string
+	msgCheckTimeout   string
+	msgSourceLocal    string // Report.Source SourceLocal
+	msgSourceNoHelper string // SourceLocalNoHelper
 
 	// Check titles.
 	titleTailnetRoute   string
@@ -212,20 +214,22 @@ type texts struct {
 }
 
 var zhTexts = texts{
-	titleReport:      "Twinnel 健康检查报告",
-	labelOverall:     "总体",
-	labelTime:        "时间",
-	labelPlatform:    "平台",
-	labelEvidence:    "证据",
-	labelFix:         "修复建议",
-	labelOK:          "通过",
-	labelWarn:        "警告",
-	labelFail:        "失败",
-	labelSkip:        "跳过",
-	msgCounts:        "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
-	msgNotOnPlatform: "在 %s 上做不了这项检查",
-	msgCheckPanicked: "检查自身出错",
-	msgCheckTimeout:  "检查超时（%s）",
+	titleReport:       "Twinnel 健康检查报告",
+	labelOverall:      "总体",
+	labelTime:         "时间",
+	labelPlatform:     "平台",
+	labelEvidence:     "证据",
+	labelFix:          "修复建议",
+	labelOK:           "通过",
+	labelWarn:         "警告",
+	labelFail:         "失败",
+	labelSkip:         "跳过",
+	msgCounts:         "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
+	msgNotOnPlatform:  "在 %s 上做不了这项检查",
+	msgCheckPanicked:  "检查自身出错",
+	msgCheckTimeout:   "检查超时（%s）",
+	msgSourceLocal:    "本机检查，不是后台助手的结果：可能和应用里看到的不同",
+	msgSourceNoHelper: "后台助手没有回应，这是本机检查：可能和应用里看到的不同",
 
 	// Check titles.
 	titleTailnetRoute:   "tailnet 路由",
