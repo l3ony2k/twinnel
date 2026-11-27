@@ -1402,7 +1402,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 	headedCard(c, a.tipHead(c, T.SecureTitle, T.TipSecure, nil), func() {
 		set := a.creds.cur != nil && a.creds.cur.Secret != ""
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, T.TkSecretState).TextColor(t.TextMuted).Width(labelWidth).Shrink(0)
+			ui.Text(c, T.TkSecretState).TextColor(t.TextMuted).Width(labelCol()).Shrink(0)
 			if set {
 				ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Success)
 				ui.Text(c, T.TkSecretSetWeak)

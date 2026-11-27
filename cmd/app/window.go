@@ -1363,14 +1363,7 @@ func levelHeadline(s status.Snapshot) (string, []status.Reason) {
 // settingsLabel is the label column of a 设置 field row (the agent
 // card's), with an ⓘ after the label when tip is not empty.
 func settingsLabel(c *ui.Context, label, tip string) ui.Element {
-	t := c.Theme()
-	if tip == "" {
-		return ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth + 24).Shrink(0)
-	}
-	return ui.Row(c).Gap(4).AlignItems(ui.Center).Width(labelWidth + 24).Shrink(0).Children(func() {
-		ui.Text(c, label).TextColor(t.TextMuted).SingleLine().Shrink(1)
-		infoTipAbout(c, label, tip, nil)
-	})
+	return kvLabel(c, label, tip, nil, 24)
 }
 
 // switchLabel is the label of a 设置 switch row, taking the room before

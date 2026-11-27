@@ -65,9 +65,55 @@ const (
 	gapSub    = 2 // between a line and the secondary line under it
 )
 
-// labelWidth is the label column of kv rows: as wide as the current
-// language's labels need (langLayouts).
+// labelWidth is the label column of kv rows as the current language sets
+// it (langLayouts). Rows read labelCol, which a wider label widens.
 var labelWidth float32 = 96
+
+// labelGrown is the widest kv label measured since the language was set,
+// when wider than labelWidth: a system font wider than the one the
+// default was set for (Windows' Microsoft YaHei UI) widens the column
+// instead of truncating "Twinnel 偏好设置". Every row shares it, so the
+// column stays aligned; setLayout resets it.
+var labelGrown float32
+
+// labelMax is the widest the label column grows: a longer label is cut
+// rather than squeezing the values.
+const labelMax = 200
+
+// labelCol is the label column kv rows share.
+func labelCol() float32 { return max(labelWidth, labelGrown) }
+
+// growLabel widens the column to need (capped at labelMax) and reports
+// whether it grew.
+func growLabel(need float32) bool {
+	need = min(need, labelMax)
+	if need <= labelCol() {
+		return false
+	}
+	labelGrown = need
+	return true
+}
+
+// kvLabel is a kv row's label column: the label, with an ⓘ after it when
+// tip is not empty, extra wider than labelCol. The column widens to fit
+// the label (growLabel) and redraws once so earlier rows line up.
+func kvLabel(c *ui.Context, label, tip string, more func(), extra float32) ui.Element {
+	t := c.Theme()
+	need := textWidth(c, ui.Span{}, label)
+	if tip != "" {
+		need += 4 + infoTipSize
+	}
+	if growLabel(need - extra) {
+		c.Invalidate()
+	}
+	if tip == "" {
+		return ui.Text(c, label).TextColor(t.TextMuted).Width(labelCol() + extra).Shrink(0).SingleLine()
+	}
+	return ui.Row(c).Gap(4).AlignItems(ui.Center).Width(labelCol() + extra).Shrink(0).Children(func() {
+		ui.Text(c, label).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		infoTipAbout(c, label, tip, more)
+	})
+}
 
 // lineText is the line height of text that wraps, as a multiple of its
 // size: every paragraph (hints, notes, errors, row details) spaces its
@@ -270,16 +316,8 @@ func kvTip(c *ui.Context, label, tip, value string) {
 // kvTipWith is kvWith with an ⓘ after the label when tip is not empty;
 // more is its 了解更多.
 func kvTipWith(c *ui.Context, label, tip string, more func(), body func()) {
-	t := c.Theme()
 	ui.Row(c).Gap(12).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Children(func() {
-		if tip == "" {
-			ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth).Shrink(0).SingleLine()
-		} else {
-			ui.Row(c).Gap(4).AlignItems(ui.Center).Width(labelWidth).Shrink(0).Children(func() {
-				ui.Text(c, label).TextColor(t.TextMuted).SingleLine().Shrink(1)
-				infoTipAbout(c, label, tip, more)
-			})
-		}
+		kvLabel(c, label, tip, more, 0)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Grow(1).Children(body)
 	})
 }

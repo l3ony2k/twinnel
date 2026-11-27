@@ -68,6 +68,7 @@ func setLayout(tag string) {
 		l = langLayouts["en"]
 	}
 	labelWidth, halfCardMin, levelColW = l.label, l.halfCard, l.logLevel
+	labelGrown = 0 // the new language's labels measure afresh
 }
 
 // uiLang returns the language to show: TWINNEL_LANG, else the setting, else
