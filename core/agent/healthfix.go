@@ -19,7 +19,7 @@ import (
 // configureActions are the fix actions of the configure tier.
 var configureActions = map[string]bool{
 	health.FixCoexist: true, health.FixLeakGuard: true, health.FixControllerLoopback: true,
-	health.FixController: true, health.FixSystemDNS: true,
+	health.FixController: true, health.FixSystemDNS: true, health.FixControllerPort: true,
 }
 
 func (s *Server) registerHealthFix() {
