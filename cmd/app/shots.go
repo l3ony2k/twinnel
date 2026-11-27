@@ -36,98 +36,8 @@ func (a *app) shots(dir string) {
 	}
 	go func() {
 		time.Sleep(6 * time.Second) // let the monitor load, traffic accumulate and the health checks finish
-		if os.Getenv("DUET_SHOTS_FLOW") == "sidebar" {
-			a.sidebarShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "sidecollapse" { // shots_sidebarcollapse.go
-			a.sidebarCollapseShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "controls" { // shots_controls.go
-			a.controlShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "final" { // shots_final.go
-			a.finalShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "toolbar" { // shots_toolbar.go
-			a.toolbarShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "install" { // shots_about.go
-			a.installShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "helpermgmt" { // shots_helpermgmt.go
-			a.helperMgmtShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "about" { // shots_about.go
-			a.aboutShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "delay" { // shots_delay.go
-			a.delayShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "configpolish" { // shots_configpolish.go
-			a.configPolishShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "configui" { // shots_configui.go
-			a.configUIShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "takeoverexplain" { // shots_takeoverexplain.go
-			a.takeoverExplainShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "lifecycle" { // shots_lifecycle.go
-			a.lifecycleShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "status" { // shots_status.go
-			a.statusShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "trayspeed" { // shots_trayspeed.go
-			a.trayspeedShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "infotips" { // shots_infotips.go
-			a.infoTipShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "derpinfo" { // shots_derpinfo.go
-			a.derpInfoShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "flyout" { // shots_flyout.go
-			a.flyoutShots(save)
-			mygo.App.Quit()
-			return
-		}
-		if os.Getenv("DUET_SHOTS_FLOW") == "takeover" {
-			a.takeoverE2E(save)
+		if f, ok := a.shotFlows()[os.Getenv("DUET_SHOTS_FLOW")]; ok {
+			f(save)
 			mygo.App.Quit()
 			return
 		}
@@ -180,6 +90,35 @@ func (a *app) shots(dir string) {
 		}
 		mygo.App.Quit()
 	}()
+}
+
+// shotSaver saves a window's capture under a name.
+type shotSaver = func(w *mygo.Window, name string)
+
+// shotFlows are the passes DUET_SHOTS_FLOW picks; any other value (or
+// none) runs the default pass in shots.
+func (a *app) shotFlows() map[string]func(save shotSaver) {
+	return map[string]func(save shotSaver){
+		"sidebar":         a.sidebarShots,
+		"sidecollapse":    a.sidebarCollapseShots, // shots_sidebarcollapse.go
+		"controls":        a.controlShots,         // shots_controls.go
+		"final":           a.finalShots,           // shots_final.go
+		"toolbar":         a.toolbarShots,         // shots_toolbar.go
+		"install":         a.installShots,         // shots_about.go
+		"helpermgmt":      a.helperMgmtShots,      // shots_helpermgmt.go
+		"about":           a.aboutShots,           // shots_about.go
+		"delay":           a.delayShots,           // shots_delay.go
+		"configpolish":    a.configPolishShots,    // shots_configpolish.go
+		"configui":        a.configUIShots,        // shots_configui.go
+		"takeoverexplain": a.takeoverExplainShots, // shots_takeoverexplain.go
+		"lifecycle":       a.lifecycleShots,       // shots_lifecycle.go
+		"status":          a.statusShots,          // shots_status.go
+		"trayspeed":       a.trayspeedShots,       // shots_trayspeed.go
+		"infotips":        a.infoTipShots,         // shots_infotips.go
+		"derpinfo":        a.derpInfoShots,        // shots_derpinfo.go
+		"flyout":          a.flyoutShots,          // shots_flyout.go
+		"takeover":        a.takeoverE2E,
+	}
 }
 
 // helperShots walks the helper pages, driving the app's own handlers

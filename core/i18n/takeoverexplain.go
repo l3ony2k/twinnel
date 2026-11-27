@@ -11,6 +11,8 @@ type TakeoverExplainStrings struct {
 	TkIntroManage, TkIntroKeep, TkIntroUndo string
 	TkLearnMore                             string
 	TkPlanNote                              string // under 生成接管计划
+	TkPlanRunning                           string // replaces TkPlanNote while the plan is made
+	TkPlanElapsed                           string // seconds since it started (%d)
 
 	// 现有安装 before takeover: what the running mihomo uses.
 	TkNotDetected, TkFoundService, TkFoundBinary string
@@ -39,6 +41,8 @@ var zhTakeoverExplain = TakeoverExplainStrings{
 	TkIntroUndo:   "随时可以撤销接管，换回原来的配置",
 	TkLearnMore:   "了解接管",
 	TkPlanNote:    "只生成计划，不会改动任何东西",
+	TkPlanRunning: "正在比对现有配置和订阅…",
+	TkPlanElapsed: "%d 秒",
 
 	TkNotDetected:  "未检测到",
 	TkFoundService: "服务",
@@ -79,6 +83,8 @@ var enTakeoverExplain = TakeoverExplainStrings{
 	TkIntroUndo:   "Undo the takeover any time to get your original config back",
 	TkLearnMore:   "About Takeover",
 	TkPlanNote:    "Only makes a plan; nothing is changed",
+	TkPlanRunning: "Comparing your config with the subscription…",
+	TkPlanElapsed: "%ds",
 
 	TkNotDetected:  "Not detected",
 	TkFoundService: "Service",

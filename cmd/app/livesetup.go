@@ -32,7 +32,7 @@ func (a *app) detectLiveSetup() {
 	}
 	a.live.loading = true
 	go func() {
-		l := probeLiveSetup()
+		l := a.probes.liveSetup()
 		mygo.RunOnMain(func() {
 			l.loaded = true
 			a.live = l

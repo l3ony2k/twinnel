@@ -64,8 +64,9 @@ type app struct {
 	actionErr string
 	settings  settingsForm
 	logs      logsView
-	events    eventLog // the helper's events, for 日志 → duet (eventlog.go)
-	shotMode  bool     // DUET_SHOTS: the panel draws its own background
+	events    eventLog      // the helper's events, for 日志 → duet (eventlog.go)
+	probes    machineProbes // reads of this computer (probes.go); fixtures in shot mode
+	shotMode  bool          // DUET_SHOTS: the panel draws its own background
 	// panelShotH is the content height shot mode's panel was last sized
 	// to (fitShotPanel).
 	panelShotH int
@@ -108,44 +109,12 @@ type app struct {
 }
 
 func main() {
-	if err := shotGuard(os.Getenv); err != nil {
-		log.Fatal(err)
-	}
-	a := &app{page: pageOverview, groupsOpen: map[string]bool{}, tileCols: map[string]int{}, pageScroll: map[string]*ui.ScrollState{}, healthOpen: map[string]bool{}}
-	dir, err := os.UserConfigDir()
+	a, err := newApp(os.Getenv)
 	if err != nil {
 		log.Fatal(err)
-	}
-	a.cfgPath = filepath.Join(dir, "duet", "app.json")
-	a.cfg, err = status.LoadConfig(a.cfgPath, os.Getenv)
-	if err != nil {
-		log.Printf("config %s: %v (using defaults)", a.cfgPath, err)
-		a.cfg, _ = status.LoadConfig("", os.Getenv)
-	}
-	// Shots are read-only unless a run asks for writes against fakes
-	// (DUET_READ_ONLY=0): an agent's screenshot run never changes the
-	// owner's network.
-	if os.Getenv("DUET_SHOTS") != "" && os.Getenv(status.EnvReadOnly) != "0" {
-		a.cfg.AllowWrites = false
-	}
-	if !a.cfg.AllowWrites {
-		log.Printf("read-only (%s)", status.EnvReadOnly)
-	}
-	a.install = tailscale.DetectInstall(runtime.GOOS, func(p string) bool {
-		_, err := os.Stat(p)
-		return err == nil
-	})
-	a.ts = tailscale.New(tailscale.DefaultAPI(), a.cfg.AllowWrites)
-	if f := os.Getenv(tailscale.StatusFileEnv); f != "" { // development: shots use a synthetic tailnet
-		log.Printf("tailscale: reading %s instead of tailscaled (%s)", f, tailscale.StatusFileEnv)
 	}
 	a.notes = newNotifier()
 	a.theme = os.Getenv("DUET_THEME")
-	// Shot mode never takes the owner's focus: no tray, no notifications,
-	// windows created hidden and captured from memory (Window.CapturePage
-	// renders native content itself; it needs no pixels on screen).
-	a.shotMode = os.Getenv("DUET_SHOTS") != ""
-
 	initLang()
 	mygo.App.SetName(i18n.T.AppName)
 	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
@@ -155,6 +124,50 @@ func main() {
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// newApp builds the app's state from the environment, before any window:
+// the shot guard, the machine probes, the config and the Tailscale client.
+// A shot run (DUET_SHOTS) that could reach the owner's machine stops here.
+func newApp(getenv func(string) string) (*app, error) {
+	if err := shotGuard(getenv); err != nil {
+		return nil, err
+	}
+	probes, err := probesFor(getenv)
+	if err != nil {
+		return nil, err
+	}
+	a := &app{page: pageOverview, groupsOpen: map[string]bool{}, tileCols: map[string]int{}, pageScroll: map[string]*ui.ScrollState{}, healthOpen: map[string]bool{}}
+	a.probes = probes
+	// Shot mode never takes the owner's focus: no tray, no notifications,
+	// windows created hidden and captured from memory (Window.CapturePage
+	// renders native content itself; it needs no pixels on screen).
+	a.shotMode = getenv("DUET_SHOTS") != ""
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return nil, err
+	}
+	a.cfgPath = filepath.Join(dir, "duet", "app.json")
+	a.cfg, err = status.LoadConfig(a.cfgPath, getenv)
+	if err != nil {
+		log.Printf("config %s: %v (using defaults)", a.cfgPath, err)
+		a.cfg, _ = status.LoadConfig("", getenv)
+	}
+	// Shots are read-only unless a run asks for writes against fakes
+	// (DUET_READ_ONLY=0): an agent's screenshot run never changes the
+	// owner's network.
+	if a.shotMode && getenv(status.EnvReadOnly) != "0" {
+		a.cfg.AllowWrites = false
+	}
+	if !a.cfg.AllowWrites {
+		log.Printf("read-only (%s)", status.EnvReadOnly)
+	}
+	a.install = probes.tailscaleInstall()
+	a.ts = tailscale.New(probes.tailscaleAPI(), a.cfg.AllowWrites)
+	if f := getenv(tailscale.StatusFileEnv); f != "" { // development: shots use a synthetic tailnet
+		log.Printf("tailscale: reading %s instead of tailscaled (%s)", f, tailscale.StatusFileEnv)
+	}
+	return a, nil
 }
 
 func (a *app) ready() {
@@ -230,7 +243,11 @@ func (a *app) start() {
 		mh, _ = mihomo.New(mihomo.Options{Secret: cc.Secret, AllowWrites: a.cfg.AllowWrites})
 	}
 	a.mh = mh
-	a.health = wrapHealth(a.hc, newHealthSource(cc))
+	hc := a.hc
+	if a.shotMode {
+		hc = nil // the scratch helper's checks read the real machine; shots use the fixture
+	}
+	a.health = wrapHealth(hc, newHealthSource(a.probes, cc))
 	a.healthSrc = nil
 	if a.health != nil {
 		a.healthSrc = a.health
@@ -246,7 +263,7 @@ func (a *app) start() {
 
 		ExitNodeAccepted: a.cfg.ExitNodeAccepted,
 	})
-	a.egressProbe = newEgressProbe(cc)
+	a.egressProbe = newEgressProbe(a.probes, cc)
 	if a.hc != nil {
 		a.mon.SetHelper(a.hc.State())
 	}

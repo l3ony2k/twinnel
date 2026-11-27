@@ -85,8 +85,13 @@ func fileExists(p string) bool {
 	return err == nil && !fi.IsDir()
 }
 
-// runCLI runs the CLI with args and returns its combined output.
-func runCLI(ctx context.Context, args ...string) (string, error) {
+// runCLI runs the CLI through the run's probes (fixtures in shot mode).
+func (a *app) runCLI(ctx context.Context, args ...string) (string, error) {
+	return a.probes.runCLI(ctx, args...)
+}
+
+// execCLI runs the CLI with args and returns its combined output.
+func execCLI(ctx context.Context, args ...string) (string, error) {
 	p, err := cliPath()
 	if err != nil {
 		return "", err
@@ -110,7 +115,7 @@ func (a *app) loadInstallPlan() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), installPlanTimeout)
 		defer cancel()
-		out, err := runCLI(ctx, installArgs("--dry-run")...)
+		out, err := a.runCLI(ctx, installArgs("--dry-run")...)
 		timedOut := errors.Is(ctx.Err(), context.DeadlineExceeded)
 		mygo.RunOnMain(func() {
 			v.loading, v.loaded = false, true
@@ -297,7 +302,7 @@ func (a *app) installHelper() {
 		defer cancel()
 		// The click is the confirmation (macOS then asks for the
 		// administrator password), so the CLI must not prompt on stdin.
-		out, err := runCLI(ctx, installArgs("--yes")...)
+		out, err := a.runCLI(ctx, installArgs("--yes")...)
 		mygo.RunOnMain(func() {
 			v.running = false
 			v.out, v.outErr = out, err != nil
