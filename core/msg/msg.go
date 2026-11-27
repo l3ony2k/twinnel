@@ -52,6 +52,11 @@ var patterns = []pattern{
 	{code: "refuses-socket", re: regexp.MustCompile(`^Twinnel refuses (\S+): (.+) is outside the config dir (.+) \(mihomo, as root`)},
 	{code: "backup-failed", re: regexp.MustCompile(`^backup: (.*)$`)},
 	{code: "write-failed", re: regexp.MustCompile(`^write (\S+): (.*)$`)},
+	{code: "controller-foreign", re: regexp.MustCompile(`^the controller belongs to another mihomo: (\S+) is held by another program; Twinnel did not reload it$`)},
+	{code: "controller-foreign-app", re: regexp.MustCompile(`^the controller belongs to another mihomo: (\S+) is held by (.+); Twinnel did not reload it$`)},
+	// An older helper's raw refusal (never shown as is: SAFE_PATHS means
+	// another mihomo answered).
+	{code: "reload-safe-paths", re: regexp.MustCompile(`^reload: .*path is not subpath of home directory or SAFE_PATHS`)},
 	{code: "reload-failed", re: regexp.MustCompile(`^reload: (.*)$`)},
 	{code: "verify-failed", re: regexp.MustCompile(`^mihomo did not answer after reload: (.*)$`)},
 

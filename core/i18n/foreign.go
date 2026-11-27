@@ -30,7 +30,7 @@ func init() {
 		with doctor egress verbose root admin systemd hosts whitelist Standalone
 		upgrade DOMAIN SUFFIX KEYWORD example LaunchAgent LaunchAgents laptop
 		GEOIP GEOSITE Agent Claude Code Codex Cursor GNOME AppIndicator SYSTEM Alt
-		Ctrl wheel PATH`) {
+		Ctrl wheel PATH ClashX Meta FlClash SAFE_PATHS`) {
 		allowedASCII[strings.ToLower(w)] = true
 	}
 }

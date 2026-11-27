@@ -72,6 +72,12 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 		set(r)
 	case rpc.MethodTailscaleInstall, rpc.MethodKernelInstall:
 		h.fixed = true
+	case rpc.MethodControllerMove:
+		if p := params.(rpc.ControllerMoveParams); p.DryRun {
+			set(rpc.ControllerMoveResult{From: "127.0.0.1:9090", To: "127.0.0.1:9097", DryRun: true})
+			break
+		}
+		h.fixed = true
 	case rpc.MethodComposeApply, rpc.MethodControllerSecure, rpc.MethodDNSPoint, rpc.MethodServiceRestart, rpc.MethodHealthEgress:
 		h.fixed = true
 		if method == rpc.MethodHealthEgress {

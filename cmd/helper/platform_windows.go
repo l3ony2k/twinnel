@@ -143,6 +143,7 @@ func tailnetInterface(ctx context.Context) (string, error) {
 func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	windowsSettings(e)
 	e.Autostarts = autostartSource(o)
+	e.PortOwner = windows.PortOwner
 	if d := systemDNS(o); d != nil {
 		e.SystemDNS = d
 	}

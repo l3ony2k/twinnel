@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -29,6 +30,10 @@ type CheckReport struct {
 	// whose accepted cause broke this one.
 	Was      Status `json:"was,omitempty"`
 	CausedBy string `json:"causedBy,omitempty"`
+	// Controller is the mihomo controller the check's evidence came from
+	// (when it read the running mihomo), worded in the report's language:
+	// "127.0.0.1:9090（Twinnel）", "127.0.0.1:9090（Clash Party）".
+	Controller string `json:"controller,omitempty"`
 	// At is when the result was measured, set when that was before the
 	// report's run: an on-demand egress test carried into later reports.
 	At time.Time `json:"at,omitzero"`
@@ -44,6 +49,9 @@ type Report struct {
 	// Lang is the language the texts are in (WithLang); "" in reports
 	// from helpers older than it, which wrote DefaultLang.
 	Lang string `json:"lang,omitempty"`
+	// Controller is who listened on the controller address during the
+	// run (nil when the Env does not know).
+	Controller *foreign.Owner `json:"controller,omitempty"`
 }
 
 // Counts returns how many checks ended in each status.
@@ -88,6 +96,11 @@ func (r *Runner) Run(ctx context.Context, env Env) *Report {
 		checks = append(checks, c)
 	}
 	rep := &Report{Platform: platform, Started: start, Overall: StatusOK, Checks: make([]CheckReport, len(checks)), Lang: LangOf(ctx)}
+	owner, ownerKnown := ownerOf(ctx, env)
+	if ownerKnown {
+		rep.Controller = &owner
+	}
+	isForeign := ownerKnown && owner.IsForeign()
 
 	sem := make(chan struct{}, conc)
 	var wg sync.WaitGroup
@@ -103,7 +116,15 @@ func (r *Runner) Run(ctx context.Context, env Env) *Report {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			t0 := now()
-			rep.Checks[i].Result = runOne(ctx, c, env, timeout)
+			tenv := &trackEnv{Env: env, foreign: isForeign}
+			res := runOne(ctx, c, tenv, timeout)
+			if tenv.used() {
+				rep.Checks[i].Controller = controllerLabel(L, owner, ownerKnown)
+				if isForeign && c.ID() != (ControllerOwnerCheck{}).ID() {
+					res = notJudged(L, owner, res)
+				}
+			}
+			rep.Checks[i].Result = res
 			rep.Checks[i].Duration = now().Sub(t0)
 		}()
 	}

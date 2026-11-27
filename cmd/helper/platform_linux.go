@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/engine"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/core/store"
@@ -48,6 +49,9 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	linuxSettings(e)
 	e.Autostarts = autostartSource(o)
 	o.group = linuxGroup(o.group)
+	e.PortOwner = func(ctx context.Context, port int) (*foreign.Process, error) {
+		return foreign.ProcPortOwner(ctx, "/proc", port)
+	}
 
 	switch o.tailnetIface {
 	case "", "auto":

@@ -49,6 +49,9 @@ func (r *Report) Markdown() string {
 	for _, c := range r.Checks {
 		fmt.Fprintf(&b, "## %s %s (`%s`)\n\n", statusIcon(c.Status), c.Title, c.ID)
 		fmt.Fprintf(&b, "**%s**: %s\n\n", statusLabel(L, c.Status), c.Summary)
+		if c.Controller != "" {
+			fmt.Fprintf(&b, "%s: %s\n\n", otx(L).labelController, c.Controller)
+		}
 		if len(c.Evidence) > 0 {
 			fmt.Fprintf(&b, "%s:\n\n```\n", L.labelEvidence)
 			for _, e := range c.Evidence {
@@ -76,6 +79,9 @@ func (r *Report) Text() string {
 	for _, c := range r.Checks {
 		fmt.Fprintf(&b, "[%-4s] %s (%s)\n", strings.ToUpper(string(c.Status)), c.Title, c.ID)
 		fmt.Fprintf(&b, "       %s\n", c.Summary)
+		if c.Controller != "" {
+			fmt.Fprintf(&b, "       %s: %s\n", otx(L).labelController, c.Controller)
+		}
 		for _, e := range c.Evidence {
 			for _, line := range strings.Split(e, "\n") {
 				fmt.Fprintf(&b, "         · %s\n", line)

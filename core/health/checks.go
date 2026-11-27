@@ -17,7 +17,7 @@ func DefaultRegistry() *Registry {
 	for _, c := range []Check{
 		TailnetRoute{}, TUNExclude{}, TailscaleRules{}, MagicDNS{}, PeerNames{},
 		ResolverBinding{}, FakeIPMode{},
-		SystemDNS{}, VPNConflict{}, CompetitorAutostart{}, TUNDataplane{}, LeakGuard{}, LeakEgress{}, Controller{},
+		SystemDNS{}, VPNConflict{}, CompetitorAutostart{}, TUNDataplane{}, LeakGuard{}, LeakEgress{}, ControllerOwnerCheck{}, Controller{},
 		BinaryIntegrity{},
 	} {
 		r.Register(c)

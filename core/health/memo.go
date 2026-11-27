@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"net/netip"
 	"sync"
 )
@@ -104,4 +105,12 @@ func (m *memoEnv) ProxiedEgress(_ context.Context, url string) (netip.Addr, []st
 		return proxiedEgress{a, c}, err
 	})
 	return v.addr, v.chain, err
+}
+
+func (m *memoEnv) ControllerOwner(_ context.Context) (foreign.Owner, error) {
+	oe, ok := m.inner.(OwnerEnv)
+	if !ok {
+		return foreign.Owner{}, ErrNotSupported
+	}
+	return memo(m, "controller-owner", func() (foreign.Owner, error) { return oe.ControllerOwner(m.ctx) })
 }

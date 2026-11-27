@@ -267,6 +267,7 @@ type Strings struct {
 	TakeoverExplainStrings // takeoverexplain.go
 	InfoTipStrings         // infotips.go
 	StatusStrings          // status.go
+	ForeignCtlStrings      // foreignctl.go
 	SidebarStrings         // sidebar.go
 	OverviewStrings        // overview.go
 	PagesStrings           // pages.go
@@ -846,6 +847,7 @@ var zh = Strings{
 	TakeoverExplainStrings: zhTakeoverExplain,
 	InfoTipStrings:         zhInfoTips,
 	StatusStrings:          zhStatus,
+	ForeignCtlStrings:      zhForeignCtl,
 	DNSWatchStrings:        zhDNSWatch,
 	SidebarStrings:         zhSidebar,
 	OverviewStrings:        zhOverview,

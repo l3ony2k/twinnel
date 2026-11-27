@@ -57,7 +57,7 @@ func TestHelperEndToEnd(t *testing.T) {
 		runErr <- run(ctx, &options{
 			stateDir: stateDir, socket: sock, foreground: false, group: "admin",
 			tailnetStatus: "../../core/engine/testdata/tailscale-status.json",
-			tailnetIface:  "none", noHealth: true,
+			tailnetIface:  "none", noHealth: true, noCtlOwner: true,
 		}, func(e *engine.Engine) {
 			e.VerifyTimeout = time.Second
 			ready <- e
