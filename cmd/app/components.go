@@ -15,6 +15,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/status"
 )
@@ -645,31 +646,13 @@ func (a *app) openDashboard(path string) {
 	if a.mh == nil {
 		return
 	}
-	u := dashboardSetupURL(a.mh.BaseURL(), path)
+	u := mihomo.DashboardURL(a.mh.BaseURL(), path)
 	if sec := controllerConfig(a.cfg, a.creds.cur).Secret; sec != "" && !a.shotMode {
 		if err := mygo.Clipboard.Write(transfer.TextData(sec)); err == nil {
 			a.toast = i18n.T.CompSecretCopied
 		}
 	}
 	a.openExternal(u)
-}
-
-// dashboardSetupURL is the dashboard's setup page for the controller at
-// base: hostname and port prefilled, no secret.
-func dashboardSetupURL(base, path string) string {
-	if path == "" {
-		path = "/ui/"
-	}
-	b, err := url.Parse(base)
-	if err != nil || b.Host == "" {
-		return dashboardURL(base)
-	}
-	host, port := b.Hostname(), b.Port()
-	if port == "" {
-		port = "80"
-	}
-	q := url.Values{"hostname": {host}, "port": {port}}
-	return strings.TrimSuffix(base, "/") + path + "#/setup?" + q.Encode()
 }
 
 // componentHead is the first line of a 组件 section: its name (and ⓘ),

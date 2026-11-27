@@ -162,6 +162,7 @@ func TestEveryToolRedacts(t *testing.T) {
 		"set_mode": {"mode": "global"}, "select_node": {"group": "Proxy", "node": "US 1"},
 		"delay_test": {"group": "Proxy"}, "health_egress_run": nil, "set_tun": {"enabled": false}, "tailscale_up": nil, "tailscale_down": nil,
 		"set_exit_node": {"peer": "exit-jp"}, "clear_exit_node": nil, "refresh_subscription": nil, "flush_fakeip": nil,
+		"geo_update": {"proxy": "direct"}, "dashboard_install": nil,
 		"layer_put":    {"id": "extra", "content": "proxies:\n  - {name: X, type: ss, password: " + agenttest.NodePassword + "}\n"},
 		"layer_remove": {"id": "nodes"}, "layer_enable": {"id": "extra", "enabled": false},
 		"layer_order": {"ids": []string{"extra"}}, "sub_put": {"id": "main", "url": agenttest.SubURL},
@@ -451,4 +452,24 @@ func TestConfigImportPlansFirst(t *testing.T) {
 		t.Fatalf("import: %v", m)
 	}
 	e.noSecrets()
+}
+
+func TestComponentTools(t *testing.T) {
+	e := newEnv(t, nil)
+	e.setAgent(rpc.AgentSettings{MCP: true, Operate: false})
+	e.fails("geo_update", nil, "operate tool")
+	e.fails("dashboard_install", nil, "operate tool")
+	e.setAgent(rpc.AgentSettings{MCP: true, Operate: true})
+	e.call("geo_update", map[string]any{"proxy": "subscription"})
+	e.call("dashboard_install", map[string]any{"proxy": "auto"})
+	e.h.Mu.Lock()
+	got := strings.Join(e.h.AccessoryUpdates, ",")
+	e.h.Mu.Unlock()
+	if got != "geo:subscription,ui:" {
+		t.Errorf("updates %q", got)
+	}
+	out, _ := e.call("version", nil)
+	if !strings.Contains(out, `"geo"`) || !strings.Contains(out, `"dashboard"`) {
+		t.Errorf("version has no components: %s", out)
+	}
 }

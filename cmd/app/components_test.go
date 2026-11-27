@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
@@ -66,7 +67,7 @@ func TestProgressText(t *testing.T) {
 }
 
 func TestDashboardSetupURL(t *testing.T) {
-	got := dashboardSetupURL("http://127.0.0.1:19090", "/ui/")
+	got := mihomo.DashboardURL("http://127.0.0.1:19090", "/ui/")
 	if got != "http://127.0.0.1:19090/ui/#/setup?hostname=127.0.0.1&port=19090" {
 		t.Errorf("url %q", got)
 	}
