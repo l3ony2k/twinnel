@@ -90,7 +90,7 @@ var enHelperMgmt = HelperMgmtStrings{
 	HelperUninstall: "Uninstall…",
 	HelperRemoveAll: "Remove duet Completely…",
 
-	HelperNeedsUpdate:  "Helper needs an update",
+	HelperNeedsUpdate:  "Helper outdated",
 	HelperNewerThanApp: "duet needs an update",
 	HelperVersionVsApp: "%s · app %s",
 
