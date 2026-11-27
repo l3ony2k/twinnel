@@ -34,6 +34,7 @@ import (
 // app holds everything. Fields below "main thread" are read and written
 // only on the main thread (views, tray callbacks, RunOnMain).
 type app struct {
+	paneW   float32 // the content pane's width at the last layout: the page column centers in it (window.go)
 	ovWidth float32 // the overview column's width at the last layout (overview.go)
 	svcGrid ovGrid  // the mihomo and Tailscale cards' rows, lined up (ovgrid.go)
 	cfgPath string
