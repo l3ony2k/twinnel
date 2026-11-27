@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/token"
 	"net/netip"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -335,5 +336,18 @@ func TestReasonConstantsInCatalog(t *testing.T) {
 	}
 	if n < 30 {
 		t.Fatalf("found only %d reason constants: parser out of date?", n)
+	}
+}
+
+// TestDocListsEveryReason: docs/health-fixes.md has a row per reason.
+func TestDocListsEveryReason(t *testing.T) {
+	b, err := os.ReadFile("../../docs/health-fixes.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range Reasons() {
+		if !strings.Contains(string(b), "| `"+r+"` |") {
+			t.Errorf("docs/health-fixes.md has no row for %s", r)
+		}
 	}
 }
