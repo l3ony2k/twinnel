@@ -27,12 +27,15 @@ func TestTrayLookFor(t *testing.T) {
 	s := status.Snapshot{}
 	s.Mihomo.Reachable = true
 	s.Mihomo.Traffic = sample(3<<20, 512*1024)
-	if l := trayLookFor(s, status.Config{}); l.title != status.TrayTitle(s.Mihomo.Traffic) || l.up != "" {
+	if l := trayLookFor(s, status.Config{TraySpeedLayout: status.TraySpeedOneLine}); l.title != status.TrayTitle(s.Mihomo.Traffic) || l.up != "" {
 		t.Errorf("one line: %+v", l)
 	}
 	l := trayLookFor(s, status.Config{TraySpeedLayout: status.TraySpeedTwoLines})
 	if l.title != "" || l.up != "↑   3M" || l.down != "↓ 512K" {
 		t.Errorf("two lines: %+v", l)
+	}
+	if l := trayLookFor(s, status.Config{}); l.title != "" || l.up == "" {
+		t.Errorf("default should be two lines: %+v", l)
 	}
 	for _, cfg := range []status.Config{{TraySpeedOff: true}, {TraySpeedOff: true, TraySpeedLayout: status.TraySpeedTwoLines}} {
 		if l := trayLookFor(s, cfg); l.title != "" || l.up != "" || l.down != "" {
