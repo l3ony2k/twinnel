@@ -118,6 +118,7 @@ func (e *Engine) KernelInstall(ctx context.Context, p rpc.KernelInstallParams) (
 	if err != nil {
 		return rpc.KernelList{}, err
 	}
+	m.Repair = p.Repair
 	r, err := m.Check(ctx, ch)
 	if err != nil {
 		return rpc.KernelList{}, err

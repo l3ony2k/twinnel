@@ -210,6 +210,18 @@ func TestInstallSwitchRollback(t *testing.T) {
 		t.Errorf("downloads = %d", gh.downloads)
 	}
 
+	// A damaged current binary is replaced by a repair.
+	if err := os.WriteFile(m.Binary(), make([]byte, 64), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m.Repair = true
+	if st, err = m.Install(ctx, r); err != nil || st.Current != "v1.19.33" {
+		t.Fatalf("repair: %+v %v", st, err)
+	}
+	if v, err := ProbeVersion(ctx, m.Binary()); err != nil || v != "v1.19.33" {
+		t.Fatalf("repaired binary: %q %v", v, err)
+	}
+
 	// No stray temp files.
 	ents, _ := os.ReadDir(m.Dir)
 	for _, e := range ents {

@@ -494,6 +494,8 @@ type KernelInstallParams struct {
 	Version string `json:"version,omitempty"`
 	// Proxy for the download (Proxy* or a proxy URL; default ProxyAuto).
 	Proxy string `json:"proxy,omitempty"`
+	// Repair downloads the current version again over damaged files.
+	Repair bool `json:"repair,omitempty"`
 }
 
 type TailscaleInfo struct {
