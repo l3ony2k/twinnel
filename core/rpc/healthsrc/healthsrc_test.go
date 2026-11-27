@@ -60,3 +60,36 @@ func TestSource(t *testing.T) {
 		t.Error("no client accepted")
 	}
 }
+
+// oldHelper rejects params it does not know, as a helper from before
+// HealthLastParams.Lang does (DisallowUnknownFields).
+type oldHelper struct {
+	fakeCaller
+	sawLang []string
+}
+
+func (o *oldHelper) Call(ctx context.Context, method string, params, result any) error {
+	switch p := params.(type) {
+	case rpc.HealthLastParams:
+		o.sawLang = append(o.sawLang, p.Lang)
+		return &rpc.Error{Code: rpc.CodeInvalidParams, Message: "invalid params"}
+	case rpc.HealthRunParams:
+		o.sawLang = append(o.sawLang, p.Lang)
+		if p.Lang != "" {
+			return &rpc.Error{Code: rpc.CodeInvalidParams, Message: "invalid params"}
+		}
+	}
+	return o.fakeCaller.Call(ctx, method, params, result)
+}
+
+func TestSourceLangOldHelper(t *testing.T) {
+	o := &oldHelper{}
+	s := Source{Client: o, Lang: "en"}
+	rep, err := s.Run(context.Background())
+	if err != nil || rep == nil {
+		t.Fatalf("run against an old helper: %v", err)
+	}
+	if o.runs != 1 || len(o.sawLang) != 3 || o.sawLang[0] != "en" || o.sawLang[1] != "en" || o.sawLang[2] != "" {
+		t.Errorf("calls %v langs %q", o.calls, o.sawLang)
+	}
+}

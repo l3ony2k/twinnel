@@ -34,6 +34,9 @@ type Report struct {
 	Duration time.Duration `json:"durationNs"`
 	Overall  Status        `json:"overall"`
 	Checks   []CheckReport `json:"checks"`
+	// Lang is the language the texts are in (WithLang); "" in reports
+	// from helpers older than it, which wrote DefaultLang.
+	Lang string `json:"lang,omitempty"`
 }
 
 // Counts returns how many checks ended in each status.
@@ -48,6 +51,7 @@ func (r *Report) Counts() map[Status]int {
 // Run runs all applicable checks against env and returns a report in
 // registration order. env is wrapped with Memo.
 func (r *Runner) Run(ctx context.Context, env Env) *Report {
+	L := tx(ctx)
 	now := r.Now
 	if now == nil {
 		now = time.Now
@@ -76,14 +80,14 @@ func (r *Runner) Run(ctx context.Context, env Env) *Report {
 		}
 		checks = append(checks, c)
 	}
-	rep := &Report{Platform: platform, Started: start, Overall: StatusOK, Checks: make([]CheckReport, len(checks))}
+	rep := &Report{Platform: platform, Started: start, Overall: StatusOK, Checks: make([]CheckReport, len(checks)), Lang: LangOf(ctx)}
 
 	sem := make(chan struct{}, conc)
 	var wg sync.WaitGroup
 	for i, c := range checks {
-		rep.Checks[i] = CheckReport{ID: c.ID(), Title: c.Title()}
+		rep.Checks[i] = CheckReport{ID: c.ID(), Title: checkTitle(L, c)}
 		if !supports(c, platform) {
-			rep.Checks[i].Result = skip(msgNotOnPlatform, platform)
+			rep.Checks[i].Result = skip(L.msgNotOnPlatform, platform)
 			continue
 		}
 		wg.Add(1)
@@ -104,15 +108,25 @@ func (r *Runner) Run(ctx context.Context, env Env) *Report {
 	return rep
 }
 
+// checkTitle returns c's title in L's language: built-in checks word it
+// per language, others have only Title.
+func checkTitle(L *texts, c Check) string {
+	if lc, ok := c.(interface{ title(*texts) string }); ok {
+		return lc.title(L)
+	}
+	return c.Title()
+}
+
 // runOne runs a check, converting a panic or a timeout into a fail result.
 func runOne(ctx context.Context, c Check, env Env, timeout time.Duration) Result {
+	L := tx(ctx)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	done := make(chan Result, 1)
 	go func() {
 		defer func() {
 			if p := recover(); p != nil {
-				done <- Result{Status: StatusFail, Summary: msgCheckPanicked,
+				done <- Result{Status: StatusFail, Summary: L.msgCheckPanicked,
 					Evidence: []string{fmt.Sprint(p), string(debug.Stack())}}
 			}
 		}()
@@ -125,6 +139,6 @@ func runOne(ctx context.Context, c Check, env Env, timeout time.Duration) Result
 		}
 		return r
 	case <-ctx.Done():
-		return Result{Status: StatusWarn, Summary: fmt.Sprintf(msgCheckTimeout, timeout)}
+		return Result{Status: StatusWarn, Summary: fmt.Sprintf(L.msgCheckTimeout, timeout)}
 	}
 }

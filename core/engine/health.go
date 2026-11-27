@@ -85,18 +85,20 @@ func (e *Engine) healthReport(rep *health.Report) (rpc.HealthReport, error) {
 	return out, nil
 }
 
-// HealthLast returns the newest report without running anything.
-func (e *Engine) HealthLast() (rpc.HealthReport, error) {
+// HealthLast returns the newest report without running anything; a lang
+// other than the report's asks for a run in it (Scheduler.SetLang).
+func (e *Engine) HealthLast(lang string) (rpc.HealthReport, error) {
 	s := e.healthSched()
 	if s == nil {
 		return rpc.HealthReport{}, rpc.Errorf(rpc.CodeFailed, "health checks are not available in this helper")
 	}
+	s.SetLang(lang)
 	return e.healthReport(s.Last())
 }
 
 // HealthRun runs every check now (waiting for a run in progress) and
 // returns the new report.
-func (e *Engine) HealthRun(ctx context.Context, reason string) (rpc.HealthReport, error) {
+func (e *Engine) HealthRun(ctx context.Context, reason, lang string) (rpc.HealthReport, error) {
 	s := e.healthSched()
 	if s == nil {
 		return rpc.HealthReport{}, rpc.Errorf(rpc.CodeFailed, "health checks are not available in this helper")
@@ -104,6 +106,7 @@ func (e *Engine) HealthRun(ctx context.Context, reason string) (rpc.HealthReport
 	if reason == "" {
 		reason = "manual"
 	}
+	s.UseLang(lang)
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	rep := s.RunNow(ctx, reason)

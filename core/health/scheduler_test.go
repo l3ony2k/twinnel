@@ -204,3 +204,26 @@ func TestDiff(t *testing.T) {
 		t.Error("Diff of equal reports not empty")
 	}
 }
+
+// SetLang words later runs in the new language and asks for one when the
+// last report is in another; UseLang only sets it.
+func TestSchedulerLang(t *testing.T) {
+	s, _ := newTestScheduler(newVarCheck("a", StatusOK))
+	ctx := context.Background()
+	if rep := s.RunNow(ctx, ""); rep.Lang != DefaultLang {
+		t.Fatalf("first run lang %q", rep.Lang)
+	}
+	if s.UseLang("en") != true {
+		t.Error("UseLang(en) after a zh report should report a change")
+	}
+	if rep := s.RunNow(ctx, ""); rep.Lang != "en" {
+		t.Errorf("run after UseLang: lang %q", rep.Lang)
+	}
+	if s.UseLang("en-GB") {
+		t.Error("same language reported as a change")
+	}
+	s.SetLang("") // nothing
+	if rep := s.RunNow(ctx, ""); rep.Lang != "en" {
+		t.Errorf("SetLang(\"\") changed the language to %q", rep.Lang)
+	}
+}

@@ -32,6 +32,9 @@ type Source struct {
 	Fresh  bool
 	// Reason is sent with health.run (default "app").
 	Reason string
+	// Lang is the language to word reports in (core/i18n tag); "" leaves
+	// the helper's. A helper too old to know it gets the call without.
+	Lang string
 }
 
 // ErrNoReport is returned when the helper has no report and could not run.
@@ -52,7 +55,11 @@ func (s Source) Run(ctx context.Context) (*health.Report, error) {
 // Last returns the helper's newest report, or nil before its first run.
 func (s Source) Last(ctx context.Context) (*health.Report, error) {
 	var r rpc.HealthReport
-	if err := s.call(ctx, rpc.MethodHealthLast, nil, &r); err != nil {
+	var params any
+	if s.Lang != "" {
+		params = rpc.HealthLastParams{Lang: s.Lang}
+	}
+	if err := s.call(ctx, rpc.MethodHealthLast, params, &r); err != nil {
 		return nil, err
 	}
 	return Decode(r)
@@ -65,7 +72,7 @@ func (s Source) RunNow(ctx context.Context) (*health.Report, error) {
 		reason = "app"
 	}
 	var r rpc.HealthReport
-	if err := s.call(ctx, rpc.MethodHealthRun, rpc.HealthRunParams{Reason: reason}, &r); err != nil {
+	if err := s.call(ctx, rpc.MethodHealthRun, rpc.HealthRunParams{Reason: reason, Lang: s.Lang}, &r); err != nil {
 		return nil, err
 	}
 	rep, err := Decode(r)
@@ -79,7 +86,22 @@ func (s Source) call(ctx context.Context, method string, params, result any) err
 	if s.Client == nil {
 		return errors.New("healthsrc: no helper client")
 	}
-	return s.Client.Call(ctx, method, params, result)
+	err := s.Client.Call(ctx, method, params, result)
+	var re *rpc.Error
+	if err != nil && s.Lang != "" && errors.As(err, &re) && re.Code == rpc.CodeInvalidParams {
+		// A helper from before Lang rejects the unknown field.
+		switch p := params.(type) {
+		case rpc.HealthLastParams:
+			params = nil
+		case rpc.HealthRunParams:
+			p.Lang = ""
+			params = p
+		default:
+			return err
+		}
+		err = s.Client.Call(ctx, method, params, result)
+	}
+	return err
 }
 
 // Decode turns the report of health.last / health.run back into a

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/duet/core/i18n"
 )
 
 // HealthSource runs the coexistence health checks. Today the app runs them
@@ -28,7 +29,7 @@ type RunnerSource struct {
 
 // Run runs all checks once.
 func (r RunnerSource) Run(ctx context.Context) (*health.Report, error) {
-	return r.Runner.Run(ctx, r.Env()), nil
+	return r.Runner.Run(health.WithLang(ctx, i18n.Tag()), r.Env()), nil
 }
 
 // Health is the health part of a snapshot.

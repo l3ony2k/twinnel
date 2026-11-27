@@ -198,7 +198,7 @@ func (a *app) helperOpW(label string, timeout time.Duration, fn func(ctx context
 			d.warns = warns
 			text, quiet := opResult(label)
 			if err != nil {
-				d.msg, d.msgErr = i18n.T.ErrorPrefix+helperError(err), true
+				d.msg, d.msgErr = i18n.Cur().ErrorPrefix+helperError(err), true
 			} else if !quiet && a.win != nil {
 				a.toast = text
 			}
@@ -319,7 +319,7 @@ func (a *app) confirm(title, detail, okLabel string, ok func()) {
 			Type:               mygo.MessageWarning,
 			Message:            title,
 			Detail:             detail,
-			Buttons:            []string{i18n.T.Cancel, okLabel},
+			Buttons:            []string{i18n.Cur().Cancel, okLabel},
 			DestructiveButtons: []int{1},
 			CancelButton:       0,
 			DefaultButton:      0,

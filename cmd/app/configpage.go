@@ -247,7 +247,7 @@ func (a *app) pickSubscriptionFile() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent:  parent,
-			Title:   i18n.T.SubImportFile,
+			Title:   i18n.Cur().SubImportFile,
 			Filters: []mygo.FileFilter{{Name: "YAML", Extensions: []string{"yaml", "yml"}}},
 		})
 		if err != nil || len(paths) == 0 {
@@ -257,7 +257,7 @@ func (a *app) pickSubscriptionFile() {
 		mygo.RunOnMain(func() {
 			v := &a.hd.cfg
 			if err != nil {
-				a.hd.msg, a.hd.msgErr = i18n.T.ErrorPrefix+err.Error(), true
+				a.hd.msg, a.hd.msgErr = i18n.Cur().ErrorPrefix+err.Error(), true
 				return
 			}
 			v.subFile, v.subContent = filepath.Base(paths[0]), string(b)
@@ -638,7 +638,7 @@ func (a *app) loadLayerContent(id string) {
 			}
 			v.loading = false
 			if err != nil {
-				a.hd.msg, a.hd.msgErr = i18n.T.ErrorPrefix+helperError(err), true
+				a.hd.msg, a.hd.msgErr = i18n.Cur().ErrorPrefix+helperError(err), true
 				a.invalidate()
 				return
 			}

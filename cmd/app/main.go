@@ -315,7 +315,7 @@ func (a *app) do(fn func(ctx context.Context) error) {
 		mygo.RunOnMain(func() {
 			a.actionErr = ""
 			if err != nil {
-				a.actionErr = i18n.T.ErrorPrefix + status.ShortError(err)
+				a.actionErr = i18n.Cur().ErrorPrefix + status.ShortError(err)
 			}
 			a.invalidate()
 		})
