@@ -74,20 +74,18 @@ type LifecycleStrings struct {
 	TkSecretNone                                     string
 
 	// --- Helper states (U6, U7). ---
-	HelperStateNotInstalled, HelperStateNotRunning string
-	HelperRestartAdmin                             string // button
-	HelperCopyDiag                                 string
+	HelperStateNotRunning string
+	HelperRestartAdmin    string // button
+	HelperCopyDiag        string
 
 	// --- Install page (U2). ---
 	InstallPlanFailed, InstallPlanTimeout, InstallRetry string
 	InstallNeedsWrites                                  string // lock tooltip
 
 	// --- Services (U44, U55). ---
-	SvcAdopted         string // chip
-	SvcMore            string // ⋯ menu label
-	SvcReplaceWithDuet string // 改用 duet 的服务定义
-	SvcReplaceBody     string // %s: adopted label, %s: duet label
-	SvcAdoptedTip      string
+	SvcAdopted    string // chip
+	SvcMore       string // ⋯ menu label
+	SvcAdoptedTip string
 
 	// --- Kernel (U43, H11, U58). ---
 	KernelStateExternal, KernelStateManaged string
@@ -101,7 +99,7 @@ type LifecycleStrings struct {
 	AppPrefs, MihomoConfigRow, ShowInFinder string
 
 	// --- 停止使用 duet (U54, U55, U56). ---
-	LeavePage, LeaveEntry                  string
+	LeavePage                              string
 	LeaveInstalled                         string
 	LeaveInventoryLoading                  string
 	InvHelperBinary, InvHelperService      string
@@ -215,21 +213,18 @@ var zhLifecycle = LifecycleStrings{
 	TkSecretSetWeak: "已设",
 	TkSecretNone:    "未设",
 
-	HelperStateNotInstalled: "后台助手未安装",
-	HelperStateNotRunning:   "后台助手未运行",
-	HelperRestartAdmin:      "重新启动",
-	HelperCopyDiag:          "复制诊断信息",
+	HelperStateNotRunning: "后台助手未运行",
+	HelperRestartAdmin:    "重新启动",
+	HelperCopyDiag:        "复制诊断信息",
 
 	InstallPlanFailed:  "无法预览安装步骤",
 	InstallPlanTimeout: "预览安装步骤超时",
 	InstallRetry:       "重试",
 	InstallNeedsWrites: "开发运行：只读",
 
-	SvcAdopted:         "接管",
-	SvcMore:            "更多",
-	SvcReplaceWithDuet: "改用 duet 的服务定义…",
-	SvcReplaceBody:     "停止并移除 %s，安装 %s。",
-	SvcAdoptedTip:      "接管来的服务：duet 只启停，不改它的定义",
+	SvcAdopted:    "接管",
+	SvcMore:       "更多",
+	SvcAdoptedTip: "接管来的服务：duet 只启停，不改它的定义",
 
 	KernelStateExternal:  "外部程序（接管）",
 	KernelStateManaged:   "duet 管理",
@@ -245,7 +240,6 @@ var zhLifecycle = LifecycleStrings{
 	ShowInFinder:    "在 Finder 中显示",
 
 	LeavePage:             "停止使用 duet",
-	LeaveEntry:            "停止使用 duet…",
 	LeaveInstalled:        "duet 在本机安装的内容",
 	LeaveInventoryLoading: "读取中…",
 	InvHelperBinary:       "后台助手程序",
@@ -385,21 +379,18 @@ var enLifecycle = LifecycleStrings{
 	TkSecretSetWeak: "Set",
 	TkSecretNone:    "None",
 
-	HelperStateNotInstalled: "Helper not installed",
-	HelperStateNotRunning:   "Helper not running",
-	HelperRestartAdmin:      "Start Again",
-	HelperCopyDiag:          "Copy Diagnostics",
+	HelperStateNotRunning: "Helper not running",
+	HelperRestartAdmin:    "Start Again",
+	HelperCopyDiag:        "Copy Diagnostics",
 
 	InstallPlanFailed:  "Can't preview the install steps",
 	InstallPlanTimeout: "Previewing the install steps timed out",
 	InstallRetry:       "Try Again",
 	InstallNeedsWrites: "Development run: read-only",
 
-	SvcAdopted:         "Adopted",
-	SvcMore:            "More",
-	SvcReplaceWithDuet: "Use duet's Service Definition…",
-	SvcReplaceBody:     "Stops and removes %s, installs %s.",
-	SvcAdoptedTip:      "Adopted service: duet starts and stops it but never changes its definition",
+	SvcAdopted:    "Adopted",
+	SvcMore:       "More",
+	SvcAdoptedTip: "Adopted service: duet starts and stops it but never changes its definition",
 
 	KernelStateExternal:  "External binary (adopted)",
 	KernelStateManaged:   "Managed by duet",
@@ -415,7 +406,6 @@ var enLifecycle = LifecycleStrings{
 	ShowInFinder:    "Show in Finder",
 
 	LeavePage:             "Stop Using duet",
-	LeaveEntry:            "Stop Using duet…",
 	LeaveInstalled:        "What duet Installed on This Mac",
 	LeaveInventoryLoading: "Reading…",
 	InvHelperBinary:       "Helper binary",

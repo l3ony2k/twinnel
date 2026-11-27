@@ -105,7 +105,7 @@ type Strings struct {
 	// Helper connection.
 	Helper, HelperChecking, HelperConnected, HelperNotInstalled string
 	HelperNotRunning, HelperDenied, HelperNotConnectedErr       string
-	HelperNotRunningHint, HelperDeniedHint                      string
+	HelperDeniedHint                                            string
 	HelperRetry, HelperSocket, Subscription, LastApply          string
 	OpDone                                                      string // %s: operation
 	Loading, Close, Remove, Or, Unsaved, Checking, BinaryPath   string
@@ -160,7 +160,7 @@ type Strings struct {
 	ChannelAlpha, KernelCheck, KernelRollback, KernelRollbackBody                               string
 	KernelRollbackTitle, KernelUpdate, KernelInstall, KernelInstallTitle                        string // %s: version
 	KernelFirstInstall, KernelUpToDate, KernelLatest, KernelAsset, KernelDigest, KernelNoDigest string
-	KernelInstallBody, KernelInstallOK                                                          string
+	KernelInstallOK                                                                             string
 	TSNotInstalled, UpdateAvailable                                                             string
 	TSInstallKinds, TSUpdateHints                                                               map[string]string
 
@@ -189,13 +189,13 @@ type Strings struct {
 	HelperTooOld                                                                                     string
 
 	// Takeover page.
-	PageTakeover, TakeoverFixture, TakeoverTitle, TakeoverIntro, TakeoverTooOld       string
-	TakeoverPlan, TakeoverNoPlans, TakeoverPlans, TakeoverOpen                        string
+	PageTakeover, TakeoverFixture, TakeoverTooOld                                     string
+	TakeoverPlan, TakeoverPlans, TakeoverOpen                                         string
 	TakeoverDiscardTitle                                                              string // %s: plan id
 	TakeoverDiscardBody, TakeoverFound, TakeoverLive, TakeoverMihomoSvc               string
-	TakeoverBinary, TakeoverController, TakeoverSecretSet, TakeoverNoSecret           string
-	TakeoverTSSvc, TakeoverSubNoURL, TakeoverSubURL, TakeoverBase                     string
-	TakeoverBaseChosen, TakeoverNoCandidates, TakeoverCandidates, TakeoverUseBase     string
+	TakeoverBinary, TakeoverSecretSet                                                 string
+	TakeoverTSSvc, TakeoverBase                                                       string
+	TakeoverUseBase                                                                   string
 	TakeoverCandScore                                                                 string // proxies same/total, groups same/total, tail/rules, head
 	TakeoverNoLayers                                                                  string
 	TakeoverRules                                                                     string // %d
@@ -203,14 +203,13 @@ type Strings struct {
 	TakeoverOtherChanges, TakeoverNoChanges, TakeoverShowText, TakeoverHideText       string
 	TakeoverAdopt                                                                     string
 	TakeoverAdoptedAt                                                                 string // %s: time
-	TakeoverBackup, TakeoverReplan, TakeoverNotValid                                  string
+	TakeoverReplan, TakeoverNotValid                                                  string
 	TakeoverCheckChanges, TakeoverAdoptTitle                                          string
 	TakeoverAdoptBody                                                                 string // %s: live config path
-	TakeoverResult, TakeoverDone, TakeoverRolledBack, TakeoverFailed, TakeoverHistory string
+	TakeoverResult, TakeoverDone, TakeoverRolledBack, TakeoverFailed                  string
 	TakeoverHealth, TakeoverHealthBefore, TakeoverHealthAfter, TakeoverHealthRollback string
-	TakeoverWorse                                                                     string // %s: check ids
 	PlanStates                                                                        map[string]string
-	SecureTitle, SecureHint, SecureRun, SecureBody, SecureDone, SecureReplaced        string
+	SecureTitle, SecureRun, SecureBody, SecureDone, SecureReplaced                    string
 
 	// First run (helper not installed).
 	OnboardTitle, OnboardIntro, OnboardReadOnly, OnboardPlan, OnboardPlanHint string
@@ -434,7 +433,6 @@ var zh = Strings{
 	HelperNotRunning:      "未运行",
 	HelperDenied:          "无权限",
 	HelperNotConnectedErr: "后台助手未连接",
-	HelperNotRunningHint:  "通常几秒后自动恢复。一直连不上请看 /Library/Application Support/duet/logs/helper.log",
 	HelperDeniedHint:      "只有管理员（admin 组）用户可以管理网络配置",
 	HelperRetry:           "重新连接",
 	HelperSocket:          "套接字",
@@ -577,7 +575,6 @@ var zh = Strings{
 	KernelNoDigest:      "无校验值，不能安装",
 	KernelInstall:       "安装 %s",
 	KernelInstallTitle:  "安装 mihomo %s？",
-	KernelInstallBody:   "下次启动 mihomo 时生效；旧版本保留，可以回滚。",
 	KernelInstallOK:     "安装",
 	TSNotInstalled:      "未安装",
 	UpdateAvailable:     "可更新",
@@ -669,11 +666,8 @@ var zh = Strings{
 
 	PageTakeover:           "接管",
 	TakeoverFixture:        "示例数据，不会发送任何操作",
-	TakeoverTitle:          "接管现有配置",
-	TakeoverIntro:          "生成计划不会改动任何东西",
 	TakeoverTooOld:         "后台助手版本较旧，不支持接管",
 	TakeoverPlan:           "生成接管计划",
-	TakeoverNoPlans:        "还没有接管计划",
 	TakeoverPlans:          "接管计划",
 	TakeoverOpen:           "查看",
 	TakeoverDiscardTitle:   "删除接管计划「%s」？",
@@ -682,16 +676,9 @@ var zh = Strings{
 	TakeoverLive:           "配置文件",
 	TakeoverMihomoSvc:      "mihomo 服务",
 	TakeoverBinary:         "mihomo 程序",
-	TakeoverController:     "控制接口",
 	TakeoverSecretSet:      "已设密钥",
-	TakeoverNoSecret:       "没有密钥：本机任何程序都能控制 mihomo",
 	TakeoverTSSvc:          "Tailscale 服务",
-	TakeoverSubNoURL:       "没有找到订阅地址（作为本地文件导入）",
-	TakeoverSubURL:         "找到订阅地址，接管时存入钥匙串",
-	TakeoverBase:           "基础订阅",
-	TakeoverBaseChosen:     "已选用",
-	TakeoverNoCandidates:   "没有其他候选文件",
-	TakeoverCandidates:     "候选文件",
+	TakeoverBase:           "订阅原文",
 	TakeoverUseBase:        "改用这个",
 	TakeoverCandScore:      "节点 %d/%d · 策略组 %d/%d · 规则尾部 %d/%d（前面另有 %d 条）",
 	TakeoverNoLayers:       "没有分层",
@@ -706,7 +693,6 @@ var zh = Strings{
 	TakeoverHideText:       "收起报告",
 	TakeoverAdopt:          "接管",
 	TakeoverAdoptedAt:      "已于 %s 接管",
-	TakeoverBackup:         "备份",
 	TakeoverReplan:         "请重新生成计划",
 	TakeoverNotValid:       "合成结果没有通过 mihomo -t，不能接管",
 	TakeoverCheckChanges:   "有未说明的差异，确认没问题再接管",
@@ -716,12 +702,10 @@ var zh = Strings{
 	TakeoverDone:           "接管完成",
 	TakeoverRolledBack:     "健康检查变差，已恢复原配置",
 	TakeoverFailed:         "接管失败",
-	TakeoverHistory:        "历史记录",
 	TakeoverHealth:         "健康检查",
 	TakeoverHealthBefore:   "接管前",
 	TakeoverHealthAfter:    "接管后",
 	TakeoverHealthRollback: "恢复后",
-	TakeoverWorse:          "变差：%s",
 	PlanStates: map[string]string{
 		"ready":       "待接管",
 		"adopted":     "已接管",
@@ -729,7 +713,6 @@ var zh = Strings{
 		"failed":      "失败",
 	},
 	SecureTitle:    "加固控制接口",
-	SecureHint:     "生成新的随机密钥；网页面板、脚本等要改用新密钥",
 	SecureRun:      "生成密钥并应用",
 	SecureBody:     "mihomo 下次启动后生效。网页面板、脚本等要手动换新密钥。",
 	SecureDone:     "已设置新的控制接口密钥",
