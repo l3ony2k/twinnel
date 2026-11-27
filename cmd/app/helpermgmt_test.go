@@ -99,3 +99,13 @@ func TestCanUpdateHelper(t *testing.T) {
 		}
 	}
 }
+
+// 需打包版 never shows in a packaged app (walkthrough 2, N28).
+func TestNeedsBundleTag(t *testing.T) {
+	if needsBundleTag(true) != "" {
+		t.Error("packaged app shows 需打包版")
+	}
+	if needsBundleTag(false) == "" {
+		t.Error("dev run shows no tag")
+	}
+}

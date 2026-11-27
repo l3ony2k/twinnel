@@ -17,6 +17,8 @@ type Config struct {
 	Secret          string `json:"secret,omitempty"`
 	PrimaryGroup    string `json:"primaryGroup,omitempty"`
 	TestURL         string `json:"testURL,omitempty"`
+	// MihomoBinary and MihomoConfigDir are kept so older app.json files
+	// load; nothing reads them (the helper has its own).
 	MihomoBinary    string `json:"mihomoBinary,omitempty"`
 	MihomoConfigDir string `json:"mihomoConfigDir,omitempty"`
 	// NotificationsOff turns desktop notifications off (on by default).
