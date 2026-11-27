@@ -103,9 +103,10 @@ type app struct {
 	trayTip     string                     // the tray's tooltip as last set
 	egress      egressState                // the on-demand egress test (statusui.go)
 	egressProbe func(context.Context) *health.CheckReport
-	evidenceAll map[string]bool // health check ID → all evidence lines shown
-	side        sidebarState    // the sidebar's mode and width (sidebar.go)
-	shotNav     struct {        // shot mode: force the sidebar's key/hover looks
+	evidenceAll map[string]bool       // health check ID → all evidence lines shown
+	side        sidebarState          // the sidebar's mode and width (sidebar.go)
+	dockPol     mygo.ActivationPolicy // the activation policy as last set (dock.go)
+	shotNav     struct {              // shot mode: force the sidebar's key/hover looks
 		active *bool
 		hover  string
 	}
@@ -120,7 +121,7 @@ func main() {
 	a.theme = os.Getenv("DUET_THEME")
 	initLang()
 	mygo.App.SetName(i18n.T.AppName)
-	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
+	a.initDock() // accessory, or regular for 在程序坞中显示 → 始终
 	// The flyout and the main window come and go; the tray keeps the app.
 	mygo.App.OnWindowAllClosed(func() {})
 	mygo.App.WhenReady(a.ready)
@@ -198,6 +199,7 @@ func (a *app) ready() {
 	if runtime.GOOS == "darwin" {
 		mygo.App.SetMenu(a.appMenu())
 	}
+	a.readyDock()
 	if runtime.GOOS == "linux" {
 		a.tray.SetMenu(a.trayMenu())
 	} else {
@@ -389,6 +391,7 @@ func (a *app) togglePanel() {
 		a.panel.OnClosed(func() { a.panel, a.panelShotH = nil, 0 })
 		return
 	}
+	a.unhideApp() // after syncDock's Hide
 	a.panel = mygo.NewFlyout(mygo.FlyoutOptions{
 		Tray:       a.tray,
 		Placement:  mygo.PlacementBottom,
@@ -415,6 +418,7 @@ func (a *app) openMain() {
 		if a.shotMode {
 			return
 		}
+		a.unhideApp()
 		a.win.Show()
 		a.win.Focus()
 		mygo.App.Focus()
@@ -422,6 +426,8 @@ func (a *app) openMain() {
 		return
 	}
 	a.settings.load(a.cfg)
+	a.unhideApp()
+	a.syncDockFor(true) // 打开窗口时: a Dock icon and ⌘Tab before it shows
 	a.win = mygo.NewWindow(mygo.WindowOptions{
 		Title:         i18n.T.AppName,
 		TitleBarStyle: plat.titleBar,
@@ -438,6 +444,7 @@ func (a *app) openMain() {
 		a.win = nil
 		a.mon.SetLogLevel("") // logs stream only while the window shows
 		a.syncHealthVisible()
+		a.syncDock() // 打开窗口时: back to a menu bar app
 	})
 	if a.page == pageLogs {
 		a.mon.SetLogLevel(a.logs.levelName())
@@ -504,7 +511,8 @@ func (a *app) sidebarMaterial() mygo.Vibrancy {
 // (View) listing the pages with their ⌘1…⌘9 (the window takes the same
 // keys itself, pageKeys, on every platform). As an accessory app duet
 // shows no menu bar of its own, but the menu's key equivalents work while
-// it is active, and the menus show if it ever runs as a regular app.
+// it is active, and the menus show while it runs as a regular app (a Dock
+// icon, dock.go).
 func (a *app) appMenu() *mygo.Menu {
 	var pages []*mygo.MenuItem
 	for i, sec := range navSections(0, 0, toneNeutral) {

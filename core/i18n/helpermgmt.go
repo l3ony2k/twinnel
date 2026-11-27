@@ -37,6 +37,10 @@ type HelperMgmtStrings struct {
 
 	// 登录时打开.
 	General, OpenAtLogin, OpenAtLoginUnsupportedTip, OpenAtLoginApprove string
+
+	// 在程序坞中显示 (macOS): when duet has a Dock icon.
+	ShowInDock, DockWhenOpen, DockAlways, DockNever string
+	DockOpen                                        string // the Dock menu's item that opens the main window
 }
 
 var zhHelperMgmt = HelperMgmtStrings{
@@ -80,6 +84,12 @@ var zhHelperMgmt = HelperMgmtStrings{
 	OpenAtLogin:               "登录时打开",
 	OpenAtLoginUnsupportedTip: "只有打包后的 app 能登录时打开",
 	OpenAtLoginApprove:        "在系统设置 › 通用 › 登录项中允许 duet",
+
+	ShowInDock:   "在程序坞中显示",
+	DockWhenOpen: "打开窗口时",
+	DockAlways:   "始终",
+	DockNever:    "从不",
+	DockOpen:     "打开 duet",
 }
 
 var enHelperMgmt = HelperMgmtStrings{
@@ -123,4 +133,10 @@ var enHelperMgmt = HelperMgmtStrings{
 	OpenAtLogin:               "Open at login",
 	OpenAtLoginUnsupportedTip: "Only the packaged app can open at login",
 	OpenAtLoginApprove:        "Allow duet in System Settings › General › Login Items",
+
+	ShowInDock:   "Show in Dock",
+	DockWhenOpen: "While the window is open",
+	DockAlways:   "Always",
+	DockNever:    "Never",
+	DockOpen:     "Open duet",
 }

@@ -1114,12 +1114,13 @@ func settingsRow(c *ui.Context, label, tip string, more func(), control func()) 
 	})
 }
 
-// generalCard is 设置 → 通用: 登录时打开, 出现故障时发通知 and the
-// interface language, one card for three one-row settings.
+// generalCard is 设置 → 通用: 登录时打开, 在程序坞中显示 (macOS),
+// 出现故障时发通知 and the interface language, one-row settings.
 func (a *app) generalCard(c *ui.Context) {
 	T := i18n.T
 	card(c, T.General, func() {
 		a.loginRow(c)
+		a.dockRow(c)
 		on := !a.cfg.NotificationsOff
 		ok := notificationsSupported()
 		settingsRow(c, T.NotificationsSwitch, T.TipNotifications, nil, func() {

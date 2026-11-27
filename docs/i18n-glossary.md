@@ -117,6 +117,8 @@ terms. Keep them when adding strings, and add new terms here.
 | 完全移除 duet | Remove duet Completely |
 | 同时删除数据 | Also delete data |
 | 登录时打开 | Open at login |
+| 在程序坞中显示：打开窗口时 / 始终 / 从不 | Show in Dock: While the window is open / Always / Never |
+| 打开 duet（程序坞菜单） | Open duet |
 | 通用 | General |
 | 需打包版 | Packaged app only |
 | 订阅原文 | Subscription source |

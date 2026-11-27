@@ -101,6 +101,7 @@ func (a *app) applyLang() {
 	if runtime.GOOS == "darwin" {
 		mygo.App.SetMenu(a.appMenu())
 	}
+	a.setDockMenu()
 	if a.tray != nil {
 		if runtime.GOOS == "linux" {
 			a.tray.SetMenu(a.trayMenu())

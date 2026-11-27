@@ -52,6 +52,7 @@ type platformStyle struct {
 	panelPad        float32 // the flyout's padding
 	trayMenuOnly    bool    // the tray opens a menu, not a flyout
 	trayTitle       bool    // the menu bar item shows text beside its icon (macOS)
+	dock            bool    // a Dock icon by setting (macOS; elsewhere the taskbar follows the window)
 	panelMaterialOK bool    // the flyout shows the popover material
 	pushFace        bool    // plain buttons drawn as NSButton (pushFace)
 	titleBarSize    float32 // the page title in the toolbar
@@ -109,7 +110,7 @@ func platformFor(goos string) platformStyle {
 		groupRadius: 10, controlRadius: 6, innerRadius: 8, rowMinHeight: 24,
 		bodySize: 13, smallSize: 11, calloutSize: 12, leadSize: 15, figureSize: 20, panelTextSize: 13, titleSize: 20, headingSize: 13,
 		titleWeight: 600, headingWeight: 600, panelPad: 14, panelMaterialOK: true,
-		pushFace: true, trayTitle: true,
+		pushFace: true, trayTitle: true, dock: true,
 		// A unified toolbar's window title (System Settings, Finder): about
 		// 15 pt bold, not the 20 pt of an in-content heading.
 		titleBarSize: 15, titleBarWeight: 700,
