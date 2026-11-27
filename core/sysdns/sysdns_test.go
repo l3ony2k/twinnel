@@ -3,6 +3,7 @@ package sysdns
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -234,5 +235,86 @@ func TestAdopt(t *testing.T) {
 	}
 	if p.svcs[0].Servers != nil || !slices.Equal(p.svcs[1].Servers, []string{"192.0.2.53"}) || !slices.Equal(p.sets, []string{"Wi-Fi"}) {
 		t.Fatalf("after restore %+v sets %v", p.svcs, p.sets)
+	}
+}
+
+func TestLinkConnected(t *testing.T) {
+	a := func(ss ...string) []netip.Addr {
+		var out []netip.Addr
+		for _, s := range ss {
+			out = append(out, netip.MustParseAddr(s))
+		}
+		return out
+	}
+	cases := []struct {
+		name        string
+		up, carrier bool
+		addrs       []netip.Addr
+		want        bool
+	}{
+		{"connected", true, true, a("192.0.2.10", "fe80::1"), true},
+		{"down", false, false, a("192.0.2.10"), false},
+		{"no carrier", true, false, a("192.0.2.10"), false},
+		{"no lease (link-local only)", true, true, a("169.254.10.20", "fe80::1"), false},
+		{"no address", true, true, nil, false},
+		{"IPv6 only", true, true, a("2001:db8::10"), false},
+	}
+	for _, c := range cases {
+		if got := LinkConnected(c.up, c.carrier, c.addrs); got != c.want {
+			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// A disconnected service on automatic DNS (a Bluetooth PAN) does not hold
+// the status at "not pointed", and is not unprotected; dns.point still
+// sets it, so it resolves through mihomo once it connects.
+func TestStatusCountsConnectedOnly(t *testing.T) {
+	p := &fakePlatform{svcs: []Service{
+		{Name: "Wi-Fi", Servers: []string{"127.0.0.1"}, Connected: true},
+		{Name: "Bluetooth PAN", Connected: false},
+		{Name: "Ethernet", Servers: []string{"127.0.0.1"}, Connected: false},
+	}}
+	m := &Manager{P: p, Path: filepath.Join(t.TempDir(), "dns-backup.json"), Target: mihomo}
+	st, err := m.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.Pointed || !slices.Equal(st.Unprotected, []string{"Wi-Fi"}) {
+		t.Fatalf("status: %+v", st)
+	}
+	// Adopt records exactly the unprotected ones (what the fix's plan
+	// lists); dns.point records the rest.
+	st, err = m.Adopt(context.Background())
+	if err != nil || !slices.Equal(st.Recorded, []string{"Wi-Fi"}) || len(st.Unprotected) != 0 || !st.Pointed {
+		t.Fatalf("adopt: %+v %v", st, err)
+	}
+	if bk, _ := m.ReadBackup(); slices.ContainsFunc(bk.Services, func(s Service) bool { return s.Connected }) {
+		t.Fatalf("backup stores link state: %+v", bk)
+	}
+	st, err = m.Point(context.Background())
+	if err != nil || !slices.Equal(st.Changed, []string{"Bluetooth PAN"}) || !slices.Equal(st.Recorded, []string{"Ethernet"}) || !st.Pointed {
+		t.Fatalf("point: %+v %v", st, err)
+	}
+	if bk, _ := m.ReadBackup(); len(bk.Services) != 3 {
+		t.Fatalf("backup after point: %+v", bk)
+	}
+
+	// The connected one off mihomo: not pointed, whatever the others say.
+	p.svcs[0].Servers = []string{"192.0.2.53"}
+	if st, _ := m.Status(context.Background()); st.Pointed {
+		t.Fatalf("pointed with Wi-Fi on 192.0.2.53: %+v", st)
+	}
+}
+
+// Offline (nothing connected) every service counts.
+func TestCountedOffline(t *testing.T) {
+	svcs := []Service{{Name: "Wi-Fi", Servers: []string{"127.0.0.1"}}, {Name: "Ethernet"}}
+	if got := Counted(svcs); len(got) != 2 {
+		t.Fatalf("offline: %+v", got)
+	}
+	svcs[1].Connected = true
+	if got := Counted(svcs); len(got) != 1 || got[0].Name != "Ethernet" {
+		t.Fatalf("one connected: %+v", got)
 	}
 }

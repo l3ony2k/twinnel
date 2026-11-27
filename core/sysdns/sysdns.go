@@ -16,6 +16,15 @@
 //
 // PointsAt is the one definition of "this service resolves through
 // mihomo" for the helper, the watchdog and the system-dns health check.
+// LinkConnected and Counted are the one definition of "which services
+// count": every verdict about the system DNS (dns.status pointed and
+// unprotected, the setup's dns step, the system-dns check) looks only at
+// connected services, so a disconnected adapter (a Bluetooth PAN, an
+// unplugged Ethernet port) never holds a working machine at "not
+// pointed". Actions are wider on purpose: dns.point, dns.restore, Adopt
+// and the watchdog act on every managed service, connected or not, so a
+// network that connects later already resolves through mihomo, and is
+// put back with the others when mihomo stops.
 //
 // The platform part (networksetup on macOS, netsh and the registry on
 // Windows) is behind Platform; tests use a fake.
@@ -27,6 +36,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
@@ -38,6 +48,44 @@ import (
 type Service struct {
 	Name    string   `json:"name"`
 	Servers []string `json:"servers"`
+	// Connected: the service's link carries traffic now (LinkConnected).
+	// Platform.Services sets it; the backup never stores it.
+	Connected bool `json:"connected,omitempty"`
+}
+
+// LinkConnected is the one rule for "this network link carries traffic
+// now": it is up, has carrier, and holds a routable IPv4 address (not
+// link-local: a link with only 169.254.x.x got no lease). mihomo's DNS
+// listener and TUN are IPv4, so an IPv4 address is what makes a link's
+// DNS matter. Platforms pass what they know: Windows has one operational
+// state for up and carrier.
+func LinkConnected(up, carrier bool, addrs []netip.Addr) bool {
+	if !up || !carrier {
+		return false
+	}
+	for _, a := range addrs {
+		if a.Is4() && !a.IsLinkLocalUnicast() && !a.IsLoopback() && !a.IsUnspecified() {
+			return true
+		}
+	}
+	return false
+}
+
+// Counted returns the services a verdict about the system DNS looks at:
+// the connected ones. While none is connected (offline, or a platform
+// that cannot tell) every service counts, so the verdict still says
+// whether the settings point at mihomo.
+func Counted(svcs []Service) []Service {
+	var out []Service
+	for _, s := range svcs {
+		if s.Connected {
+			out = append(out, s)
+		}
+	}
+	if len(out) == 0 {
+		return svcs
+	}
+	return out
 }
 
 // Platform reads and sets the DNS of network services.
@@ -141,12 +189,13 @@ func (b *Backup) RestoreValue(name string, target []string) ([]string, bool) {
 type Status struct {
 	Services []Service `json:"services"`
 	Target   []string  `json:"target,omitempty"`
-	// Pointed: every service points at mihomo (PointsAt Target).
+	// Pointed: every counted service (Counted: the connected ones)
+	// points at mihomo (PointsAt Target).
 	Pointed bool    `json:"pointed"`
 	Backup  *Backup `json:"backup,omitempty"`
-	// Unprotected are the services that point at mihomo with no restore
-	// value in the backup: if mihomo stops they lose DNS, and nothing can
-	// put them back (Adopt records one).
+	// Unprotected are the counted services that point at mihomo with no
+	// restore value in the backup: if mihomo stops they lose DNS, and
+	// nothing can put them back (Adopt records one).
 	Unprotected []string `json:"unprotected,omitempty"`
 	// Changed lists the services Point or Restore set.
 	Changed []string `json:"changed,omitempty"`
@@ -220,8 +269,9 @@ func (m *Manager) Status(ctx context.Context) (Status, error) {
 
 func (m *Manager) status(svcs []Service, bk *Backup) Status {
 	st := Status{Services: svcs, Target: m.Target, Backup: bk}
-	st.Pointed = len(m.Target) > 0 && len(svcs) > 0
-	for _, s := range svcs {
+	counted := Counted(svcs)
+	st.Pointed = len(m.Target) > 0 && len(counted) > 0
+	for _, s := range counted {
 		if !PointsAt(s.Servers, m.Target) {
 			st.Pointed = false
 			continue
@@ -250,7 +300,7 @@ func (m *Manager) record(bk *Backup, svcs []Service, only func(Service) bool) (b
 		if slices.ContainsFunc(bk.Services, func(b Service) bool { return b.Name == s.Name }) || !only(s) {
 			continue
 		}
-		rec := Service{Name: s.Name, Servers: slices.Clone(s.Servers)}
+		rec := Service{Name: s.Name, Servers: slices.Clone(s.Servers)} // never Connected: a backup holds settings, not state
 		if PointsAt(s.Servers, m.Target) {
 			rec.Servers = nil
 			auto = append(auto, s.Name)
@@ -268,7 +318,8 @@ func (m *Manager) needTarget() error {
 	return nil
 }
 
-// Point sets every service to Target, recording the earlier values first.
+// Point sets every service to Target, connected or not (see the package
+// comment), recording the earlier values first.
 func (m *Manager) Point(ctx context.Context) (Status, error) {
 	if err := m.needTarget(); err != nil {
 		return Status{}, err
@@ -310,9 +361,10 @@ func (m *Manager) Point(ctx context.Context) (Status, error) {
 	return st, err
 }
 
-// Adopt records automatic (DHCP) as the restore value of every service
-// that points at mihomo without one, so Restore and the DNS watchdog can
-// put it back. It changes no DNS setting and works while mihomo is down.
+// Adopt records automatic (DHCP) as the restore value of every
+// unprotected service (Status.Unprotected: a counted service that points
+// at mihomo without one), so Restore and the DNS watchdog can put it
+// back. It changes no DNS setting and works while mihomo is down.
 func (m *Manager) Adopt(ctx context.Context) (Status, error) {
 	if err := m.needTarget(); err != nil {
 		return Status{}, err
@@ -328,8 +380,13 @@ func (m *Manager) Adopt(ctx context.Context) (Status, error) {
 	if bk == nil {
 		bk = &Backup{At: m.now()}
 	}
-	pointed := func(s Service) bool { return PointsAt(s.Servers, m.Target) }
-	if changed, auto := m.record(bk, svcs, pointed); changed {
+	// Exactly the Unprotected ones (counted services): what dns.status
+	// and the system-dns check name, and what the fix's plan lists. A
+	// disconnected service is recorded once it connects (dns.point
+	// records every service).
+	unprotected := m.status(svcs, bk).Unprotected
+	pick := func(s Service) bool { return slices.Contains(unprotected, s.Name) }
+	if changed, auto := m.record(bk, svcs, pick); changed {
 		if err := m.writeBackup(bk); err != nil {
 			return Status{}, err
 		}

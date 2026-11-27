@@ -343,6 +343,34 @@ func (f *Flow) Detect(ctx context.Context) {
 		f.skip(StepTailscale, CodeUserSkipped)
 		f.skip(StepLogin, CodeUserSkipped)
 	}
+	f.detectHealth(ctx, hc)
+}
+
+// detectHealth judges the health step from the helper's last report
+// (health.last: the helper runs the checks on a timer and after every
+// change), once every other step is done or skipped: a machine that is
+// set up and healthy reads as complete without running the checks again.
+// A report with failed checks marks the step failed, naming them, as a
+// run would; no report yet leaves it pending. While an earlier step is
+// still to do, the flow runs the checks itself at the end.
+func (f *Flow) detectHealth(ctx context.Context, hc Caller) {
+	for _, s := range f.Steps() {
+		if s.ID != StepHealth && s.State != Done && s.State != Skipped {
+			return
+		}
+	}
+	var hr rpc.HealthReport
+	if hc.Call(ctx, rpc.MethodHealthLast, rpc.HealthLastParams{Lang: f.Env.Lang}, &hr) != nil || len(hr.Report) == 0 {
+		return
+	}
+	detail, err := healthOutcome(hr)
+	var se *StepError
+	switch {
+	case err == nil:
+		f.set(StepHealth, func(s *StepState) { s.State, s.Detail, s.Error, s.Code = Done, detail, "", "" })
+	case errors.As(err, &se):
+		f.set(StepHealth, func(s *StepState) { s.State, s.Detail, s.Error, s.Code = Failed, detail, cleanErr(se.Err), se.Code })
+	}
 }
 
 // dnsUnsupported: the helper says this platform cannot set the system DNS.
@@ -862,6 +890,12 @@ func (f *Flow) runHealth(ctx context.Context, hc Caller) (string, error) {
 	if err := hc.Call(ctx, rpc.MethodHealthRun, rpc.HealthRunParams{Reason: "setup", Lang: f.Env.Lang}, &hr); err != nil {
 		return "", err
 	}
+	return healthOutcome(hr)
+}
+
+// healthOutcome is the health step's result for a report: "ok/total", and
+// CodeHealthFail naming the failed checks.
+func healthOutcome(hr rpc.HealthReport) (string, error) {
 	var rep health.Report
 	if err := json.Unmarshal(hr.Report, &rep); err != nil {
 		return "", fmt.Errorf("health report: %w", err)

@@ -337,3 +337,14 @@ func TestTailscaleStatusOverride(t *testing.T) {
 		t.Fatalf("%+v %v ran=%v", st, err, ran)
 	}
 }
+
+// eth0 is up without carrier (NO-CARRIER), wlan0 is connected: only
+// wlan0 counts for the system-dns verdict (sysdns.LinkConnected, the
+// rule dns.status shares), so the unplugged port never decides it.
+func TestConnectedDevicesSkipsNoCarrier(t *testing.T) {
+	env := New(Options{Run: fakeRunner(t)})
+	got := health.ConnectedDevices(context.Background(), env)
+	if got["eth0"] || !got["wlan0"] {
+		t.Fatalf("connected: %v", got)
+	}
+}

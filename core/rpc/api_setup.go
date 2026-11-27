@@ -7,10 +7,13 @@ import "time"
 // (kernel.install, subscription.put, layer.put, compose.apply,
 // service.install).
 const (
-	// MethodDNSStatus reads the DNS of the active network services and
+	// MethodDNSStatus reads the DNS of the managed network services
+	// (connected or not; DNSService.Connected tells them apart) and
 	// whether Twinnel keeps a backup of them.
 	MethodDNSStatus = "dns.status"
-	// MethodDNSPoint points every active network service at mihomo's DNS
+	// MethodDNSPoint points every managed network service, connected or
+	// not (one that connects later already resolves through mihomo), at
+	// mihomo's DNS
 	// (127.0.0.1; on Windows also ::1 for IPv6, see
 	// platform/windows/sysdns.go), recording the earlier values first.
 	// Refused while mihomo's DNS does not answer.
@@ -49,15 +52,20 @@ const (
 type DNSService struct {
 	Name    string   `json:"name"`
 	Servers []string `json:"servers"`
+	// Connected: the service's link carries traffic now
+	// (sysdns.LinkConnected). Only connected services count for Pointed
+	// and Unprotected. Never set on Backup entries.
+	Connected bool `json:"connected,omitempty"`
 }
 
 // DNSStatus is the result of the dns.* methods.
 type DNSStatus struct {
 	Services []DNSService `json:"services"`
 	Target   []string     `json:"target"`
-	// Pointed: every service points at mihomo (sysdns.PointsAt Target).
+	// Pointed: every connected service points at mihomo (sysdns.PointsAt
+	// Target; sysdns.Counted: every service while none is connected).
 	Pointed bool `json:"pointed"`
-	// Unprotected are the services that point at mihomo with nothing
+	// Unprotected are the connected services that point at mihomo with nothing
 	// recorded to restore: if mihomo stops they lose DNS and the watchdog
 	// cannot help (dns.backup, or dns.point, records automatic for them).
 	Unprotected []string `json:"unprotected,omitempty"`

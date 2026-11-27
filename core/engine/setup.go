@@ -43,7 +43,7 @@ func toDNSStatus(st sysdns.Status, target []string) rpc.DNSStatus {
 	out := rpc.DNSStatus{Target: target, Pointed: st.Pointed, Changed: st.Changed, Supported: true, Services: []rpc.DNSService{},
 		Unprotected: st.Unprotected, Recorded: st.Recorded}
 	for _, s := range st.Services {
-		out.Services = append(out.Services, rpc.DNSService{Name: s.Name, Servers: s.Servers})
+		out.Services = append(out.Services, rpc.DNSService{Name: s.Name, Servers: s.Servers, Connected: s.Connected})
 	}
 	if st.Backup != nil {
 		out.BackupAt = st.Backup.At
