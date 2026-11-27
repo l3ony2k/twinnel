@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -32,7 +33,7 @@ import (
 // Replaceable in tests: nothing in a test may run osascript, launchctl or
 // write outside its temp dir.
 var (
-	geteuid     = os.Geteuid
+	geteuid     = platformEUID
 	executable  = os.Executable
 	runElevated = func(ctx context.Context, argv []string, stdout, stderr io.Writer) error {
 		cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
@@ -49,9 +50,22 @@ var (
 	helperServiceState = readServiceState
 )
 
+// stringList is a repeatable string flag.
+type stringList []string
+
+func (l *stringList) String() string     { return strings.Join(*l, ",") }
+func (l *stringList) Set(v string) error { *l = append(*l, v); return nil }
+
+// allowSIDs are --allow-sid (Windows: users the helper's pipe allows),
+// read by the Windows install plan.
+var allowSIDs stringList
+
 type installFlags struct {
 	dryRun, yes, asRoot                bool
 	helperBin, stateDir, socket, label string
+	// output (Windows, the elevated copy): the pipe of the copy that
+	// asked for elevation, where this one's output goes.
+	output string
 	// extra are more flags for the elevated copy (uninstall --purge, ...).
 	extra []string
 }
@@ -62,12 +76,14 @@ func newInstallFlags(name string, withBin bool) (*flag.FlagSet, *installFlags) {
 	fs.BoolVar(&f.dryRun, "dry-run", false, "print the plan (plist and commands); change nothing")
 	fs.BoolVar(&f.yes, "yes", false, "do not ask for confirmation (the administrator password dialog still appears)")
 	fs.BoolVar(&f.asRoot, "as-root", false, "internal: run the plan; only valid as root")
+	fs.Var(&allowSIDs, "allow-sid", "Windows: a user `SID` the helper's pipe allows (repeatable; default: whoever runs this)")
+	fs.StringVar(&f.output, "output", "", "internal (Windows): write the elevated run's output to this `PIPE`")
 	if withBin {
 		fs.StringVar(&f.helperBin, "helper-bin", "", "twinnel-helper `BINARY` to install (default: next to this Twinnel binary)")
 	}
 	fs.StringVar(&f.stateDir, "state-dir", store.DefaultDir, "helper state `DIR`")
 	fs.StringVar(&f.socket, "socket", rpc.DefaultSocket, "socket `PATH` the helper listens on")
-	fs.StringVar(&f.label, "label", store.DefaultHelperLabel, "launchd `LABEL`")
+	fs.StringVar(&f.label, "label", store.DefaultHelperLabel, "service `LABEL` (launchd label, systemd unit, Windows service name)")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "usage: twinnel %s [flags]\n\nflags:\n", name)
 		fs.PrintDefaults()
@@ -148,6 +164,9 @@ func runAsRoot(op string, f *installFlags, show func(io.Writer), run func(contex
 		if geteuid() != 0 {
 			return errors.New("--as-root is only for the elevated copy of Twinnel; run without it")
 		}
+		if err := attachOutput(f.output); err != nil {
+			return err
+		}
 		fmt.Fprintf(stdout, "# twinnel helper %s: running as root\n", op)
 		if precheck != nil {
 			if err := precheck(); err != nil {
@@ -194,6 +213,13 @@ func runAsRoot(op string, f *installFlags, show func(io.Writer), run func(contex
 	if err != nil {
 		return err
 	}
+	return elevate(op, f, exe, rargs)
+}
+
+// elevateOSA re-runs Twinnel as root through osascript's administrator
+// password dialog (macOS; on Linux osascript is missing and this fails:
+// run with sudo).
+func elevateOSA(op string, f *installFlags, exe string, rargs []string) error {
 	argv, err := osascriptArgv(exe, rargs)
 	if err != nil {
 		return err
@@ -298,13 +324,17 @@ func osascriptArgv(exe string, args []string) ([]string, error) {
 }
 
 func defaultHelperBin() string {
+	name := "twinnel-helper"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
 	if exe, err := executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "twinnel-helper")
+		p := filepath.Join(filepath.Dir(exe), name)
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}
 	}
-	return "./twinnel-helper"
+	return filepath.Join(".", name)
 }
 
 // ---- health and adopt over RPC ----

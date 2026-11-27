@@ -228,3 +228,47 @@ func TestQueryTextMatchesWaits(t *testing.T) {
 type fakeExec func([]string) ([]byte, error)
 
 func (f fakeExec) Run(_ context.Context, argv []string) ([]byte, error) { return f(argv) }
+
+func TestHelperPlans(t *testing.T) {
+	sid := "S-1-5-21-1000000001-2000000002-3000000003-1001"
+	steps, err := HelperInstallPlan(`C:\Users\someone\Downloads\twinnel-helper.exe`, stateDir, `\\.\pipe\twinnel-helper`, "TwinnelHelper", []string{sid})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := argvs(steps)
+	// The wait for STOPPED comes before the copy over the locked exe.
+	iWait, iCopy := -1, -1
+	for i, s := range steps {
+		switch s.Kind {
+		case service.StepWait:
+			iWait = i
+		case service.StepCopy:
+			iCopy = i
+		}
+	}
+	if iWait < 0 || iCopy < iWait {
+		t.Fatalf("wait %d copy %d: %q", iWait, iCopy, got)
+	}
+	var bp string
+	for _, s := range steps {
+		if s.Kind == service.StepRun && s.Argv[1] == "config" {
+			c, _ := ParseCommand(s.Argv)
+			bp = c.Opts["binpath"]
+		}
+	}
+	if sids := AllowedSIDs(bp); !slices.Equal(sids, []string{sid}) {
+		t.Errorf("allow-sid %q in %s", sids, bp)
+	}
+	un, err := HelperUninstallPlan("TwinnelHelper")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range un {
+		if s.Kind == service.StepRemove && strings.HasSuffix(s.Path, "twinnel-svchost.exe") {
+			t.Error("the helper's uninstall removes mihomo's host")
+		}
+	}
+	if last := un[len(un)-1]; last.Kind != service.StepRemove || !strings.HasSuffix(last.Path, `\twinnel-helper.exe`) {
+		t.Errorf("last %v", last)
+	}
+}

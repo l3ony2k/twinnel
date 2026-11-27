@@ -208,6 +208,8 @@ func queryService(_ context.Context, name string) (service.Status, error) {
 	return st, nil
 }
 
+func mgrService(name string, h windows.Handle) *mgr.Service { return &mgr.Service{Name: name, Handle: h} }
+
 // connectReadOnly opens the SCM with only SC_MANAGER_CONNECT, which a
 // normal user has (mgr.Connect asks for all access).
 func connectReadOnly() (*mgr.Mgr, error) {

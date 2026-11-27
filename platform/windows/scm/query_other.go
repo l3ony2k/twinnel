@@ -12,3 +12,8 @@ import (
 func queryService(context.Context, string) (service.Status, error) {
 	return service.Status{}, errors.New("the Service Control Manager only exists on Windows")
 }
+
+// ServiceCommandLine is an installed service's command line; Windows only.
+func ServiceCommandLine(string) (string, error) {
+	return "", errors.New("the Service Control Manager only exists on Windows")
+}
