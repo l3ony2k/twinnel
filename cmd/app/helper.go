@@ -52,6 +52,7 @@ func (a *app) startHelper() {
 				switch a.page {
 				case pageKernel:
 					a.loadServices()
+					a.loadAccessories()
 				case pageTakeover:
 					a.loadTakeover()
 				}
@@ -64,7 +65,7 @@ func (a *app) startHelper() {
 	}
 	hc.OnEvents = func(evs []rpc.Event) {
 		mygo.RunOnMain(func() {
-			evs = a.takeStages(evs)
+			evs = a.takeAccessoryProgress(a.takeStages(evs))
 			if len(evs) == 0 {
 				return // only progress: nothing to reload
 			}
@@ -75,6 +76,9 @@ func (a *app) startHelper() {
 			}
 			if serviceEvent(evs) && a.page == pageKernel {
 				a.loadServices()
+			}
+			if accessoryEvent(evs) && a.page == pageKernel {
+				a.loadAccessories()
 			}
 			if takeoverEvent(evs) && a.page == pageTakeover {
 				a.loadTakeover()

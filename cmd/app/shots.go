@@ -304,7 +304,7 @@ func (a *app) kernelShots(save func(*mygo.Window, string), wait func(time.Durati
 		long()
 		save(a.win, "kernel-"+k.check)
 		if writes {
-			on(func() { a.accessoryUpdate(k, false) })
+			on(func() { a.accessoryUpdate(k, rpc.ProxyAuto) })
 			long()
 			save(a.win, "kernel-"+k.update)
 			if k.check == rpc.MethodGeoCheck {

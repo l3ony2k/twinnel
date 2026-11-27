@@ -117,6 +117,8 @@ type Remote struct {
 	Tag    string // release tag, for GitHub release assets
 	Size   int64  // 0 if unknown
 	SHA256 string // hex; "" if unknown (unverifiable)
+	// Published is when the asset was uploaded (zero if unknown).
+	Published time.Time
 }
 
 // Fetcher downloads accessories.
@@ -220,7 +222,10 @@ func (f *Fetcher) Resolve(ctx context.Context, raw string) (Remote, error) {
 		if a.Name != name {
 			continue
 		}
-		r.Tag, r.Size = rel.TagName, a.Size
+		r.Tag, r.Size, r.Published = rel.TagName, a.Size, a.UpdatedAt
+		if r.Published.IsZero() {
+			r.Published = rel.PublishedAt
+		}
 		if h, ok := strings.CutPrefix(a.Digest, "sha256:"); ok && len(h) == 64 {
 			r.SHA256 = strings.ToLower(h)
 		}

@@ -393,6 +393,7 @@ func (a *app) pageChanged(old string) {
 			a.tailscaleCheck()
 		}
 		a.loadServices()
+		a.loadAccessories()
 	case pageTakeover:
 		a.loadTakeover()
 	}

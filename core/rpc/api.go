@@ -705,8 +705,10 @@ type AccessoryFile struct {
 	// Version is the release tag the installed copy came from, when
 	// Twinnel installed it (else "").
 	Version string `json:"version,omitempty"`
-	// RemoteTag is the release tag of the published file, when known.
-	RemoteTag string `json:"remote_tag,omitempty"`
+	// RemoteTag is the release tag of the published file, when known;
+	// RemoteTime when it was published.
+	RemoteTag  string    `json:"remote_tag,omitempty"`
+	RemoteTime time.Time `json:"remote_time,omitzero"`
 	// Source is where the installed copy came from (Twinnel's record);
 	// "" when it was put there by someone else (mihomo itself, by hand).
 	Source string `json:"source,omitempty"`

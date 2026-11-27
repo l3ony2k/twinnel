@@ -103,6 +103,8 @@ type accRemote struct {
 	Tag    string `json:"tag,omitempty"`
 	Size   int64  `json:"size,omitempty"`
 	Error  string `json:"error,omitempty"`
+	// Time is when the file was published.
+	Time time.Time `json:"time,omitzero"`
 }
 
 type accKind struct {
@@ -256,7 +258,7 @@ func (e *Engine) geoFiles(st *store.Settings, rec accKind) (files []rpc.Accessor
 			files[i] = af
 			continue
 		}
-		af.Remote, af.RemoteSize, af.RemoteTag, af.Error = r.SHA256, r.Size, r.Tag, r.Error
+		af.Remote, af.RemoteSize, af.RemoteTag, af.RemoteTime, af.Error = r.SHA256, r.Size, r.Tag, r.Time, r.Error
 		af.Verifiable = r.SHA256 != ""
 		af.UpdateAvailable = r.Error == "" && (!af.Installed || (af.Verifiable && af.Remote != af.SHA256))
 		files[i] = af
@@ -286,7 +288,7 @@ func (e *Engine) geoResolve(ctx context.Context, f *kernel.Fetcher, st *store.Se
 	for i, it := range items {
 		r, err := f.Resolve(ctx, it.URL)
 		remotes[i] = r
-		ar := accRemote{URL: it.URL, SHA256: r.SHA256, Tag: r.Tag, Size: r.Size}
+		ar := accRemote{URL: it.URL, SHA256: r.SHA256, Tag: r.Tag, Size: r.Size, Time: r.Published}
 		if err != nil {
 			ar.Error = err.Error()
 		}
@@ -622,7 +624,7 @@ func (e *Engine) uiLocal(st *store.Settings, rec accKind) (rpc.AccessoryCheck, e
 		return out, nil
 	}
 	out.Checked = true
-	af.Remote, af.RemoteTag, af.RemoteSize, af.Verifiable, af.Error = r.Tag, r.Tag, r.Size, r.SHA256 != "", r.Error
+	af.Remote, af.RemoteTag, af.RemoteTime, af.RemoteSize, af.Verifiable, af.Error = r.Tag, r.Tag, r.Time, r.Size, r.SHA256 != "", r.Error
 	if af.Remote == "" {
 		af.Remote = r.SHA256
 	}
@@ -640,7 +642,7 @@ func (e *Engine) uiResolve(ctx context.Context, f *kernel.Fetcher, st *store.Set
 		return kernel.Remote{}, err
 	}
 	r, err := f.Resolve(ctx, src)
-	ar := accRemote{URL: src, SHA256: r.SHA256, Tag: r.Tag, Size: r.Size}
+	ar := accRemote{URL: src, SHA256: r.SHA256, Tag: r.Tag, Size: r.Size, Time: r.Published}
 	if err != nil {
 		ar.Error = err.Error()
 	}
