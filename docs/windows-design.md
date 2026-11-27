@@ -178,8 +178,10 @@ tailscaled is refused on Windows: Tailscale's own installer owns it).
 ## 6. Kernels
 
 - Assets: `mihomo-windows-<arch>-<version>.zip` (`amd64` is the GOAMD64=v3
-  build, `arm64`). `-compatible`, `-v1/-v2/-v3` and `-goXXX` variants are not
-  picked (the existing pattern already excludes them). The zip holds one
+  build, `arm64`). On an amd64 CPU without x86-64-v3 (`kernel.HostX86V3`,
+  from `golang.org/x/sys/cpu`) the `amd64-compatible` (GOAMD64=v1) asset is
+  picked instead, on Windows, Linux and macOS alike. `-v1/-v2/-v3` and
+  `-goXXX` variants are never picked. The zip holds one
   `mihomo-windows-<arch>.exe`; it is extracted to `<version>\mihomo.exe`.
 - The digest check, probe (`mihomo.exe -v`) and pruning are unchanged.
 - `current`/`previous` stay directory symlinks (the helper runs as

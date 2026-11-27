@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -40,7 +41,7 @@ func TestWindowsAssetZip(t *testing.T) {
 		"mihomo-linux-amd64-" + v + ".gz":               []byte("wrong"),
 	})
 	for _, arch := range []string{"amd64", "arm64"} {
-		m := &Manager{Dir: filepath.Join(t.TempDir(), "kernels"), API: f.URL, GOOS: "windows", GOARCH: arch, HTTP: f.Client(),
+		m := &Manager{Dir: filepath.Join(t.TempDir(), "kernels"), API: f.URL, GOOS: "windows", GOARCH: arch, HTTP: f.Client(), X86V3: func() bool { return true },
 			Probe: func(_ context.Context, bin string) (string, error) {
 				if filepath.Base(bin) != "mihomo.exe" {
 					t.Errorf("probed %s", bin)
@@ -104,5 +105,50 @@ func TestTailscaleWindowsKind(t *testing.T) {
 	}
 	if v, err := p.Latest(context.Background(), TSWindows); err != nil || v != "1.104.8" {
 		t.Fatalf("latest %q %v", v, err)
+	}
+}
+
+// An amd64 CPU without x86-64-v3 gets the -compatible (GOAMD64=v1) build,
+// on every OS that publishes one; arm64 is not affected.
+func TestCompatibleAssetWithoutV3(t *testing.T) {
+	f := &fakeGitHub{assets: map[string][]byte{}, releases: map[string]string{}, names: map[string][]string{}}
+	f.Server = httptest.NewServer(http.HandlerFunc(f.serve))
+	t.Cleanup(f.Close)
+	v := "v1.19.34"
+	f.addRelease("/repos/MetaCubeX/mihomo/releases/latest", v, map[string][]byte{
+		"mihomo-windows-amd64-" + v + ".zip":            []byte("v3"),
+		"mihomo-windows-amd64-compatible-" + v + ".zip": []byte("v1"),
+		"mihomo-windows-arm64-" + v + ".zip":            []byte("arm"),
+		"mihomo-linux-amd64-" + v + ".gz":               []byte("v3"),
+		"mihomo-linux-amd64-compatible-" + v + ".gz":    []byte("v1"),
+		"mihomo-linux-amd64-v1-" + v + ".gz":            []byte("v1 too"),
+		"mihomo-darwin-amd64-" + v + ".gz":              []byte("v3"),
+		"mihomo-darwin-amd64-compatible-" + v + ".gz":   []byte("v1"),
+	})
+	for _, c := range []struct {
+		goos, arch string
+		v3         bool
+		want       string
+	}{
+		{"windows", "amd64", true, "mihomo-windows-amd64-" + v + ".zip"},
+		{"windows", "amd64", false, "mihomo-windows-amd64-compatible-" + v + ".zip"},
+		{"windows", "arm64", false, "mihomo-windows-arm64-" + v + ".zip"},
+		{"linux", "amd64", false, "mihomo-linux-amd64-compatible-" + v + ".gz"},
+		{"linux", "amd64", true, "mihomo-linux-amd64-" + v + ".gz"},
+		{"darwin", "amd64", false, "mihomo-darwin-amd64-compatible-" + v + ".gz"},
+	} {
+		v3 := c.v3
+		m := &Manager{Dir: t.TempDir(), API: f.URL, GOOS: c.goos, GOARCH: c.arch, HTTP: f.Client(), X86V3: func() bool { return v3 }}
+		r, err := m.Check(context.Background(), "")
+		if err != nil || r.Asset != c.want || r.Version != v {
+			t.Errorf("%s/%s v3=%v: %s %v, want %s", c.goos, c.arch, c.v3, r.Asset, err, c.want)
+		}
+	}
+}
+
+func TestHostX86V3(t *testing.T) {
+	// Only a smoke test: off amd64 it is always false.
+	if runtime.GOARCH != "amd64" && HostX86V3() {
+		t.Error("x86-64-v3 reported on a non-amd64 CPU")
 	}
 }

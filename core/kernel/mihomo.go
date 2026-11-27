@@ -85,6 +85,10 @@ type Manager struct {
 	// Probe runs the new binary and returns its version; the install fails
 	// if it errors. Default: ProbeVersion (`mihomo -v`).
 	Probe func(ctx context.Context, bin string) (string, error)
+	// X86V3 reports whether the CPU runs x86-64-v3 code; on amd64 without
+	// it the "-compatible" (GOAMD64=v1) asset is picked, since the plain
+	// amd64 build crashes on older CPUs. Default HostX86V3.
+	X86V3 func() bool
 	// AllowUnverified installs assets without a published digest. Off by
 	// default: every current MetaCubeX release asset has a sha256 digest.
 	AllowUnverified bool
@@ -205,7 +209,7 @@ func (m *Manager) release(ctx context.Context, channel, path string) (Release, e
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&gr); err != nil {
 		return Release{}, fmt.Errorf("GitHub release: %w", err)
 	}
-	re := regexp.MustCompile(`^mihomo-` + regexp.QuoteMeta(m.goos()) + `-` + regexp.QuoteMeta(m.goarch()) +
+	re := regexp.MustCompile(`^mihomo-` + regexp.QuoteMeta(m.goos()) + `-` + regexp.QuoteMeta(m.assetArch()) +
 		`-(v\d+\.\d+\.\d+|alpha-[0-9a-f]{7,40})` + regexp.QuoteMeta(m.assetExt()) + `$`)
 	for _, a := range gr.Assets {
 		mm := re.FindStringSubmatch(a.Name)
@@ -220,7 +224,7 @@ func (m *Manager) release(ctx context.Context, channel, path string) (Release, e
 			Size: a.Size, Digest: a.Digest, Published: gr.PublishedAt,
 		}, nil
 	}
-	return Release{}, fmt.Errorf("release %s has no asset for %s/%s", gr.TagName, m.goos(), m.goarch())
+	return Release{}, fmt.Errorf("release %s has no asset for %s/%s", gr.TagName, m.goos(), m.assetArch())
 }
 
 // checkAssetURL only lets downloads come from GitHub (or, in tests, from the
@@ -407,6 +411,22 @@ func ProbeVersion(ctx context.Context, bin string) (string, error) {
 
 // Binary is the path the service runs: <Dir>/current/mihomo.
 func (m *Manager) Binary() string { return filepath.Join(m.Dir, "current", m.binName()) }
+
+// assetArch is the arch part of the asset name: "amd64-compatible" on an
+// amd64 CPU without x86-64-v3, else GOARCH.
+func (m *Manager) assetArch() string {
+	if m.goarch() != "amd64" {
+		return m.goarch()
+	}
+	v3 := m.X86V3
+	if v3 == nil {
+		v3 = HostX86V3
+	}
+	if !v3() {
+		return "amd64-compatible"
+	}
+	return "amd64"
+}
 
 // binName is the kernel's file name in a version dir.
 func (m *Manager) binName() string {
