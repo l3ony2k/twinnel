@@ -43,6 +43,7 @@ func (a *app) startHelper() {
 				a.runHealth() // switch between the helper's report and local checks
 			}
 			if h.Connected() && !wasUp {
+				a.events.backfilled = false // a new connection: fetch the helper's buffer again
 				a.refreshCredentials()
 				a.loadHelperData()
 				a.checkUnapplied()
@@ -62,6 +63,7 @@ func (a *app) startHelper() {
 	hc.OnEvents = func(evs []rpc.Event) {
 		mygo.RunOnMain(func() {
 			a.hd.lastEvent = evs[len(evs)-1]
+			a.recordEvents(evs)
 			if credentialsEvent(evs) {
 				a.refreshCredentials()
 			}
@@ -199,8 +201,11 @@ func (a *app) helperOpW(label string, timeout time.Duration, fn func(ctx context
 			text, quiet := opResult(label)
 			if err != nil {
 				d.msg, d.msgErr = i18n.Cur().ErrorPrefix+helperError(err), true
+				if a.page != page && a.win != nil { // the note is on a page no longer shown (H7)
+					a.toastErr = fmt.Sprintf(i18n.Cur().OpFailedTitle, label)
+				}
 			} else if !quiet && a.win != nil {
-				a.toast = text
+				a.toast, a.toastOp = text, true
 			}
 			a.notifyOpEnd(label, err, time.Since(start), page)
 			if done != nil {

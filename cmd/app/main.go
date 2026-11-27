@@ -64,6 +64,7 @@ type app struct {
 	actionErr string
 	settings  settingsForm
 	logs      logsView
+	events    eventLog // the helper's events, for 日志 → duet (eventlog.go)
 	shotMode  bool // DUET_SHOTS: the panel draws its own background
 	// panelShotH is the content height shot mode's panel was last sized
 	// to (fitShotPanel).
@@ -85,6 +86,8 @@ type app struct {
 	hm          helperMgmtView             // 设置 → 后台助手 (helpermgmt.go)
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
+	toastOp     bool                       // toast is an operation's outcome: it links to 日志 → duet (H7)
+	toastErr    string                     // a failed operation's outcome, shown until dismissed (H7)
 	pend        pendingState               // optimistic control values and their errors (pending.go)
 	retry       busySpan                   // the unreachable states' 重试 press (states.go)
 	loadingSeen map[string][2]time.Time    // loadingBox: first and last frame per key
@@ -446,8 +449,16 @@ func (a *app) applyTheme(c *ui.Context) {
 // that needs no answer goes away by itself (errors stay on the page).
 func (a *app) flushToast(c *ui.Context) {
 	if a.toast != "" {
-		c.Toast(a.toast)
-		a.toast = ""
+		if a.toastOp {
+			c.ToastAction(a.toast, i18n.T.EvShow, a.showDuetLog)
+		} else {
+			c.Toast(a.toast)
+		}
+		a.toast, a.toastOp = "", false
+	}
+	if a.toastErr != "" {
+		c.AddToast(ui.Toast{ID: "op-failed", Title: a.toastErr, Type: "error", Timeout: -1, Action: i18n.T.EvShow, OnAction: a.showDuetLog})
+		a.toastErr = ""
 	}
 }
 

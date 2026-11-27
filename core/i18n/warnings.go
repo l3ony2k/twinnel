@@ -69,6 +69,7 @@ var legacyReasons = []struct {
 	re   *regexp.Regexp
 }{
 	{"backup-before-apply", regexp.MustCompile(`^file on disk before apply$`)},
+	{"apply", regexp.MustCompile(`^apply$`)},
 	{"rollback", regexp.MustCompile(`^rollback to (\S+)$`)},
 	{"adopt-failed", regexp.MustCompile(`^adopt (\S+) failed$`)},
 	{"takeover-undo", regexp.MustCompile(`^adopt (\S+) rolled back$`)},

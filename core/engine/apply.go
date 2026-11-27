@@ -195,7 +195,7 @@ func (e *Engine) Apply(ctx context.Context, p rpc.ApplyParams) (*rpc.ApplyResult
 	e.applyMu.Lock()
 	defer e.applyMu.Unlock()
 	start := e.now()
-	res := &rpc.ApplyResult{Reason: p.Reason, Time: start.UTC()}
+	res := &rpc.ApplyResult{Reason: p.Reason, ReasonCode: p.ReasonCode, ReasonArgs: p.ReasonArgs, Time: start.UTC()}
 
 	st, err := e.Store.Settings()
 	if err != nil {
@@ -213,6 +213,7 @@ func (e *Engine) Apply(ctx context.Context, p rpc.ApplyParams) (*rpc.ApplyResult
 	meta := store.HistoryMeta{Reason: p.Reason, Code: p.ReasonCode, Args: p.ReasonArgs, Layers: man}
 	if meta.Code == "" && meta.Reason == "" {
 		meta.Code, meta.Reason = store.ReasonApply, "apply"
+		res.ReasonCode = store.ReasonApply
 	}
 	out, err := e.install(ctx, st, comp.Config, comp.Applied, comp.Warnings, layerSecret, store.HistoryApplied, p, meta, res, start)
 	if err == nil {
@@ -239,6 +240,7 @@ func (e *Engine) Rollback(ctx context.Context, id string) (*rpc.ApplyResult, err
 		return e.fail(res, start, err)
 	}
 	p := rpc.ApplyParams{Reason: res.Reason, ReasonCode: store.ReasonRollback, ReasonArgs: []string{id}, Force: true}
+	res.ReasonCode, res.ReasonArgs = p.ReasonCode, p.ReasonArgs
 	meta := store.HistoryMeta{Reason: p.Reason, Code: p.ReasonCode, Args: p.ReasonArgs, Layers: target.Layers}
 	out, err := e.install(ctx, st, data, []string{"history:" + id}, nil, "", store.HistoryRollback, p, meta, res, start)
 	if err != nil {

@@ -173,12 +173,15 @@ type Msg struct {
 
 type ApplyResult struct {
 	ComposeResult
-	Reason     string `json:"reason,omitempty"`
-	Written    bool   `json:"written"`
-	Reloaded   bool   `json:"reloaded"`
-	RolledBack bool   `json:"rolled_back,omitempty"` // the new config failed after writing and the old one was restored
-	HistoryID  string `json:"history_id,omitempty"`
-	Error      string `json:"error,omitempty"`
+	Reason string `json:"reason,omitempty"`
+	// ReasonCode and ReasonArgs: Reason as a code (core/store Reason…).
+	ReasonCode string   `json:"reason_code,omitempty"`
+	ReasonArgs []string `json:"reason_args,omitempty"`
+	Written    bool     `json:"written"`
+	Reloaded   bool     `json:"reloaded"`
+	RolledBack bool     `json:"rolled_back,omitempty"` // the new config failed after writing and the old one was restored
+	HistoryID  string   `json:"history_id,omitempty"`
+	Error      string   `json:"error,omitempty"`
 	// ErrorMsg is Error as a code (core/msg), when the helper has one.
 	ErrorMsg *Msg      `json:"error_msg,omitempty"`
 	Time     time.Time `json:"time"`
