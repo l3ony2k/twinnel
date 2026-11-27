@@ -242,6 +242,7 @@ type Strings struct {
 	AboutStrings      // about.go
 	TakeoverStrings   // takeover.go
 	HelperMgmtStrings // helpermgmt.go
+	ConfigUIStrings   // configui.go
 }
 
 // zh is the Chinese text.
@@ -790,6 +791,7 @@ var zh = Strings{
 	AboutStrings:      zhAbout,
 	TakeoverStrings:   zhTakeover,
 	HelperMgmtStrings: zhHelperMgmt,
+	ConfigUIStrings:   zhConfigUI,
 }
 
 // F formats one of the strings.

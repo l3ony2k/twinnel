@@ -548,6 +548,7 @@ var en = Strings{
 	AboutStrings:      enAbout,
 	TakeoverStrings:   enTakeover,
 	HelperMgmtStrings: enHelperMgmt,
+	ConfigUIStrings:   enConfigUI,
 }
 
 var enControls = ControlStrings{

@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/l3ony2k/duet/core/config"
+	"github.com/l3ony2k/duet/core/msg"
+	"github.com/l3ony2k/duet/core/rpc"
 )
 
 func TestWarningKnown(t *testing.T) {
@@ -25,9 +27,11 @@ func TestWarningKnown(t *testing.T) {
 	if WarningKind("x: this reload interrupts the network briefly: a") != "reload-disrupts" || WarningKind("nope") != "" {
 		t.Error("WarningKind")
 	}
-	for _, p := range warnPatterns {
-		if T.WarningTexts[p.kind] == "" {
-			t.Errorf("no text for %s", p.kind)
+	for _, l := range langs {
+		for _, code := range msg.Codes() {
+			if _, ok := l.S.Msg(rpc.Msg{Code: code}); !ok {
+				t.Errorf("%s: no text for %s", l.Tag, code)
+			}
 		}
 	}
 }
