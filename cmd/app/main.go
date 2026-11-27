@@ -104,6 +104,9 @@ type app struct {
 }
 
 func main() {
+	if err := shotGuard(os.Getenv); err != nil {
+		log.Fatal(err)
+	}
 	a := &app{page: pageOverview, groupsOpen: map[string]bool{}, tileCols: map[string]int{}, pageScroll: map[string]*ui.ScrollState{}, healthOpen: map[string]bool{}}
 	dir, err := os.UserConfigDir()
 	if err != nil {
