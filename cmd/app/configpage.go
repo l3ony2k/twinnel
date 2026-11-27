@@ -158,7 +158,6 @@ func (a *app) configPage(c *ui.Context, s status.Snapshot) {
 		return
 	}
 	a.opNotes(c, s)
-	a.importSheet(c, s)
 	d := &a.hd
 	// Nothing to compose yet: one empty state for the page, with the two
 	// ways in, instead of three empty sections (022, page size).

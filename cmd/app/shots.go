@@ -113,6 +113,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"configpolish":    a.configPolishShots,    // shots_configpolish.go
 		"configui":        a.configUIShots,        // shots_configui.go
 		"configpages":     a.configPagesShots,     // shots_configpages.go
+		"importcfg":       a.importShots,          // shots_importcfg.go
 		"takeoverexplain": a.takeoverExplainShots, // shots_takeoverexplain.go
 		"lifecycle":       a.lifecycleShots,       // shots_lifecycle.go
 		"status":          a.statusShots,          // shots_status.go
