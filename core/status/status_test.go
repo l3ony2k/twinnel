@@ -198,19 +198,33 @@ func TestEvaluate(t *testing.T) {
 
 // --- format ---
 
-func TestRate4(t *testing.T) {
+func TestRateCompact(t *testing.T) {
 	for in, want := range map[int64]string{
-		0: "  0B", 999: "999B", 1000: "1.0K", 1536: "1.5K", 12 * 1024: " 12K",
-		999 * 1024: "999K", 1024 * 1024: "1.0M", 1300 * 1024: "1.3M", 500 * 1024 * 1024: "500M",
-		3 << 30: "3.0G", -5: "  0B",
+		-5: "  0B", 0: "  0B", 1: "  1B", 999: "999B",
+		1000: "  1K", 1023: "  1K", 1024: "  1K", 1535: "  1K", 1536: "  2K",
+		12 * 1024: " 12K", 512 * 1024: "512K",
+		999*1024 + 511: "999K", 999*1024 + 512: "  1M", 1023 * 1024: "  1M",
+		1 << 20: "  1M", 1300 * 1024: "  1M", 3 << 20: "  3M", 999 << 20: "999M",
+		1 << 30: "  1G", 3 << 30: "  3G", 999 << 30: "999G", 1 << 40: "  1T",
+		1 << 62: "4194304T", // past T it keeps the unit; never seen as a rate
 	} {
-		got := Rate4(in)
-		if got != want || len([]rune(got)) != 4 {
-			t.Errorf("Rate4(%d) = %q, want %q", in, got, want)
+		got := RateCompact(in)
+		if got != want {
+			t.Errorf("RateCompact(%d) = %q, want %q", in, got, want)
+		}
+		if in < 1<<50 && len(got) != 4 {
+			t.Errorf("RateCompact(%d) = %q is not four characters", in, got)
 		}
 	}
-	if got := TrayTitle(TrafficSample{Traffic: mihomo.Traffic{Up: 60 * 1024, Down: 1300 * 1024}}); got != "↓1.3M ↑ 60K" {
+}
+
+func TestTrayTitle(t *testing.T) {
+	s := TrafficSample{Traffic: mihomo.Traffic{Up: 3 << 20, Down: 512 * 1024}}
+	if got := TrayTitle(s); got != "↓\u2009512K ↑\u2009  3M" {
 		t.Errorf("title %q", got)
+	}
+	if TrayUp(s) != "↑\u2009  3M" || TrayDown(s) != "↓\u2009512K" {
+		t.Errorf("lines %q %q", TrayUp(s), TrayDown(s))
 	}
 }
 
