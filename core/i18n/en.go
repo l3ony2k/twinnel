@@ -549,6 +549,7 @@ var en = Strings{
 	TakeoverStrings:   enTakeover,
 	HelperMgmtStrings: enHelperMgmt,
 	StatusStrings:     enStatus,
+	SidebarStrings:    enSidebar,
 }
 
 var enControls = ControlStrings{

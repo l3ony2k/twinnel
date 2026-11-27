@@ -93,6 +93,7 @@ type app struct {
 	egress      egressState                // the on-demand egress test (statusui.go)
 	egressProbe func(context.Context) *health.CheckReport
 	evidenceAll map[string]bool // health check ID → all evidence lines shown
+	side        sidebarState    // the sidebar's mode and width (sidebar.go)
 	shotNav     struct {        // shot mode: force the sidebar's key/hover looks
 		active *bool
 		hover  string
@@ -514,7 +515,9 @@ func (a *app) appMenu() *mygo.Menu {
 			pages = append(pages, item)
 		}
 	}
-	pages = append(pages, mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen})
+	pages = append(pages, mygo.Separator(), &mygo.MenuItem{Label: i18n.T.SidebarToggle, Accelerator: "Ctrl+Cmd+S",
+		Click: func(*mygo.MenuItem, *mygo.Window) { a.openMain(); a.toggleSidebar() }})
+	pages = append(pages, &mygo.MenuItem{Role: mygo.RoleToggleFullScreen})
 	// The app menu as the default one, but 关于 duet opens the 关于 page,
 	// not the standard about panel.
 	about := &mygo.MenuItem{Label: i18n.T.AboutApp, Click: func(*mygo.MenuItem, *mygo.Window) {

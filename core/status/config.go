@@ -28,6 +28,11 @@ type Config struct {
 	// while mihomo's TUN is on: its conflict shows as accepted, not as a
 	// failure. Cleared when the exit node changes or turns off.
 	ExitNodeAccepted string `json:"exitNodeAccepted,omitempty"`
+	// Sidebar is the main window's sidebar: "" expanded, "icons" a rail
+	// of icons, "hidden"; SidebarWidth its expanded width in points, 0 for
+	// the default (the platform's, wider in some languages).
+	Sidebar      string  `json:"sidebar,omitempty"`
+	SidebarWidth float32 `json:"sidebarWidth,omitempty"`
 
 	// From the environment only, never saved. AllowWrites is on unless
 	// DUET_READ_ONLY=1: a deny switch for development and test runs
