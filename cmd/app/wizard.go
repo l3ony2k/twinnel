@@ -693,6 +693,7 @@ func (a *app) wizStartProxy() {
 		}
 	}
 	w.counted = false
+	a.hd.applyStage = "" // the apply's stages start over (compose.stage)
 	a.wizRun(func() { w.viaSub = false }, steps...)
 }
 

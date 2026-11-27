@@ -189,6 +189,9 @@ func (a *app) setupStepRow(c *ui.Context, n int, st setup.StepState) {
 				}
 				ui.Spacer(c)
 				switch {
+				case st.State == setup.Running && st.ID == setup.StepApply:
+					// What the apply waits for (save-perf's compose.stage).
+					small(c, stageText(a.hd.applyStage)).SingleLine()
 				case st.State == setup.Skipped:
 					small(c, T.SetupSkipped)
 				case st.Detail != "" && st.State == setup.Done:

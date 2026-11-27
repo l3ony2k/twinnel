@@ -123,6 +123,9 @@ func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 		{name: "sub-running", step: wizSub, helper: true, steps: ver(st(plus(plus(mihomoOK, setup.StepSubscription, D), setup.StepConfig, R))), setup: func(a *app) {
 			a.setupV.url, a.setupV.running = "https://sub.example.com/api/v1/client/subscribe?token=synthetic", true
 		}},
+		{name: "sub-starting", step: wizSub, helper: true, steps: ver(st(plus(plus(plus(mihomoOK, setup.StepSubscription, D), setup.StepConfig, D), setup.StepApply, R))), setup: func(a *app) {
+			a.setupV.url, a.setupV.running, a.hd.applyStage = "https://sub.example.com/api/v1/client/subscribe?token=synthetic", true, rpc.StageReload
+		}},
 		{name: "sub-needs-url", step: wizSub, helper: true, steps: with(ver(st(plus(mihomoOK, setup.StepSubscription, W))), setup.StepSubscription, func(s *setup.StepState) {
 			s.Code = setup.CodeNeedsSubscription
 		}), setup: func(a *app) { a.wiz.importName, a.wiz.importData = "Merge.yaml", []byte("synthetic") }},
