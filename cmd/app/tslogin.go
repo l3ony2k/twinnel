@@ -147,8 +147,9 @@ func (h helperLogin) state(ctx context.Context) (rpc.TailscaleLoginResult, error
 	return h.call(ctx, rpc.TailscaleLoginParams{})
 }
 
-// directLogin is the same over the app's LocalAPI client (the user's
-// identity: on Windows, the profile is the signed-in user's).
+// directLogin is the same over the app's LocalAPI client, as the
+// signed-in user: the only way on Windows, where tailscaled gives no
+// profile to the helper (SYSTEM) and tailscale.login refuses Start.
 type directLogin struct{ ts *tailscale.Client }
 
 func (d directLogin) state(ctx context.Context) (rpc.TailscaleLoginResult, error) {
@@ -168,7 +169,14 @@ func (d directLogin) start(ctx context.Context, reauth bool) (rpc.TailscaleLogin
 		return r, nil
 	}
 	if r.BackendState != "Running" {
-		if err := d.ts.Up(ctx); err != nil {
+		// On Windows the login belongs to the signed-in user, and the
+		// node must stay up after Twinnel quits: Unattended Mode, as
+		// core/tailscale.LoginInSession (the helper refuses Start there).
+		up := d.ts.Up
+		if runtime.GOOS == "windows" {
+			up = d.ts.UpUnattended
+		}
+		if err := up(ctx); err != nil {
 			return r, err
 		}
 		for i := 0; i < 8 && (r.BackendState == "Stopped" || r.BackendState == "NoState"); i++ {

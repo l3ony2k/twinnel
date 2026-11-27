@@ -246,7 +246,11 @@ func (p *TailscaleProbe) Info(ctx context.Context) (TailscaleInfo, error) {
 	var info TailscaleInfo
 	bin := p.Find()
 	if bin == "" {
-		latest, err := p.Latest(ctx, TSBrew)
+		kind := TSBrew // the open-source tailscaled Twinnel installs
+		if runtime.GOOS == "windows" {
+			kind = TSWindows // the MSI
+		}
+		latest, err := p.Latest(ctx, kind)
 		info.Latest = latest
 		return info, err
 	}

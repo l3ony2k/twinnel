@@ -89,6 +89,9 @@ type Manager struct {
 	// it the "-compatible" (GOAMD64=v1) asset is picked, since the plain
 	// amd64 build crashes on older CPUs. Default HostX86V3.
 	X86V3 func() bool
+	// Compatible forces the "-compatible" amd64 asset (InstallFallback
+	// sets it after the plain build did not run).
+	Compatible bool
 	// AllowUnverified installs assets without a published digest. Off by
 	// default: every current MetaCubeX release asset has a sha256 digest.
 	AllowUnverified bool
@@ -289,7 +292,7 @@ func (m *Manager) Install(ctx context.Context, r Release) (State, error) {
 	}
 	got, err := probe(ctx, bin)
 	if err != nil {
-		return State{}, fmt.Errorf("new binary does not run: %w", err)
+		return State{}, fmt.Errorf("%w: %w", ErrDoesNotRun, err)
 	}
 	if got != "" && got != r.Version {
 		return State{}, fmt.Errorf("new binary reports version %q, expected %q", got, r.Version)
@@ -317,6 +320,16 @@ func (m *Manager) Install(ctx context.Context, r Release) (State, error) {
 	}
 	m.prune()
 	return m.List()
+}
+
+// ErrDoesNotRun: the downloaded mihomo failed its version probe on this
+// machine (wrapped by Install).
+var ErrDoesNotRun = errors.New("the downloaded mihomo does not run on this computer")
+
+// CanFallBack reports whether a release that did not run has a
+// "-compatible" build to try instead (amd64, not already compatible).
+func (m *Manager) CanFallBack() bool {
+	return m.goarch() == "amd64" && m.assetArch() == "amd64"
 }
 
 func (m *Manager) download(ctx context.Context, rawURL, dst, wantHex string) error {
@@ -417,6 +430,9 @@ func (m *Manager) Binary() string { return filepath.Join(m.Dir, "current", m.bin
 func (m *Manager) assetArch() string {
 	if m.goarch() != "amd64" {
 		return m.goarch()
+	}
+	if m.Compatible {
+		return "amd64-compatible"
 	}
 	v3 := m.X86V3
 	if v3 == nil {
