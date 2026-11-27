@@ -37,6 +37,10 @@ type fakeEnv struct {
 	egressDirect, egressProxied netip.Addr
 	egressChain                 []string
 	egressErr                   error
+
+	// tun-dataplane probes (checks_dataplane_test.go); nil answers.
+	dialErr, proxyErr, pingErr error
+	dialed, proxied            []string
 }
 
 func (f *fakeEnv) DirectEgress(context.Context, string) (netip.Addr, error) {

@@ -43,6 +43,7 @@ func devConfigPath() string {
 // controller.
 func (realProbes) healthEnv(cfg status.Config, settings health.Settings) health.Env {
 	return darwin.New(darwin.Options{
+		Dataplane:       health.NetProbes{},
 		Controller:      cfg.Controller,
 		Secret:          cfg.Secret,
 		ConfigPath:      devConfigPath(),

@@ -77,6 +77,10 @@ func (m *memoEnv) LookupSystem(_ context.Context, name string) (DNSAnswer, error
 	return memo(m, "dns-system:"+name, func() (DNSAnswer, error) { return m.inner.LookupSystem(m.ctx, name) })
 }
 
+// EgressSupported forwards whether the wrapped Env can run the egress
+// test (Memo itself always has the methods).
+func (m *memoEnv) EgressSupported() bool { return egressSupported(m.inner) }
+
 func (m *memoEnv) DirectEgress(_ context.Context, url string) (netip.Addr, error) {
 	e, ok := m.inner.(EgressEnv)
 	if !ok {

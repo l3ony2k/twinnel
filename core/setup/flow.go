@@ -628,9 +628,10 @@ func (f *Flow) runMihomo(ctx context.Context, hc Caller) (string, error) {
 // BaseLayerID is the built-in base settings' override id.
 const BaseLayerID = "base"
 
-// BaseSettings is the built-in base layer (overrides/base-tun-fakeip.yaml).
+// BaseSettings is the built-in base layer (overrides/base-tun-fakeip.yaml)
+// for this OS: tun.stack gvisor on Windows (overrides.Base).
 func BaseSettings() ([]byte, error) {
-	return overrides.Templates.ReadFile("base-tun-fakeip.yaml")
+	return overrides.Base(runtime.GOOS)
 }
 
 func (f *Flow) runConfig(ctx context.Context, hc Caller) (string, error) {

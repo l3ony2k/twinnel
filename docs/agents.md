@@ -55,7 +55,7 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 | `proxies` | groups, current node, members, last delays; `group` for one with its chain |
 | `connections` | open connections summarized: top destinations, rules, chains, processes |
 | `traffic` | throughput over ~3 s and totals |
-| `logs` | `source=twinnel` (the helper's events) or `source=mihomo` (live log for ~3 s, `level`) |
+| `logs` | `source=twinnel` (the helper's events), `source=mihomo` (live log for ~3 s, `level`) or `source=mihomo-output` (the service's output file, startup errors included, `level`) |
 | `subscriptions` | id, name, active, interval, last fetch/error (never the URL) |
 | `layers` | the overrides; `id` returns one with its content (credentials redacted) |
 | `history` | applied configs; `diff=<id>` (and `against=<id>`) gives a semantic diff |
@@ -65,7 +65,7 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 | `agent_activity` | what agents changed, newest first |
 | `admin_only` | where the person does an action agents never get |
 
-**operate**: `set_mode`, `select_node`, `delay_test`, `health_egress_run` (two GETs to an IP-echo address; operate because it sends traffic out), `set_tun`, `tailscale_up`, `tailscale_down`, `set_exit_node`, `clear_exit_node`, `refresh_subscription`, `flush_fakeip`, `health_fix` (a reason's one-click fix when it only switches something reversible: rerun, egress test, rule mode, exit node off, restart mihomo/tailscaled; checks again; `undo` reverts).
+**operate**: `set_mode`, `select_node`, `delay_test`, `health_egress_run` (two GETs to an IP-echo address; operate because it sends traffic out), `set_tun`, `tailscale_up`, `tailscale_down`, `set_exit_node`, `clear_exit_node`, `refresh_subscription`, `flush_fakeip`, `geo_update` and `dashboard_install` (download, verify against the published sha256, swap in; geo reloads mihomo, the dashboard may add `external-ui: ui` and apply), `health_fix` (a reason's one-click fix when it only switches something reversible: rerun, egress test, rule mode, exit node off, restart mihomo/tailscaled; checks again; `undo` reverts).
 
 **configure**: `layer_put`, `layer_remove`, `layer_enable`, `layer_order`, `sub_put`, `sub_activate`, `sub_remove`, `apply`, `history_rollback`, `settings_update` (no agent fields), `config_import` (plan first, then `confirm=true`), `health_fix_config` (a reason's one-click fix that changes the config or the system DNS: coexistence or leak guard override, controller on loopback, controller secret, system DNS; checks again; `undo` reverts where possible).
 

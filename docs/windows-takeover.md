@@ -59,16 +59,16 @@ reload: PUT /configs?force=true: 400 Bad Request: path is not subpath of home di
 Set-DnsClientServerAddress -InterfaceAlias "Wi-Fi" -ResetServerAddresses   # 网卡名按实际
 ```
 
-## 5 TUN：TCP 不通时试 gvisor
+更多见 [recovery.md](recovery.md)。
 
-已知现象：某些 Windows 版本上，官方 mihomo 的 `tun.stack: mixed`（TCP 走 system 栈）会出现 ping 通、TCP 全超时，而控制面的健康检查全部通过。经 TUN 的网页打不开、走混合端口（如 7899）正常时，加一个覆写：
+## 5 TUN：TCP 不通时用 gvisor
+
+已知现象：某些 Windows 版本上，官方 mihomo 的 `tun.stack: mixed`（TCP 走 system 栈）会出现 ping 通、TCP 全超时，而控制面的检查都通过。Twinnel 在 Windows 上的基础设置已经默认 `stack: gvisor`，健康检查「TUN 数据面」会真的经 TUN 建一次 TCP 连接。从对方那里沿用了 `stack: mixed` 或 `system` 的覆写时，去掉它，或加一个覆写：
 
 ```yaml
 tun:
   stack: gvisor
 ```
-
-应用后再测（`curl -I https://www.gstatic.com/generate_204` 不带代理）。这个覆写建议保留。
 
 ## 6 Tailscale
 

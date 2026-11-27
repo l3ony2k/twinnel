@@ -668,9 +668,24 @@ func (a *app) takeoverVerdictCard(c *ui.Context, p *rpc.TakeoverPlan) {
 				v.showText = !v.showText
 			}
 			if v.showText {
-				for _, txt := range []string{p.Summary, p.SemDiff} {
+				diff := p.SemDiff
+				if v.showFull && p.SemDiffFull != "" {
+					diff = p.SemDiffFull
+				}
+				for _, txt := range []string{p.Summary, diff} {
 					if txt != "" {
 						codeBlock(c, txt)
+					}
+				}
+				// The rules both configs leave dead are folded into a
+				// count; the whole list is one click away.
+				if p.SemDiffFull != "" {
+					label := T.TakeoverShowAllRules
+					if v.showFull {
+						label = T.TakeoverFoldRules
+					}
+					if linkDisclosure(c.Key("full"), v.showFull, label).Clicked() {
+						v.showFull = !v.showFull
 					}
 				}
 			}

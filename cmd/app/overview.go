@@ -154,7 +154,7 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 			copyText(c, env)
 		}
 		if iconButton(c.Key("dashboard"), iconDashboard, T.OvDashboard, false).Disabled(!m.Reachable).Clicked() {
-			_ = mygo.Shell.OpenExternal(dashboardURL(a.mh.BaseURL()))
+			a.openDashboard("/ui/")
 		}
 		if iconButton(c.Key("reload"), iconRefresh, T.ReloadConfig, false).Disabled(!can.Mihomo).Clicked() {
 			a.reloadMihomo(s)

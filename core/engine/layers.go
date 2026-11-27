@@ -232,9 +232,9 @@ func toRPCSettings(st *store.Settings) rpc.Settings {
 	return rpc.Settings{
 		LeakGuardGroups: g, TailscaleCoexist: st.Tailscale.Coexist, TailscaleResolver: st.Tailscale.Resolver,
 		HistoryKeep: st.HistoryKeep, KernelChannel: st.KernelChannel, AutoApply: *st.AutoApply,
-		HealthEgress: st.HealthEgress,
-		Drift:        toRPCDrift(st.Drift),
-		Agent:        rpc.AgentSettings{MCP: st.Agent.MCP, Operate: st.Agent.OperateOn(), Configure: st.Agent.Configure},
+		HealthEgress: st.HealthEgress, GeoAutoUpdate: geoAuto(st),
+		Drift: toRPCDrift(st.Drift),
+		Agent: rpc.AgentSettings{MCP: st.Agent.MCP, Operate: st.Agent.OperateOn(), Configure: st.Agent.Configure},
 	}
 }
 
@@ -285,6 +285,16 @@ func (e *Engine) UpdateSettings(u rpc.SettingsUpdate) (rpc.Settings, error) {
 		}
 		if u.HealthEgress != nil {
 			st.HealthEgress = *u.HealthEgress
+		}
+		if u.GeoAutoUpdate != nil {
+			switch v := *u.GeoAutoUpdate; v {
+			case rpc.GeoAutoOff, "":
+				st.GeoAutoUpdate = ""
+			case rpc.GeoAutoWeekly:
+				st.GeoAutoUpdate = v
+			default:
+				return rpc.ErrInvalid("geo_auto_update must be %q or %q", rpc.GeoAutoOff, rpc.GeoAutoWeekly)
+			}
 		}
 		if a := u.Agent; a != nil {
 			if a.MCP != nil {

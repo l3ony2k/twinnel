@@ -94,7 +94,7 @@ func (r *Runner) Run(ctx context.Context, env Env) *Report {
 	for i, c := range checks {
 		rep.Checks[i] = CheckReport{ID: c.ID(), Title: checkTitle(L, c)}
 		if !supports(c, platform) {
-			rep.Checks[i].Result = skip(L.msgNotOnPlatform, platform)
+			rep.Checks[i].Result = unsupported(L, platform)
 			continue
 		}
 		wg.Add(1)

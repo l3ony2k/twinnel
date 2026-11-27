@@ -60,6 +60,8 @@ type DNSStatus struct {
 	// now; macOS and Windows have one): dns.point and dns.restore then
 	// fail.
 	Supported bool `json:"supported"`
+	// Watch is the DNS watchdog (nil: a helper without one).
+	Watch *DNSWatch `json:"watch,omitempty"`
 }
 
 type TailscaleInstallParams struct {
@@ -135,3 +137,42 @@ type TailscaleLoginResult struct {
 	// Started: this call started a login (Start, and not Running yet).
 	Started bool `json:"started,omitempty"`
 }
+
+// EventDNSWatch: the DNS watchdog restored the system DNS because mihomo
+// did not answer, pointed it back, or forgot a restore (data: DNSWatch).
+const EventDNSWatch = "dns.watchdog"
+
+// Phases of DNSWatch (core/dnswatch).
+const (
+	DNSWatchOff      = "off"      // Twinnel does not own the system DNS
+	DNSWatchWatching = "watching" // pointed at mihomo, watched
+	DNSWatchRestored = "restored" // temporarily back to the earlier DNS
+)
+
+// Causes of a restore.
+const (
+	DNSCauseStopped   = "stopped"    // mihomo's service is not running
+	DNSCauseCrashLoop = "crash-loop" // it keeps restarting
+	DNSCauseNoAnswer  = "no-answer"  // it runs but its DNS does not answer
+)
+
+// DNSWatch is the DNS watchdog's state: once the system DNS points at
+// mihomo, a mihomo that dies would cut name resolution for the whole
+// machine, so the helper writes the earlier DNS back until mihomo answers
+// again (then points it back, leaving alone what the user changed by
+// hand). dns.point and dns.restore end a restore: dns.restore is how a
+// user keeps the earlier DNS.
+type DNSWatch struct {
+	Phase string    `json:"phase"`
+	Cause string    `json:"cause,omitempty"`
+	Since time.Time `json:"since,omitzero"`
+	// Services are the network services the watchdog restored.
+	Services []string `json:"services,omitempty"`
+	// LeftAlone are the services the last point-back skipped because the
+	// user changed their DNS by hand meanwhile.
+	LeftAlone   []string  `json:"left_alone,omitempty"`
+	LastRepoint time.Time `json:"last_repoint,omitzero"`
+}
+
+// Restored reports whether the watchdog holds the system DNS restored.
+func (w *DNSWatch) Restored() bool { return w != nil && w.Phase == DNSWatchRestored }

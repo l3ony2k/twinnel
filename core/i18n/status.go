@@ -35,7 +35,9 @@ type StatusStrings struct {
 	// 出口 IP 实测: test again, the time of an on-demand result (%s), the
 	// 定期检测 switch.
 	EgressRetest, EgressTestedAt, EgressPeriodic, EgressUntested, EgressFailed string
-	DoneCoexistRegen                                                           string
+	// The test can't run on this platform but 定期检测 is on: turn it off.
+	EgressPeriodicOff string
+	DoneCoexistRegen  string
 
 	// mihomo down: start it through the helper.
 	StartMihomo, RestartMihomo, StartShort string
@@ -78,17 +80,18 @@ var zhStatus = StatusStrings{
 	EvidenceTimes: "×%d",
 	EvidenceAll:   "显示全部（%d 行）",
 
-	FixRegenCoexist:  "重新生成 Tailscale 共存",
-	FixOpenOverrides: "打开订阅与覆写",
-	FixTakeOver:      "接管",
-	FixInstallHelper: "安装后台助手",
-	FixTestEgress:    "检测出口",
-	EgressRetest:     "重新检测",
-	EgressTestedAt:   "%s 检测",
-	EgressPeriodic:   "定期检测",
-	EgressUntested:   "未测过",
-	EgressFailed:     "没能检测出口",
-	DoneCoexistRegen: "已重新生成 Tailscale 共存",
+	FixRegenCoexist:   "重新生成 Tailscale 共存",
+	FixOpenOverrides:  "打开订阅与覆写",
+	FixTakeOver:       "接管",
+	FixInstallHelper:  "安装后台助手",
+	FixTestEgress:     "检测出口",
+	EgressRetest:      "重新检测",
+	EgressTestedAt:    "%s 检测",
+	EgressPeriodic:    "定期检测",
+	EgressUntested:    "未测过",
+	EgressFailed:      "没能检测出口",
+	EgressPeriodicOff: "关闭定期检测",
+	DoneCoexistRegen:  "已重新生成 Tailscale 共存",
 
 	StartMihomo:   "启动 mihomo",
 	RestartMihomo: "重启 mihomo",
@@ -128,17 +131,18 @@ var enStatus = StatusStrings{
 	EvidenceTimes: "×%d",
 	EvidenceAll:   "Show All (%d line{s})",
 
-	FixRegenCoexist:  "Regenerate Tailscale Coexistence",
-	FixOpenOverrides: "Open Subscriptions & Overrides",
-	FixTakeOver:      "Take Over",
-	FixInstallHelper: "Install Helper",
-	FixTestEgress:    "Test Egress",
-	EgressRetest:     "Test Again",
-	EgressTestedAt:   "Tested %s",
-	EgressPeriodic:   "Test Periodically",
-	EgressUntested:   "Not tested yet",
-	EgressFailed:     "Couldn't test the egress",
-	DoneCoexistRegen: "Tailscale coexistence regenerated",
+	FixRegenCoexist:   "Regenerate Tailscale Coexistence",
+	FixOpenOverrides:  "Open Subscriptions & Overrides",
+	FixTakeOver:       "Take Over",
+	FixInstallHelper:  "Install Helper",
+	FixTestEgress:     "Test Egress",
+	EgressRetest:      "Test Again",
+	EgressTestedAt:    "Tested %s",
+	EgressPeriodic:    "Test Periodically",
+	EgressUntested:    "Not tested yet",
+	EgressFailed:      "Couldn't test the egress",
+	EgressPeriodicOff: "Turn Off Periodic Test",
+	DoneCoexistRegen:  "Tailscale coexistence regenerated",
 
 	StartMihomo:   "Start mihomo",
 	RestartMihomo: "Restart mihomo",

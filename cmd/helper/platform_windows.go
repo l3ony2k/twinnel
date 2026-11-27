@@ -208,7 +208,7 @@ func windowsSettings(e *engine.Engine) {
 // healthOptions points the checks at the mihomo the helper manages, read
 // fresh from settings for every run.
 func healthOptions(e *engine.Engine, opts *options) windows.Options {
-	o := windows.Options{TailscaleStatus: devTailnetStatus(e, opts)}
+	o := windows.Options{TailscaleStatus: devTailnetStatus(e, opts), Dataplane: windows.Probes()}
 	settings := health.DefaultSettings()
 	o.Settings = &settings
 	healthExtras(e, &settings)

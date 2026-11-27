@@ -81,6 +81,9 @@ type Result struct {
 	// keep MaskIP'd evidence. The helper hands it to the app only when
 	// asked (rpc ips), and the app shows it.
 	Egress *EgressIPs `json:"-"`
+	// Unsupported: the check cannot run on this platform (a skip that
+	// says so). The app offers to turn off a periodic test that has it.
+	Unsupported bool `json:"unsupported,omitempty"`
 }
 
 // EgressIPs are the public addresses the egress test saw: through mihomo

@@ -38,10 +38,4 @@ func TestTakeoverHelpers(t *testing.T) {
 	if !takeoverEvent([]rpc.Event{{Type: rpc.EventTakeoverChanged}}) || takeoverEvent([]rpc.Event{{Type: rpc.EventKernelChanged}}) {
 		t.Error("takeoverEvent")
 	}
-	if got := shortDigest("sha256:9b3d0c27a1e54f6b8c7d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b"); got != "9b3d0c27a1e54f6b…" {
-		t.Errorf("shortDigest = %q", got)
-	}
-	if got := shortDigest("v3.30.0"); got != "v3.30.0" {
-		t.Errorf("tag changed: %q", got)
-	}
 }

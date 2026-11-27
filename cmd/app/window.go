@@ -393,6 +393,7 @@ func (a *app) pageChanged(old string) {
 			a.tailscaleCheck()
 		}
 		a.loadServices()
+		a.loadAccessories()
 	case pageTakeover:
 		a.loadTakeover()
 	}
@@ -424,7 +425,14 @@ func (a *app) verdict(c *ui.Context, s status.Snapshot) {
 				head, reasons := levelHeadline(s)
 				ui.Text(c, head).FontSize(plat.leadSize).FontWeight(600)
 				for _, r := range reasons {
-					ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
+					if tip := reasonTip(r); tip != "" {
+						ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable().Shrink(1)
+							infoTip(c, "", tip, nil)
+						})
+					} else {
+						ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
+					}
 					if r.Raw != "" {
 						// The system's own words, secondary (as errorNote).
 						ui.Text(c, r.Raw).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().

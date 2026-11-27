@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/windows/svc"
 )
 
-// maxLog is the size above which the log is moved to <log>.1 at start.
+// maxLog is the size above which the log is moved to <log>.1.
 const maxLog = 10 << 20
 
 // Main is the service host's entry point: `svchost --name … -- program`.
@@ -31,13 +31,11 @@ func Main(args []string) int {
 		fmt.Fprintln(os.Stderr, "svchost: must be started by the Service Control Manager (the service "+o.Name+")")
 		return 2
 	}
-	out := io.Discard
+	var out io.Writer = io.Discard
 	if o.Log != "" {
-		if fi, err := os.Stat(o.Log); err == nil && fi.Size() > maxLog {
-			os.Rename(o.Log, o.Log+".1")
-		}
-		f, err := os.OpenFile(o.Log, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-		if err == nil {
+		// The child's stdout and stderr, its startup included, and the
+		// host's own lines; rotated at maxLog while it runs.
+		if f, err := OpenLog(o.Log, maxLog); err == nil {
 			defer f.Close()
 			out = f
 		}

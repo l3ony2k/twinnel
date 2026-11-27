@@ -125,6 +125,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"derpinfo":        a.derpInfoShots,        // shots_derpinfo.go
 		"flyout":          a.flyoutShots,          // shots_flyout.go
 		"tslogin":         a.tsLoginShots,         // shots_tslogin.go
+		"components":      a.componentShots,       // shots_components.go
 		"foundations":     a.foundationsShots,     // shots_foundations.go
 		"surfaces":        a.surfacesShots,        // shots_surfaces.go
 		"agent":           a.agentShots,           // shots_agent.go
@@ -132,6 +133,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"wizard":          a.wizardShots,          // shots_wizard.go
 		"healthfix":       a.healthFixShots,       // shots_healthfix.go
 		"autostart":       a.autostartFlow,        // takeover_autostart.go
+		"dnswatch":        a.dnsWatchShots,        // shots_dnswatch.go
 		"takeover":        a.takeoverE2E,
 	}
 }
@@ -305,7 +307,7 @@ func (a *app) kernelShots(save func(*mygo.Window, string), wait func(time.Durati
 		long()
 		save(a.win, "kernel-"+k.check)
 		if writes {
-			on(func() { a.accessoryUpdate(k, false) })
+			on(func() { a.accessoryUpdate(k, rpc.ProxyAuto) })
 			long()
 			save(a.win, "kernel-"+k.update)
 			if k.check == rpc.MethodGeoCheck {
