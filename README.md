@@ -48,6 +48,10 @@ All screenshots use synthetic data (`scripts/readme-shots.sh`).
 | Menu bar app: monochrome status icon whose states differ by shape only (badge, broken ring, glyph), and a panel; main window with overview (the exit node's delay and, on request, the egress IP), proxy groups, Tailscale devices, health, logs, settings (login item, Dock icon, language: English or Chinese, local agents over MCP), and, through the helper, subscriptions and overrides, history, kernels, takeover; a first-run view while the helper is not installed | macOS; a control is enabled when what it acts on can act (mihomo's controller, Tailscale's LocalAPI, the helper); `TWINNEL_READ_ONLY=1` turns every write off for development and test runs |
 | Secrets (controller secret, subscription URLs) | macOS: System keychain when the helper runs as root; Linux and development helpers: a 0600 `secrets.json` in the state dir (Secret Service later) |
 
+## Install
+
+Download `Twinnel_<version>_macos_universal.dmg` (macOS 15+, Apple silicon and Intel) or a Linux `.tar.gz` from [Releases](https://github.com/l3ony2k/twinnel/releases). Builds are not notarized, so the first launch on macOS needs one extra step (System Settings → Privacy & Security → Open Anyway, or `xattr -dr com.apple.quarantine /Applications/Twinnel.app`). Step by step, and for Linux: [docs/install.md](docs/install.md#english).
+
 ## Install from source
 
 You need Go (the version in `go.mod`). No cgo, no other toolchain.
@@ -66,7 +70,7 @@ scripts/build-release.sh            # into dist/, with SHA256SUMS
 scripts/build-release.sh --no-app   # CLI and helper only (any host)
 ```
 
-The `.app` and the CLI and helper inside it are signed ad hoc (`SIGN_IDENTITY` and `NOTARY_PROFILE` switch to a Developer ID signature and notarization), not notarized. A copy you build yourself is not quarantined, so it opens directly; a downloaded one needs right-click → Open the first time.
+The `.app` and the CLI and helper inside it are signed ad hoc (`SIGN_IDENTITY` and `NOTARY_PROFILE` switch to a Developer ID signature and notarization), not notarized. A copy you build yourself is not quarantined, so it opens directly; a downloaded one has to be allowed once ([docs/install.md](docs/install.md#english)). Tagging `v*` builds all of this in GitHub Actions and creates a draft release ([docs/release.md](docs/release.md)).
 
 ### Daily use and development side by side
 

@@ -29,60 +29,46 @@ plutil -p dist/app/darwin-arm64/Twinnel.app/Contents/Info.plist | grep CFBundleI
 xcrun assetutil --info dist/app/darwin-arm64/Twinnel.app/Contents/Resources/Assets.car | head
 ```
 
-## Release job in GitHub Actions (draft, not enabled)
+## Release workflow (GitHub Actions)
 
-`.github/workflows/ci.yml` runs on pushes to `main` and on pull requests only, so a tag-only job
-there would never run; adding a `tags:` trigger to it would also run every test job on tags.
-When releases move to CI, add this as `.github/workflows/release.yml`. It only builds and
-uploads the artifacts to the run; publishing a GitHub release and signing/notarizing with a
-Developer ID (`SIGN_IDENTITY`, `NOTARY_PROFILE`, see the script header) are separate steps to add
-with their secrets.
+`.github/workflows/release.yml` runs on a pushed tag `v*` and by hand (Actions → release → Run
+workflow, `dry_run` on by default). Three jobs:
 
-```yaml
-name: release
+| Job | Runner | What it does |
+|---|---|---|
+| `cli` | ubuntu-latest | `go test ./...`, then `scripts/build-release.sh --no-app` for darwin/arm64, darwin/amd64, linux/amd64, linux/arm64 (pure Go cross-builds); checks that `twinnel version --short` and `twinnel-helper -version` print the tag's version and that `install.sh --dry-run` plans the systemd unit |
+| `app` | macos-26 (Xcode 26) | `build-release.sh --targets "" --app-platform darwin/universal` with `TWINNEL_REQUIRE_LAYERED_ICON=1`: one universal Twinnel.app (app, CLI and helper each arm64 + x86_64), ad-hoc signed, as `.dmg` and `.zip`; checks Assets.car, the architectures, the signature and the version |
+| `release` | ubuntu-latest | merges the assets, writes `SHA256SUMS`, writes release notes from the commits since the previous `v*` tag, and creates a **draft** release (`--prerelease` for tags with a `-`, like `v0.2.0-rc1`). A rerun on the same tag replaces the draft's assets |
 
-on:
-  push:
-    tags: ['v*']
+Version: the tag without the `v` (`v0.1.0` → `0.1.0`), stamped with `-ldflags -X` into
+`core/version.Version` (CLI, app) and `core/engine.HelperVersion` (helper); `CFBundleShortVersionString`
+is its numeric part. A dry run from a branch uses `git describe` (`0.0.0-<n>-g<hash>` before the
+first tag).
 
-permissions:
-  contents: read
+Assets of `v0.1.0`:
 
-jobs:
-  build:
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0 # git describe --tags gives the version
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
-        with:
-          go-version-file: go.mod
-      - name: select Xcode 26
-        # the image's default Xcode may be older; pick the newest 26.x it has
-        run: |
-          xcode=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)
-          sudo xcode-select -s "$xcode"
-          xcrun --find actool
-          xcodebuild -version
-      - name: build
-        env:
-          TWINNEL_REQUIRE_LAYERED_ICON: "1"
-        run: scripts/build-release.sh
-      - name: check the layered icon
-        run: |
-          app=$(find dist/app -maxdepth 2 -name Twinnel.app -type d | head -n 1)
-          test -f "$app/Contents/Resources/Assets.car"
-          plutil -extract CFBundleIconName raw "$app/Contents/Info.plist" | grep -qx Twinnel
-          plutil -extract CFBundleIconFile raw "$app/Contents/Info.plist"
-      - uses: actions/upload-artifact@<pin a release SHA> # v5
-        with:
-          name: twinnel-${{ github.ref_name }}
-          path: |
-            dist/*.tar.gz
-            dist/app/*/*.dmg
-            dist/SHA256SUMS
+```
+Twinnel_0.1.0_macos_universal.dmg
+Twinnel_0.1.0_macos_universal.zip
+twinnel_0.1.0_darwin_arm64.tar.gz   twinnel, twinnel-helper, README.md, LICENSE, INSTALL.md
+twinnel_0.1.0_darwin_amd64.tar.gz
+twinnel_0.1.0_linux_amd64.tar.gz    the same, plus install.sh and twinnel-helper.service
+twinnel_0.1.0_linux_arm64.tar.gz
+SHA256SUMS
 ```
 
-Before enabling it: confirm the `macos-26` runner label and the Xcode 26 path on the current
-runner image, and pin `actions/upload-artifact` to a SHA like the other actions.
+Signing stays ad hoc (no Developer ID, no notarization); `docs/install.md` tells users how to
+open the app. The macOS job is the only one billed at 10x, so it builds just the app; Go
+modules and the build cache are cached by `actions/setup-go`.
+
+`packaging/linux/twinnel-helper.service` is a reference copy of the unit `twinnel helper install`
+writes; `platform/linux/packaging_test.go` fails when they differ
+(`TWINNEL_UPDATE_GOLDEN=1 go test ./platform/linux` rewrites it).
+
+To cut a release:
+
+```sh
+git tag -a v0.1.0 -m "Twinnel 0.1.0"
+git push origin v0.1.0
+# wait for the run, then review and publish the draft on the Releases page
+```

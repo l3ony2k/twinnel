@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
 # Build release artifacts into dist/ (gitignored):
 #   dist/twinnel_<version>_<os>_<arch>.tar.gz   the twinnel CLI and twinnel-helper
-#   dist/app/                                 Twinnel.app + .dmg (macOS hosts only)
+#                                             (Linux: plus install.sh and the systemd unit)
+#   dist/Twinnel_<version>_macos_<arch>.dmg     Twinnel.app in a disk image  } macOS
+#   dist/Twinnel_<version>_macos_<arch>.zip     Twinnel.app zipped (ditto)    } hosts
+#   dist/app/<platform>/Twinnel.app            the signed bundle itself      } only
 #   dist/SHA256SUMS
 #
 # Usage: scripts/build-release.sh [-v VERSION] [--no-app] [--targets "darwin/arm64 linux/amd64"]
+#                                 [--app-platform darwin/arm64|darwin/amd64|darwin/universal]
+#
+# --targets "" builds no CLI archives (the app only). --app-platform picks the
+# app's architecture (default darwin/arm64); darwin/universal makes one app
+# for Apple silicon and Intel, with universal embedded tools (no Xcode needed).
 #
 # Pure Go, no cgo: every target cross-compiles from any host. The .app needs
 # `mygo build` (run through `go run`, pinned to the version in go.mod) and,
@@ -30,13 +38,15 @@ cd "$(dirname "$0")/.."
 
 version=""
 build_app=1
+app_platform="darwin/arm64"
 targets="darwin/arm64 darwin/amd64 linux/amd64 linux/arm64"
 while [ $# -gt 0 ]; do
 	case "$1" in
 	-v | --version) version="$2"; shift 2 ;;
 	--no-app) build_app=0; shift ;;
 	--targets) targets="$2"; shift 2 ;;
-	-h | --help) sed -n '2,13p' "$0"; exit 0 ;;
+	--app-platform) app_platform="$2"; shift 2 ;;
+	-h | --help) sed -n '2,19p' "$0"; exit 0 ;;
 	*) echo "unknown argument: $1" >&2; exit 2 ;;
 	esac
 done
@@ -110,6 +120,15 @@ for t in $targets; do
 	CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "$ldflags" -o "$out/twinnel" ./cmd/cli
 	CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "$ldflags" -o "$out/twinnel-helper" ./cmd/helper
 	cp LICENSE README.md "$out/" 2>/dev/null || true
+	cp docs/install.md "$out/INSTALL.md"
+	if [ "$os" = linux ]; then
+		# install.sh puts twinnel in /usr/local/bin and runs `twinnel helper
+		# install`, which writes the unit itself; the .service file is the
+		# same unit for reading (its --group is the one picked on the host).
+		cp packaging/linux/install.sh "$out/install.sh"
+		cp packaging/linux/twinnel-helper.service "$out/twinnel-helper.service"
+		chmod 0755 "$out/install.sh"
+	fi
 	tar -C "$dist" -czf "$dist/$name.tar.gz" "$name"
 	rm -rf "$out"
 done
@@ -121,8 +140,12 @@ if [ "$build_app" = 1 ]; then
 		# runs bin/twinnel helper install --helper-bin bin/twinnel-helper).
 		# Contents/MacOS/Twinnel is the app itself. mygo copies the project's
 		# resources/<goos>-<goarch>/ into the bundle and signs the binaries.
-		app_platform="darwin/arm64"
 		app_arch="${app_platform#*/}"
+		case "$app_platform" in
+		darwin/arm64 | darwin/amd64) res_arches="$app_arch" ;;
+		darwin/universal) res_arches="arm64 amd64" ;; # mygo lipos darwin-arm64 + darwin-amd64
+		*) echo "unsupported --app-platform $app_platform" >&2; exit 2 ;;
+		esac
 		res="cmd/app/resources"
 		app_json="cmd/app/mygo.json"
 		app_json_orig="$dist/.mygo.json.orig"
@@ -133,10 +156,12 @@ if [ "$build_app" = 1 ]; then
 		}
 		trap cleanup_app EXIT
 		rm -rf "$res"
-		mkdir -p "$res/darwin-$app_arch/bin"
-		for cmd in cli:twinnel helper:twinnel-helper; do
-			CGO_ENABLED=0 GOOS=darwin GOARCH="$app_arch" go build -trimpath -ldflags "$ldflags" \
-				-o "$res/darwin-$app_arch/bin/${cmd#*:}" "./cmd/${cmd%:*}"
+		for a in $res_arches; do
+			mkdir -p "$res/darwin-$a/bin"
+			for cmd in cli:twinnel helper:twinnel-helper; do
+				CGO_ENABLED=0 GOOS=darwin GOARCH="$a" go build -trimpath -ldflags "$ldflags" \
+					-o "$res/darwin-$a/bin/${cmd#*:}" "./cmd/${cmd%:*}"
+			done
 		done
 		# CFBundleShortVersionString wants numbers: 1.2.3 from v1.2.3-4-gabc,
 		# 0.0.0 for an untagged build.
@@ -172,6 +197,11 @@ if [ "$build_app" = 1 ]; then
 		codesign "${sign_flags[@]}" "$app_bundle"
 		codesign --verify --deep --strict "$app_bundle"
 		echo "    signed: ${sign_identity/#-/ad hoc} ($bundle_id)"
+		app_name="Twinnel_${version}_macos_${app_arch}"
+		# The .zip keeps the signature and the bundle's symlinks (ditto, as
+		# Finder's Compress does).
+		ditto -c -k --keepParent "$app_bundle" "$dist/$app_name.zip"
+		echo "    zip: $dist/$app_name.zip"
 		dmg="$(find "$dist/app" -maxdepth 2 -name '*.dmg' | head -n 1)"
 		if [ -n "$dmg" ]; then
 			stage="$dist/.dmg-stage"
@@ -188,7 +218,8 @@ if [ "$build_app" = 1 ]; then
 				xcrun notarytool submit "$dmg" --keychain-profile "$NOTARY_PROFILE" --wait
 				xcrun stapler staple "$dmg"
 			fi
-			echo "    disk image: $dmg"
+			mv "$dmg" "$dist/$app_name.dmg"
+			echo "    disk image: $dist/$app_name.dmg"
 		fi
 	else
 		echo "==> skipping Twinnel.app: mygo signs and packages .app bundles on macOS only"
@@ -198,7 +229,9 @@ fi
 echo "==> checksums"
 (
 	cd "$dist"
-	files=$(find . -type f ! -name SHA256SUMS ! -path '*.app/*' | sed 's|^\./||' | sort)
+	files=$(find . -maxdepth 1 -type f ! -name SHA256SUMS ! -name '.*' | sed 's|^\./||' | sort)
+	[ -n "$files" ] || exit 0
+	# shellcheck disable=SC2086 # release file names have no spaces
 	if command -v sha256sum >/dev/null; then
 		sha256sum $files
 	else
