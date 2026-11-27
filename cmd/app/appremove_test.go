@@ -63,8 +63,8 @@ func TestBundleFromExe(t *testing.T) {
 func TestCmdQuoteWindows(t *testing.T) {
 	for in, want := range map[string]string{
 		`C:\Users\x\AppData\Local\Programs\Twinnel\bin\twinnel.exe`: `C:\Users\x\AppData\Local\Programs\Twinnel\bin\twinnel.exe`,
-		`C:\Program Files\Twinnel\bin\twinnel.exe`:                   `"C:\Program Files\Twinnel\bin\twinnel.exe"`,
-		`C:\Users\a&b\twinnel.exe`:                                   `"C:\Users\a&b\twinnel.exe"`,
+		`C:\Program Files\Twinnel\bin\twinnel.exe`:                  `"C:\Program Files\Twinnel\bin\twinnel.exe"`,
+		`C:\Users\a&b\twinnel.exe`:                                  `"C:\Users\a&b\twinnel.exe"`,
 	} {
 		if got := cmdQuoteFor("windows", in); got != want {
 			t.Errorf("%s: %s, want %s", in, got, want)
