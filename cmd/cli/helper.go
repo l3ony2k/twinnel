@@ -654,7 +654,7 @@ func boolFlag(dst **bool) func(string) error {
 }
 
 func runTailnet(args []string) error {
-	fs, cf := newFlagSet("tailnet", "usage: Twinnel tailnet refresh\n\n")
+	fs, cf := newFlagSet("tailnet", "usage: twinnel tailnet refresh\n\n")
 	pos, done, err := parse(fs, args)
 	if done || err != nil {
 		return err

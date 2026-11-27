@@ -69,7 +69,7 @@ func newInstallFlags(name string, withBin bool) (*flag.FlagSet, *installFlags) {
 	fs.StringVar(&f.socket, "socket", rpc.DefaultSocket, "socket `PATH` the helper listens on")
 	fs.StringVar(&f.label, "label", store.DefaultHelperLabel, "launchd `LABEL`")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "usage: Twinnel %s [flags]\n\nflags:\n", name)
+		fmt.Fprintf(fs.Output(), "usage: twinnel %s [flags]\n\nflags:\n", name)
 		fs.PrintDefaults()
 	}
 	return fs, f

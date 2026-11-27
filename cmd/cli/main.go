@@ -1,4 +1,4 @@
-// Command Twinnel is the command line client of Twinnel.
+// Command twinnel is the command line client of Twinnel.
 //
 // Subcommands live in their own files and register themselves in init().
 package main
@@ -24,7 +24,7 @@ func register(name, summary string, run func(args []string) error) {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: Twinnel <command> [args]")
+	fmt.Fprintln(os.Stderr, "usage: twinnel <command> [args]")
 	names := make([]string, 0, len(commands))
 	for n := range commands {
 		names = append(names, n)

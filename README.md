@@ -114,7 +114,7 @@ twinnel kernel check                # mihomo releases: list | check | install | 
 twinnel kernel geo check            # geo databases: check | update; twinnel kernel ui check|update for the dashboard
 twinnel service restart mihomo      # services: status | start | stop | restart (mihomo, tailscaled) | install | uninstall (mihomo)
 twinnel settings                    # leak guard, coexist, tailnet resolver, history size, kernel channel, auto-apply
-Twinnel tailnet refresh             # re-read the peers now (the helper also polls every 60 s)
+twinnel tailnet refresh             # re-read the peers now (the helper also polls every 60 s)
 twinnel events --follow
 ```
 

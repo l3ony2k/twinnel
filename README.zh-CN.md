@@ -113,7 +113,7 @@ twinnel kernel check                # mihomo 内核：list | check | install | r
 twinnel kernel geo check            # geo 数据库：check | update；面板用 twinnel kernel ui check|update
 twinnel service restart mihomo      # 服务：status | start | stop | restart（mihomo、tailscaled）| install | uninstall（仅 mihomo）
 twinnel settings                    # 防泄漏组、共存开关、tailnet 解析器、历史条数、内核通道、自动应用
-Twinnel tailnet refresh             # 立刻重读 tailnet 设备（helper 也会每 60 秒查一次）
+twinnel tailnet refresh             # 立刻重读 tailnet 设备（helper 也会每 60 秒查一次）
 twinnel events --follow
 ```
 
