@@ -260,6 +260,7 @@ type Strings struct {
 	HelperMgmtStrings      // helpermgmt.go
 	SetupStrings           // setup.go
 	ConfigUIStrings        // configui.go
+	ProgressStrings        // progress.go
 	LifecycleStrings       // lifecycle.go
 	TakeoverExplainStrings // takeoverexplain.go
 	InfoTipStrings         // infotips.go
@@ -827,6 +828,7 @@ var zh = Strings{
 	HelperMgmtStrings:      zhHelperMgmt,
 	SetupStrings:           zhSetup,
 	ConfigUIStrings:        zhConfigUI,
+	ProgressStrings:        zhProgress,
 	LifecycleStrings:       zhLifecycle,
 	TakeoverExplainStrings: zhTakeoverExplain,
 	InfoTipStrings:         zhInfoTips,

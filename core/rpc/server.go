@@ -16,7 +16,7 @@ import (
 // AllMethods is the allowlist. Server.Handle panics for any other name.
 var AllMethods = []string{
 	MethodStatus,
-	MethodComposePreview, MethodComposeApply,
+	MethodComposePreview, MethodComposeApply, MethodComposeStatus,
 	MethodHistoryList, MethodHistoryRollback,
 	MethodLayerList, MethodLayerGet, MethodLayerPut, MethodLayerDelete, MethodLayerSetEnabled, MethodLayerReorder, MethodLayerRestore,
 	MethodSubList, MethodSubPut, MethodSubDelete, MethodSubActivate, MethodSubRefresh,

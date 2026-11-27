@@ -145,12 +145,16 @@ func (a *app) loadLayerSummaries() {
 			defer cancel()
 			var lc rpc.LayerContent
 			err := hc.Call(ctx, rpc.MethodLayerGet, rpc.IDParams{ID: id}, &lc)
+			var sum layerSummary
+			if err == nil {
+				sum = summarizeLayer(lc.Content) // here, not on the main thread: a big override takes ms
+			}
 			mygo.RunOnMain(func() {
 				delete(v.sumsLoading, k)
 				if err != nil {
 					return // the row keeps its size until the next reload
 				}
-				v.sums[k] = summarizeLayer(lc.Content)
+				v.sums[k] = sum
 				a.invalidate()
 			})
 		}()
