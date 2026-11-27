@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/netip"
@@ -335,14 +336,19 @@ func (e *Env) loadConfig() {
 		path := e.opt.ConfigPath
 		if path == "" {
 			cands := DefaultConfigPaths()
+			var denied []string
 			for _, p := range cands {
-				if _, err := e.opt.ReadFile(p); err == nil {
+				_, err := e.opt.ReadFile(p)
+				if err == nil {
 					path = p
 					break
 				}
+				if errors.Is(err, fs.ErrPermission) {
+					denied = append(denied, p)
+				}
 			}
 			if path == "" {
-				e.cfgErr = fmt.Errorf("no mihomo config found (looked in %s)", strings.Join(cands, ", "))
+				e.cfgErr = configNotRead(cands, denied)
 				return
 			}
 		}
@@ -481,4 +487,15 @@ func (e *Env) LookupSystem(ctx context.Context, name string) (health.DNSAnswer, 
 		ans.Addrs = append(ans.Addrs, a.Unmap())
 	}
 	return ans, nil
+}
+
+// configNotRead is the error of a config search that found nothing:
+// "access denied" when a candidate exists but this process may not read
+// it (%ProgramData%\Twinnel is for administrators only), which is not the
+// same as "not found".
+func configNotRead(cands, denied []string) error {
+	if len(denied) > 0 {
+		return fmt.Errorf("cannot read the mihomo config %s: %w (run as administrator, or use the helper's checks in the app)", strings.Join(denied, ", "), fs.ErrPermission)
+	}
+	return fmt.Errorf("no mihomo config found (looked in %s): %w", strings.Join(cands, ", "), fs.ErrNotExist)
 }

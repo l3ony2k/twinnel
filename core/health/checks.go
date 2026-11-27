@@ -187,7 +187,7 @@ func (TUNExclude) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	t, src, err := tunConfig(ctx, env)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	if !t.Enable {
 		return skipText(L.msgTUNOff)
@@ -226,7 +226,7 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	rules, src, err := mihomoRules(ctx, env)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	// Rules only apply in rule mode: global sends everything to GLOBAL,
 	// direct sends everything DIRECT.
@@ -518,7 +518,7 @@ func (PeerNames) Run(ctx context.Context, env Env) Result {
 	}
 	rules, src, err := mihomoRules(ctx, env)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	inRules := map[string]bool{}
 	for _, ru := range rules {
@@ -595,7 +595,7 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	if !cfg.DNS.Enable {
 		return skipText(L.msgMihomoDNSOff)
@@ -924,7 +924,7 @@ func (LeakGuard) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	rt, err := env.MihomoRuntime(ctx)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	groups := env.Settings().SensitiveGroups
 	if len(groups) == 0 {
@@ -1036,7 +1036,7 @@ func (Controller) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	if cfg.ExternalController == "" {
 		return Result{Status: StatusOK, Summary: L.msgCtlDisabled}

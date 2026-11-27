@@ -7,9 +7,7 @@ package health
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"strings"
 
 	"github.com/l3ony2k/twinnel/core/autostart"
@@ -107,45 +105,29 @@ func kindWord(A *autostartTexts, k autostart.Kind) string {
 	return string(k)
 }
 
-// readSkip is a skip for a fact that could not be read, saying whether
-// it was not there or not allowed (an access-denied file is not a
-// missing one).
-func readSkip(ctx context.Context, summary string, err error) Result {
-	return Result{Status: StatusSkip, Summary: summary + autostartText(tx(ctx)).sep + accessWords(ctx, err), Evidence: []string{err.Error()}}
-}
-
-// accessWords says what kind of read failure err is, in ctx's language.
-func accessWords(ctx context.Context, err error) string {
-	A := autostartText(tx(ctx))
-	switch {
-	case errors.Is(err, fs.ErrPermission):
-		return A.denied
-	case errors.Is(err, fs.ErrNotExist):
-		return A.notFound
-	}
-	return err.Error()
-}
-
 type autostartTexts struct {
 	title, notHere, unread, partial string
 	none, found, fix, on, off       string
 	denied, notFound, sep           string
+	cfgDenied, cfgMissing           string
 	kinds                           map[autostart.Kind]string
 }
 
 var zhAutostart = autostartTexts{
-	title:    "其他代理软件自启动",
-	notHere:  "这里不检查自启动项（由后台助手检查）",
-	unread:   "读不到自启动项",
-	partial:  "有的自启动位置读不到：%s",
-	none:     "没有其他代理软件会自己启动",
-	found:    "%s 会在登录或开机时自己启动，抢回网络",
-	fix:      "关掉它们的自启动（可以撤销）",
-	on:       "会自启动",
-	off:      "已关闭",
-	denied:   "没有权限（不是不存在）",
-	notFound: "不存在",
-	sep:      "：",
+	title:      "其他代理软件自启动",
+	notHere:    "这里不检查自启动项（由后台助手检查）",
+	unread:     "读不到自启动项",
+	partial:    "有的自启动位置读不到：%s",
+	none:       "没有其他代理软件会自己启动",
+	found:      "%s 会在登录或开机时自己启动，抢回网络",
+	fix:        "关掉它们的自启动（可以撤销）",
+	on:         "会自启动",
+	off:        "已关闭",
+	denied:     "没有权限（不是不存在）",
+	notFound:   "不存在",
+	sep:        "：",
+	cfgDenied:  "没有权限读取它的配置文件（文件在，只是需要管理员）",
+	cfgMissing: "也找不到它的配置文件",
 	kinds: map[autostart.Kind]string{
 		autostart.ScheduledTask: "计划任务", autostart.RunKey: "启动项（Run 键）",
 		autostart.LaunchAgent: "LaunchAgent", autostart.LaunchDaemon: "LaunchDaemon", autostart.LoginItem: "登录项",
@@ -154,18 +136,20 @@ var zhAutostart = autostartTexts{
 }
 
 var enAutostart = autostartTexts{
-	title:    "Other proxy apps starting by themselves",
-	notHere:  "Autostarts are checked by the helper, not here",
-	unread:   "Could not read the autostart entries",
-	partial:  "Some autostart places could not be read: %s",
-	none:     "No other proxy app starts by itself",
-	found:    "%s will start again at login or boot and take the network back",
-	fix:      "Turn off their autostart (you can undo it)",
-	on:       "starts by itself",
-	off:      "turned off",
-	denied:   "access denied (not missing)",
-	notFound: "not found",
-	sep:      ": ",
+	title:      "Other proxy apps starting by themselves",
+	notHere:    "Autostarts are checked by the helper, not here",
+	unread:     "Could not read the autostart entries",
+	partial:    "Some autostart places could not be read: %s",
+	none:       "No other proxy app starts by itself",
+	found:      "%s will start again at login or boot and take the network back",
+	fix:        "Turn off their autostart (you can undo it)",
+	on:         "starts by itself",
+	off:        "turned off",
+	denied:     "access denied (not missing)",
+	notFound:   "not found",
+	sep:        ": ",
+	cfgDenied:  "its config file is there but this process may not read it (administrators only)",
+	cfgMissing: "and its config file was not found",
 	kinds: map[autostart.Kind]string{
 		autostart.ScheduledTask: "scheduled task", autostart.RunKey: "Run key",
 		autostart.LaunchAgent: "LaunchAgent", autostart.LaunchDaemon: "LaunchDaemon", autostart.LoginItem: "login item",

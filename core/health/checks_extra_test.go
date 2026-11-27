@@ -84,3 +84,13 @@ func TestBinaryIntegrity(t *testing.T) {
 		t.Fatal(r.Fix)
 	}
 }
+
+func TestSkipMihomoSaysDeniedOrMissing(t *testing.T) {
+	ctx := WithLang(context.Background(), "en")
+	denied := skipMihomo(ctx, &fs.PathError{Op: "open", Path: `C:\ProgramData\Twinnel\mihomo\config.yaml`, Err: fs.ErrPermission})
+	missing := skipMihomo(ctx, &fs.PathError{Op: "open", Path: "/x/config.yaml", Err: fs.ErrNotExist})
+	if !strings.Contains(denied.Summary, "may not read") || strings.Contains(denied.Summary, "not found") ||
+		!strings.Contains(missing.Summary, "not found") || denied.Status != StatusSkip {
+		t.Fatalf("%q / %q", denied.Summary, missing.Summary)
+	}
+}
