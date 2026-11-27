@@ -20,8 +20,9 @@ const (
 	agentFieldMax     = 512
 )
 
-// RecordAgentAction appends a to the activity log and publishes it.
-func (e *Engine) RecordAgentAction(a rpc.AgentAction) (rpc.Empty, error) {
+// RecordAgentAction appends a to the activity log and publishes it. The
+// caller is the peer of ctx's call (rpc.PeerFrom), whatever a says.
+func (e *Engine) RecordAgentAction(ctx context.Context, a rpc.AgentAction) (rpc.Empty, error) {
 	if a.Tool == "" || len(a.Tool) > 64 {
 		return rpc.Empty{}, rpc.ErrInvalid("invalid tool name")
 	}
@@ -38,6 +39,10 @@ func (e *Engine) RecordAgentAction(a rpc.AgentAction) (rpc.Empty, error) {
 	a.Undo = clip(oneLine(a.Undo), 256)
 	if a.Client == "" {
 		a.Client = "unknown"
+	}
+	a.Caller = ""
+	if p, ok := rpc.PeerFrom(ctx); ok {
+		a.Caller = p.Caller()
 	}
 	e.agentMu.Lock()
 	defer e.agentMu.Unlock()
@@ -91,7 +96,7 @@ func (e *Engine) agentActivity() ([]rpc.AgentAction, error) {
 
 func (e *Engine) registerAgent(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodAgentRecord, func(ctx context.Context, a rpc.AgentAction) (rpc.Empty, error) {
-		return e.RecordAgentAction(a)
+		return e.RecordAgentAction(ctx, a)
 	})
 	rpc.Typed(s, rpc.MethodAgentActivity, func(ctx context.Context, p rpc.AgentActivityParams) ([]rpc.AgentAction, error) {
 		return e.AgentActivity(p)

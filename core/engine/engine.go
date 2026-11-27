@@ -66,6 +66,7 @@ type Engine struct {
 	NetChanges <-chan string
 	// RotateServiceLogs: the helper rotates mihomo's output files
 	// (servicelog.go); macOS and Linux, where launchd/systemd write them.
+	// Its own log it rotates either way.
 	RotateServiceLogs bool
 
 	// NewController builds the controller client for an address and secret

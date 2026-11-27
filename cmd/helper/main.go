@@ -39,6 +39,7 @@ type options struct {
 	stateDir      string
 	socket        string
 	foreground    bool
+	logLevel      slog.Level
 	group         string
 	tailnetStatus string
 	version       bool
@@ -69,6 +70,7 @@ func parseFlags(args []string) (*options, error) {
 	fs.StringVar(&o.stateDir, "state-dir", store.DefaultDir, "state `DIR` (settings, layers, history, kernels)")
 	fs.StringVar(&o.socket, "socket", rpc.DefaultSocket, "unix socket `PATH` (Windows: named pipe) to listen on")
 	fs.BoolVar(&o.foreground, "foreground", false, "log to stderr instead of <state-dir>/logs/helper.log")
+	fs.TextVar(&o.logLevel, "log-level", slog.LevelInfo, "log `LEVEL`: debug (also every read-only call), info, warn or error")
 	fs.StringVar(&o.group, "group", "admin", "`GROUP` whose members may use the helper (besides root and the helper's own user)")
 	fs.StringVar(&o.tailnetStatus, "tailnet-status-file", "", "development: read tailscale status JSON from `FILE` instead of running 'tailscale status --json' (peers for the coexist layer, takeover probe and health checks)")
 	fs.StringVar(&o.secrets, "secrets", "auto", "where secrets live: keychain (macOS), dpapi (Windows: <state-dir>/secrets.dpapi), file (<state-dir>/secrets.json, development) or auto (keychain as root on macOS, dpapi elevated on Windows)")
@@ -267,17 +269,17 @@ func newLogger(o *options, st *store.Store) (*slog.Logger, func(), error) {
 	var w io.Writer = os.Stderr
 	closeFn := func() {}
 	if !o.foreground {
-		dir := st.Path("logs")
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		path := engine.HelperLogFile(st)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return nil, nil, err
 		}
-		f, err := os.OpenFile(filepath.Join(dir, "helper.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
 			return nil, nil, err
 		}
 		w, closeFn = f, func() { f.Close() }
 	}
-	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})), closeFn, nil
+	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: o.logLevel})), closeFn, nil
 }
 
 // openSecrets picks the secrets backend. With the keychain, secrets left in

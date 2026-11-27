@@ -64,8 +64,11 @@ type AgentAction struct {
 	Time   time.Time `json:"time"`
 	Source string    `json:"source"` // always "agent"
 	Client string    `json:"client"` // the MCP client's name and version, e.g. "claude-code 2.1"
-	Tool   string    `json:"tool"`
-	Tier   string    `json:"tier"`
+	// Caller is the account the MCP server ran as (Peer.Caller), set by
+	// the helper from the connection, never taken from the request.
+	Caller string `json:"caller,omitempty"`
+	Tool   string `json:"tool"`
+	Tier   string `json:"tier"`
 	// Args is a one-line summary of the arguments ("group=Proxy node=JP 1").
 	Args  string `json:"args,omitempty"`
 	OK    bool   `json:"ok"`

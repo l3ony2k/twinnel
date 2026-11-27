@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -36,15 +37,16 @@ func TestAgentRecord(t *testing.T) {
 	h := newHarness(t)
 	after := h.e.Bus.Since
 	_, next := after(0)
-	if _, err := h.e.RecordAgentAction(rpc.AgentAction{Tool: "", Tier: rpc.TierOperate}); err == nil {
+	ctx := rpc.WithPeer(context.Background(), rpc.Peer{UID: -1, PID: 7, SID: "S-1-5-21-1-2-3-1001", User: `PC\alice`})
+	if _, err := h.e.RecordAgentAction(ctx, rpc.AgentAction{Tool: "", Tier: rpc.TierOperate}); err == nil {
 		t.Fatal("empty tool accepted")
 	}
-	if _, err := h.e.RecordAgentAction(rpc.AgentAction{Tool: "x", Tier: "root"}); err == nil {
+	if _, err := h.e.RecordAgentAction(ctx, rpc.AgentAction{Tool: "x", Tier: "root"}); err == nil {
 		t.Fatal("bad tier accepted")
 	}
 	for i, tool := range []string{"select_node", "set_mode"} {
-		_, err := h.e.RecordAgentAction(rpc.AgentAction{
-			Client: "test-client 1.0\n", Tool: tool, Tier: rpc.TierOperate,
+		_, err := h.e.RecordAgentAction(ctx, rpc.AgentAction{
+			Client: "test-client 1.0\n", Tool: tool, Tier: rpc.TierOperate, Caller: "spoofed",
 			Args: "a\nb " + strings.Repeat("x", 2000), OK: i == 0, Source: "spoofed",
 		})
 		if err != nil {
@@ -62,6 +64,9 @@ func TestAgentRecord(t *testing.T) {
 	if a.Source != "agent" || a.Client != "test-client 1.0" || strings.Contains(a.Args, "\n") || len(a.Args) > agentFieldMax+4 || a.Time.IsZero() {
 		t.Fatalf("record not normalized: %+v", a)
 	}
+	if a.Caller != `PC\alice (S-1-5-21-1-2-3-1001)` {
+		t.Fatalf("caller %q, want the connection's peer", a.Caller)
+	}
 	evs, _ := after(next)
 	n := 0
 	for _, e := range evs {
@@ -74,7 +79,7 @@ func TestAgentRecord(t *testing.T) {
 	}
 	// Bounded.
 	for range agentActivityKeep + 5 {
-		h.e.RecordAgentAction(rpc.AgentAction{Tool: "t", Tier: rpc.TierRead})
+		h.e.RecordAgentAction(context.Background(), rpc.AgentAction{Tool: "t", Tier: rpc.TierRead})
 	}
 	list, _ = h.e.AgentActivity(rpc.AgentActivityParams{Limit: 1000})
 	if len(list) != agentActivityKeep {
