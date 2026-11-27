@@ -47,6 +47,7 @@ func (a *app) mainView(c *ui.Context) {
 		c.OnWindowShortcut(ui.Cmd, ui.KeyBracketLeft, func() { a.showPage(back) })
 	}
 	s := a.mon.Snapshot()
+	helperOutdatedNow = helperOutdated(s)
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
 	}
@@ -415,7 +416,9 @@ func (a *app) helperSummary(c *ui.Context, s status.Snapshot) {
 		}
 		return
 	}
-	kv(c, T.Version, fmt.Sprintf("%s · pid %d", st.HelperVersion, st.PID))
+	if !a.helperUpdateRow(c, s) {
+		kv(c, T.Version, fmt.Sprintf("%s · pid %d", st.HelperVersion, st.PID))
+	}
 	kv(c, T.Subscription, orDash(st.ActiveSubscription))
 	kv(c, T.Layers, fmt.Sprint(st.Layers))
 	if r := st.LastApply; r != nil {
@@ -1065,6 +1068,7 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	f := &a.settings
 	pageTitle(c, T.PageSettings)
+	a.loginSection(c)
 	// fromHelper: the helper provides the controller and its secret, so
 	// those fields do nothing while it is connected: shown locked.
 	fromHelper := a.creds.cur != nil
@@ -1118,6 +1122,8 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 			}
 		})
 	})
+	a.refreshHelperMgmt(s)
+	a.helperSection(c, s)
 }
 
 func (a *app) setNotifications(on bool) {

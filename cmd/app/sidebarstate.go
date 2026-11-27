@@ -46,7 +46,16 @@ func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
 		case status.HelperNotRunning, status.HelperDenied, status.HelperNotInstalled:
 			hm, hcol = markAttention, t.Warning
 		}
-		pair("h", T.Helper+" · "+s.Helper.State.Text(), s.Helper.State.Text(), hm, hcol)
+		if helperOutdated(s) {
+			// The version handshake is one row here: the state, and 更新.
+			ui.Row(c.Key("h-update")).Gap(6).AlignItems(ui.Center).Children(func() {
+				pair("h", T.HelperNeedsUpdate, T.HelperNeedsUpdate, markAttention, t.Warning)
+				ui.Spacer(c)
+				a.helperUpdateButton(c, s, "side-update")
+			})
+		} else {
+			pair("h", T.Helper+" · "+s.Helper.State.Text(), s.Helper.State.Text(), hm, hcol)
+		}
 		if !s.WritesAllowed {
 			// Read-only is a state of the whole app: one line here, on
 			// every page, instead of a banner on each; the tooltip says

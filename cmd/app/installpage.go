@@ -52,8 +52,8 @@ func (a *app) installPage(c *ui.Context, s status.Snapshot) {
 					num(small(c, st.HelperVersion)).SingleLine().Selectable()
 				}
 			})
-			if pushButton(c.Key("back-about"), T.PageAbout).Clicked() {
-				a.showPage(pageAbout)
+			if pushButton(c.Key("helper-settings"), T.HelperSection).Clicked() {
+				a.showPage(pageSettings)
 			}
 		})
 	})

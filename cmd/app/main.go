@@ -80,6 +80,7 @@ type app struct {
 	exitPick    string                     // exit node select value (peer name or ExitNodeNone)
 	hd          helperData                 // what the helper pages show
 	about       aboutView                  // the 关于 page (aboutpage.go)
+	hm          helperMgmtView             // 设置 → 后台助手 (helpermgmt.go)
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
 	pend        pendingState               // optimistic control values and their errors (pending.go)
