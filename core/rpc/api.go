@@ -541,6 +541,9 @@ type HealthRunParams struct {
 	// "en"); the helper keeps it for its scheduled runs. "" keeps the
 	// language the helper uses now.
 	Lang string `json:"lang,omitempty"`
+	// IPs asks for the egress test's unmasked addresses in Egress (the
+	// app shows them; reports, the CLI and MCP never ask).
+	IPs bool `json:"ips,omitempty"`
 }
 
 // HealthEgressParams are the params of health.egress: the egress test
@@ -549,6 +552,9 @@ type HealthRunParams struct {
 // reports until it is stale. The result is the new report.
 type HealthEgressParams struct {
 	Lang string `json:"lang,omitempty"`
+	// IPs asks for the egress test's unmasked addresses in Egress (the
+	// app shows them; reports, the CLI and MCP never ask).
+	IPs bool `json:"ips,omitempty"`
 }
 
 // HealthLastParams are the params of health.last. A Lang other than the
@@ -556,6 +562,9 @@ type HealthEgressParams struct {
 // health.updated follows); the call still returns the report it has.
 type HealthLastParams struct {
 	Lang string `json:"lang,omitempty"`
+	// IPs asks for the egress test's unmasked addresses in Egress (the
+	// app shows them; reports, the CLI and MCP never ask).
+	IPs bool `json:"ips,omitempty"`
 }
 
 // HealthReport is the result of health.last and health.run. Report is a
@@ -565,6 +574,18 @@ type HealthReport struct {
 	Report json.RawMessage `json:"report,omitempty"`
 	Reason string          `json:"reason,omitempty"`
 	At     time.Time       `json:"at,omitzero"`
+	// Egress is the egress check's unmasked addresses, only when the
+	// params asked (IPs) and the check measured any.
+	Egress *EgressIPs `json:"egress,omitempty"`
+}
+
+// EgressIPs are the public addresses the egress test saw (core/health
+// EgressIPs): through mihomo, by which node, and directly. "" = not
+// measured.
+type EgressIPs struct {
+	Proxied string `json:"proxied,omitempty"`
+	Direct  string `json:"direct,omitempty"`
+	Node    string `json:"node,omitempty"`
 }
 
 // HealthSummary is the data of health.updated.

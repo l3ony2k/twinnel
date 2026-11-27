@@ -331,6 +331,9 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 			if cr.Status != health.StatusSkip || egress {
 				ui.Text(c, cr.Summary).Wrap().LineHeight(lineText).Selectable()
 			}
+			if egress && cr.Egress != nil {
+				egressIPs(c, cr.Egress)
+			}
 			if len(cr.Evidence) > 0 {
 				// Repeated lines fold into one with a count; at most
 				// evidenceShown lines until 显示全部.
@@ -546,6 +549,28 @@ func egressLine(cr health.CheckReport, s status.Snapshot) string {
 		return cr.Summary
 	}
 	return fmt.Sprintf(T.EgressTestedAt, eventTime(s.Time, at)) + " · " + cr.Summary
+}
+
+// egressIPs are the addresses the egress test saw, unmasked (the
+// owner's own machine; the copied report keeps them masked): through
+// mihomo, with the node, and directly.
+func egressIPs(c *ui.Context, ips *health.EgressIPs) {
+	T := i18n.T
+	ui.Column(c.Key("egress-ips")).Gap(4).Children(func() {
+		if ips.Proxied.IsValid() {
+			kvWith(c, T.OvEgressVia, func() {
+				monoText(c, ips.Proxied.String()).SingleLine().Shrink(0).Selectable()
+				if ips.Node != "" {
+					small(c, ips.Node).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0)
+				}
+			})
+		}
+		if ips.Direct.IsValid() {
+			kvWith(c, T.OvEgressDirect, func() {
+				monoText(c, ips.Direct.String()).SingleLine().Shrink(0).Selectable()
+			})
+		}
+	})
 }
 
 // egressControls are the 出口 IP 实测 row's trailing controls: run the

@@ -288,8 +288,12 @@ func (a *app) egressHelper() helperCaller {
 func runEgress(ctx context.Context, hc helperCaller, probe func(context.Context) *health.CheckReport) (cr *health.CheckReport, local bool, err error) {
 	if hc != nil {
 		var hr rpc.HealthReport
-		err = hc.Call(ctx, rpc.MethodHealthEgress, rpc.HealthEgressParams{Lang: i18n.Tag()}, &hr)
+		err = hc.Call(ctx, rpc.MethodHealthEgress, rpc.HealthEgressParams{Lang: i18n.Tag(), IPs: true}, &hr)
 		var re *rpc.Error
+		if errors.As(err, &re) && re.Code == rpc.CodeInvalidParams {
+			// A helper from before IPs: the test without the addresses.
+			err = hc.Call(ctx, rpc.MethodHealthEgress, rpc.HealthEgressParams{Lang: i18n.Tag()}, &hr)
+		}
 		if errors.As(err, &re) && re.Code == rpc.CodeMethodNotFound && probe != nil {
 			hc = nil // a helper older than health.egress: run it here
 		} else if err != nil {

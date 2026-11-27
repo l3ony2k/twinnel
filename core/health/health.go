@@ -7,6 +7,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"sort"
 	"sync"
 )
@@ -69,6 +70,20 @@ type Result struct {
 	// Causes name what a warn or fail comes from (Cause* codes), so a
 	// cause the user accepted can be told apart (Accept). Empty: unknown.
 	Causes []string `json:"causes,omitempty"`
+	// Egress is what the egress test (LeakEgress) saw, unmasked. It is
+	// never marshalled with the result: reports, logs, the CLI and MCP
+	// keep MaskIP'd evidence. The helper hands it to the app only when
+	// asked (rpc ips), and the app shows it.
+	Egress *EgressIPs `json:"-"`
+}
+
+// EgressIPs are the public addresses the egress test saw: through mihomo
+// (and the node that carried it) and directly. A zero Addr was not
+// measured.
+type EgressIPs struct {
+	Proxied netip.Addr
+	Direct  netip.Addr
+	Node    string // the node mihomo used for the proxied request
 }
 
 // Check is one health check.

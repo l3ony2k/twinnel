@@ -50,6 +50,8 @@ type delayState struct {
 
 	batchRunning          bool
 	batchDone, batchTotal int
+
+	exitTry time.Time // when TestExit last started a test
 }
 
 func newDelayState() delayState {
@@ -170,6 +172,48 @@ func (m *Monitor) TestNode(ctx context.Context, name string) (int, error) {
 	}
 	m.pollMihomo(base, false)
 	return calls[0].ms, calls[0].err
+}
+
+// ExitFresh is how old the exit's delay may get while the overview or the
+// flyout shows before TestExit tests it again, and how often it tries.
+const ExitFresh = 5 * time.Minute
+
+// exitTestDue reports whether TestExit should test g's node now: it is a
+// real node, its last result (if any) is ExitFresh old, and the last try
+// was ExitFresh ago (a failing test is not repeated faster).
+func exitTestDue(now time.Time, g *Group, lastTry time.Time) bool {
+	if g == nil || g.Node == "" || g.Builtin {
+		return false
+	}
+	if !lastTry.IsZero() && now.Sub(lastTry) < ExitFresh {
+		return false
+	}
+	return !g.Tested || g.DelayAt.IsZero() || now.Sub(g.DelayAt) >= ExitFresh
+}
+
+// TestExit delay-tests the node the primary group resolves to (one GET
+// /proxies/<node>/delay) in the background when its last result is older
+// than ExitFresh or there is none, at most once per ExitFresh. A running
+// test of the node is joined, not repeated. The UI calls it while the
+// overview or the flyout shows; it reports whether a test started.
+func (m *Monitor) TestExit() bool {
+	base := m.runCtx()
+	m.mu.Lock()
+	now := m.o.Now()
+	mh := m.snap.Mihomo
+	if !mh.Reachable || !exitTestDue(now, mh.Primary, m.d.exitTry) || m.d.inflight[mh.Primary.Node] != nil {
+		m.mu.Unlock()
+		return false
+	}
+	m.d.exitTry = now
+	node := mh.Primary.Node
+	m.mu.Unlock()
+	go func() {
+		ctx, cancel := context.WithTimeout(base, delayTimeout+5*time.Second)
+		defer cancel()
+		_, _ = m.TestNode(ctx, node)
+	}()
+	return true
 }
 
 // testURL is the URL a test uses: the configured one, else the group's,

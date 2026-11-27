@@ -1,6 +1,8 @@
 package health
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"net/netip"
 	"strings"
@@ -140,5 +142,31 @@ func TestParseEgressBody(t *testing.T) {
 	}
 	if MaskIP(netip.MustParseAddr("203.0.113.7")) != "203.0.x.x" || MaskIP(netip.MustParseAddr("2001:db8:1::5")) != "2001:db8::x" {
 		t.Fatal("mask")
+	}
+}
+
+// The egress test keeps what it saw, unmasked, on the result for the app,
+// but never in the result's JSON (reports, the CLI, MCP).
+func TestLeakEgressAddresses(t *testing.T) {
+	r := want(t, LeakEgress{}, healthyEnv(), StatusOK, "Google, Meta")
+	ips := r.Egress
+	if ips == nil || ips.Proxied != a("203.0.113.50") || ips.Direct != a("198.51.100.7") || ips.Node != "node-a" {
+		t.Fatalf("egress addresses %+v", ips)
+	}
+	b, err := json.Marshal(CheckReport{ID: "leak-guard-egress", Result: r})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := string(b); strings.Contains(s, "203.0.113.50") || strings.Contains(s, "198.51.100.7") {
+		t.Errorf("unmasked address in JSON: %s", s)
+	}
+
+	// The proxied request failed: the direct address alone.
+	env := healthyEnv()
+	env.egressProxied, env.egressChain = netip.Addr{}, nil
+	env.egressErr = nil
+	r = LeakEgress{}.Run(context.Background(), env)
+	if r.Egress == nil || r.Egress.Proxied.IsValid() || r.Egress.Direct != a("198.51.100.7") {
+		t.Errorf("direct only: %+v", r.Egress)
 	}
 }

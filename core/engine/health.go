@@ -9,6 +9,7 @@ import (
 
 	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/duet/core/rpc/healthsrc"
 )
 
 // healthState is what the engine remembers about the health scheduler.
@@ -183,6 +184,11 @@ func (e *Engine) HealthEgress(ctx context.Context, lang string) (rpc.HealthRepor
 	if err := e.Store.WriteJSON(egressFile, cr); err != nil {
 		e.log().Warn("save egress result", "err", err)
 	}
+	if cr.Egress != nil { // the addresses stay out of the report's file
+		if err := e.Store.WriteJSON(egressIPsFile, egressIPsAt{At: cr.At, IPs: *ipsOut(cr.Egress)}); err != nil {
+			e.log().Warn("save egress addresses", "err", err)
+		}
+	}
 	rep := s.Replace(cr, "egress")
 	if rep == nil { // no report yet: run them all, the overlay brings it in
 		rep = s.RunNow(ctx, "egress")
@@ -207,9 +213,57 @@ func (e *Engine) egressOverlay(rep *health.Report) {
 	if cr.At.IsZero() || e.now().Sub(cr.At) > EgressKeep {
 		return
 	}
+	var ips egressIPsAt
+	if e.Store.ReadJSON(egressIPsFile, &ips) == nil && ips.At.Equal(cr.At) {
+		cr.Egress = healthsrc.EgressIPs(&ips.IPs)
+	}
 	for i, c := range rep.Checks {
 		if c.ID == cr.ID && c.Status == health.StatusSkip && c.At.IsZero() {
 			rep.Checks[i] = cr
 		}
 	}
+}
+
+// egressIPsFile keeps the unmasked addresses of the last on-demand egress
+// result (egressFile's report has them masked only), with its time, so
+// the app can show them after a helper restart.
+const egressIPsFile = "health-egress-ips.json"
+
+type egressIPsAt struct {
+	At  time.Time     `json:"at"`
+	IPs rpc.EgressIPs `json:"ips"`
+}
+
+// withEgressIPs adds the egress check's unmasked addresses of the newest
+// report to a health.* answer when the caller asked for them (the app).
+// Usage: e.withEgressIPs(e.HealthLast(lang))(p.IPs).
+func (e *Engine) withEgressIPs(out rpc.HealthReport, err error) func(bool) (rpc.HealthReport, error) {
+	return func(want bool) (rpc.HealthReport, error) {
+		if err != nil || !want {
+			return out, err
+		}
+		s := e.healthSched()
+		if s == nil {
+			return out, nil
+		}
+		if rep := s.Last(); rep != nil {
+			for _, c := range rep.Checks {
+				if c.ID == (health.LeakEgress{}).ID() && c.Egress != nil {
+					out.Egress = ipsOut(c.Egress)
+				}
+			}
+		}
+		return out, nil
+	}
+}
+
+func ipsOut(in *health.EgressIPs) *rpc.EgressIPs {
+	out := &rpc.EgressIPs{Node: in.Node}
+	if in.Proxied.IsValid() {
+		out.Proxied = in.Proxied.String()
+	}
+	if in.Direct.IsValid() {
+		out.Direct = in.Direct.String()
+	}
+	return out
 }
