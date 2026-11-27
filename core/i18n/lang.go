@@ -15,11 +15,12 @@ type Lang struct {
 // langs are the UI languages. Chinese is first: it is the reference every
 // other table is tested against (TestLanguagesComplete). To add a
 // language, write its Strings in a file of its own (as en.go does) and
-// list it here.
-var langs = []Lang{
+// list it here. On another system than macOS each table is that
+// system's copy (platform.go).
+var langs = platformLangs(hostGOOS, []Lang{
 	{Tag: "zh-Hans", Name: "简体中文", S: &zh},
 	{Tag: "en", Name: "English", S: &en},
-}
+})
 
 // Fallback is the language shown when none of the user's languages is one
 // the UI is written in.

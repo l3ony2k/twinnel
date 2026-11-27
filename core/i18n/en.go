@@ -563,6 +563,7 @@ var en = Strings{
 	OverviewStrings:        enOverview,
 	PagesStrings:           enPages,
 	AgentStrings:           enAgent,
+	PlatformStrings:        enPlatform,
 }
 
 var enControls = ControlStrings{
