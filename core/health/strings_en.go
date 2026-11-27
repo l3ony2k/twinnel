@@ -159,7 +159,7 @@ var enTexts = texts{
 	evExcludedDNS:     "this DNS is in route-exclude-address, out of dns-hijack's reach",
 	evDefaultResolver: "System default resolver: %s",
 	fixDNS:            "Set the DNS of these network services to %s (networksetup -setdnsservers <service> <address>)",
-	fixDNSWindows:     "Set the DNS of these network adapters to %s: Settings → Network & internet → <adapter> → DNS server assignment → Edit → Manual, or in an administrator PowerShell run Set-DnsClientServerAddress -InterfaceAlias <adapter> -ServerAddresses %s",
+	fixDNSWindows:     "Set the DNS of these network adapters to %s (IPv6: ::1): Settings → Network & internet → <adapter> → DNS server assignment → Edit → Manual, or in an administrator PowerShell run Set-DnsClientServerAddress -InterfaceAlias <adapter> -ServerAddresses %s,::1",
 	fixDNSLinux:       "Set the DNS of these connections to %s. NetworkManager: nmcli connection modify <connection> ipv4.dns %s ipv4.ignore-auto-dns yes, then nmcli connection up <connection>. With systemd-resolved only: write DNS=%s and Domains=~. in /etc/systemd/resolved.conf, then systemctl restart systemd-resolved (resolvectl dns <interface> <address> lasts only until a restart).",
 
 	// vpn-conflict

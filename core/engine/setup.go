@@ -25,8 +25,20 @@ import (
 )
 
 // DNSTarget is where dns.point sends the system's queries: mihomo's DNS
-// listener of the built-in base settings (dns.listen 127.0.0.1:53).
+// listener of the built-in base settings (dns.listen 127.0.0.1:53). A
+// platform part with a DNSTarget method sets its own (Windows adds ::1).
 var DNSTarget = []string{"127.0.0.1"}
+
+// dnsTarget is the platform part's target, else DNSTarget. Its first entry
+// is mihomo's listener (what dns.point probes).
+func (e *Engine) dnsTarget() []string {
+	if t, ok := e.SystemDNS.(interface{ DNSTarget() []string }); ok {
+		if v := t.DNSTarget(); len(v) > 0 {
+			return v
+		}
+	}
+	return DNSTarget
+}
 
 var tsInstallMu sync.Mutex
 
@@ -34,8 +46,8 @@ func (e *Engine) dnsManager() *sysdns.Manager {
 	return &sysdns.Manager{P: e.SystemDNS, Path: e.Store.Path("dns-backup.json"), Now: e.now}
 }
 
-func toDNSStatus(st sysdns.Status) rpc.DNSStatus {
-	out := rpc.DNSStatus{Target: DNSTarget, Pointed: st.Pointed, Changed: st.Changed, Supported: true, Services: []rpc.DNSService{}}
+func toDNSStatus(st sysdns.Status, target []string) rpc.DNSStatus {
+	out := rpc.DNSStatus{Target: target, Pointed: st.Pointed, Changed: st.Changed, Supported: true, Services: []rpc.DNSService{}}
 	for _, s := range st.Services {
 		out.Services = append(out.Services, rpc.DNSService{Name: s.Name, Servers: s.Servers})
 	}
@@ -53,11 +65,12 @@ func (e *Engine) DNSStatus(ctx context.Context) (rpc.DNSStatus, error) {
 	if e.SystemDNS == nil {
 		return rpc.DNSStatus{Target: DNSTarget, Services: []rpc.DNSService{}}, nil
 	}
-	st, err := e.dnsManager().Status(ctx, DNSTarget)
+	target := e.dnsTarget()
+	st, err := e.dnsManager().Status(ctx, target)
 	if err != nil {
 		return rpc.DNSStatus{}, err
 	}
-	return toDNSStatus(st), nil
+	return toDNSStatus(st, target), nil
 }
 
 // probeDNS reports whether a DNS server answers at addr: any answer,
@@ -86,12 +99,13 @@ func (e *Engine) DNSPoint(ctx context.Context) (rpc.DNSStatus, error) {
 	if e.SystemDNS == nil {
 		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeNotImplemented, "setting the system DNS is not supported on this platform yet")
 	}
-	addr := net.JoinHostPort(DNSTarget[0], "53")
+	target := e.dnsTarget()
+	addr := net.JoinHostPort(target[0], "53")
 	if err := e.probeDNS(ctx, addr); err != nil {
 		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeFailed, "mihomo's DNS does not answer at %s (%v); the system DNS was not changed", addr, err)
 	}
-	st, err := e.dnsManager().Point(ctx, DNSTarget)
-	out := toDNSStatus(st)
+	st, err := e.dnsManager().Point(ctx, target)
+	out := toDNSStatus(st, target)
 	e.log().Info("system DNS pointed at mihomo", "changed", len(st.Changed), "err", err)
 	if err != nil {
 		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
@@ -109,7 +123,7 @@ func (e *Engine) DNSRestore(ctx context.Context) (rpc.DNSStatus, error) {
 	if errors.Is(err, sysdns.ErrNoBackup) {
 		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeNotFound, "%v", err)
 	}
-	out := toDNSStatus(st)
+	out := toDNSStatus(st, e.dnsTarget())
 	e.log().Info("system DNS restored", "changed", len(st.Changed), "err", err)
 	if err != nil {
 		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
