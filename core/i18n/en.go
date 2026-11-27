@@ -128,6 +128,7 @@ var en = Strings{
 	Offline:       "Offline",
 	NoPeers:       "No other devices",
 	CopyIP:        "Copy IP",
+	CopyIPv6:      "Copy IPv6",
 
 	HealthSummary:      "%d passed · %d warning{s} · %d failed · %d skipped",
 	HealthLastRun:      "Checked %s · took %s",

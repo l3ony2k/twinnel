@@ -74,7 +74,7 @@ type Strings struct {
 	// Tailscale page.
 	PeerName, PeerIP, PeerOS, PeerPath, PeerLastSeen, PeerRelay string
 	PathDirect, PathDERP, PathPeerRelay, PathIdle               string
-	Online, Offline, NoPeers, CopyIP                            string
+	Online, Offline, NoPeers, CopyIP, CopyIPv6                  string
 
 	// Health page.
 	HealthSummary                       string // %d ok, warn, fail, skip
@@ -396,6 +396,7 @@ var zh = Strings{
 	Offline:       "离线",
 	NoPeers:       "没有其他设备",
 	CopyIP:        "复制 IP",
+	CopyIPv6:      "复制 IPv6",
 
 	HealthSummary:      "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
 	HealthLastRun:      "上次检查 %s · 用时 %s",
