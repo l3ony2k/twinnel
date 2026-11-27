@@ -24,6 +24,9 @@ type healthState struct {
 // health.updated). A successful apply that wrote a new config triggers a
 // run. Call before Run.
 func (e *Engine) SetHealth(s *health.Scheduler) {
+	if s.Overlay == nil {
+		s.Overlay = e.egressOverlay
+	}
 	prev := s.OnEvent
 	s.OnEvent = func(ev health.Event) {
 		e.onHealthEvent(ev)
@@ -136,6 +139,68 @@ func (e *Engine) netLoop(ctx context.Context) {
 					e.log().Debug("tailnet refresh after network change", "err", err)
 				}
 			}
+		}
+	}
+}
+
+// --- the egress test on demand (health.egress) ---
+
+// egressFile keeps the last on-demand egress result (a health.CheckReport
+// with At), so it survives a helper restart.
+const egressFile = "health-egress.json"
+
+// EgressKeep is how long an on-demand egress result stands in for the
+// check while 定期检测 is off. Older, the row says 未开启 again.
+const EgressKeep = 24 * time.Hour
+
+// HealthEgress runs the egress test once (EgressProbe), keeps the result
+// with its time, puts it into the last report and returns that report.
+func (e *Engine) HealthEgress(ctx context.Context, lang string) (rpc.HealthReport, error) {
+	s := e.healthSched()
+	if s == nil || e.EgressProbe == nil {
+		return rpc.HealthReport{}, rpc.Errorf(rpc.CodeFailed, "the egress test is not available in this helper")
+	}
+	if lang != "" {
+		s.UseLang(lang)
+		ctx = health.WithLang(ctx, lang)
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	cr := e.EgressProbe(ctx)
+	if ctx.Err() != nil {
+		return rpc.HealthReport{}, rpc.Errorf(rpc.CodeFailed, "egress test cancelled: %v", ctx.Err())
+	}
+	cr.At = e.now().UTC()
+	if err := e.Store.WriteJSON(egressFile, cr); err != nil {
+		e.log().Warn("save egress result", "err", err)
+	}
+	rep := s.Replace(cr, "egress")
+	if rep == nil { // no report yet: run them all, the overlay brings it in
+		rep = s.RunNow(ctx, "egress")
+	}
+	return e.healthReport(rep)
+}
+
+// egressOverlay is the scheduler's Overlay: while 定期检测 is off, the
+// last on-demand egress result (younger than EgressKeep) stands in for
+// the check's 未开启.
+func (e *Engine) egressOverlay(rep *health.Report) {
+	if rep == nil {
+		return
+	}
+	if st, err := e.Store.Settings(); err == nil && st.HealthEgress {
+		return // the run measured it
+	}
+	var cr health.CheckReport
+	if err := e.Store.ReadJSON(egressFile, &cr); err != nil || cr.ID != (health.LeakEgress{}).ID() {
+		return
+	}
+	if cr.At.IsZero() || e.now().Sub(cr.At) > EgressKeep {
+		return
+	}
+	for i, c := range rep.Checks {
+		if c.ID == cr.ID && c.Status == health.StatusSkip && c.At.IsZero() {
+			rep.Checks[i] = cr
 		}
 	}
 }

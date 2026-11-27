@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/duet/core/config"
+	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/kernel"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/service"
@@ -95,6 +96,10 @@ type Engine struct {
 	// old mihomo to stop and HardenStartTimeout (default 45s) for the new
 	// one to answer, polling every HardenPoll (default 250ms).
 	HardenStopTimeout, HardenStartTimeout, HardenPoll time.Duration
+
+	// EgressProbe runs the egress test (health.LeakEgress with the test
+	// on) once, for health.egress; nil where there is none.
+	EgressProbe func(ctx context.Context) health.CheckReport
 
 	applyMu   sync.Mutex
 	adoptMu   sync.Mutex

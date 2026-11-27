@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/duet/core/engine"
+	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/kernel"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/service"
@@ -273,3 +274,16 @@ func devTailnetStatus(e *engine.Engine, o *options) func(context.Context) ([]byt
 type fileTailnet string
 
 func (f fileTailnet) Status(context.Context) ([]byte, error) { return os.ReadFile(string(f)) }
+
+// egressProbe runs the egress test alone over a fresh Env with the test
+// on (health.egress).
+func egressProbe(newEnv func() health.Env) func(context.Context) health.CheckReport {
+	return func(ctx context.Context) health.CheckReport {
+		r := &health.Runner{Registry: health.DefaultRegistry(), Timeout: 30 * time.Second, Only: []string{health.LeakEgress{}.ID()}}
+		rep := r.Run(ctx, newEnv())
+		if len(rep.Checks) == 0 {
+			return health.CheckReport{ID: health.LeakEgress{}.ID(), Result: health.Result{Status: health.StatusSkip}}
+		}
+		return rep.Checks[0]
+	}
+}

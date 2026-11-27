@@ -59,6 +59,11 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 		Interval: o.healthInterval,
 	}
 	e.SetHealth(sched)
+	e.EgressProbe = egressProbe(func() health.Env {
+		opt := healthOptions(e, o)
+		opt.Settings.Egress = true
+		return darwin.New(opt)
+	})
 	return func(ctx context.Context) {
 		if err := nw.Watch(ctx); err != nil && ctx.Err() == nil {
 			e.Log.Warn("network watcher stopped", "err", err)
@@ -72,10 +77,13 @@ func healthOptions(e *engine.Engine, opts *options) darwin.Options {
 	// The checks run the tailscale CLI, which Homebrew installs owned by
 	// the user: never as root.
 	o := darwin.Options{Run: takeoverprobe.SafeRunner(8 * time.Second), TailscaleStatus: devTailnetStatus(e, opts)}
+	settings := health.DefaultSettings()
+	o.Settings = &settings
 	st, err := e.Store.Settings()
 	if err != nil {
 		return o
 	}
+	settings.Egress = st.HealthEgress // 定期检测
 	o.Controller = st.Mihomo.Controller
 	o.ConfigPath = st.Mihomo.ConfigFile
 	o.TailscaleBin = st.Tailscale.Binary

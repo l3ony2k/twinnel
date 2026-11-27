@@ -150,6 +150,9 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodHealthRun, func(ctx context.Context, p rpc.HealthRunParams) (rpc.HealthReport, error) {
 		return e.HealthRun(ctx, p.Reason, p.Lang)
 	})
+	rpc.Typed(s, rpc.MethodHealthEgress, func(ctx context.Context, p rpc.HealthEgressParams) (rpc.HealthReport, error) {
+		return e.HealthEgress(ctx, p.Lang)
+	})
 
 	rpc.Typed(s, rpc.MethodEventsWait, func(ctx context.Context, p rpc.EventsWaitParams) (rpc.EventsWaitResult, error) {
 		t := time.Duration(p.TimeoutMS) * time.Millisecond

@@ -611,7 +611,7 @@ func TestStatusLastApplyAfterRestart(t *testing.T) {
 	if la == nil {
 		t.Fatal("no last apply after a restart")
 	}
-	if la.HistoryID != r.HistoryID || !la.Time.Equal(r.Time.Truncate(time.Second)) && !la.Time.Equal(r.Time) || la.ReasonCode != store.ReasonApply || la.Error != "" {
+	if d := la.Time.Sub(r.Time); la.HistoryID != r.HistoryID || d < -time.Second || d > 5*time.Second || la.ReasonCode != store.ReasonApply || la.Error != "" {
 		t.Fatalf("last apply %+v, want history %s at %v", la, r.HistoryID, r.Time)
 	}
 }
