@@ -115,11 +115,7 @@ func (h Host) RefreshPlan(src string, revision int, now time.Time) []service.Ste
 		aside = append(aside[:len(aside):len(aside)], p)
 	}
 	for _, l := range restart {
-		// Whatever failed before, the stopped service starts again:
-		// never leave mihomo (the network) down.
-		start := run(false, "start", l)
-		start.Always = true
-		steps = append(steps, start)
+		steps = append(steps, startAgain(l))
 	}
 	for _, p := range aside {
 		steps = append(steps, service.Step{Kind: service.StepRemove, Path: p, IgnoreError: true})
