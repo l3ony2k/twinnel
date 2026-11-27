@@ -123,6 +123,9 @@ type Remote struct {
 type Fetcher struct {
 	HTTP *http.Client
 	API  string // GitHub API base, default https://api.github.com
+	// OnBytes, when set, is called as a download writes n more bytes
+	// (progress; from the downloading goroutine).
+	OnBytes func(n int64)
 
 	// Release lookups are cached for the life of the Fetcher: the four
 	// geo databases share one release, and the unauthenticated GitHub API
@@ -302,7 +305,11 @@ func (f *Fetcher) download(ctx context.Context, r Remote, root *os.Root, name st
 		return "", err
 	}
 	h := sha256.New()
-	n, err := io.Copy(io.MultiWriter(out, h), io.LimitReader(resp.Body, limit+1))
+	var w io.Writer = io.MultiWriter(out, h)
+	if f.OnBytes != nil {
+		w = progressWriter{w, f.OnBytes}
+	}
+	n, err := io.Copy(w, io.LimitReader(resp.Body, limit+1))
 	if cerr := out.Close(); err == nil {
 		err = cerr
 	}
@@ -326,6 +333,19 @@ func (f *Fetcher) download(ctx context.Context, r Remote, root *os.Root, name st
 		return "", err
 	}
 	return sum, nil
+}
+
+type progressWriter struct {
+	w  io.Writer
+	on func(int64)
+}
+
+func (p progressWriter) Write(b []byte) (int, error) {
+	n, err := p.w.Write(b)
+	if n > 0 {
+		p.on(int64(n))
+	}
+	return n, err
 }
 
 // FileSHA256 returns the hex sha256 and size of a file.
@@ -615,4 +635,46 @@ func commonTopDir(files []*zip.File) string {
 		return ""
 	}
 	return top + "/"
+}
+
+// PrepareGeoFrom copies a local copy of a database (src, outside root:
+// e.g. one mihomo -t downloaded into the validation cache) next to its
+// target instead of downloading it again. It must match sha256 want and
+// pass the format check.
+func PrepareGeoFrom(root *os.Root, it GeoItem, src, want string) (*Swap, error) {
+	if !filepath.IsLocal(it.Rel) {
+		return nil, fmt.Errorf("%s: bad file name %q", it.Name, it.Rel)
+	}
+	if want == "" {
+		return nil, fmt.Errorf("%s: no published digest to check a local copy against", it.Name)
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return nil, err
+	}
+	defer in.Close()
+	tmp := it.Rel + NewSuffix
+	if err := root.RemoveAll(tmp); err != nil {
+		return nil, err
+	}
+	out, err := root.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	h := sha256.New()
+	_, err = io.Copy(io.MultiWriter(out, h), io.LimitReader(in, maxGeoSize+1))
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil && hex.EncodeToString(h.Sum(nil)) != want {
+		err = fmt.Errorf("%s: local copy does not match the published digest", it.Name)
+	}
+	if err == nil {
+		err = checkGeoFormat(it.Name, root, tmp)
+	}
+	if err != nil {
+		root.Remove(tmp)
+		return nil, err
+	}
+	return &Swap{Root: root, Dst: it.Rel, New: tmp}, nil
 }

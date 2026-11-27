@@ -29,7 +29,7 @@ var AllMethods = []string{
 	MethodHealthLast, MethodHealthRun, MethodHealthEgress,
 	MethodConfigGet,
 	MethodConfigExport, MethodConfigImport,
-	MethodGeoCheck, MethodGeoUpdate, MethodUICheck, MethodUIUpdate,
+	MethodGeoStatus, MethodGeoCheck, MethodGeoUpdate, MethodUIStatus, MethodUICheck, MethodUIUpdate,
 	MethodTakeoverPlan, MethodTakeoverPlans, MethodTakeoverDiscard, MethodTakeoverAdopt, MethodTakeoverUndo,
 	MethodControllerSecure, MethodControllerCredentials,
 	MethodAgentRecord, MethodAgentActivity,

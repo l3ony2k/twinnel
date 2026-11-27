@@ -348,8 +348,9 @@ func (e *Engine) mihomoBinary(st *store.Settings) (string, error) {
 func (e *Engine) Run(ctx context.Context) {
 	e.RecoverHarden(ctx)
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 	go func() { defer wg.Done(); e.subscriptionLoop(ctx) }()
+	go func() { defer wg.Done(); e.geoAutoLoop(ctx) }()
 	go func() { defer wg.Done(); e.tailnetLoop(ctx) }()
 	go func() { defer wg.Done(); e.netLoop(ctx) }()
 	if s := e.healthSched(); s != nil {

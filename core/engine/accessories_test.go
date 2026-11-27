@@ -124,7 +124,7 @@ func accessoryHarness(t *testing.T) (*harness, *fakeGitHub) {
 func TestGeoCheckAndUpdate(t *testing.T) {
 	h, g := accessoryHarness(t)
 	ctx := context.Background()
-	c, err := h.e.GeoCheck(ctx)
+	c, err := h.e.GeoCheck(ctx, rpc.AccessoryCheckParams{})
 	if err != nil || len(c.Files) != 4 {
 		t.Fatalf("check: %+v %v", c, err)
 	}
@@ -201,7 +201,7 @@ func TestGeoCustomURLsAndExistingNames(t *testing.T) {
 	os.WriteFile(filepath.Join(h.confDir, "Country.mmdb"), []byte("old"), 0o644)
 	h.e.PutLayer(rpc.LayerPutParams{ID: "geo", Content: "geox-url:\n  geosite: https://example.com/custom/geosite.dat?token=abc\n"})
 	h.apply("geox-url")
-	c, err := h.e.GeoCheck(context.Background())
+	c, err := h.e.GeoCheck(context.Background(), rpc.AccessoryCheckParams{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +223,7 @@ func TestRateLimitMessage(t *testing.T) {
 	}))
 	defer limited.Close()
 	h.e.HTTPClient = func(*url.URL) *http.Client { return &http.Client{Transport: rewrite{limited.Listener.Addr().String()}} }
-	c, _ := h.e.GeoCheck(context.Background())
+	c, _ := h.e.GeoCheck(context.Background(), rpc.AccessoryCheckParams{})
 	if !strings.Contains(c.Files[0].Error, "rate limit") || c.Files[0].UpdateAvailable {
 		t.Errorf("%+v", c.Files[0])
 	}
@@ -232,12 +232,12 @@ func TestRateLimitMessage(t *testing.T) {
 func TestUIUpdate(t *testing.T) {
 	h, g := accessoryHarness(t)
 	ctx := context.Background()
-	if c, _ := h.e.UICheck(ctx); c.Files[0].Error == "" {
+	if c, _ := h.e.UICheck(ctx, rpc.AccessoryCheckParams{}); c.Configured || c.Files[0].Error != "" || c.Files[0].File != filepath.Join(h.confDir, "ui") {
 		t.Errorf("no config: %+v", c)
 	}
 	h.e.PutLayer(rpc.LayerPutParams{ID: "ui", Content: "external-ui: ui\nexternal-ui-name: zashboard\n"})
 	h.apply("ui")
-	c, err := h.e.UICheck(ctx)
+	c, err := h.e.UICheck(ctx, rpc.AccessoryCheckParams{})
 	f := c.Files[0]
 	if err != nil || f.Installed || !f.UpdateAvailable || f.Remote != "v1" || f.File != filepath.Join(h.confDir, "ui", "zashboard") {
 		t.Fatalf("check: %+v %v", f, err)
@@ -284,7 +284,7 @@ func TestUIUpdate(t *testing.T) {
 	// external-ui outside the config dir is refused.
 	h.e.PutLayer(rpc.LayerPutParams{ID: "ui", Content: "external-ui: /tmp\n"})
 	h.apply("bad ui")
-	if c, _ := h.e.UICheck(ctx); !strings.Contains(c.Files[0].Error, "outside the config dir") {
+	if c, _ := h.e.UICheck(ctx, rpc.AccessoryCheckParams{}); !strings.Contains(c.Files[0].Error, "outside the config dir") {
 		t.Errorf("outside: %+v", c.Files[0])
 	}
 }

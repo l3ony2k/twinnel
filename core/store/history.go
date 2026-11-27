@@ -39,6 +39,7 @@ const (
 	ReasonRestore      = "restore-layers" // args: the history ID the overrides came from
 	ReasonCLI          = "cli-apply"      // twinnel compose --apply without --reason
 	ReasonSetup        = "setup"          // the first apply of a fresh setup (core/setup)
+	ReasonDashboard    = "dashboard"      // external-ui added when the dashboard was installed
 )
 
 // HistoryEntry is one line of history/index.json.

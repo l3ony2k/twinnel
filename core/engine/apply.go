@@ -116,6 +116,11 @@ func (e *Engine) compose(ctx context.Context, st *store.Settings) (*config.Resul
 			return nil, "", err
 		}
 	}
+	if st.Dashboard {
+		if cfg, err = withExternalUI(cfg); err != nil {
+			return nil, "", err
+		}
+	}
 	res.Config = cfg
 	return res, secret, nil
 }
