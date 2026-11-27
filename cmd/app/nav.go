@@ -8,14 +8,19 @@ import (
 )
 
 // The main window's source list, drawn by the app instead of ui.Sidebar so
-// that it follows macOS's sidebar rules exactly (owner feedback):
+// that it follows the platform's sidebar rules exactly (plat.navSel):
 //
-//   - The selected row of the key window is filled with the system accent,
-//     icon and label in AccentText; in a window that is not key it is a
-//     clearly visible gray, icon and label in the text color. ui.Sidebar
-//     shows the accent only while the list has the keyboard focus, and its
-//     gray nearly vanished on the light sidebar.
-//   - Hover is a faint fill, lighter than either selection.
+//   - macOS 26 and later (Liquid Glass, as Finder): the selected row is a
+//     neutral translucent fill, the label keeps the text color and the
+//     icon keeps the accent, as every row's icon does; a hovered row does
+//     not change. Rows are Finder's: 32 pt, no gap, the fill inset 10 pt
+//     from the sidebar's edges with radius 8. In a window that is not key
+//     the fill stays, the icons turn gray.
+//   - macOS 15 and earlier: the selected row of the key window is filled
+//     with the accent, icon and label in AccentText; in a window that is
+//     not key it is gray; hover is a faint fill.
+//   - Windows 11 (NavigationView): the neutral fill, a short accent pill at
+//     the row's leading edge, a hover fill. GNOME: the neutral fill.
 //   - Every count is one component (countBadge): a pill of the same height,
 //     right edge and tabular figures on every row, centered on the row.
 //     Its tone tells neutral counts (devices online) from attention ones
@@ -23,6 +28,7 @@ import (
 //
 // Up and Down move the selection while the list has the focus; each row is
 // a tree item that reports itself selected to assistive technology.
+// See scratch/sidebar/spec.md for the measurements and sources.
 
 // navTone is a count badge's tone.
 type navTone int
@@ -50,10 +56,17 @@ type navSection struct {
 	items []navItem
 }
 
-const (
-	navRowHeight = 28 // macOS sidebar rows, medium size
-	navBadgeH    = 18
-)
+const navBadgeH = 18
+
+// navMetrics are the list's row height, the gap between rows and the
+// icon's size: Finder's on macOS 26+ (32 pt rows, touching, 17–19 pt
+// symbols), the medium sidebar size before.
+func navMetrics() (rowH, gap, icon float32) {
+	if plat.navSel == navNeutral && liquidGlass {
+		return 32, 0, iconSidebar
+	}
+	return 28, 2, iconNav
+}
 
 // navList draws the sections and reports whether the selection changed.
 // active is whether the window is key (c.WindowActive, or the shot
@@ -66,16 +79,12 @@ func navList(c *ui.Context, selected *string, sections []navSection, active bool
 		}
 	}
 	changed := false
-	list := ui.Column(c.Key("nav")).Gap(2).Focusable().Role(ui.RoleTree).Label("duet")
+	_, gap, _ := navMetrics()
+	list := ui.Column(c.Key("nav")).Gap(gap).Focusable().Role(ui.RoleTree).Label("duet")
 	list.Children(func() {
 		for si, s := range sections {
 			if s.title != "" {
-				top := float32(14)
-				if si == 0 {
-					top = 0
-				}
-				ui.Text(c, s.title).FontSize(plat.smallSize).FontWeight(600).TextColor(c.Theme().TextMuted).
-					Padding(top, 10, 4).SingleLine()
+				navHeader(c, s.title, si == 0)
 			}
 			for _, it := range s.items {
 				if navRow(c, it, *selected == it.id, active, hover == it.id) && *selected != it.id {
@@ -100,38 +109,118 @@ func navList(c *ui.Context, selected *string, sections []navSection, active bool
 	return changed
 }
 
+// navHeader is a section's title. On macOS 26+ it is Finder's: a row of
+// the list's height, its text 11 pt semibold at the row's foot, 7 pt in
+// from the selection's edge, in the sidebar's faint label color.
+func navHeader(c *ui.Context, title string, first bool) {
+	t := c.Theme()
+	if plat.navSel == navNeutral && liquidGlass {
+		rowH, _, _ := navMetrics()
+		h := rowH
+		if first {
+			h = 0
+		}
+		ui.Column(c).MinHeight(h).Justify(ui.End).Padding(0, 7, 5).Children(func() {
+			ui.Text(c, title).FontSize(plat.smallSize).FontWeight(600).TextColor(navHeaderColor(t)).SingleLine()
+		})
+		return
+	}
+	top := float32(14)
+	if first {
+		top = 0
+	}
+	ui.Text(c, title).FontSize(plat.smallSize).FontWeight(600).TextColor(t.TextMuted).
+		Padding(top, 10, 4).SingleLine()
+}
+
 // navRow draws one row and reports a click.
 func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 	t := c.Theme()
+	rowH, _, iconSize := navMetrics()
 	iconCol, textCol := t.Accent, t.Text
-	row := ui.Row(c.Key("nav:" + it.id)).Height(navRowHeight).PaddingX(10).Gap(8).AlignItems(ui.Center).
-		Radius(plat.controlRadius).Cursor(ui.CursorPointer).Role(ui.RoleTreeItem).Label(it.label).AccessSelected(chosen)
+	row := ui.Row(c.Key("nav:" + it.id)).Height(rowH).Gap(8).AlignItems(ui.Center).
+		Cursor(ui.CursorPointer).Role(ui.RoleTreeItem).Label(it.label).AccessSelected(chosen)
 	if it.digit > 0 { // VoiceOver reads the row's ⌘ digit
 		row.KeyShortcuts(ui.Cmd, it.key)
 	}
-	onAccent := false
-	switch {
-	case chosen && active:
-		row.Background(t.Accent)
-		iconCol, textCol, onAccent = t.AccentText, t.AccentText, true
-	case chosen:
-		row.Background(navInactiveFill(t))
-		iconCol = t.Text
-	case forceHover || row.Hovered():
-		row.Background(navHoverFill(t))
+	onAccent, pill := false, false
+	switch plat.navSel {
+	case navNeutral:
+		// Finder: icon at 9 pt, label at 36 pt from the fill's edge.
+		row.PaddingX(9).Radius(navSelRadius)
+		if chosen {
+			row.Background(navNeutralFill(t, active))
+		}
+		if !active && liquidGlass {
+			iconCol = t.TextMuted
+		}
+	case navNeutralPill:
+		row.PaddingX(10).Radius(plat.controlRadius)
+		switch {
+		case chosen:
+			row.Background(navNeutralFill(t, true))
+			pill = active
+		case forceHover || row.Hovered():
+			row.Background(navHoverFill(t))
+		}
+	default: // navAccentFill
+		row.PaddingX(10).Radius(plat.controlRadius)
+		switch {
+		case chosen && active:
+			row.Background(t.Accent)
+			iconCol, textCol, onAccent = t.AccentText, t.AccentText, true
+		case chosen:
+			row.Background(navInactiveFill(t))
+			iconCol = t.Text
+		case forceHover || row.Hovered():
+			row.Background(navHoverFill(t))
+		}
 	}
 	row.Children(func() {
-		ui.Icon(c, it.icon).FontSize(iconNav).TextColor(iconCol).Width(18).Shrink(0)
+		if pill { // Windows 11: 3 × 16, at the row's leading edge
+			ui.Box(c).Absolute().Left(0).Top((rowH-16)/2).Size(3, 16).Radius(1.5).Background(t.Accent).AccessHidden(true)
+		}
+		ui.Icon(c, it.icon).FontSize(iconSize).TextColor(iconCol).Width(iconSize + 2).Shrink(0)
 		ui.Text(c, it.label).TextColor(textCol).Grow(1).Shrink(1).SingleLine()
 		if it.count > 0 {
-			countBadge(c, it.count, it.tone, onAccent)
+			countBadge(c, it.count, it.tone, onAccent, chosen)
 		}
 	})
 	return row.Clicked()
 }
 
-// navInactiveFill is the selection of a window that is not key: a gray
-// that stands out on the sidebar in both appearances.
+// navSelRadius is the neutral selection's corner radius (Finder, macOS
+// 26+: about 8 pt on a 32 pt row).
+const navSelRadius = 8
+
+// navNeutralFill is the selection on macOS 26+ (and Windows 11, GNOME): a
+// neutral translucent gray over the sidebar material, not the accent.
+// Measured on Finder (dark): white at about 14%. A window that is not key
+// keeps a lighter one.
+func navNeutralFill(t *ui.Theme, active bool) ui.Color {
+	if t.Dark {
+		if active {
+			return ui.RGBA(255, 255, 255, 0.14)
+		}
+		return ui.RGBA(255, 255, 255, 0.10)
+	}
+	if active {
+		return ui.RGBA(0, 0, 0, 0.09)
+	}
+	return ui.RGBA(0, 0, 0, 0.06)
+}
+
+// navHeaderColor is a section title's color on macOS 26+: fainter than
+// TextMuted, as Finder's (white at about 37% in dark).
+func navHeaderColor(t *ui.Theme) ui.Color {
+	if t.Dark {
+		return ui.RGBA(255, 255, 255, 0.37)
+	}
+	return ui.RGBA(0, 0, 0, 0.36)
+}
+
+// navInactiveFill is the accent style's selection of a window that is
+// not key: a gray that stands out on the sidebar in both appearances.
 func navInactiveFill(t *ui.Theme) ui.Color {
 	if t.Dark {
 		return ui.RGBA(255, 255, 255, 0.16)
@@ -139,7 +228,8 @@ func navInactiveFill(t *ui.Theme) ui.Color {
 	return ui.RGBA(0, 0, 0, 0.13)
 }
 
-// navHoverFill is fainter than either selection.
+// navHoverFill is fainter than either selection (not used on macOS 26+,
+// where hovering a sidebar row shows nothing).
 func navHoverFill(t *ui.Theme) ui.Color {
 	if t.Dark {
 		return ui.RGBA(255, 255, 255, 0.07)
@@ -149,8 +239,9 @@ func navHoverFill(t *ui.Theme) ui.Color {
 
 // countBadge is the one count component: a pill of fixed height, at least
 // as wide as it is tall, its figures tabular and centered in it. The tone
-// sets its colors; on the accent-filled row it inverts.
-func countBadge(c *ui.Context, n int, tone navTone, onAccent bool) ui.Element {
+// sets its colors; on the accent-filled row it inverts, and a neutral one
+// on a neutral selection is a step stronger, to stand off the fill.
+func countBadge(c *ui.Context, n int, tone navTone, onAccent, selected bool) ui.Element {
 	t := c.Theme()
 	p := pal(t)
 	var bg, fg ui.Color
@@ -163,6 +254,8 @@ func countBadge(c *ui.Context, n int, tone navTone, onAccent bool) ui.Element {
 		bg, fg = t.Warning.Alpha(0.22), p.warnText
 	case tone == toneAlert:
 		bg, fg = t.Danger.Alpha(0.2), p.badText
+	case selected:
+		bg, fg = t.Text.Alpha(0.14), t.TextMuted
 	default:
 		bg, fg = t.Text.Alpha(0.09), t.TextMuted
 	}
