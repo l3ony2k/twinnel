@@ -74,7 +74,7 @@ func newServer() *server {
 	hk := []string{"香港 01", "香港 02", "香港 03 IPLC"}
 	group("自动选择", "URLTest", "香港 03 IPLC", names)
 	group("香港", "URLTest", "香港 01", hk)
-	group("PROXY", "Selector", "自动选择", append([]string{"自动选择", "香港", "DIRECT"}, names...))
+	group("PROXY", "Selector", "自动选择", append(append([]string{"自动选择", "香港", "DIRECT"}, names...), "REJECT"))
 	group("OpenAI", "Selector", "美国 洛杉矶 01", []string{"美国 洛杉矶 01", "美国 圣何塞 02", "日本 东京 01", "PROXY"})
 	group("Apple", "Selector", "DIRECT", []string{"DIRECT", "PROXY", "香港"})
 	group("Telegram", "Selector", "新加坡 01", []string{"新加坡 01", "新加坡 02", "PROXY"})
@@ -198,6 +198,7 @@ func (s *server) handler() http.Handler {
 		return 0
 	}
 	mux.HandleFunc("GET /proxies/{name}/delay", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("delay test: %s", r.PathValue("name")) // lets a run check each node is hit once
 		s.mu.Lock()
 		d := delay(r.PathValue("name"))
 		s.mu.Unlock()

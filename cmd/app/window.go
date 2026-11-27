@@ -429,7 +429,7 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 				ui.Text(c, via).TextColor(t.TextMuted).SingleLine().Shrink(100).MinWidth(0)
 				ui.Text(c, p.Node).SingleLine().Shrink(0)
 			})
-			num(ui.Text(c, status.DelayText(p.Delay, p.Tested)).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
+			num(ui.Text(c, p.DelayText()).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
 		})
 	}
 	kv(c, T.Connections, fmt.Sprint(m.Connections))
@@ -634,12 +634,13 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 		if !m.Reachable || len(m.Groups) == 0 {
 			return
 		}
-		busy := false
-		for _, g := range m.Groups {
-			busy = busy || a.mon.Testing(g.Name)
+		// One batch tests every node once (status.Monitor.TestAll); the
+		// progress shows beside the button, which keeps its label and
+		// width; its icon turns into a spinner while the batch runs.
+		done, total, busy := a.mon.DelayProgress()
+		if busy && total > 0 {
+			num(small(c, i18n.F(T.TestAllProgress, done, total))).SingleLine()
 		}
-		// The button keeps its label and width; its icon turns into a
-		// spinner while the groups are tested.
 		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy)
 		spin := showBusy(c, b, busy)
 		b.Children(func() {
@@ -651,16 +652,13 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 			ui.Text(c, T.TestAllDelay).SingleLine()
 		})
 		if b.Clicked() {
-			names, mon := make([]string, 0, len(m.Groups)), a.mon
-			for _, g := range m.Groups {
-				names = append(names, g.Name)
-			}
-			go func() { // one group at a time: the controller tests every node of each
-				for _, name := range names {
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					_ = mon.TestGroup(ctx, name)
-					cancel()
-				}
+			mon := a.mon
+			go func() {
+				// The tests are bound to the monitor: they stop when the
+				// app quits; this only bounds the wait.
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
+				_ = mon.TestAll(ctx)
 			}()
 		}
 	})
@@ -744,7 +742,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			meta(c, g.Type)
 			ui.Text(c, chain).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(chain)
 			ui.Spacer(c)
-			num(ui.Text(c, status.DelayText(g.Delay, g.Tested)).TextColor(delayColor(t, g.Delay, g.Tested)).Shrink(0))
+			num(ui.Text(c, g.DelayText()).TextColor(delayColor(t, g.Delay, g.Tested)).Shrink(0))
 			testing := a.mon.Testing(g.Name)
 			if toolIcon(c.Key("test"), iconSpeed, T.TestGroupDelay, testing).Clicked() && !testing {
 				a.testGroup(g.Name)
@@ -793,7 +791,7 @@ func (a *app) nodeTile(c *ui.Context, g status.Group, i, cols int, mem status.Me
 	if typ == "" {
 		typ = "?"
 	}
-	delay := status.DelayText(mem.Delay, mem.Tested)
+	delay := mem.DelayText()
 	desc := mem.Name + " · " + typ + " · " + delay
 	canSelect := writes && g.Selectable() && !selected
 	// Every tile takes the focus, so the keyboard and VoiceOver can read
@@ -825,7 +823,7 @@ func (a *app) nodeTile(c *ui.Context, g status.Group, i, cols int, mem status.Me
 			a.selectNode(g.Name, mem.Name)
 		}
 		m.Separator()
-		if m.Item(T.TestNodeDelay).Chosen() {
+		if m.Item(T.TestNodeDelay).Disabled(mem.Builtin).Chosen() {
 			a.testNode(mem.Name)
 		}
 		if m.Item(T.CopyNodeName).Chosen() {
@@ -861,8 +859,9 @@ func tileStep(i, cols, n int, up, down bool) (int, bool) {
 	return 0, false
 }
 
-// testGroup delay-tests every node of a group (a read: the controller's
-// GET /group/<name>/delay) and opens the group to show the results.
+// testGroup delay-tests the nodes of a group, nested groups opened (reads:
+// GET /proxies/<node>/delay, shared with tests already running), and
+// opens the group to show the results.
 func (a *app) testGroup(name string) {
 	mon := a.mon
 	go func() {
