@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/status"
 	"github.com/l3ony2k/twinnel/core/tailscale"
 )
@@ -22,18 +23,16 @@ func init() {
 func runStatus(args []string) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "print the snapshot as JSON")
-	controller := fs.String("controller", "", "mihomo controller host:port (default: the app's setting, else 127.0.0.1:9090)")
+	controller := fs.String("controller", "", controllerFlagUsage)
+	socket := fs.String("socket", rpc.SocketFromEnv(), "helper socket `PATH` (env TWINNEL_SOCKET)")
 	timeout := fs.Duration("timeout", 6*time.Second, "how long to wait for both sides")
 	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return nil
+		}
 		return err
 	}
-	cfg, err := status.LoadConfig(appConfigPath(), os.Getenv)
-	if err != nil {
-		cfg, _ = status.LoadConfig("", os.Getenv)
-	}
-	if *controller != "" {
-		cfg.Controller = *controller
-	}
+	cfg := controllerFor(context.Background(), *socket, *controller)
 	mh, err := mihomo.New(mihomo.Options{Address: cfg.Controller, Secret: cfg.Secret})
 	if err != nil {
 		return err
@@ -78,14 +77,6 @@ func snapshotOnce(mon *status.Monitor, timeout time.Duration) status.Snapshot {
 	case <-ctx.Done():
 	}
 	return mon.Snapshot()
-}
-
-func appConfigPath() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return ""
-	}
-	return dir + "/twinnel/app.json"
 }
 
 func statusText(s status.Snapshot) string {

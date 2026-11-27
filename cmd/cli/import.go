@@ -26,7 +26,7 @@ func init() {
 const importUsage = `usage: twinnel import FILE [--dry-run] [--on-conflict ask|replace|skip|rename] [--yes] [--json]
 
 Imports subscriptions and your own overrides (names, order, on/off) from:
-  - a Twinnel export (.zip, from 停止使用 → 导出配置 on the old machine)
+  - a Twinnel export (.zip: 'twinnel export' or 停止使用 → 导出配置 on the old machine)
   - a list of subscription URLs, one per line ("name https://…" names one)
   - one Clash Verge Rev "Merge" or Clash Party override file (.yaml)
   - a whole mihomo/Clash config (.yaml): becomes a subscription

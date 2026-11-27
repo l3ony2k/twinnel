@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/mihomo"
 	"github.com/l3ony2k/twinnel/core/rpc"
-	"github.com/l3ony2k/twinnel/core/status"
 	"github.com/l3ony2k/twinnel/core/store"
 	"github.com/l3ony2k/twinnel/core/tailscale"
 	coreversion "github.com/l3ony2k/twinnel/core/version"
@@ -28,13 +26,8 @@ func init() {
 var (
 	// helperStatus asks the helper for status.get.
 	helperStatus = func(ctx context.Context, socket string) (rpc.Status, error) {
-		c, err := rpc.Dial(ctx, nil, socket)
-		if err != nil {
-			return rpc.Status{}, err
-		}
-		defer c.Close()
 		var st rpc.Status
-		err = c.Call(ctx, rpc.MethodStatus, nil, &st)
+		err := helperRPC(ctx, socket, rpc.MethodStatus, nil, &st)
 		return st, err
 	}
 	// mihomoVersion sends GET /version to the controller.
@@ -76,7 +69,7 @@ func runVersion(args []string) error {
 	fs := flag.NewFlagSet("version", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "print the versions as JSON")
 	socket := fs.String("socket", rpc.SocketFromEnv(), "helper socket `PATH` (env TWINNEL_SOCKET)")
-	controller := fs.String("controller", "", "mihomo controller `HOST:PORT` (default: the app's setting, else 127.0.0.1:9090)")
+	controller := fs.String("controller", "", controllerFlagUsage)
 	timeout := fs.Duration("timeout", 3*time.Second, "how long to wait for each component")
 	short := fs.Bool("short", false, "print only the Twinnel CLI version")
 	if err := fs.Parse(args); err != nil {
@@ -89,13 +82,7 @@ func runVersion(args []string) error {
 		fmt.Fprintln(stdout, coreversion.String())
 		return nil
 	}
-	cfg, err := status.LoadConfig(appConfigPath(), os.Getenv)
-	if err != nil {
-		cfg, _ = status.LoadConfig("", os.Getenv)
-	}
-	if *controller != "" {
-		cfg.Controller = *controller
-	}
+	cfg := controllerFor(context.Background(), *socket, *controller)
 	rep := collectVersions(context.Background(), *timeout, *socket, cfg.Controller, cfg.Secret)
 	if *asJSON {
 		b, err := json.MarshalIndent(rep, "", "  ")

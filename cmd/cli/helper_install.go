@@ -47,6 +47,7 @@ var (
 	}
 	stdin  io.Reader = os.Stdin
 	stdout io.Writer = os.Stdout
+	stderr io.Writer = os.Stderr
 	// helperServiceState reads whether the helper's service is loaded and
 	// its installed definition (nil when missing). Read-only.
 	helperServiceState = readServiceState

@@ -294,12 +294,9 @@ func openDashboard(cf *clientFlags, printURL, printSecret bool) error {
 	if !st.Configured {
 		return errors.New("the config does not serve the dashboard (no external-ui): twinnel dashboard install")
 	}
-	var cr rpc.ControllerCredentials
-	if err := cf.call(rpc.MethodControllerCredentials, nil, &cr); err != nil {
-		return err
-	}
-	if cr.Controller == "" {
-		return errors.New("no controller address in the helper's settings")
+	cr := controllerFor(context.Background(), cf.socket, "")
+	if cr.Source == controllerFromApp {
+		return errors.New("the helper did not say where mihomo's controller is (an older helper?): twinnel helper upgrade")
 	}
 	u := mihomo.DashboardURL(cr.Controller, st.Path)
 	if printSecret && cr.Secret != "" {

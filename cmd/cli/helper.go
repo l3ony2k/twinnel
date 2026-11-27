@@ -90,9 +90,9 @@ func parse(fs *flag.FlagSet, args []string) (pos []string, done bool, err error)
 func (cf *clientFlags) call(method string, params, result any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), cf.timeout)
 	defer cancel()
-	c, err := rpc.Dial(ctx, nil, cf.socket)
+	c, err := dialHelper(ctx, cf.socket)
 	if err != nil {
-		return fmt.Errorf("cannot reach the helper at %s: %w", cf.socket, err)
+		return err
 	}
 	defer c.Close()
 	return c.Call(ctx, method, params, result)
@@ -757,9 +757,9 @@ func runEvents(args []string) error {
 		return err
 	}
 	ctx := context.Background()
-	c, err := rpc.Dial(ctx, nil, cf.socket)
+	c, err := dialHelper(ctx, cf.socket)
 	if err != nil {
-		return fmt.Errorf("cannot reach the helper at %s: %w", cf.socket, err)
+		return err
 	}
 	defer c.Close()
 	wait := 25 * time.Second

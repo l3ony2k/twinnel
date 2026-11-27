@@ -31,15 +31,6 @@ import (
 // Replaceable in tests (no test may reach a real helper, mihomo or binary
 // outside its temp dir).
 var (
-	// helperRPC calls the helper at socket with a short timeout.
-	helperRPC = func(ctx context.Context, socket, method string, params, result any) error {
-		c, err := rpc.Dial(ctx, nil, socket)
-		if err != nil {
-			return err
-		}
-		defer c.Close()
-		return c.Call(ctx, method, params, result)
-	}
 	// binaryVersion runs `<bin> --version` ("twinnel-helper 1.2.3").
 	binaryVersion = func(ctx context.Context, bin string) (string, error) {
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

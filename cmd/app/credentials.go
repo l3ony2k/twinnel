@@ -26,23 +26,13 @@ type credsState struct {
 	fetchErr string
 }
 
-// controllerConfig is cfg with the helper's controller credentials applied.
+// controllerConfig is cfg with the helper's controller credentials applied
+// (status.Config.WithHelperCredentials: the rule the CLI shares).
 func controllerConfig(cfg status.Config, c *rpc.ControllerCredentials) status.Config {
 	if c == nil {
 		return cfg
 	}
-	// Development: TWINNEL_CONTROLLER pins the controller (and its secret
-	// comes from the environment too), so a dev or shot run against a
-	// scratch helper never reaches the live mihomo through the helper's
-	// default settings.
-	if os.Getenv("TWINNEL_CONTROLLER") != "" {
-		return cfg
-	}
-	if c.Controller != "" {
-		cfg.Controller = c.Controller
-	}
-	cfg.Secret = c.Secret
-	return cfg
+	return cfg.WithHelperCredentials(c.Controller, c.Secret, os.Getenv)
 }
 
 // fetchCredentials asks the helper for the controller credentials. A nil
