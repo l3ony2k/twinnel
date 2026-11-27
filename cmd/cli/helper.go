@@ -636,6 +636,14 @@ func runSettings(args []string) error {
 		return nil
 	})
 	fs.Func("channel", "kernel channel stable|alpha", func(s string) error { u.KernelChannel = &s; return nil })
+	fs.Func("egress-urls", "IP-echo `URLS` of the egress test, comma-separated, tried in order (\"\" = built-in list)", func(s string) error {
+		us := splitList(s)
+		if us == nil {
+			us = []string{}
+		}
+		u.HealthEgressURLs = &us
+		return nil
+	})
 	var ag rpc.AgentSettingsUpdate
 	fs.Func("mcp", "local agents may use `twinnel mcp` `on|off`", boolFlag(&ag.MCP))
 	fs.Func("agent-operate", "agents may operate (mode, node, TUN, exit node...) `on|off`", boolFlag(&ag.Operate))
@@ -662,6 +670,7 @@ func runSettings(args []string) error {
 		fmt.Fprintf(w, "auto apply\t%v\n", s.AutoApply)
 		fmt.Fprintf(w, "history keep\t%d\n", s.HistoryKeep)
 		fmt.Fprintf(w, "kernel channel\t%s\n", s.KernelChannel)
+		fmt.Fprintf(w, "egress test URLs\t%s\n", orDefault(strings.Join(s.HealthEgressURLs, ", "), "built-in"))
 		fmt.Fprintf(w, "agents (mcp)\t%v (operate %v, configure %v)\n", s.Agent.MCP, s.Agent.Operate, s.Agent.Configure)
 		w.Flush()
 	})

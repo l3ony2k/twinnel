@@ -87,6 +87,9 @@ type Options struct {
 	TailscaleStatus func(ctx context.Context) ([]byte, error)
 	// ResolvConf is the resolv.conf path. Default /etc/resolv.conf.
 	ResolvConf string
+	// UpstreamResolvConf is systemd-resolved's upstream list. Default
+	// UpstreamResolvConf.
+	UpstreamResolvConf string
 	// UnitDirs are searched for a mihomo unit. Default: UnitDirs(home).
 	UnitDirs []string
 	// Settings are check preferences. Default: health.DefaultSettings().
@@ -100,9 +103,10 @@ type Options struct {
 	ReadFile func(string) ([]byte, error)
 	// LookPath is exec.LookPath (replaceable for tests).
 	LookPath func(string) (string, error)
-	// Direct makes the egress test's direct request on a socket bound to
-	// ifc. Default: egress.Direct. Tests replace it.
-	Direct func(ctx context.Context, url string, ifc egress.Iface) (netip.Addr, error)
+	// Direct makes the egress test's direct request over p (sockets bound
+	// to the physical link, names resolved over it). Default:
+	// egress.Direct. Tests replace it.
+	Direct func(ctx context.Context, url string, p egress.Path) (netip.Addr, error)
 }
 
 // Env implements health.Env on Linux.
@@ -140,6 +144,9 @@ func New(opt Options) *Env {
 	}
 	if opt.ResolvConf == "" {
 		opt.ResolvConf = "/etc/resolv.conf"
+	}
+	if opt.UpstreamResolvConf == "" {
+		opt.UpstreamResolvConf = UpstreamResolvConf
 	}
 	if opt.UnitDirs == nil {
 		home, _ := os.UserHomeDir()

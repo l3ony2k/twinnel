@@ -37,8 +37,12 @@ func runDoctor(args []string) error {
 	only := fs.String("only", "", "comma-separated check IDs to run")
 	timeout := fs.Duration("timeout", 15*time.Second, "per-check timeout")
 	strict := fs.Bool("strict", false, "exit with status 1 when any check fails")
-	egress := fs.Bool("egress", false, "also run the egress test: one HTTPS GET to --egress-url directly and one through mihomo, compared (opt-in, sends no personal data)")
-	egressURL := fs.String("egress-url", health.DefaultEgressURL, "neutral IP-echo `URL` for --egress (Cloudflare trace or a plain-IP body)")
+	egress := fs.Bool("egress", false, "also run the egress test: one HTTPS GET to an IP-echo URL directly and one through mihomo, compared (opt-in, sends no personal data)")
+	var egressURLs []string
+	fs.Func("egress-url", "IP-echo `URL`s for --egress, tried in order until one answers (comma-separated or repeated; default "+strings.Join(health.DefaultEgressURLs, ",")+")", func(s string) error {
+		egressURLs = append(egressURLs, splitList(s)...)
+		return nil
+	})
 	fix := fs.String("fix", "", "fix the failure reasons of check `ID` through the helper: preview each fix, ask, apply, check again")
 	reason := fs.String("reason", "", "with --fix: only this failure reason")
 	yes := fs.Bool("yes", false, "with --fix: apply without asking")
@@ -61,7 +65,10 @@ func runDoctor(args []string) error {
 		settings.SensitiveGroups = splitList(*groups)
 	}
 	settings.AllowExitNode = *allowExit
-	settings.Egress, settings.EgressURL = *egress, *egressURL
+	if err := health.CheckEgressURLs(egressURLs); err != nil {
+		return err
+	}
+	settings.Egress, settings.EgressURLs = *egress, egressURLs
 	settings.Binaries = doctorBinaries()
 
 	env, err := newHealthEnv(healthEnvOptions{Controller: *controller, ConfigPath: *configPath, Settings: &settings})

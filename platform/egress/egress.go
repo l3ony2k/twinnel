@@ -106,7 +106,7 @@ func windowsIPv4Index(i uint32) uint32 {
 
 // Dialer returns a dialer whose sockets are pinned to ifc on this OS.
 func Dialer(ifc Iface) *net.Dialer {
-	return &net.Dialer{Timeout: 5 * time.Second, Control: func(network, _ string, c syscall.RawConn) error {
+	return &net.Dialer{Timeout: 4 * time.Second, Control: func(network, _ string, c syscall.RawConn) error {
 		o, err := BindOption(runtime.GOOS, network, ifc)
 		if err != nil {
 			return err
@@ -122,21 +122,48 @@ func Dialer(ifc Iface) *net.Dialer {
 	}}
 }
 
-// Direct GETs rawURL on a socket pinned to ifc (bypassing the TUN) and
-// returns the IP the echo reports.
-func Direct(ctx context.Context, rawURL string, ifc Iface) (netip.Addr, error) {
-	return Fetch(ctx, rawURL, Dialer(ifc))
+// Direct GETs rawURL on sockets pinned to p.Iface (bypassing the TUN) and
+// returns the IP the echo reports. A hostname is resolved over the same
+// interface with p's DNS servers (Resolve), never with the system
+// resolver, which may be mihomo's fake-ip DNS.
+func Direct(ctx context.Context, rawURL string, p Path) (netip.Addr, error) {
+	return direct(ctx, rawURL, p, Dialer(p.Iface), nil, nil)
+}
+
+func direct(ctx context.Context, rawURL string, p Path, d *net.Dialer, lookup LookupFunc, tlsConf *tls.Config) (netip.Addr, error) {
+	host, port, err := hostPort(rawURL)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	addrs, err := Resolve(ctx, host, p, lookup)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	// Dial the resolved addresses in turn; the TLS name stays the URL's
+	// host (http.Transport takes it from the request).
+	dial := func(ctx context.Context, network, _ string) (net.Conn, error) {
+		var errs []error
+		for _, a := range addrs {
+			c, err := d.DialContext(ctx, network, net.JoinHostPort(a.String(), port))
+			if err == nil {
+				return c, nil
+			}
+			errs = append(errs, err)
+		}
+		return nil, errors.Join(errs...)
+	}
+	return fetch(ctx, rawURL, dial, tlsConf)
 }
 
 // Fetch GETs rawURL with d (no proxy, no HTTP/2) and returns the IP the
-// echo reports.
+// echo reports. d resolves names with the system resolver.
 func Fetch(ctx context.Context, rawURL string, d *net.Dialer) (netip.Addr, error) {
-	return fetch(ctx, rawURL, d, nil)
+	return fetch(ctx, rawURL, d.DialContext, nil)
 }
 
-func fetch(ctx context.Context, rawURL string, d *net.Dialer, tlsConf *tls.Config) (netip.Addr, error) {
+func fetch(ctx context.Context, rawURL string, dial func(ctx context.Context, network, addr string) (net.Conn, error), tlsConf *tls.Config) (netip.Addr, error) {
 	client := &http.Client{Timeout: 6 * time.Second, Transport: &http.Transport{
-		Proxy: nil, DialContext: d.DialContext, ForceAttemptHTTP2: false, TLSClientConfig: tlsConf,
+		Proxy: nil, DialContext: dial, ForceAttemptHTTP2: false, TLSClientConfig: tlsConf,
 	}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
@@ -162,7 +189,8 @@ func readEgress(resp *http.Response) (netip.Addr, error) {
 }
 
 // DestFor is the address used to pick the physical route for rawURL: its
-// host when that is an IP literal (the default echo is), else 1.1.1.1.
+// host when that is an IP literal, else 1.1.1.1 (a hostname is resolved
+// to IPv4 addresses, see Resolve).
 func DestFor(rawURL string) netip.Addr {
 	if u, err := url.Parse(rawURL); err == nil {
 		if a, err := netip.ParseAddr(u.Hostname()); err == nil {

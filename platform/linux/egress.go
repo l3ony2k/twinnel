@@ -74,7 +74,8 @@ func hasGlobal(addrs []netip.Addr, v4 bool) bool {
 
 // DirectEgress fetches url on a socket bound to the physical link
 // (SO_BINDTODEVICE), so the request bypasses mihomo's TUN, and returns the
-// IP the echo reports.
+// IP the echo reports. A hostname is resolved over the same link
+// (directDNS), never through the system resolver.
 func (e *Env) DirectEgress(ctx context.Context, rawURL string) (netip.Addr, error) {
 	routes, err := e.Routes(ctx)
 	if err != nil {
@@ -88,11 +89,48 @@ func (e *Env) DirectEgress(ctx context.Context, rawURL string) (netip.Addr, erro
 	if !ok {
 		return netip.Addr{}, errors.New("no active physical interface")
 	}
-	ifc := egress.Iface{Index: l.Index, Name: l.Name}
+	p := egress.Path{Iface: egress.Iface{Index: l.Index, Name: l.Name}, DNS: e.directDNS(ctx, l, routes)}
 	if e.opt.Direct != nil {
-		return e.opt.Direct(ctx, rawURL, ifc)
+		return e.opt.Direct(ctx, rawURL, p)
 	}
-	return egress.Direct(ctx, rawURL, ifc)
+	return egress.Direct(ctx, rawURL, p)
+}
+
+// UpstreamResolvConf is systemd-resolved's list of its upstream servers
+// (what it forwards to, not the 127.0.0.53 stub).
+const UpstreamResolvConf = "/run/systemd/resolve/resolv.conf"
+
+// directDNS are the DNS servers for the direct request over link l, in
+// order: the ones the system used before Twinnel (the helper's backup),
+// the link's own (systemd-resolved per link, else resolv.conf), resolved's
+// upstream list, and the link's default gateway. egress.DNSCandidates
+// drops loopback ones (mihomo's listener, the resolved stub).
+func (e *Env) directDNS(ctx context.Context, l Link, routes []health.Route) []netip.Addr {
+	var out []netip.Addr
+	add := func(ss ...string) {
+		for _, s := range ss {
+			if a, err := netip.ParseAddr(s); err == nil {
+				out = append(out, a)
+			}
+		}
+	}
+	out = append(out, e.Settings().DirectDNS...)
+	if svcs, err := e.NetworkServices(ctx); err == nil {
+		for _, s := range svcs {
+			if s.Device == l.Name {
+				add(s.DNS...)
+			}
+		}
+	}
+	if b, err := e.opt.ReadFile(e.opt.UpstreamResolvConf); err == nil {
+		add(ParseResolvConf(string(b)).Nameservers...)
+	}
+	for _, r := range routes {
+		if r.Interface == l.Name && r.Gateway != "" && (r.Destination == "default" || r.Destination == "0.0.0.0/0") {
+			add(r.Gateway)
+		}
+	}
+	return out
 }
 
 // ProxiedEgress fetches url through mihomo's mixed (or HTTP) port and

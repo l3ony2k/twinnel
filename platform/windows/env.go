@@ -91,9 +91,13 @@ type Options struct {
 	LookupHost func(ctx context.Context, name string) ([]netip.Addr, error)
 	// LookPath is exec.LookPath (replaceable for tests).
 	LookPath func(string) (string, error)
-	// Direct makes the egress test's direct request on a socket pinned to
-	// ifc. Default: egress.Direct. Tests replace it.
-	Direct func(ctx context.Context, url string, ifc egress.Iface) (netip.Addr, error)
+	// Direct makes the egress test's direct request over p (sockets pinned
+	// to the physical adapter, names resolved over it). Default:
+	// egress.Direct. Tests replace it.
+	Direct func(ctx context.Context, url string, p egress.Path) (netip.Addr, error)
+	// DHCPDNS returns the DNS servers DHCP gave the adapter with this
+	// registry GUID. Default: DHCPDNS (registry, read-only).
+	DHCPDNS func(guid string) []netip.Addr
 }
 
 // Env implements health.Env on Windows.
@@ -150,6 +154,9 @@ func New(opt Options) *Env {
 	}
 	if opt.LookPath == nil {
 		opt.LookPath = exec.LookPath
+	}
+	if opt.DHCPDNS == nil {
+		opt.DHCPDNS = DHCPDNS
 	}
 	if opt.LookupHost == nil {
 		opt.LookupHost = func(ctx context.Context, name string) ([]netip.Addr, error) {

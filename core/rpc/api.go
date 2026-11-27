@@ -441,6 +441,9 @@ type Settings struct {
 	AutoApply         bool     `json:"auto_apply"`     // re-compose and apply after subscription/tailnet changes
 	// HealthEgress: the egress test runs with every health run (定期检测).
 	HealthEgress bool `json:"health_egress"`
+	// HealthEgressURLs: the egress test's IP-echo endpoints in the order
+	// they are tried; empty means the built-in list.
+	HealthEgressURLs []string `json:"health_egress_urls,omitempty"`
 	// GeoAutoUpdate: GeoAutoOff (default) or GeoAutoWeekly.
 	GeoAutoUpdate string `json:"geo_auto_update,omitempty"`
 	// Drift: mihomo runs a history entry the overrides do not compose
@@ -465,6 +468,9 @@ type SettingsUpdate struct {
 	KernelChannel     *string   `json:"kernel_channel,omitempty"`
 	AutoApply         *bool     `json:"auto_apply,omitempty"`
 	HealthEgress      *bool     `json:"health_egress,omitempty"`
+	// HealthEgressURLs replaces the endpoint list; an empty list puts the
+	// built-in one back.
+	HealthEgressURLs *[]string `json:"health_egress_urls,omitempty"`
 	// GeoAutoUpdate is GeoAutoOff or GeoAutoWeekly.
 	GeoAutoUpdate *string `json:"geo_auto_update,omitempty"`
 	// Agent changes the local agent switches. `twinnel mcp` never sends it:

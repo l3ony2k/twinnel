@@ -38,6 +38,10 @@ type fakeEnv struct {
 	egressDirect, egressProxied netip.Addr
 	egressChain                 []string
 	egressErr                   error
+	// egressDown: endpoints that fail on a path ("direct "+url or
+	// "proxied "+url); egressAsked records each request in order.
+	egressDown  map[string]error
+	egressAsked []string
 
 	// tun-dataplane probes (checks_dataplane_test.go); nil answers.
 	dialErr, proxyErr, pingErr error
@@ -53,10 +57,18 @@ func (f *fakeEnv) ControllerOwner(context.Context) (foreign.Owner, error) {
 	return *f.owner, nil
 }
 
-func (f *fakeEnv) DirectEgress(context.Context, string) (netip.Addr, error) {
+func (f *fakeEnv) DirectEgress(_ context.Context, url string) (netip.Addr, error) {
+	f.egressAsked = append(f.egressAsked, "direct "+url)
+	if err := f.egressDown["direct "+url]; err != nil {
+		return netip.Addr{}, err
+	}
 	return f.egressDirect, f.egressErr
 }
-func (f *fakeEnv) ProxiedEgress(context.Context, string) (netip.Addr, []string, error) {
+func (f *fakeEnv) ProxiedEgress(_ context.Context, url string) (netip.Addr, []string, error) {
+	f.egressAsked = append(f.egressAsked, "proxied "+url)
+	if err := f.egressDown["proxied "+url]; err != nil {
+		return netip.Addr{}, nil, err
+	}
 	return f.egressProxied, f.egressChain, f.egressErr
 }
 

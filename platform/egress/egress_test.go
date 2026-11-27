@@ -65,7 +65,7 @@ func TestBindOptionWindowsIPv4NetworkOrder(t *testing.T) {
 }
 
 func TestDestFor(t *testing.T) {
-	if a := DestFor(health.DefaultEgressURL); a.String() != "1.1.1.1" {
+	if a := DestFor(health.DefaultEgressURLs[0]); a.String() != "1.1.1.1" {
 		t.Error(a)
 	}
 	if a := DestFor("https://[2001:db8::1]/trace"); a.String() != "2001:db8::1" {
@@ -110,11 +110,11 @@ func TestDialerPinsTheSocket(t *testing.T) {
 	srv := echoServer(t)
 	lo := loopback(t)
 	tlsConf := srv.Client().Transport.(*http.Transport).TLSClientConfig
-	ip, err := fetch(context.Background(), srv.URL, Dialer(lo), tlsConf)
+	ip, err := fetch(context.Background(), srv.URL, Dialer(lo).DialContext, tlsConf)
 	if err != nil || ip.String() != "203.0.113.9" {
 		t.Fatalf("bound to %s: %v %v", lo.Name, ip, err)
 	}
-	_, err = fetch(context.Background(), srv.URL, Dialer(Iface{Index: 9999, Name: "twinnel-none0"}), tlsConf)
+	_, err = fetch(context.Background(), srv.URL, Dialer(Iface{Index: 9999, Name: "twinnel-none0"}).DialContext, tlsConf)
 	if err == nil || !strings.Contains(err.Error(), "bind to interface") {
 		t.Fatalf("bound to a missing interface: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestProxiedErrors(t *testing.T) {
 	if _, _, err := Proxied(ctx, "http://1.1.1.1/", 7890, none); err == nil {
 		t.Error("http URL accepted")
 	}
-	if _, _, err := Proxied(ctx, health.DefaultEgressURL, 0, none); err == nil {
+	if _, _, err := Proxied(ctx, health.DefaultEgressURLs[0], 0, none); err == nil {
 		t.Error("port 0 accepted")
 	}
 }
