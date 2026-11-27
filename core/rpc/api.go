@@ -121,6 +121,9 @@ type Status struct {
 	Tailnet            TailnetStatus  `json:"tailnet"`
 	Kernel             KernelList     `json:"kernel"`
 	Subscriptions      []Subscription `json:"subscriptions,omitempty"`
+	// DNSWatch is the DNS watchdog (nil: a helper without one, or a
+	// platform where Twinnel does not set the system DNS).
+	DNSWatch *DNSWatch `json:"dns_watch,omitempty"`
 }
 
 type MihomoStatus struct {
