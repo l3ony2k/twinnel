@@ -147,6 +147,7 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodTailscaleInstall, func(ctx context.Context, p rpc.TailscaleInstallParams) (rpc.TailscaleInstallResult, error) {
 		return e.TailscaleInstall(ctx, p)
 	})
+	rpc.Typed(s, rpc.MethodSubExport, func(ctx context.Context, _ rpc.Empty) ([]rpc.SubExport, error) { return e.ExportSubscriptions() })
 	e.registerCredentials(s)
 	e.registerAgent(s)
 

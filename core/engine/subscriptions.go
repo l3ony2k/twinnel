@@ -368,3 +368,22 @@ func plainHTTPWarning(raw string) string {
 	}
 	return "the subscription URL uses plain http: anyone on the network path can read it and replace the config it returns; use https if the provider offers it"
 }
+
+// ExportSubscriptions lists the subscriptions with their URLs
+// (subscription.export, for the export zip). Logged without the URLs.
+func (e *Engine) ExportSubscriptions() ([]rpc.SubExport, error) {
+	st, err := e.Store.Settings()
+	if err != nil {
+		return nil, err
+	}
+	out := []rpc.SubExport{}
+	for _, s := range st.Subscriptions {
+		x := rpc.SubExport{ID: s.ID, Name: s.Name, Active: s.Active, IntervalMinutes: s.IntervalMinutes}
+		if u, err := e.Secrets.Get(store.SubscriptionURLKey(s.ID)); err == nil {
+			x.URL = u
+		}
+		out = append(out, x)
+	}
+	e.log().Info("subscriptions exported", "count", len(out))
+	return out, nil
+}
