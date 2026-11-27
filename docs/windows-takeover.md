@@ -77,7 +77,7 @@ tun:
 
 ## 7 权限：「没有权限」不是「不存在」
 
-`%ProgramData%\Twinnel`（含 `mihomo\config.yaml` 和 `kernels\`）只有 SYSTEM 和管理员能读。普通 PowerShell 里 `Test-Path` 报 Access denied、直接运行内核报找不到，都是权限，不是文件缺失。`twinnel doctor` 会写明「没有权限读取」；完整的检查看 app 的健康页（由后台助手执行）或用管理员终端运行。
+`%ProgramData%\Twinnel`（含 `mihomo\config.yaml` 和 `kernels\`）只有 SYSTEM 和管理员能读。普通 PowerShell 里 `Test-Path` 报 Access denied、直接运行内核报找不到，都是权限，不是文件缺失。`twinnel doctor` 由后台助手执行检查，结果和 app 的健康页一样；只有 `twinnel doctor --local`（或后台助手没有回应时）在本进程里跑，这时会写明「没有权限读取」。
 
 ## 8 检查
 
