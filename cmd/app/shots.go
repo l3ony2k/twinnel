@@ -116,6 +116,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"status":          a.statusShots,          // shots_status.go
 		"overview":        a.overviewShots,        // shots_overview.go
 		"trayspeed":       a.trayspeedShots,       // shots_trayspeed.go
+		"dock":            a.dockShots,            // shots_dock.go
 		"infotips":        a.infoTipShots,         // shots_infotips.go
 		"derpinfo":        a.derpInfoShots,        // shots_derpinfo.go
 		"flyout":          a.flyoutShots,          // shots_flyout.go
