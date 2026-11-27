@@ -271,9 +271,29 @@ type egressState struct {
 	why     string // err in words (helperError)
 }
 
-// canTestEgress: the helper runs the test, or the app can.
+// canTestEgress: the helper runs the test, or the app can, and the
+// test can run on this platform.
 func (a *app) canTestEgress(s status.Snapshot) bool {
+	if a.egressUnsupported(s) {
+		return false
+	}
 	return s.Helper.Connected() && a.hc != nil && !a.shotMode || a.egressProbe != nil
+}
+
+// egressUnsupported: the last egress result says the test can't run on
+// this platform.
+func (a *app) egressUnsupported(s status.Snapshot) bool {
+	if r := a.egress.result; r != nil && r.Unsupported {
+		return true
+	}
+	if rep := s.Health.Report; rep != nil {
+		for _, cr := range rep.Checks {
+			if cr.ID == (health.LeakEgress{}).ID() {
+				return cr.Unsupported
+			}
+		}
+	}
+	return false
 }
 
 // egressHelper is the helper connection the egress test may use: nil in
