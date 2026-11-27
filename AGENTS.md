@@ -34,3 +34,6 @@ Secrets: the live config contains node credentials and the subscription URL. Nev
 
 - **Menu bar icon is monochrome only** (template image; macOS tints it). Never use color to carry state there. States are told apart by shape: a badge, a missing/broken part of the mark, a different glyph. Every state must read at 16 pt in both light and dark menu bars. (Other platforms: follow the native convention, e.g. monochrome tray icons on Windows 11 and GNOME.)
 - **Never steal the owner's focus.** The owner works on this Mac while agents run. Screenshot/dev runs of the app must not activate the app or show key windows on screen: no activation, windows shown inactive and off-screen (or rendered headless), no notifications. Check the frontmost app before/after a run.
+
+## Copy rule (user, 2026-11-27)
+Show users only what they need to know to act. No explanatory subtitles about internals (throttling windows, implementation details, "takes effect immediately"). If information is necessary, express it through UI state or layout (a disabled control, a badge, a status row), not a sentence. Multi-line secondary text must use the type token line height, never default spacing.
