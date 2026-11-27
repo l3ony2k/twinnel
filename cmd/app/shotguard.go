@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"net"
 	"os"
 	"os/user"
@@ -27,7 +28,7 @@ func shotGuard(getenv func(string) string) error {
 	if getenv("TWINNEL_SHOTS") == "" {
 		return nil
 	}
-	if s := getenv("TWINNEL_SOCKET"); s == "" || filepath.Clean(s) == rpc.DefaultSocket {
+	if s := getenv("TWINNEL_SOCKET"); s == "" || filepath.Clean(s) == rpc.DefaultSocket || filepath.Clean(s) == legacy.Socket {
 		return errors.New("shots need TWINNEL_SOCKET set to a scratch helper's socket, not the installed helper's")
 	}
 	c := getenv("TWINNEL_CONTROLLER")

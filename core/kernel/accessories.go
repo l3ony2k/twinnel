@@ -21,7 +21,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/url"
@@ -50,6 +52,9 @@ const (
 	BackupSuffix = ".twinnel-bak"
 	// UIStamp is written into the UI dir: where the bundle came from.
 	UIStamp = ".twinnel-ui.json"
+	// LegacyUIStamp is UIStamp as written before the rename; read when
+	// UIStamp is missing.
+	LegacyUIStamp = "." + legacy.Name + "-ui.json"
 )
 
 // Size limits.
@@ -452,6 +457,9 @@ type UIStampData struct {
 func ReadUIStamp(root *os.Root, dir string) (UIStampData, bool) {
 	var s UIStampData
 	b, err := root.ReadFile(filepath.Join(dir, UIStamp))
+	if errors.Is(err, fs.ErrNotExist) {
+		b, err = root.ReadFile(filepath.Join(dir, LegacyUIStamp))
+	}
 	if err != nil || json.Unmarshal(b, &s) != nil {
 		return UIStampData{}, false
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"os"
 	"regexp"
 	"strings"
@@ -21,9 +22,13 @@ import (
 
 // Paths that tell an installed helper from none (see `twinnel helper install
 // --dry-run`): the binary and its LaunchDaemon plist.
+// A helper from before the rename counts as installed too: it runs until
+// 更新 migrates it.
 var helperInstalledPaths = []string{
 	"/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper",
 	"/Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist",
+	legacy.HelperTools,
+	legacy.HelperPlist,
 }
 
 // startHelper starts the one helper connection of the app: dial (socket
@@ -37,6 +42,8 @@ func (a *app) startHelper() {
 	paths := helperInstalledPaths
 	if os.Getenv("TWINNEL_SOCKET") != "" {
 		paths = []string{hc.Socket}
+	} else {
+		hc.Resolve = rpc.SocketFromEnv // the new socket once a legacy helper is migrated
 	}
 	hc.Installed = status.FileExists(paths...)
 	hc.OnChange = func(h status.Helper) {

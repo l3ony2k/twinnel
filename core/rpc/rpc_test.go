@@ -388,3 +388,21 @@ func TestGroupAuthorizer(t *testing.T) {
 		t.Error("group rule disabled but peer allowed")
 	}
 }
+
+// A helper from before the rename is used only while the new one's socket
+// is missing.
+func TestPickSocket(t *testing.T) {
+	has := map[string]bool{}
+	ex := func(p string) bool { return has[p] }
+	if got := pickSocket("/new", "/old", ex); got != "/new" {
+		t.Errorf("none: %s", got)
+	}
+	has["/old"] = true
+	if got := pickSocket("/new", "/old", ex); got != "/old" {
+		t.Errorf("legacy only: %s", got)
+	}
+	has["/new"] = true
+	if got := pickSocket("/new", "/old", ex); got != "/new" {
+		t.Errorf("both: %s", got)
+	}
+}

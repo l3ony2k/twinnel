@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,8 +105,16 @@ func upgradeArgs(extra ...string) []string {
 	return append(args, extra...)
 }
 
+// legacyHelper: the helper is the one installed before the rename (its
+// socket is the old one). 更新 migrates it.
+func legacyHelper(s status.Snapshot) bool { return s.Helper.Socket == legacy.Socket }
+
 // helperMatch is how the connected helper's version relates to the app's.
+// A helper from before the rename is older whatever its version says.
 func helperMatch(s status.Snapshot) version.Match {
+	if legacyHelper(s) && s.Helper.State != status.HelperNotInstalled {
+		return version.MatchHelperOlder
+	}
 	if !s.Helper.Connected() || s.Helper.Status == nil {
 		return version.MatchSame
 	}
@@ -123,7 +132,7 @@ func helperOutdated(s status.Snapshot) bool { return helperMatch(s) == version.M
 // is not older (the CLI refuses a downgrade).
 func (a *app) canUpdateHelper() bool {
 	c := a.hm.check
-	return c != nil && (c.Action == "upgrade" || c.Action == "restart")
+	return c != nil && (c.Action == "upgrade" || c.Action == "restart" || c.Action == "migrate")
 }
 
 // helperOpsEnabled: writes allowed and nothing running.
