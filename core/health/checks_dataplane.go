@@ -118,7 +118,7 @@ func (TUNDataplane) Run(ctx context.Context, env Env) Result {
 	}
 	de, ok := env.(DataplaneEnv)
 	if !ok {
-		return skip(L.msgNotSupported, ErrNotSupported)
+		return unsupported(L0, env.Platform())
 	}
 	stack := strings.ToLower(tun.Stack)
 	if stack == "" {
@@ -139,8 +139,7 @@ func (TUNDataplane) Run(ctx context.Context, env Env) Result {
 	cancel()
 	switch {
 	case errors.Is(err, ErrNotSupported):
-		res.Status, res.Summary = StatusSkip, fmt.Sprintf(L.msgNotSupported, err)
-		return res
+		return unsupported(L0, env.Platform())
 	case err == nil:
 		res.Status, res.Summary = StatusOK, fmt.Sprintf(L.msgOK, stack)
 		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evTCPOK, roundMS(took)))

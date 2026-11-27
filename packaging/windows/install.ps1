@@ -72,14 +72,40 @@ function Stop-Twinnel {
 		}
 }
 
+# The user's PATH as stored: entries such as %LOCALAPPDATA%\... stay
+# unexpanded and the value stays REG_EXPAND_SZ ([Environment]::
+# SetEnvironmentVariable would write it back expanded, as REG_SZ).
 function Get-UserPath {
-	$p = [Environment]::GetEnvironmentVariable('Path', 'User')
-	if ($null -eq $p) { return @() }
+	$key = Get-Item -LiteralPath 'HKCU:\Environment'
+	$p = $key.GetValue('Path', '', 'DoNotExpandEnvironmentNames')
 	return @($p -split ';' | Where-Object { $_ })
 }
 
+function Test-OnUserPath([string[]]$Parts, [string]$Dir) {
+	foreach ($p in $Parts) {
+		if ([Environment]::ExpandEnvironmentVariables($p).TrimEnd('\') -ieq $Dir) { return $true }
+	}
+	return $false
+}
+
 function Set-UserPath([string[]]$Parts) {
-	[Environment]::SetEnvironmentVariable('Path', ($Parts -join ';'), 'User')
+	Set-ItemProperty -LiteralPath 'HKCU:\Environment' -Name 'Path' -Value ($Parts -join ';') -Type ExpandString
+	Send-EnvironmentChange
+}
+
+# Tells Explorer the environment changed (WM_SETTINGCHANGE "Environment"),
+# so terminals opened from now on get the new PATH. Terminals already open
+# keep the old one.
+function Send-EnvironmentChange {
+	if (-not ('Twinnel.EnvBroadcast' -as [type])) {
+		Add-Type -Namespace Twinnel -Name EnvBroadcast -MemberDefinition @'
+[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+'@
+	}
+	$result = [UIntPtr]::Zero
+	# HWND_BROADCAST, WM_SETTINGCHANGE, SMTO_ABORTIFHUNG, 5 s
+	[void][Twinnel.EnvBroadcast]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result)
 }
 
 if (-not (Test-InstallDir $InstallDir)) {
@@ -98,8 +124,10 @@ if ($Uninstall) {
 	Stop-Twinnel
 	if (Test-Path -LiteralPath $Shortcut) { Step "remove $Shortcut" { Remove-Item -LiteralPath $Shortcut -Force } }
 	$parts = Get-UserPath
-	if ($parts | Where-Object { $_.TrimEnd('\') -ieq $Bin }) {
-		Step "remove $Bin from the user's PATH" { Set-UserPath @($parts | Where-Object { $_.TrimEnd('\') -ine $Bin }) }
+	if (Test-OnUserPath $parts $Bin) {
+		Step "remove $Bin from the user's PATH" {
+			Set-UserPath @($parts | Where-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') -ine $Bin })
+		}
 	}
 	if (Get-ItemProperty -Path $RunKey -Name $RunValue -ErrorAction SilentlyContinue) {
 		Step "remove the start-at-login entry" {
@@ -146,10 +174,18 @@ Step "add the Start menu shortcut $Shortcut" {
 	$lnk.Save()
 }
 $parts = Get-UserPath
-if (-not ($parts | Where-Object { $_.TrimEnd('\') -ieq $Bin })) {
-	Step "add $Bin to the user's PATH (new terminals find twinnel)" { Set-UserPath (@($parts) + $Bin) }
+$pathAdded = $false
+if (-not (Test-OnUserPath $parts $Bin)) {
+	Step "add $Bin to the user's PATH" { Set-UserPath (@($parts) + $Bin) }
+	$pathAdded = $true
+}
+if (-not $DryRun -and -not (($env:Path -split ';') | Where-Object { $_.TrimEnd('\') -ieq $Bin })) {
+	$env:Path = "$env:Path;$Bin" # this window too
 }
 if (-not $NoLaunch) {
 	Step 'start Twinnel' { Start-Process -FilePath (Join-Path $InstallDir 'Twinnel.exe') -WorkingDirectory $InstallDir }
 }
 Write-Host "Twinnel is installed in $InstallDir. Its icon is in the notification area of the taskbar."
+if ($pathAdded) {
+	Write-Host "The twinnel command works in this window and in terminals you open from now on. Terminals (and editors such as VS Code) that were already open need to be restarted to find it."
+}

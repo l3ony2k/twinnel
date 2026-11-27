@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/dnswatch"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/kernel"
 	"github.com/l3ony2k/twinnel/core/rpc"
@@ -105,8 +106,12 @@ type Engine struct {
 	// (nil: not supported on this platform).
 	SystemDNS sysdns.Platform
 	// DNSProbe checks that a DNS server answers at addr before dns.point
-	// (default: one UDP query).
+	// and for the DNS watchdog (default: one UDP query).
 	DNSProbe func(ctx context.Context, addr string) error
+	// DNSWatchConfig tunes the DNS watchdog (core/dnswatch); DNSWatchOff
+	// keeps Run from starting it (development helpers).
+	DNSWatchConfig dnswatch.Config
+	DNSWatchOff    bool
 	// TSControl is tailscaled's LocalAPI for tailscale.login (nil: not
 	// supported).
 	TSControl TailscaleControl
@@ -148,6 +153,7 @@ type Engine struct {
 	tailnet    rpc.TailnetStatus
 	started    time.Time
 	health     healthState
+	dnsWatch   dnsWatchState
 }
 
 // New returns an engine with defaults for everything optional.
@@ -346,13 +352,14 @@ func (e *Engine) mihomoBinary(st *store.Settings) (string, error) {
 }
 
 // Run starts the background loops (subscription schedule, tailnet poll,
-// network changes, health schedule)
+// network changes, health schedule, DNS watchdog, service log rotation)
 // and blocks until ctx ends.
 func (e *Engine) Run(ctx context.Context) {
 	e.RecoverHarden(ctx)
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(5)
 	go func() { defer wg.Done(); e.serviceLogLoop(ctx) }()
+	go func() { defer wg.Done(); e.dnsWatchLoop(ctx) }()
 	go func() { defer wg.Done(); e.subscriptionLoop(ctx) }()
 	go func() { defer wg.Done(); e.tailnetLoop(ctx) }()
 	go func() { defer wg.Done(); e.netLoop(ctx) }()
@@ -433,6 +440,7 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 		}
 	}
 	out.Kernel, _ = e.KernelList()
+	out.DNSWatch = e.DNSWatch()
 	return out, nil
 }
 

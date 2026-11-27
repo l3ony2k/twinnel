@@ -115,7 +115,15 @@ func TestDataplaneSkips(t *testing.T) {
 	_ = r
 
 	// An Env without probes.
-	want(t, TUNDataplane{}, struct{ Env }{healthyEnv()}, StatusSkip, ErrNotSupported.Error())
+	if r := want(t, TUNDataplane{}, struct{ Env }{healthyEnv()}, StatusSkip, "macOS"); !r.Unsupported {
+		t.Fatal("not flagged unsupported")
+	}
+	// Through the runner's Memo: the probes answer ErrNotSupported.
+	rep := (&Runner{Registry: func() *Registry { r := NewRegistry(); r.Register(TUNDataplane{}); return r }()}).
+		Run(context.Background(), struct{ Env }{healthyEnv()})
+	if c := rep.Checks[0]; c.Status != StatusSkip || !c.Unsupported {
+		t.Fatalf("via memo: %+v", c)
+	}
 }
 
 // With the probe IP routed elsewhere (an exit node), the fake-ip of the

@@ -26,6 +26,7 @@ import (
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/health/dnswire"
 	"github.com/l3ony2k/twinnel/platform/common"
+	"github.com/l3ony2k/twinnel/platform/egress"
 )
 
 // CommandRunner runs a command and returns its stdout. Tests replace it.
@@ -89,6 +90,9 @@ type Options struct {
 	LookupHost func(ctx context.Context, name string) ([]netip.Addr, error)
 	// LookPath is exec.LookPath (replaceable for tests).
 	LookPath func(string) (string, error)
+	// Direct makes the egress test's direct request on a socket pinned to
+	// ifc. Default: egress.Direct. Tests replace it.
+	Direct func(ctx context.Context, url string, ifc egress.Iface) (netip.Addr, error)
 }
 
 // Env implements health.Env on Windows.

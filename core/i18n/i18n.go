@@ -212,6 +212,7 @@ type Strings struct {
 	TakeoverRules                                                                     string // %d
 	TakeoverVerdict, TakeoverEquivalent, TakeoverNotEquivalent, TakeoverDeliberate    string
 	TakeoverOtherChanges, TakeoverNoChanges, TakeoverShowText, TakeoverHideText       string
+	TakeoverShowAllRules, TakeoverFoldRules                                           string
 	TakeoverAdopt                                                                     string
 	TakeoverAdoptedAt                                                                 string // %s: time
 	TakeoverReplan, TakeoverNotValid                                                  string
@@ -273,6 +274,7 @@ type Strings struct {
 	AgentStrings           // agent.go
 	ImportStrings          // importcfg.go
 	PlatformStrings        // platform.go
+	DNSWatchStrings        // dnswatch.go
 	WizardStrings          // wizard.go
 	TSLoginStrings         // tslogin.go
 }
@@ -735,6 +737,8 @@ var zh = Strings{
 	TakeoverNoChanges:      "没有行为差异",
 	TakeoverShowText:       "显示完整报告",
 	TakeoverHideText:       "收起报告",
+	TakeoverShowAllRules:   "列出所有失效规则",
+	TakeoverFoldRules:      "折叠失效规则",
 	TakeoverAdopt:          "接管",
 	TakeoverAdoptedAt:      "已于 %s 接管",
 	TakeoverReplan:         "请重新生成计划",
@@ -838,6 +842,7 @@ var zh = Strings{
 	TakeoverExplainStrings: zhTakeoverExplain,
 	InfoTipStrings:         zhInfoTips,
 	StatusStrings:          zhStatus,
+	DNSWatchStrings:        zhDNSWatch,
 	SidebarStrings:         zhSidebar,
 	OverviewStrings:        zhOverview,
 	TSLoginStrings:         zhTSLogin,
