@@ -177,6 +177,7 @@ type Engine struct {
 	started     time.Time
 	health      healthState
 	dnsWatch    dnsWatchState
+	gen         stateGenState // stategen.go
 }
 
 // New returns an engine with defaults for everything optional.
@@ -224,6 +225,7 @@ func (e *Engine) publish(typ string, data any) {
 	if e.Bus != nil {
 		e.Bus.Publish(typ, data)
 	}
+	e.noteEvent(typ)
 }
 
 func (e *Engine) validate(ctx context.Context, bin string, cfg []byte, opts ...config.ValidateOption) (*config.Validation, error) {
@@ -435,9 +437,9 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 	if bin, err := e.mihomoBinary(st); err == nil {
 		out.Mihomo.Binary = bin
 	}
-	vctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	v, err := e.currentController(st).Version(vctx)
-	cancel()
+	// A change since the last look bumps the state generation, so a
+	// health report from before it is not reused (stategen.go).
+	v, err := e.observeMihomo(ctx, st)
 	if err != nil {
 		out.Mihomo.Error = err.Error()
 	} else {
