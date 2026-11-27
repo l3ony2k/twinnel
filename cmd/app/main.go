@@ -104,6 +104,7 @@ type app struct {
 	trayTip     string                     // the tray's tooltip as last set
 	egress      egressState                // the on-demand egress test (statusui.go)
 	egressProbe func(context.Context) *health.CheckReport
+	onMain      func(func())          // runs on the UI thread (mygo.RunOnMain; tests run it inline)
 	evidenceAll map[string]bool       // health check ID → all evidence lines shown
 	side        sidebarState          // the sidebar's mode and width (sidebar.go)
 	dockPol     mygo.ActivationPolicy // the activation policy as last set (dock.go)

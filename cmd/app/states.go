@@ -91,9 +91,14 @@ func rawDetails(c *ui.Context, raw string) ui.Element {
 // raw is the error as it came; it is never the message. retry may be nil
 // (no 重试); busy is true while the retry runs.
 func failedRow(c *ui.Context, what, raw string, retry func(), busy bool) ui.Element {
+	return failedRowWhy(c, what, i18n.PlainNetError(raw), raw, retry, busy)
+}
+
+// failedRowWhy is failedRow with the reason already worded (helperError),
+// for a failure whose reason is not only a network one.
+func failedRowWhy(c *ui.Context, what, reason, raw string, retry func(), busy bool) ui.Element {
 	t := c.Theme()
 	T := i18n.T
-	reason := i18n.PlainNetError(raw)
 	row := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Role(ui.RoleStatus).Label(what)
 	row.Children(func() {
 		ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(t.Warning).Shrink(0).AccessHidden(true)
