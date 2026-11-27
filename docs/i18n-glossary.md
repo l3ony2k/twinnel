@@ -32,7 +32,7 @@ terms. Keep them when adding strings, and add new terms here.
 | Tailscale 设备 | Tailscale Devices |
 | 健康检查 | Health (page); health check (in text) |
 | 日志 | Logs |
-| 订阅与覆写 | Subscriptions & Overrides |
+| 订阅与覆写 | Subscriptions & Overrides (page title, running text); **Subs & Overrides** (sidebar row and 显示 menu, `NavConfig`: shorter to balance the sidebar) |
 | 历史 | History |
 | 内核 | Core |
 | 接管 | Takeover (page); Take Over (button) |
