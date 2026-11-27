@@ -74,7 +74,10 @@ func (a *app) mainView(c *ui.Context) {
 					a.pageScroll[a.page] = st
 				}
 				ui.Scroll(c.Key("page:"+a.page)).TrackScroll(st).Grow(1).ScrollbarInsets(barH, 0, 0, 0).Children(func() {
-					ui.Column(c).Padding(barH+4, plat.pagePadX, 32).AlignItems(ui.Center).Children(func() {
+					// Left-anchored as System Settings' detail pane: every
+					// page, 日志 included, starts on one edge; the column
+					// stops growing at pageMaxWidth.
+					ui.Column(c).Padding(barH+4, plat.pagePadX, 32).AlignItems(ui.Start).Children(func() {
 						ui.Column(c).Gap(gapGroup).FillWidth().MaxWidth(pageMaxWidth(a.page)).Children(func() {
 							a.pageBody(c, s)
 						})
@@ -86,6 +89,7 @@ func (a *app) mainView(c *ui.Context) {
 		})
 	})
 	a.sidebarChrome(c, toolbarHeight(c)) // the sidebar toggle and the divider's grip
+	a.toasts(c)                          // toast.go
 }
 
 // The toolbar: the page's title and actions on the traffic lights' line,
@@ -120,14 +124,15 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 	}
 	spec := pageBar
 	// The title and the actions line up with the page's column: over its
-	// left and right edges at every width, as the column is centered and
-	// no wider than contentMax. Logs fill the pane, and so does their bar.
+	// left and right edges at every width, as the column is left-anchored
+	// and no wider than pageMaxWidth. Logs fill the pane, and so does their
+	// bar.
 	inner := pageMaxWidth(a.page)
 	if a.page == pageLogs {
 		inner = 0
 	}
 	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).Padding(0, plat.pagePadX, 0, a.toolbarLead(c)).
-		AlignItems(ui.Center).Justify(ui.Center).DragWindow().Role(ui.RoleToolbar).Label(spec.title).Children(func() {
+		AlignItems(ui.Start).Justify(ui.Center).DragWindow().Role(ui.RoleToolbar).Label(spec.title).Children(func() {
 		row := ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center)
 		if inner > 0 {
 			row.MaxWidth(inner)
@@ -145,7 +150,9 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 					}
 				})
 			}
-			ui.Text(c, spec.title).FontSize(plat.titleBarSize).FontWeight(plat.titleBarWeight).SingleLine().Shrink(1)
+			// The title is the one thing the bar never drops: the page's
+			// actions give way first (a page with many fits them itself).
+			ui.Text(c, spec.title).FontSize(plat.titleBarSize).FontWeight(plat.titleBarWeight).SingleLine().Shrink(0)
 			ui.Spacer(c)
 			if spec.trailing != nil {
 				toolbarActions(c, spec.trailing)

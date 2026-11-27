@@ -119,6 +119,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"derpinfo":        a.derpInfoShots,        // shots_derpinfo.go
 		"flyout":          a.flyoutShots,          // shots_flyout.go
 		"foundations":     a.foundationsShots,     // shots_foundations.go
+		"surfaces":        a.surfacesShots,        // shots_surfaces.go
 		"takeover":        a.takeoverE2E,
 	}
 }

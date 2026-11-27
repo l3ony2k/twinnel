@@ -21,10 +21,11 @@ import (
 //     not key it is gray; hover is a faint fill.
 //   - Windows 11 (NavigationView): the neutral fill, a short accent pill at
 //     the row's leading edge, a hover fill. GNOME: the neutral fill.
-//   - Every count is one component (countBadge): a pill of the same height,
-//     right edge and tabular figures on every row, centered on the row.
-//     Its tone tells neutral counts (devices online) from attention ones
-//     (health warnings), never its shape or place.
+//   - Every count is one component (countBadge) at the row's right edge,
+//     tabular figures, centered on the row. A neutral count (devices
+//     online) is the plain number in the secondary color, as Finder's and
+//     Mail's on macOS 26; one that calls for attention (health warnings,
+//     failures) is a tinted pill. On the rail only those show (railMark).
 //
 // Up and Down move the selection while the list has the focus; each row is
 // a tree item that reports itself selected to assistive technology.
@@ -143,12 +144,25 @@ func navHeader(c *ui.Context, title string, first bool) {
 		Padding(top, 10, 4).SingleLine()
 }
 
+// navGap is the gap from a row's icon to its label; the sidebar's foot
+// uses it too (footMark).
+const navGap = 8
+
+// navRowPadX is a row's inset from the selection's edge to its icon:
+// Finder's 9 on macOS 26+, 10 before.
+func navRowPadX() float32 {
+	if plat.navSel == navNeutral {
+		return 9
+	}
+	return 10
+}
+
 // navRow draws one row and reports a click.
 func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 	t := c.Theme()
 	rowH, _, iconSize := navMetrics()
 	iconCol, textCol := t.Accent, t.Text
-	row := ui.Row(c.Key("nav:" + it.id)).Height(rowH).Gap(8).AlignItems(ui.Center).
+	row := ui.Row(c.Key("nav:" + it.id)).Height(rowH).Gap(navGap).AlignItems(ui.Center).
 		Role(ui.RoleTreeItem).Label(it.label).AccessSelected(chosen)
 	if it.digit > 0 { // VoiceOver reads the row's ⌘ digit
 		row.KeyShortcuts(ui.Cmd, it.key)
@@ -157,7 +171,7 @@ func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 	switch plat.navSel {
 	case navNeutral:
 		// Finder: icon at 9 pt, label at 36 pt from the fill's edge.
-		row.PaddingX(9).Radius(navSelRadius)
+		row.PaddingX(navRowPadX()).Radius(navSelRadius)
 		if chosen {
 			row.Background(navNeutralFill(t, active))
 		}
@@ -165,7 +179,7 @@ func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 			iconCol = t.TextMuted
 		}
 	case navNeutralPill:
-		row.PaddingX(10).Radius(plat.controlRadius)
+		row.PaddingX(navRowPadX()).Radius(plat.controlRadius)
 		switch {
 		case chosen:
 			row.Background(navNeutralFill(t, true))
@@ -174,7 +188,7 @@ func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 			row.Background(navHoverFill(t))
 		}
 	default: // navAccentFill
-		row.PaddingX(10).Radius(plat.controlRadius)
+		row.PaddingX(navRowPadX()).Radius(plat.controlRadius)
 		switch {
 		case chosen && active:
 			row.Background(t.Accent)
@@ -193,7 +207,7 @@ func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 		ui.Icon(c, it.icon).FontSize(iconSize).TextColor(iconCol).Width(iconSize + 2).Shrink(0)
 		ui.Text(c, it.label).TextColor(textCol).Grow(1).Shrink(1).SingleLine()
 		if it.count > 0 {
-			countBadge(c, it.count, it.tone, onAccent, chosen)
+			countBadge(c, it.count, it.tone, onAccent)
 		}
 	})
 	return row.Clicked()
@@ -247,27 +261,31 @@ func navHoverFill(t *ui.Theme) ui.Color {
 	return ui.RGBA(0, 0, 0, 0.05)
 }
 
-// countBadge is the one count component: a pill of fixed height, at least
-// as wide as it is tall, its figures tabular and centered in it. The tone
-// sets its colors; on the accent-filled row it inverts, and a neutral one
-// on a neutral selection is a step stronger, to stand off the fill.
-func countBadge(c *ui.Context, n int, tone navTone, onAccent, selected bool) ui.Element {
+// countBadge is the one count component. A neutral count is the plain
+// number, 11 pt, tabular, in the secondary color (AccentText on the
+// accent-filled row). An attention or alert count is a pill of fixed
+// height, at least as wide as it is tall, its figures centered in it;
+// the tone sets its colors, and on the accent-filled row it inverts.
+func countBadge(c *ui.Context, n int, tone navTone, onAccent bool) ui.Element {
 	t := c.Theme()
 	p := pal(t)
+	if tone == toneNeutral {
+		fg := t.TextMuted
+		if onAccent {
+			fg = t.AccentText
+		}
+		return ui.Row(c).Height(navBadgeH).MinWidth(navBadgeH).AlignItems(ui.Center).Justify(ui.End).Shrink(0).Children(func() {
+			num(ui.Text(c, fmt.Sprint(n)).FontSize(plat.smallSize).TextColor(fg).SingleLine())
+		})
+	}
 	var bg, fg ui.Color
 	switch {
-	case onAccent && tone == toneNeutral:
-		bg, fg = t.AccentText.Alpha(0.24), t.AccentText
 	case onAccent:
 		bg, fg = t.AccentText, t.Accent // inverted: the attention stays visible
 	case tone == toneAttention:
 		bg, fg = t.Warning.Alpha(0.22), p.warnText
-	case tone == toneAlert:
+	default: // toneAlert
 		bg, fg = t.Danger.Alpha(0.2), p.badText
-	case selected:
-		bg, fg = t.Text.Alpha(0.14), t.TextMuted
-	default:
-		bg, fg = t.Text.Alpha(0.09), t.TextMuted
 	}
 	return ui.Row(c).Height(navBadgeH).MinWidth(navBadgeH).PaddingX(6).Radius(navBadgeH / 2).
 		Background(bg).AlignItems(ui.Center).Justify(ui.Center).Shrink(0).Children(func() {

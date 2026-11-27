@@ -479,23 +479,6 @@ func (a *app) applyTheme(c *ui.Context) {
 	c.SetTheme(systemTheme(dark, c.Preferences()))
 }
 
-// flushToast shows the pending outcome message as a toast: a success
-// that needs no answer goes away by itself (errors stay on the page).
-func (a *app) flushToast(c *ui.Context) {
-	if a.toast != "" {
-		if a.toastOp {
-			c.ToastAction(a.toast, i18n.T.EvShow, a.showDuetLog)
-		} else {
-			c.Toast(a.toast)
-		}
-		a.toast, a.toastOp = "", false
-	}
-	if a.toastErr != "" {
-		c.AddToast(ui.Toast{ID: "op-failed", Title: a.toastErr, Type: "error", Timeout: -1, Action: i18n.T.EvShow, OnAction: a.showDuetLog})
-		a.toastErr = ""
-	}
-}
-
 // stateKey keeps the window's place and size across launches, except in
 // shot mode, which wants its own size.
 func (a *app) stateKey() string {

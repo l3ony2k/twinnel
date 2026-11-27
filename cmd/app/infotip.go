@@ -58,7 +58,9 @@ func infoTipFor(c *ui.Context, subject, title, body string, more func()) ui.Elem
 	if b.Clicked() {
 		*open = !*open
 	}
-	ui.Popover(c, b, open, func() {
+	// The panel grows from the ⓘ and flips with it (popoverMotion); its
+	// look stays MyGo's popover panel (radius 8, padding 4 + 4).
+	panel := ui.Popover(c, b, open, func() {
 		ui.Column(c).Gap(6).MaxWidth(300).Padding(4, 4).Children(func() {
 			if title != "" {
 				ui.Text(c, title).Bold().Wrap()
@@ -75,5 +77,8 @@ func infoTipFor(c *ui.Context, subject, title, body string, more func()) ui.Elem
 			}
 		})
 	})
+	if panel != (ui.Element{}) {
+		panel.Transition(popoverMotion).AttachedOrigin()
+	}
 	return b
 }
