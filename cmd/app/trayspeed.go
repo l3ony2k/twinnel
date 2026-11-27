@@ -50,7 +50,7 @@ func (a *app) menuBarCard(c *ui.Context) {
 			if !on {
 				label.TextColor(t.TextMuted)
 			}
-			if ui.Segmented(c.Key("tray-layout"), &layout, T.TraySpeedOneLine, T.TraySpeedTwo).
+			if segmented(c.Key("tray-layout"), &layout, T.TraySpeedOneLine, T.TraySpeedTwo).
 				Label(T.TraySpeedLayout).Disabled(!on).Changed() {
 				v := status.TraySpeedOneLine
 				if layout == 1 {

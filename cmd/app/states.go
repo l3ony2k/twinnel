@@ -29,29 +29,93 @@ func (s netService) texts() (title, body, short string) {
 }
 
 // unreachableState is a page's box when mihomo or Tailscale can't be
-// reached: what didn't load, why in plain words, the raw error small and
-// selectable, then 重试 and 打开设置. It draws the whole box.
+// reached: what didn't load, why in plain words, then 重试 and 打开设置;
+// the raw error is diagnostic, so it waits behind a 详细信息 disclosure,
+// left-aligned under it (unslop R-7). It draws the whole box, from its
+// top, so two side by side line up.
 func (a *app) unreachableState(c *ui.Context, svc netService, err string) {
 	t := c.Theme()
 	T := i18n.T
 	title, body, _ := svc.texts()
-	groupBox(c, t).Children(func() {
+	groupBox(c, t).Justify(ui.Start).Children(func() {
 		ui.Column(c).Gap(6).AlignItems(ui.Center).Padding(28, 16).Children(func() {
 			ui.Icon(c, iconError).FontSize(iconLarge).TextColor(t.TextMuted)
 			ui.Text(c, title).FontWeight(500)
 			ui.Text(c, body).FontSize(plat.calloutSize).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().LineHeight(lineText).MaxWidth(420)
-			if err != "" {
-				ui.Text(c, err).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).
-					TextAlign(ui.Center).Wrap().LineHeight(lineText).MaxWidth(420).Selectable().Label(T.UnreachableDetail + "：" + err)
-			}
 			ui.Row(c).Gap(8).Margin(8, 0, 0, 0).Children(func() {
 				a.retryButton(c.Key("retry-" + title))
 				if pushButton(c.Key("open-settings"), T.OpenSettings).Clicked() {
 					a.openPage(pageSettings)
 				}
 			})
+			if err != "" {
+				rawDetails(c.Key("raw-"+title), err).MaxWidth(420).Margin(4, 0, 0, 0)
+			}
 		})
 	})
+}
+
+// rawDetails is the raw text of a failure behind a 详细信息 disclosure,
+// closed by default: mono, small, selectable, left-aligned and wrapping
+// under the link. It is diagnostic; the plain sentence above it is the
+// message.
+func rawDetails(c *ui.Context, raw string) ui.Element {
+	t := c.Theme()
+	T := i18n.T
+	col := ui.Column(c).Gap(4).AlignItems(ui.Start)
+	open := ui.Local(col, "open", func() bool { return false })
+	col.Children(func() {
+		d := linkDisclosure(c, open != nil && *open, T.UnreachableDetail)
+		if d.Clicked() && open != nil {
+			*open = !*open
+		}
+		if open != nil && *open {
+			mono(ui.Text(c, raw)).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).
+				Selectable().Label(T.UnreachableDetail + "：" + raw)
+		}
+	})
+	return col
+}
+
+// failedRow is the failed state at a card's size (kubai R-10, Vibe Design
+// Tips 022 d): the warning mark and what did not work (没能检查 mihomo
+// 更新), the reason in plain words under it when duet knows one, then 重试
+// (its refresh icon turning while retrying) and 复制详情 at the row's end.
+// raw is the error as it came; it is never the message. retry may be nil
+// (no 重试); busy is true while the retry runs.
+func failedRow(c *ui.Context, what, raw string, retry func(), busy bool) ui.Element {
+	t := c.Theme()
+	T := i18n.T
+	reason := i18n.PlainNetError(raw)
+	row := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Role(ui.RoleStatus).Label(what)
+	row.Children(func() {
+		ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(t.Warning).Shrink(0).AccessHidden(true)
+		ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).Children(func() {
+			ui.Text(c, what).TextColor(pal(t).warnText).Wrap().LineHeight(lineText)
+			if reason != "" {
+				ui.Text(c, reason).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
+			}
+		})
+		if retry != nil {
+			b := pushButton(c.Key("failed-retry"), "").Label(T.Retry)
+			spin := showBusy(c, b, busy)
+			b.Busy(spin).Children(func() {
+				turningIcon(c, iconRefresh, spin)
+				ui.Text(c, T.Retry).SingleLine()
+			})
+			if b.Clicked() && !busy {
+				retry()
+			}
+		}
+		if raw != "" {
+			l := ui.Text(c.Key("failed-copy"), T.TkCopyDetails).FontSize(plat.calloutSize).TextColor(t.Accent).
+				SingleLine().Shrink(0).Focusable().Role(ui.RoleButton).Tooltip(raw)
+			if l.Clicked() {
+				copyText(c, raw)
+			}
+		}
+	})
+	return row
 }
 
 // unreachableLine is the small form for a card or the flyout: the plain
@@ -71,11 +135,7 @@ func (a *app) retryButton(c *ui.Context) {
 	now := time.Now()
 	spin := a.retry.visible(now)
 	b := pushFace(c, ui.Button(c, "")).Label(i18n.T.Retry).Busy(spin).Children(func() {
-		if spin {
-			spinnerIcon(c)
-		} else {
-			ui.Icon(c, iconRefresh).FontSize(iconInline)
-		}
+		turningIcon(c, iconRefresh, spin)
 		ui.Text(c, i18n.T.Retry).SingleLine()
 	})
 	if b.Clicked() && !spin {
@@ -145,10 +205,11 @@ func skeletonRows(c *ui.Context, rows int) {
 	}
 }
 
-// loadingBox keeps the space of content that is loading (an editor) with a
-// spinner centred in it after busyDelay, so the page doesn't jump when the
-// content arrives. key names the content; a box not drawn for 2 s starts
-// its delay again.
+// loadingBox keeps the space of content that is loading (an editor) and,
+// after busyDelay, draws a skeleton of it there (kubai R-23): a gutter and
+// three code bars, static (no shimmer, as macOS), so the page doesn't jump
+// when the content arrives. key names the content; a box not drawn for
+// 2 s starts its delay again (busySpan's timing).
 func (a *app) loadingBox(c *ui.Context, key string, height float32) ui.Element {
 	t := c.Theme()
 	now := time.Now()
@@ -162,12 +223,23 @@ func (a *app) loadingBox(c *ui.Context, key string, height float32) ui.Element {
 	}
 	ts[1] = now
 	a.loadingSeen[key] = ts
-	show := now.Sub(ts[0]) >= busyDelay
-	return ui.Column(c.Key("loading-"+key)).Height(height).Radius(plat.controlRadius+2).Border(1, pal(t).groupLine).
-		AlignItems(ui.Center).Justify(ui.Center).Busy(true).Children(func() {
-		if show {
-			ui.Spinner(c).Label(i18n.T.Loading)
+	show := busySpan{start: ts[0]}.visible(now)
+	fill := pal(t).code
+	box := ui.Row(c.Key("loading-"+key)).Height(height).Radius(plat.innerRadius).Border(1, pal(t).groupLine).Clip().
+		AlignItems(ui.Stretch).Busy(true).Role(ui.RoleStatus).Label(i18n.T.Loading)
+	return box.Children(func() {
+		if !show {
+			return
 		}
+		ui.Box(c).Width(36).Background(fill).Shrink(0).AccessHidden(true) // the gutter
+		ui.Column(c).Grow(1).Gap(10).Padding(12, 14).AccessHidden(true).Children(func() {
+			for _, part := range []float32{0.6, 0.45, 0.7} {
+				ui.Row(c).Children(func() {
+					ui.Box(c).Height(8).Radius(4).Background(fill).Basis(0).Grow(part)
+					ui.Box(c).Basis(0).Grow(1 - part)
+				})
+			}
+		})
 	})
 }
 

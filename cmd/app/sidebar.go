@@ -347,19 +347,16 @@ func sidebarNeed(c *ui.Context) float32 {
 			need = max(need, w)
 		}
 	}
-	// The foot: one line per state, a mark of 8, a gap of 5, the name;
-	// the helper's action line ends in a chevron.
+	// The foot: one line per state, the mark in an icon-wide box, the
+	// nav gap, the name; the helper's action line ends in a chevron.
 	T := i18n.T
 	foot := []string{T.Mihomo, T.Tailscale, T.HelperShort, T.HelperNeedsUpdate, T.HelperDownRow,
 		T.Helper + " · " + T.HelperNotInstalled}
 	for _, l := range foot {
-		need = max(need, 2*sidePad+2*sideFootPadX+8+5+text(l, plat.smallSize, 0)+4+iconSmall)
+		need = max(need, 2*sidePad+2*navRowPadX()+iconSize+2+navGap+text(l, plat.smallSize, 0)+4+iconSmall)
 	}
 	return need
 }
-
-// sideFootPadX is the foot's inset in the sidebar (duetPair's padX).
-const sideFootPadX = 6
 
 // sidebarChrome builds what lies over the window's layout: the toggle on
 // the title bar and the divider's grip. Built after the content, so that
@@ -462,7 +459,7 @@ func railRow(c *ui.Context, it navItem, chosen, active bool) bool {
 	row.Children(func() {
 		ui.Box(c).Size(iconSize+2, iconSize).Shrink(0).Children(func() {
 			ui.Icon(c, it.icon).FontSize(iconSize).TextColor(iconCol)
-			if it.count > 0 {
+			if it.count > 0 && it.tone != toneNeutral {
 				railMark(c, it.tone, onAccent).Absolute().Top(-4).Right(-7)
 			}
 		})
@@ -470,18 +467,12 @@ func railRow(c *ui.Context, it navItem, chosen, active bool) bool {
 	return row.Clicked()
 }
 
-// railMark is a count on the rail: a plain count is a small filled dot,
-// one to look at is the attention ring with a dot in it (warning color,
-// or danger when something failed). Shape, not color alone, tells them
-// apart.
+// railMark is a count to look at on the rail: the attention ring with a
+// dot in it (warning color, or danger when something failed). A neutral
+// count has no mark there (a gray dot said nothing); the row's tooltip
+// still gives it.
 func railMark(c *ui.Context, tone navTone, onAccent bool) ui.Element {
 	t := c.Theme()
-	switch {
-	case tone == toneNeutral && onAccent:
-		return dot(c, t.AccentText, 6).AccessHidden(true)
-	case tone == toneNeutral:
-		return dot(c, t.TextMuted, 6).AccessHidden(true)
-	}
 	col := t.Warning
 	if tone == toneAlert {
 		col = t.Danger
@@ -506,7 +497,7 @@ func railGap(c *ui.Context) {
 // marks alone, one under another, each with its words as tooltip.
 func (a *app) sideFooter(c *ui.Context, s status.Snapshot) {
 	if !navRail {
-		a.duetPair(c, s, 6)
+		a.duetPair(c, s, navRowPadX()) // on the nav rows' icon column
 		return
 	}
 	a.railPair(c, s)
