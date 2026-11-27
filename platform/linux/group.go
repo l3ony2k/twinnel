@@ -115,3 +115,29 @@ func SessionInGroup(gid int, egid int, groups []int) bool {
 	}
 	return false
 }
+
+// GroupGap is why this session cannot open the helper's socket for want
+// of its group: Group is the socket's group ("" when that is not the
+// reason), Listed whether the group database already lists the user (an
+// install added them: they must log in again) or not (they need adding).
+type GroupGap struct {
+	Group  string
+	Listed bool
+}
+
+// SocketGroupGap tells whether a socket owned by group gid with mode
+// perm (its permission bits) is closed to this session for want of the
+// group: not when others may write it, or when the session carries the
+// gid (SessionInGroup). Then it reads the group's name and whether uid is
+// listed in it.
+func SocketGroupGap(acc Accounts, lookupGroupID func(gid string) (*user.Group, error), gid int, perm uint32, egid int, groups []int, uid string) GroupGap {
+	if perm&0o002 != 0 || SessionInGroup(gid, egid, groups) {
+		return GroupGap{}
+	}
+	name := strconv.Itoa(gid)
+	if g, err := lookupGroupID(name); err == nil {
+		name = g.Name
+	}
+	_, listed, _ := GroupMember(acc, uid, name)
+	return GroupGap{Group: name, Listed: listed}
+}

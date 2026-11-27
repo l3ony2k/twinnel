@@ -5,8 +5,11 @@ package main
 import (
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/l3ony2k/twinnel/platform/linux"
 	"github.com/l3ony2k/twinnel/platform/linux/systemd"
@@ -53,4 +56,27 @@ func appInstalled() bool {
 		return false
 	}
 	return !strings.HasPrefix(filepath.Base(filepath.Dir(exe)), "go-build") && !strings.Contains(exe, string(filepath.Separator)+"go-build")
+}
+
+func init() { groupGapProbe = probeGroupGap }
+
+// probeGroupGap: the socket's group against this process's groups (what
+// the kernel checks), and the group database for whether an install
+// added the user already.
+func probeGroupGap(socket string) groupGap {
+	fi, err := os.Stat(socket)
+	if err != nil {
+		return groupGap{}
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return groupGap{}
+	}
+	groups, err := syscall.Getgroups()
+	if err != nil {
+		return groupGap{}
+	}
+	g := linux.SocketGroupGap(linux.SystemAccounts, user.LookupGroupId, int(st.Gid), uint32(fi.Mode().Perm()),
+		syscall.Getegid(), groups, strconv.Itoa(os.Getuid()))
+	return groupGap{group: g.Group, listed: g.Listed}
 }

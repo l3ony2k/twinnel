@@ -96,3 +96,33 @@ func TestSessionInGroup(t *testing.T) {
 		t.Error("SessionInGroup")
 	}
 }
+
+func TestSocketGroupGap(t *testing.T) {
+	acc := fakeAccounts()
+	byID := func(gid string) (*user.Group, error) {
+		switch gid {
+		case "998":
+			return &user.Group{Gid: "998", Name: "wheel"}, nil
+		case "27":
+			return &user.Group{Gid: "27", Name: "sudo"}, nil
+		}
+		return nil, user.UnknownGroupIdError(gid)
+	}
+	// alice (1000) is listed in sudo (27), not in wheel (998).
+	if g := SocketGroupGap(acc, byID, 998, 0o660, 1000, []int{1000, 27}, "1000"); g != (GroupGap{Group: "wheel"}) {
+		t.Errorf("not in wheel: %+v", g)
+	}
+	// Listed in sudo, but this session started before: log in again.
+	if g := SocketGroupGap(acc, byID, 27, 0o660, 1000, []int{1000}, "1000"); g != (GroupGap{Group: "sudo", Listed: true}) {
+		t.Errorf("relogin: %+v", g)
+	}
+	if g := SocketGroupGap(acc, byID, 27, 0o660, 1000, []int{1000, 27}, "1000"); g.Group != "" {
+		t.Errorf("session in the group: %+v", g)
+	}
+	if g := SocketGroupGap(acc, byID, 998, 0o666, 1000, nil, "1000"); g.Group != "" {
+		t.Errorf("world-writable socket: %+v", g)
+	}
+	if g := SocketGroupGap(acc, byID, 4242, 0o660, 1000, nil, "1000"); g != (GroupGap{Group: "4242"}) {
+		t.Errorf("unknown gid: %+v", g)
+	}
+}
