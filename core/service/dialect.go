@@ -36,6 +36,9 @@ func (d Dialect) Step(s Step) string {
 	if s.IgnoreError {
 		out += d.Note("errors ignored")
 	}
+	if s.Always {
+		out += d.Note("also when a step before failed")
+	}
 	return out
 }
 

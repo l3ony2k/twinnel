@@ -88,3 +88,31 @@ func TestRetryAndWait(t *testing.T) {
 		t.Errorf("ignored wait timeout: %v", err)
 	}
 }
+
+// After a failure only the Always steps run; the first error is returned.
+func TestApplyAlways(t *testing.T) {
+	var ran []string
+	ex := execFunc(func(argv []string) error {
+		ran = append(ran, argv[0])
+		if argv[0] == "fail" {
+			return errors.New("boom")
+		}
+		return nil
+	})
+	err := Apply(context.Background(), []Step{
+		{Kind: StepRun, Argv: []string{"stop"}},
+		{Kind: StepRun, Argv: []string{"fail"}},
+		{Kind: StepRun, Argv: []string{"copy"}},
+		{Kind: StepRun, Argv: []string{"start"}, Always: true},
+	}, ex, nil)
+	if err == nil || !strings.Contains(err.Error(), "fail: boom") {
+		t.Fatalf("err = %v", err)
+	}
+	if strings.Join(ran, " ") != "stop fail start" {
+		t.Errorf("ran %v", ran)
+	}
+}
+
+type execFunc func(argv []string) error
+
+func (f execFunc) Run(_ context.Context, argv []string) ([]byte, error) { return nil, f(argv) }

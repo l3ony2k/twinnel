@@ -98,6 +98,9 @@ type Step struct {
 	// IgnoreError marks steps whose failure is expected in some states
 	// (e.g. unloading a service that is not loaded).
 	IgnoreError bool
+	// Always runs the step even after an earlier step failed (a
+	// "finally": starting again a service the plan stopped).
+	Always bool
 
 	// Retry (run) is how many more times a failing command is run when
 	// its error or output contains one of RetryOn, waiting RetryBackoff,
@@ -154,10 +157,15 @@ type Files interface {
 	Remove(path string) error
 }
 
-// Apply runs a plan in order and stops at the first failing step that is
-// not IgnoreError.
+// Apply runs a plan in order. At the first failing step that is not
+// IgnoreError it stops, except for the Always steps after it, which still
+// run; the first failure is returned.
 func Apply(ctx context.Context, steps []Step, ex Executor, files Files) error {
+	var failed error
 	for _, s := range steps {
+		if failed != nil && !s.Always {
+			continue
+		}
 		var err error
 		switch s.Kind {
 		case StepMkdir:
@@ -189,11 +197,11 @@ func Apply(ctx context.Context, steps []Step, ex Executor, files Files) error {
 		default:
 			err = fmt.Errorf("unknown step kind %q", s.Kind)
 		}
-		if err != nil && !s.IgnoreError {
-			return fmt.Errorf("%s: %w", s, err)
+		if err != nil && !s.IgnoreError && failed == nil {
+			failed = fmt.Errorf("%s: %w", s, err)
 		}
 	}
-	return nil
+	return failed
 }
 
 // runRetrying runs a StepRun, again on the errors it names.

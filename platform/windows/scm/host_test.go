@@ -47,13 +47,13 @@ func TestHostRefreshPlan(t *testing.T) {
 				"2. wait until `sc.exe query TwinnelMihomo` says \"STOPPED\" or \"1060\" (up to 30s)\n" +
 				"3. move /y \"" + tHost + "\" \"" + newAside + "\"\n" +
 				"4. copy /y \"" + tHelper + "\" \"" + tHost + "\"\n" +
-				"5. sc.exe start TwinnelMihomo\n" +
+				"5. sc.exe start TwinnelMihomo  (also when a step before failed)\n" +
 				"6. del /f \"" + newAside + "\"  (errors ignored)\n"},
 		{name: "file refreshed, service still on the old one: restart only", stale: true,
 			h: Host{Path: tHost, Present: true, Same: true, Services: []HostedService{{Label: "TwinnelMihomo", Running: true, Image: tOld}}, Aside: []string{tOld}},
 			want: "1. sc.exe stop TwinnelMihomo\n" +
 				"2. wait until `sc.exe query TwinnelMihomo` says \"STOPPED\" or \"1060\" (up to 30s)\n" +
-				"3. sc.exe start TwinnelMihomo\n" +
+				"3. sc.exe start TwinnelMihomo  (also when a step before failed)\n" +
 				"4. del /f \"" + tOld + "\"  (errors ignored)\n"},
 		{name: "stopped service: never started", stale: true,
 			h:    Host{Path: tHost, Present: true, Services: []HostedService{{Label: "TwinnelMihomo"}}},
