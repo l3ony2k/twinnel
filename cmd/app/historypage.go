@@ -71,11 +71,11 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 			var el ui.Element
 			switch col {
 			case 0:
-				el = cell(c, e.Time.Local().Format("01-02 15:04:05"))
+				el = num(cell(c, e.Time.Local().Format("01-02 15:04:05")))
 			case 1:
 				el = cell(c, T.HistoryKindName(e.Kind))
 			case 2:
-				el = cell(c, status.Bytes(int64(e.Size)))
+				el = monoText(c, status.Bytes(int64(e.Size)))
 			case 3:
 				reason := historyReason(e)
 				el = ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
@@ -149,8 +149,8 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		}
 		// The hash and the ID are identifiers: quiet, copyable (U40).
 		kvWith(c, T.HistoryHash, func() {
-			num(ui.Text(c, shortHash(entry.Hash)).Font("monospace").FontSize(plat.calloutSize).TextColor(t.TextMuted).
-				Tooltip(entry.Hash).Selectable()).ContextMenu(func(m *ui.Menu) {
+			monoText(c, shortHash(entry.Hash)).TextColor(t.TextMuted).
+				Tooltip(entry.Hash).Selectable().ContextMenu(func(m *ui.Menu) {
 				if m.Item(T.HistCopyHash).Chosen() {
 					copyText(c, entry.Hash)
 				}

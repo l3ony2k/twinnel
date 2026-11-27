@@ -254,6 +254,19 @@ func dot(c *ui.Context, col ui.Color, size float32) ui.Element {
 // num styles a figure that changes in place: digits of one width.
 func num(e ui.Element) ui.Element { return e.FontFeatures("tnum") }
 
+// mono sets e in the system's monospaced face (SF Mono on macOS), with
+// tabular digits, one step under body (SF Mono reads larger than SF Pro
+// at one size). It is for technical values people compare or copy:
+// PIDs, paths, service labels, IPs and ports, versions, hashes, byte
+// sizes and rates in tables, rule strings, hostnames, process names.
+// Never for prose or names.
+func mono(e ui.Element) ui.Element {
+	return e.Font("monospace").FontFeatures("tnum").FontSize(plat.calloutSize)
+}
+
+// monoText is a technical value as text (mono).
+func monoText(c *ui.Context, s string) ui.Element { return mono(ui.Text(c, s)) }
+
 // small draws secondary text.
 func small(c *ui.Context, s string) ui.Element {
 	return ui.Text(c, s).FontSize(plat.calloutSize).TextColor(c.Theme().TextMuted).LineHeight(lineText)
@@ -263,6 +276,13 @@ func small(c *ui.Context, s string) ui.Element {
 func kv(c *ui.Context, label, value string) {
 	kvWith(c, label, func() {
 		num(ui.Text(c, value).Grow(1).SingleLine().Selectable())
+	})
+}
+
+// kvMono is kv for a technical value (mono): a path, a PID, an address.
+func kvMono(c *ui.Context, label, value string) {
+	kvWith(c, label, func() {
+		monoText(c, value).Grow(1).SingleLine().Selectable().Tooltip(value)
 	})
 }
 
@@ -295,11 +315,15 @@ func kvTipWith(c *ui.Context, label, tip string, more func(), body func()) {
 	})
 }
 
-// kvControl fits a control (a select, a field) into a kv row: the row's
-// height, so a row holding one lines up with its plain neighbours, and
-// no wider than a value needs.
+// kvControl fits a control (a select, a segmented control, a field) into
+// a kv row: the row's height, so a row holding one lines up with its
+// plain neighbours, at its natural width, at the start of the values
+// column (never stretched across it), and no wider than 260.
 func kvControl(e ui.Element) ui.Element {
-	return e.Height(plat.rowMinHeight).Grow(1).MaxWidth(260)
+	// No Grow or Shrink of its own: setting either, even to 0, makes
+	// MyGo size a segmented control from a zero basis, narrower than its
+	// segments.
+	return e.Height(plat.rowMinHeight).MaxWidth(260)
 }
 
 // sectionTitle draws a heading with a status dot and a state on the right.
@@ -313,6 +337,18 @@ func sectionTitle(c *ui.Context, title string, m stateMark, col ui.Color, right 
 			num(ui.Text(c, right).TextColor(t.TextMuted).SingleLine())
 		}
 	})
+}
+
+// The alignment grid of a page: the page title (toolbar), every group
+// heading and every group box share one left edge, the column's; a
+// heading's trailing actions end on the box's right edge. Text inside a
+// box sits groupPadX in from it. Headings are built by groupHead only.
+
+// groupHead is the row above a group box: flush with the box's edges
+// (no inset of its own), 28 tall so a heading with or without a button
+// keeps its place.
+func groupHead(c *ui.Context) ui.Element {
+	return ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28)
 }
 
 // card is a group of the main window, as System Settings draws them: the
@@ -338,7 +374,7 @@ func cardTipWith(c *ui.Context, title, tip string, more func(), trailing func(),
 	t := c.Theme()
 	return ui.Column(c).Gap(8).Children(func() {
 		if title != "" || trailing != nil {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).Height(28).Children(func() {
+			groupHead(c).Children(func() {
 				ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine()
 				if tip != "" {
 					infoTipAbout(c, title, tip, more)
@@ -358,7 +394,7 @@ func cardTipWith(c *ui.Context, title, tip string, more func(), trailing func(),
 func headedCard(c *ui.Context, head func(), body func()) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Gap(8).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(28).Children(head)
+		groupHead(c).Children(head)
 		groupBox(c, t).Children(body)
 	})
 }
@@ -371,8 +407,13 @@ func groupBox(c *ui.Context, t *ui.Theme) ui.Element {
 }
 
 // listBox is a group box whose children are rows split by hairlines.
+// The hairlines run edge to edge; the box has no padding above its first
+// row or under its last, and clips to its radius, so a row's fill
+// (rowFill) covers the row from hairline to hairline and from edge to
+// edge, rounded with the box on the first and last row. Text keeps the
+// box's side inset (groupPadX).
 func listBox(c *ui.Context, t *ui.Theme) ui.Element {
-	return groupBox(c, t).Padding(4, groupPadX).Gap(1).Dividers(1, pal(t).separator)
+	return groupBox(c, t).Padding(0, groupPadX).Gap(1).Dividers(1, pal(t).separator).Clip()
 }
 
 // listCard is a group whose rows are split by hairlines (listBox), with
@@ -382,7 +423,7 @@ func listCard(c *ui.Context, head func(), body func()) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Gap(8).Children(func() {
 		if head != nil {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(28).Children(head)
+			groupHead(c).Children(head)
 		}
 		listBox(c, t).Children(body)
 	})
@@ -413,10 +454,38 @@ func listHeadTip(c *ui.Context, icon *ui.SVG, title, tip string, trailing func()
 	}
 }
 
+// listRowPadY is the space above and under a list row's content.
+const listRowPadY = 10
+
 // listRow is one row of a listCard: its lines stacked with the gap of a
 // group's rows.
 func listRow(c *ui.Context) ui.Element {
-	return ui.Column(c).Gap(gapRow - 4).PaddingY(10)
+	return ui.Column(c).Gap(gapRow - 4).PaddingY(listRowPadY)
+}
+
+// rowBleed makes e, a row (or a row's head) in a listBox, reach the box's
+// edges: pulled out over the box's side padding and padded back, so its
+// fill spans the row while its content stays on the box's inset.
+func rowBleed(e ui.Element) ui.Element {
+	return e.MarginX(-groupPadX).PaddingX(groupPadX)
+}
+
+// rowFill is the one fill of a clickable row in a listBox (an override, a
+// layer, a plan, an entry that opens a page): a faint fill while hovered
+// or pressed, the accent tint while selected. e must reach the box's
+// edges (rowBleed, or a column that does), and has no radius of its own:
+// the box's clip rounds the first and last row.
+func rowFill(c *ui.Context, e ui.Element, selected bool) ui.Element {
+	t := c.Theme()
+	switch {
+	case selected:
+		e.Background(pal(t).accentSoft)
+	case e.Pressed():
+		e.Background(t.Text.Alpha(0.07))
+	case e.Hovered() || rowForce == "hover":
+		e.Background(t.Text.Alpha(0.04))
+	}
+	return e
 }
 
 // hintText is a line of secondary, wrapping text: what a group is for.

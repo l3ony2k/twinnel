@@ -526,9 +526,9 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 	T := i18n.T
 	v := &a.hd.cfg
 	open := v.sel == l.ID && !v.isNew
-	// Pulled out 8 past the box's padding, so the hover fill has room
-	// around the text (r = 10 − 4 = 6, 004).
-	col := ui.Column(c).Transition(rowMotion).Clip().MarginX(-8)
+	// Edge to edge in the list (it clips to animate its height), so the
+	// head's fill spans the row (rowFill); head and body pad back in.
+	col := ui.Column(c).Transition(rowMotion).Clip().MarginX(-groupPadX)
 	if at >= 0 && w {
 		// A drop on this row puts the dragged layer at its place: the line
 		// shows above when it comes from below, under when from above.
@@ -550,12 +550,10 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 	col.Children(func() {
 		// Open is not selected: the chevron turns and the body shows; the
 		// row takes no fill (never the accent, AGENTS.md).
-		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).Padding(0, 8).MinHeight(layerRowH).
-			Radius(plat.controlRadius).Transition(colorMotion).
+		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(layerRowH).
+			Transition(colorMotion).
 			Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(title)
-		if head.Hovered() || head.Pressed() {
-			head.Background(t.Text.Alpha(0.04))
-		}
+		rowFill(c, head, false) // col reaches the box's edges
 		head.ContextMenu(func(m *ui.Menu) { a.layerMenu(c, m, l, ids, w) })
 		if at >= 0 && w && len(ids) > 1 {
 			head.Drag(layerDrag(l.ID))
@@ -729,8 +727,8 @@ func (a *app) layerMenu(c *ui.Context, m *ui.Menu, l rpc.Layer, ids []string, w 
 func (a *app) newLayerRow(c *ui.Context, s status.Snapshot, w bool) {
 	T := i18n.T
 	v := &a.hd.cfg
-	ui.Column(c).Transition(rowMotion).Clip().MarginX(-8).Children(func() {
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(0, 8).MinHeight(layerRowH).Children(func() {
+	ui.Column(c).Transition(rowMotion).Clip().MarginX(-groupPadX).Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(layerRowH).Children(func() {
 			disclosure(c, true).Shrink(0)
 			ui.Text(c, T.LayerNew).FontWeight(500).Grow(1).SingleLine()
 			if pushButton(c.Key("ed-cancel"), T.Cancel).Clicked() {
@@ -975,10 +973,11 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 }
 
 // rowBody is the part of an open layer row under its head: indented to
-// the name's column (8 + the chevron's 14 + the gap's 10), so the body
+// the name's column (groupPadX + the chevron's 14 + the gap's 10), so the body
 // lines up with the text above it.
 func rowBody(c *ui.Context) ui.Element {
-	return ui.Column(c).Gap(gapRow).Padding(4, 8, 16, 32)
+	// Under the title: past the chevron (14) and the head's gap (10).
+	return ui.Column(c).Gap(gapRow).Padding(4, groupPadX, 16, groupPadX+24)
 }
 
 // managedBody is what an open managed layer does, in words and lists:
@@ -1003,9 +1002,9 @@ func (a *app) managedBody(c *ui.Context, l rpc.Layer, s status.Snapshot, w bool)
 		if tn == nil || (len(tn.Peers) == 0 && tn.Suffix == "") {
 			ui.Text(c, T.CoexistNoTailnet).TextColor(t.TextMuted)
 		} else {
-			kv(c, T.CoexistRanges, config.DefaultTailnetIPv4+T.ListSep+config.DefaultTailnetIPv6)
+			kvMono(c, T.CoexistRanges, config.DefaultTailnetIPv4+T.ListSep+config.DefaultTailnetIPv6)
 			if tn.Suffix != "" {
-				kv(c, T.CoexistDNS, tn.Suffix)
+				kvMono(c, T.CoexistDNS, tn.Suffix)
 			}
 			if len(tn.Peers) > 0 {
 				kvWith(c, T.CoexistDevices, func() {

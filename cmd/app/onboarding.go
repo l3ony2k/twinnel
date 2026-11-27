@@ -198,11 +198,11 @@ func (a *app) installPlanCard(c *ui.Context) {
 	v := &a.hd.onb
 	steps, parsed := parsePlan(v.plan)
 	ui.Column(c).Gap(8).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(28).Children(func() {
+		groupHead(c).Children(func() {
 			ui.Text(c, T.OnboardPlan).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 			infoTipAbout(c, T.OnboardPlan, T.TipInstallPlan, nil)
 		})
-		hintText(c, T.OnboardPlanHint).PaddingX(groupPadX)
+		hintText(c, T.OnboardPlanHint)
 		listBox(c, t).Children(func() {
 			switch {
 			case v.loading && v.plan == "":
@@ -232,8 +232,9 @@ func (a *app) installPlanCard(c *ui.Context) {
 			case !parsed && v.plan != "":
 				listRow(c).Children(func() { codeBlock(c, v.plan) })
 			case parsed:
-				head := ui.Row(c.Key("steps")).Gap(8).AlignItems(ui.Center).PaddingY(10).
-					Focusable().Role(ui.RoleDisclosure).Expanded(v.stepsOpen).Label(i18n.F(T.OnboardSteps, len(steps)))
+				head := ui.Row(c.Key("steps")).Gap(8).AlignItems(ui.Center).PaddingY(listRowPadY).
+					Transition(colorMotion).Focusable().Role(ui.RoleDisclosure).Expanded(v.stepsOpen).Label(i18n.F(T.OnboardSteps, len(steps)))
+				rowFill(c, rowBleed(head), false)
 				head.Children(func() {
 					disclosure(c, v.stepsOpen).Shrink(0)
 					ui.Text(c, i18n.F(T.OnboardSteps, len(steps))).FontWeight(500)
