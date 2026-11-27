@@ -361,9 +361,11 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 	a.verdict(c, s)
 	a.actionNotes(c, s)
 	card(c, T.Traffic, func() { a.trafficChart(c, s) })
-	ui.Row(c).Gap(gapGroup).AlignItems(ui.Stretch).Children(func() {
-		cardWith(c, T.Mihomo, func() { a.mihomoMenu(c, s) }, func() { a.mihomoSummary(c, s) }).Basis(0).Grow(1)
-		card(c, T.Tailscale, func() { a.tailscaleSummary(c, s) }).Basis(0).Grow(1)
+	// Side by side; stacked when a language's longer rows need more than
+	// half the page (halfCardMin).
+	ui.Row(c).Gap(gapGroup).AlignItems(ui.Stretch).Wrap().Children(func() {
+		cardWith(c, T.Mihomo, func() { a.mihomoMenu(c, s) }, func() { a.mihomoSummary(c, s) }).Basis(0).Grow(1).MinWidth(halfCardMin)
+		card(c, T.Tailscale, func() { a.tailscaleSummary(c, s) }).Basis(0).Grow(1).MinWidth(halfCardMin)
 	})
 	card(c, T.Helper, func() { a.helperSummary(c, s) })
 }
