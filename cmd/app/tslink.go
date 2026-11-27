@@ -6,7 +6,6 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/clilink"
 	"github.com/l3ony2k/twinnel/core/status"
-	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // The tailscale CLI a fresh setup installs goes on PATH next to the twinnel
@@ -16,7 +15,7 @@ import (
 
 // managedTailscale is the tailscale CLI under the helper's state dir.
 func managedTailscale(s status.Snapshot) string {
-	dir := store.DefaultDir
+	dir := helperStateDir
 	if st := s.Helper.Status; st != nil && st.StateDir != "" {
 		dir = st.StateDir
 	}
@@ -41,5 +40,5 @@ func (a *app) linkTailscaleDirs() []string {
 
 // removeTailscaleLinks removes Twinnel's tailscale links (any state dir).
 func removeTailscaleLinks() {
-	tailscaleTool(filepath.Join(store.DefaultDir, "tailscale", "current", "tailscale")).Remove(cliTargets())
+	tailscaleTool(filepath.Join(helperStateDir, "tailscale", "current", "tailscale")).Remove(cliTargets())
 }
