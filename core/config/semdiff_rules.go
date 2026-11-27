@@ -133,6 +133,28 @@ func terminal(r Rule) bool {
 	return false
 }
 
+// prule is a Rule with what the cover checks need computed once: its
+// matcher, its canonical line, its parsed prefix and its option flags.
+type prule struct {
+	Rule
+	matcher  string
+	canon    string
+	prefix   netip.Prefix
+	prefixOK bool // IP-CIDR with a parsable payload
+	onlyNR   bool // every option is "no-resolve"
+	noRes    bool
+}
+
+func prep(r Rule) *prule {
+	p := &prule{Rule: r, matcher: r.Matcher(), canon: r.Canonical(), onlyNR: r.onlyNoResolve(), noRes: r.noResolve()}
+	if r.Type == "IP-CIDR" {
+		if pr, err := netip.ParsePrefix(r.Payload); err == nil {
+			p.prefix, p.prefixOK = pr, true
+		}
+	}
+	return p
+}
+
 // Covers reports whether later can never fire when earlier comes first: every
 // connection matched by later is provably also matched by earlier, and
 // earlier then ends rule matching or would let later through only in cases
@@ -142,23 +164,23 @@ func Covers(earlier, later Rule) bool {
 	if earlier.Target != later.Target && !terminal(earlier) {
 		return false
 	}
-	return matchCovers(earlier, later)
+	return matchCovers(prep(earlier), prep(later))
 }
 
 // matchCovers reports whether every connection matched by later is matched
 // by earlier, ignoring targets.
-func matchCovers(earlier, later Rule) bool {
+func matchCovers(earlier, later *prule) bool {
 	if earlier.Type == "SUB-RULE" || later.Type == "SUB-RULE" {
 		// A SUB-RULE "matches" only when one of its sub-rules does.
-		return earlier.Type == later.Type && earlier.Target == later.Target && earlier.Matcher() == later.Matcher()
+		return earlier.Type == later.Type && earlier.Target == later.Target && earlier.matcher == later.matcher
 	}
 	if earlier.Type == "MATCH" {
 		return true
 	}
-	if earlier.Matcher() == later.Matcher() {
+	if earlier.matcher == later.matcher {
 		return true
 	}
-	if !earlier.onlyNoResolve() || !later.onlyNoResolve() {
+	if !earlier.onlyNR || !later.onlyNR {
 		return false
 	}
 	switch earlier.Type {
@@ -178,12 +200,11 @@ func matchCovers(earlier, later Rule) bool {
 		}
 		// A resolving rule may match a domain request after DNS; a
 		// no-resolve rule before it would not have seen the IP.
-		if earlier.noResolve() && !later.noResolve() {
+		if earlier.noRes && !later.noRes {
 			return false
 		}
-		pe, err1 := netip.ParsePrefix(earlier.Payload)
-		pl, err2 := netip.ParsePrefix(later.Payload)
-		return err1 == nil && err2 == nil && pe.Addr().Is4() == pl.Addr().Is4() &&
+		pe, pl := earlier.prefix, later.prefix
+		return earlier.prefixOK && later.prefixOK && pe.Addr().Is4() == pl.Addr().Is4() &&
 			pe.Bits() <= pl.Bits() && pe.Contains(pl.Addr())
 	}
 	return false
@@ -191,6 +212,33 @@ func matchCovers(earlier, later Rule) bool {
 
 func domainUnder(d, suffix string) bool {
 	return d == suffix || strings.HasSuffix(d, "."+suffix)
+}
+
+// suffixesOf calls f with d and every s such that d ends in "."+s, longest
+// first, until f returns false. These are all the DOMAIN-SUFFIX payloads
+// d is under (domainUnder).
+func suffixesOf(d string, f func(string) bool) {
+	for {
+		if !f(d) {
+			return
+		}
+		_, rest, ok := strings.Cut(d, ".")
+		if !ok {
+			return
+		}
+		d = rest
+	}
+}
+
+// coveringPrefixes calls f with every masked prefix that contains p (its
+// own address family, bits 0..p.Bits()), until f returns false.
+func coveringPrefixes(p netip.Prefix, f func(netip.Prefix) bool) {
+	for b := 0; b <= p.Bits(); b++ {
+		q, err := p.Addr().Prefix(b)
+		if err == nil && !f(q) {
+			return
+		}
+	}
 }
 
 // DeadRule is a rule that can never fire.
@@ -205,26 +253,38 @@ type DeadRule struct {
 }
 
 // ruleIndex answers "does any rule seen so far match everything r matches"
-// quickly, ignoring targets (see coverIndex).
+// quickly, ignoring targets (see coverIndex). Rules are added in index
+// order, so the first rule added for a key has the smallest index.
 type ruleIndex struct {
-	matcher  map[string]int
-	suffix   map[string]int
-	keywords []Rule
-	kwIdx    []int
-	cidrs    []Rule
-	cidrIdx  []int
-	match    int
+	matcher map[string]int
+	suffix  map[string]int
+	// Keywords: distinct payloads in the order first seen, with that
+	// first index. Only the payload decides whether a keyword covers.
+	keywords []string
+	kwIdx    map[string]int
+	// CIDRs by masked prefix: first index of a resolving rule and of a
+	// no-resolve one.
+	cidr   map[netip.Prefix]int
+	cidrNR map[netip.Prefix]int
+	match  int
 }
 
 func newRuleIndex() *ruleIndex {
-	return &ruleIndex{matcher: map[string]int{}, suffix: map[string]int{}, match: -1}
+	return &ruleIndex{matcher: map[string]int{}, suffix: map[string]int{}, kwIdx: map[string]int{},
+		cidr: map[netip.Prefix]int{}, cidrNR: map[netip.Prefix]int{}, match: -1}
 }
 
-func (x *ruleIndex) add(i int, r Rule) {
-	if _, ok := x.matcher[r.Matcher()]; !ok {
-		x.matcher[r.Matcher()] = i
+func setFirst[K comparable](m map[K]int, k K, i int) bool {
+	if _, ok := m[k]; ok {
+		return false
 	}
-	if !r.onlyNoResolve() {
+	m[k] = i
+	return true
+}
+
+func (x *ruleIndex) add(i int, r *prule) {
+	setFirst(x.matcher, r.matcher, i)
+	if !r.onlyNR {
 		return
 	}
 	switch r.Type {
@@ -233,20 +293,30 @@ func (x *ruleIndex) add(i int, r Rule) {
 			x.match = i
 		}
 	case "DOMAIN-SUFFIX":
-		if _, ok := x.suffix[r.Payload]; !ok {
-			x.suffix[r.Payload] = i
-		}
+		setFirst(x.suffix, r.Payload, i)
 	case "DOMAIN-KEYWORD":
-		x.keywords, x.kwIdx = append(x.keywords, r), append(x.kwIdx, i)
+		if r.Payload != "" && setFirst(x.kwIdx, r.Payload, i) {
+			x.keywords = append(x.keywords, r.Payload)
+		}
 	case "IP-CIDR":
-		x.cidrs, x.cidrIdx = append(x.cidrs, r), append(x.cidrIdx, i)
+		if !r.prefixOK {
+			return
+		}
+		if r.noRes {
+			setFirst(x.cidrNR, r.prefix, i)
+		} else {
+			setFirst(x.cidr, r.prefix, i)
+		}
 	}
 }
 
-// coveredBy returns the index of an indexed rule covering r, or -1.
-func (x *ruleIndex) coveredBy(r Rule) int {
+// coveredBy returns the index of an indexed rule covering r, or -1. Which
+// one, when several do: MATCH, then the same matcher, then the longest
+// covering DOMAIN-SUFFIX, then the first covering keyword, then the first
+// covering CIDR.
+func (x *ruleIndex) coveredBy(r *prule) int {
 	if r.Type == "SUB-RULE" {
-		if i, ok := x.matcher[r.Matcher()]; ok {
+		if i, ok := x.matcher[r.matcher]; ok {
 			return i
 		}
 		return -1
@@ -254,41 +324,50 @@ func (x *ruleIndex) coveredBy(r Rule) int {
 	if x.match >= 0 {
 		return x.match
 	}
-	if i, ok := x.matcher[r.Matcher()]; ok {
+	if i, ok := x.matcher[r.matcher]; ok {
 		return i
 	}
-	if !r.onlyNoResolve() {
+	if !r.onlyNR {
 		return -1
 	}
+	found := -1
 	switch r.Type {
 	case "DOMAIN", "DOMAIN-SUFFIX":
-		d := r.Payload
-		for {
+		suffixesOf(r.Payload, func(d string) bool {
 			if i, ok := x.suffix[d]; ok {
-				return i
+				found = i
+				return false
 			}
-			_, rest, ok := strings.Cut(d, ".")
-			if !ok {
-				break
-			}
-			d = rest
+			return true
+		})
+		if found >= 0 {
+			return found
 		}
 	}
 	switch r.Type {
 	case "DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD":
-		for k, kw := range x.keywords {
-			if matchCovers(kw, r) {
-				return x.kwIdx[k]
+		for _, kw := range x.keywords {
+			if strings.Contains(r.Payload, kw) {
+				return x.kwIdx[kw]
 			}
 		}
 	case "IP-CIDR":
-		for k, c := range x.cidrs {
-			if matchCovers(c, r) {
-				return x.cidrIdx[k]
-			}
+		if !r.prefixOK {
+			return -1
 		}
+		coveringPrefixes(r.prefix, func(q netip.Prefix) bool {
+			if i, ok := x.cidr[q]; ok && (found < 0 || i < found) {
+				found = i
+			}
+			if r.noRes {
+				if i, ok := x.cidrNR[q]; ok && (found < 0 || i < found) {
+					found = i
+				}
+			}
+			return true
+		})
 	}
-	return -1
+	return found
 }
 
 // coverIndex is ruleIndex made target aware, like Covers: a rule is shadowed
@@ -302,8 +381,8 @@ func newCoverIndex() *coverIndex {
 	return &coverIndex{terminal: newRuleIndex(), byTarget: map[string]*ruleIndex{}}
 }
 
-func (c *coverIndex) add(i int, r Rule) {
-	if terminal(r) {
+func (c *coverIndex) add(i int, r *prule) {
+	if terminal(r.Rule) {
 		c.terminal.add(i, r)
 	}
 	x := c.byTarget[r.Target]
@@ -314,7 +393,7 @@ func (c *coverIndex) add(i int, r Rule) {
 	x.add(i, r)
 }
 
-func (c *coverIndex) coveredBy(r Rule) int {
+func (c *coverIndex) coveredBy(r *prule) int {
 	best := c.terminal.coveredBy(r)
 	if x := c.byTarget[r.Target]; x != nil {
 		if j := x.coveredBy(r); j >= 0 && (best < 0 || j < best) {
@@ -328,22 +407,30 @@ func (c *coverIndex) coveredBy(r Rule) int {
 // order, and the dead ones (exact duplicates and rules shadowed by an
 // earlier rule whatever its target).
 func LiveRules(lines []string) (live []Rule, liveIdx []int, dead []DeadRule) {
+	pl, liveIdx, dead := liveRules(lines)
+	live = make([]Rule, len(pl))
+	for i, r := range pl {
+		live[i] = r.Rule
+	}
+	return live, liveIdx, dead
+}
+
+func liveRules(lines []string) (live []*prule, liveIdx []int, dead []DeadRule) {
 	x := newCoverIndex()
 	seen := map[string]bool{}
 	for i, l := range lines {
-		r := ParseRule(l)
-		c := r.Canonical()
-		if seen[c] {
+		r := prep(ParseRule(l))
+		if seen[r.canon] {
 			j := -1
 			if t := x.byTarget[r.Target]; t != nil {
-				if k, ok := t.matcher[r.Matcher()]; ok {
+				if k, ok := t.matcher[r.matcher]; ok {
 					j = k
 				}
 			}
 			dead = append(dead, DeadRule{Index: i, Rule: l, CoveredBy: j, Duplicate: true})
 			continue
 		}
-		seen[c] = true
+		seen[r.canon] = true
 		if j := x.coveredBy(r); j >= 0 {
 			dead = append(dead, DeadRule{Index: i, Rule: l, CoveredBy: j})
 			continue
@@ -363,11 +450,93 @@ type RuleBlock struct {
 	Rules  []string // canonical lines, sorted
 }
 
+// blockIndex lists, for the rules of one same-target block, every rule
+// that may cover a given one (a superset; matchCovers decides).
+type blockIndex struct {
+	matcher  map[string][]int
+	match    []int
+	suffix   map[string][]int
+	keywords []string // distinct, in the order first seen
+	kwPos    map[string][]int
+	cidr     map[netip.Prefix][]int
+}
+
+func newBlockIndex(run []*prule) *blockIndex {
+	x := &blockIndex{matcher: map[string][]int{}, suffix: map[string][]int{}, kwPos: map[string][]int{},
+		cidr: map[netip.Prefix][]int{}}
+	for k, r := range run {
+		x.matcher[r.matcher] = append(x.matcher[r.matcher], k)
+		if r.Type == "MATCH" {
+			x.match = append(x.match, k)
+		}
+		if !r.onlyNR {
+			continue
+		}
+		switch r.Type {
+		case "DOMAIN-SUFFIX":
+			x.suffix[r.Payload] = append(x.suffix[r.Payload], k)
+		case "DOMAIN-KEYWORD":
+			if r.Payload == "" {
+				continue
+			}
+			if _, ok := x.kwPos[r.Payload]; !ok {
+				x.keywords = append(x.keywords, r.Payload)
+			}
+			x.kwPos[r.Payload] = append(x.kwPos[r.Payload], k)
+		case "IP-CIDR":
+			if r.prefixOK {
+				x.cidr[r.prefix] = append(x.cidr[r.prefix], k)
+			}
+		}
+	}
+	return x
+}
+
+// candidates calls f with the position of every rule of the block that may
+// cover r (possibly r itself, possibly twice).
+func (x *blockIndex) candidates(r *prule, f func(int)) {
+	each := func(l []int) {
+		for _, m := range l {
+			f(m)
+		}
+	}
+	each(x.matcher[r.matcher])
+	if r.Type == "SUB-RULE" {
+		return
+	}
+	each(x.match)
+	if !r.onlyNR {
+		return
+	}
+	switch r.Type {
+	case "DOMAIN", "DOMAIN-SUFFIX":
+		suffixesOf(r.Payload, func(d string) bool { each(x.suffix[d]); return true })
+	}
+	switch r.Type {
+	case "DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD":
+		for _, kw := range x.keywords {
+			if strings.Contains(r.Payload, kw) {
+				each(x.kwPos[kw])
+			}
+		}
+	case "IP-CIDR":
+		if r.prefixOK {
+			coveringPrefixes(r.prefix, func(q netip.Prefix) bool { each(x.cidr[q]); return true })
+		}
+	}
+}
+
 // CanonicalRules turns a rule list into same-target blocks with dead rules and
 // rules made redundant by another rule of the same block removed. Two lists
 // with equal canonical blocks route every connection the same way.
 func CanonicalRules(lines []string) ([]RuleBlock, []DeadRule) {
-	live, liveIdx, dead := LiveRules(lines)
+	blocks, _, dead := canonicalRules(lines)
+	return blocks, dead
+}
+
+// canonicalRules is CanonicalRules that also returns the live rules.
+func canonicalRules(lines []string) ([]RuleBlock, []*prule, []DeadRule) {
+	live, liveIdx, dead := liveRules(lines)
 	var blocks []RuleBlock
 	for i := 0; i < len(live); {
 		j := i
@@ -377,29 +546,37 @@ func CanonicalRules(lines []string) ([]RuleBlock, []DeadRule) {
 			j++
 		}
 		run := live[i:j]
+		x := newBlockIndex(run)
 		b := RuleBlock{Target: live[i].Target}
 		for k, r := range run {
-			redundant := false
-			for m, o := range run {
-				if m == k || !Covers(o, r) {
-					continue
+			// r is redundant if another rule o of the block covers it,
+			// unless r covers o too and o comes later (then r is the one
+			// kept). The smallest such o is reported.
+			by := -1
+			x.candidates(r, func(m int) {
+				if m == k || by >= 0 && m >= by {
+					return
 				}
-				if !Covers(r, o) || m < k {
-					redundant = true
-					dead = append(dead, DeadRule{Index: liveIdx[i+k], Rule: r.Raw, CoveredBy: liveIdx[i+m], Redundant: true})
-					break
+				o := run[m]
+				if !matchCovers(o, r) {
+					return
 				}
+				if m < k || !matchCovers(r, o) {
+					by = m
+				}
+			})
+			if by >= 0 {
+				dead = append(dead, DeadRule{Index: liveIdx[i+k], Rule: r.Raw, CoveredBy: liveIdx[i+by], Redundant: true})
+				continue
 			}
-			if !redundant {
-				b.Rules = append(b.Rules, r.Canonical())
-			}
+			b.Rules = append(b.Rules, r.canon)
 		}
 		sort.Strings(b.Rules)
 		blocks = append(blocks, b)
 		i = j
 	}
 	sort.Slice(dead, func(a, b int) bool { return dead[a].Index < dead[b].Index })
-	return blocks, dead
+	return blocks, live, dead
 }
 
 // RuleEdit is one line of a rule diff.
@@ -441,8 +618,8 @@ func flatten(blocks []RuleBlock) []string {
 // DiffRules compares rule lists a and b under first-match semantics.
 func DiffRules(a, b []string) RuleDiff {
 	d := RuleDiff{CountA: len(a), CountB: len(b), Identical: equalStrings(a, b)}
-	ba, deadA := CanonicalRules(a)
-	bb, deadB := CanonicalRules(b)
+	ba, la, deadA := canonicalRules(a)
+	bb, lb, deadB := canonicalRules(b)
 	split := func(dead []DeadRule) (dups int, rest []DeadRule) {
 		for _, x := range dead {
 			if x.Duplicate {
@@ -459,8 +636,6 @@ func DiffRules(a, b []string) RuleDiff {
 	d.LiveA, d.LiveB = len(fa), len(fb)
 	d.Equivalent = blocksEqual(ba, bb)
 	if d.Equivalent {
-		la, _, _ := LiveRules(a)
-		lb, _, _ := LiveRules(b)
 		d.Reordered = !sameCanonical(la, lb)
 		return d
 	}
@@ -468,12 +643,12 @@ func DiffRules(a, b []string) RuleDiff {
 	return d
 }
 
-func sameCanonical(a, b []Rule) bool {
+func sameCanonical(a, b []*prule) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	for i := range a {
-		if a[i].Canonical() != b[i].Canonical() {
+		if a[i].canon != b[i].canon {
 			return false
 		}
 	}

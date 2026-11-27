@@ -170,7 +170,7 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 			if v.loading {
 				ui.Spinner(c)
 			}
-			small(c, T.TkPlanNote).SingleLine().Shrink(1)
+			small(c, a.planNote()).SingleLine().Shrink(1)
 			// Planning is read-only for the system (the helper writes the
 			// plan into its own state dir), so it needs no write permission.
 			can := s.Helper.Connected() && d.busy == "" && !v.unsupported && !v.fixture
@@ -1236,3 +1236,32 @@ func actionLink(c *ui.Context, label string) ui.Element {
 	})
 	return b
 }
+
+// planNote is the line next to 生成接管计划: what it does, or while the
+// helper makes the plan, what it is doing and (after planElapsedAfter) for
+// how long, ticking once a second.
+func (a *app) planNote() string {
+	T := i18n.T
+	d := &a.hd
+	if d.busy != T.TakeoverPlan || d.spanOp != T.TakeoverPlan || d.span.start.IsZero() {
+		return T.TkPlanNote
+	}
+	if !d.planTick {
+		d.planTick = true
+		time.AfterFunc(time.Second, func() {
+			mygo.RunOnMain(func() {
+				d.planTick = false
+				a.invalidate()
+			})
+		})
+	}
+	el := time.Since(d.span.start)
+	if el < planElapsedAfter {
+		return T.TkPlanRunning
+	}
+	return T.TkPlanRunning + " " + fmt.Sprintf(T.TkPlanElapsed, int(el/time.Second))
+}
+
+// planElapsedAfter: a plan usually takes about a second; show the time
+// only when it runs longer.
+const planElapsedAfter = 2 * time.Second
