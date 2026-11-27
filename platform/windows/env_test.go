@@ -161,7 +161,7 @@ func TestResolversAndServices(t *testing.T) {
 	}
 	if len(svcs) != 2 || svcs[0].Name != "Wi-Fi" || svcs[0].Order != 1 || !svcs[0].Enabled ||
 		svcs[0].DNSSource != health.DNSSourceManual || !reflect.DeepEqual(svcs[0].DNS, []string{"127.0.0.1"}) ||
-		svcs[1].Name != "Ethernet" || svcs[1].Enabled || svcs[1].DNSSource != health.DNSSourceUnknown {
+		svcs[1].Name != "Ethernet" || svcs[1].Enabled || len(svcs[1].DNS) != 0 || svcs[1].DNSSource != health.DNSSourceGlobal { // fec0:0:0:ffff::1 is a placeholder
 		t.Errorf("services: %+v", svcs)
 	}
 
