@@ -140,18 +140,17 @@ func (a *app) takeoverIntro(c *ui.Context, s status.Snapshot) {
 	d := &a.hd
 	v := &d.take
 	card(c, T.TakeoverTitle, func() {
-		hintText(c, T.TakeoverIntro)
 		if v.unsupported {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText)
-				ui.Text(c, T.TakeoverTooOld).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Wrap().Shrink(1)
+				ui.Text(c, T.TakeoverTooOld).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Wrap().LineHeight(lineText).Shrink(1)
 			})
 		}
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			// Planning is read-only for the system (the helper writes the
 			// plan into its own state dir), so it needs no write permission.
 			can := (s.Helper.Connected() && d.busy == "" && !v.unsupported) && !v.fixture
-			if a.opButton(c.Key("plan"), iconRefresh, T.TakeoverPlan, v.plan == nil, T.TakeoverPlan).Disabled(!can).Clicked() {
+			if a.opButton(c.Key("plan"), iconRefresh, T.TakeoverPlan, v.plan == nil, T.TakeoverPlan).Disabled(!can).Tooltip(T.TakeoverIntro).Clicked() {
 				a.takeoverMakePlan("")
 			}
 			if v.loading {
@@ -159,7 +158,7 @@ func (a *app) takeoverIntro(c *ui.Context, s status.Snapshot) {
 			}
 		})
 		if v.listErr != "" {
-			ui.Text(c, T.ErrorPrefix+v.listErr).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap()
+			ui.Text(c, T.ErrorPrefix+v.listErr).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().LineHeight(lineText)
 		}
 		if len(v.plans) == 0 && v.loaded && !v.unsupported {
 			hintText(c, T.TakeoverNoPlans)
@@ -302,7 +301,7 @@ func (a *app) takeoverFoundCards(c *ui.Context, p *rpc.TakeoverPlan) {
 					col = t.Success
 				}
 				dot(c, col, 8)
-				ui.Column(c).Gap(2).Grow(1).Shrink(1).Children(func() {
+				ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).Children(func() {
 					ui.Text(c, filepath.Base(cd.Path)).SingleLine().Selectable()
 					ui.Text(c, filepath.Dir(cd.Path)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Selectable()
 					detail := cd.Error
@@ -314,7 +313,7 @@ func (a *app) takeoverFoundCards(c *ui.Context, p *rpc.TakeoverPlan) {
 					if cd.Error != "" {
 						col = pal(t).badText
 					}
-					num(ui.Text(c, detail).FontSize(plat.smallSize).TextColor(col).Wrap())
+					num(ui.Text(c, detail).FontSize(plat.smallSize).TextColor(col).Wrap().LineHeight(lineText))
 				})
 				if cd.Chosen || cd.Path == p.Base {
 					tag(c, T.TakeoverBaseChosen)
@@ -365,7 +364,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 		}
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			dot(c, col, 10)
-			ui.Text(c, verdict).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Wrap().Shrink(1)
+			ui.Text(c, verdict).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Wrap().LineHeight(lineText).Shrink(1)
 		})
 		valid, vcol := T.ValidOK, t.Success
 		if !p.Validated {
@@ -374,7 +373,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 		kvWith(c, T.ComposeValid, func() { ui.Text(c, valid).TextColor(vcol) })
 		impactRow(c, p.Impact)
 		for _, e := range p.ValidateErr {
-			ui.Text(c, e).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().Selectable()
+			ui.Text(c, e).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().LineHeight(lineText).Selectable()
 		}
 		var deliberate, other []rpc.TakeoverChange
 		for _, ch := range p.Changes {
@@ -408,7 +407,7 @@ func (a *app) takeoverVerdictCards(c *ui.Context, s status.Snapshot, p *rpc.Take
 					if txt == "" {
 						continue
 					}
-					ui.Text(c, strings.TrimRight(txt, "\n")).Font("monospace").FontSize(plat.smallSize).Wrap().Selectable().
+					ui.Text(c, strings.TrimRight(txt, "\n")).Font("monospace").FontSize(plat.smallSize).Wrap().LineHeight(lineText).Selectable().
 						Padding(8, 10).Radius(plat.innerRadius).Background(pal(t).code).Border(1, pal(t).groupLine)
 				}
 			}
@@ -429,9 +428,9 @@ func changeList(c *ui.Context, key, title string, list []rpc.TakeoverChange, col
 			ui.Row(c.Key(fmt.Sprint(i))).Gap(8).AlignItems(ui.Start).Children(func() {
 				dot(c, col, 6).Margin(5, 0, 0, 0)
 				ui.Column(c).Gap(1).Shrink(1).Children(func() {
-					ui.Text(c, ch.Area+" · "+i18n.T.TakeoverChange(ch.Code, ch.Args, ch.What)).FontSize(plat.calloutSize).Wrap().Selectable()
+					ui.Text(c, ch.Area+" · "+i18n.T.TakeoverChange(ch.Code, ch.Args, ch.What)).FontSize(plat.calloutSize).Wrap().LineHeight(lineText).Selectable()
 					if ch.Why != "" {
-						ui.Text(c, i18n.T.TakeoverWhy(ch.WhyCode, ch.WhyArgs, ch.Why)).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap()
+						ui.Text(c, i18n.T.TakeoverWhy(ch.WhyCode, ch.WhyArgs, ch.Why)).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 					}
 				})
 			})
@@ -456,19 +455,15 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 			}
 			return
 		case rpc.PlanRolledBack, rpc.PlanFailed:
-			ui.Text(c, T.PlanState(p.State)+" · "+T.TakeoverReplan).FontSize(plat.bodySize).TextColor(pal(t).warnText).Wrap()
+			ui.Text(c, T.PlanState(p.State)+" · "+T.TakeoverReplan).FontSize(plat.bodySize).TextColor(pal(t).warnText).Wrap().LineHeight(lineText)
 			return
-		}
-		ui.Text(c, T.TakeoverAdoptHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap()
-		for i, step := range T.TakeoverAdoptSteps {
-			ui.Text(c.Key(fmt.Sprint("s", i)), fmt.Sprintf("%d. %s", i+1, step)).FontSize(plat.calloutSize).Wrap()
 		}
 		ok := a.helperWrites(s) && p.Validated && !v.fixture
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			if !p.Validated {
-				ui.Text(c, T.TakeoverNotValid).FontSize(plat.calloutSize).TextColor(pal(t).badText).Grow(1).Wrap()
+				ui.Text(c, T.TakeoverNotValid).FontSize(plat.calloutSize).TextColor(pal(t).badText).Grow(1).Wrap().LineHeight(lineText)
 			} else if !p.Equivalent {
-				ui.Text(c, T.TakeoverCheckChanges).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Grow(1).Wrap()
+				ui.Text(c, T.TakeoverCheckChanges).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Grow(1).Wrap().LineHeight(lineText)
 			} else {
 				ui.Spacer(c)
 			}
@@ -517,7 +512,7 @@ func (a *app) adoptResultCard(c *ui.Context, r *rpc.AdoptResult) {
 			ui.Text(c, head).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 		})
 		if r.Error != "" {
-			ui.Text(c, T.ErrorPrefix+r.Error).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().Selectable()
+			ui.Text(c, T.ErrorPrefix+r.Error).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().LineHeight(lineText).Selectable()
 		}
 		ui.Column(c).Gap(3).Children(func() {
 			for i, st := range r.Steps {
@@ -525,7 +520,7 @@ func (a *app) adoptResultCard(c *ui.Context, r *rpc.AdoptResult) {
 					icon, icol := stepIcon(t, st.Status)
 					ui.Icon(c, icon).FontSize(iconInline).TextColor(icol)
 					ui.Text(c, st.Name).FontSize(plat.calloutSize).Width(160).Shrink(0)
-					ui.Text(c, st.Detail).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().Shrink(1).Selectable()
+					ui.Text(c, st.Detail).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Shrink(1).Selectable()
 				})
 			}
 		})
@@ -627,7 +622,7 @@ func healthCompare(c *ui.Context, r *rpc.AdoptResult) {
 		})
 	}
 	if len(r.Worse) > 0 {
-		ui.Text(c, fmt.Sprintf(T.TakeoverWorse, strings.Join(r.Worse, ", "))).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap()
+		ui.Text(c, fmt.Sprintf(T.TakeoverWorse, strings.Join(r.Worse, ", "))).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().LineHeight(lineText)
 	}
 }
 
@@ -669,12 +664,12 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 			if r.Replaced {
 				msg = T.SecureReplaced
 			}
-			ui.Text(c, msg).FontSize(plat.calloutSize).TextColor(pal(t).okText).Wrap()
+			ui.Text(c, msg).FontSize(plat.calloutSize).TextColor(pal(t).okText).Wrap().LineHeight(lineText)
 			if r.Apply != nil && r.Apply.HistoryID != "" {
 				kv(c, T.TakeoverHistory, r.Apply.HistoryID)
 			}
 			if r.Apply != nil && r.Apply.Error != "" {
-				ui.Text(c, T.ErrorPrefix+r.Apply.Error).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap()
+				ui.Text(c, T.ErrorPrefix+r.Apply.Error).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().LineHeight(lineText)
 			}
 			for _, w := range r.Warnings {
 				warningNote(c, w)

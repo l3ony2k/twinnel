@@ -336,15 +336,12 @@ func (a *app) helperWrites(s status.Snapshot) bool {
 	return s.Helper.Connected() && s.WritesAllowed && a.hd.busy == ""
 }
 
-// opNotes shows the read-only notice, the running operation (when no
+// opNotes shows the running operation (when no
 // opButton shows it), and the last error and warnings of the helper
 // pages. Successes go to a toast (helperOp).
 func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	d := &a.hd
-	if !s.WritesAllowed {
-		notice(c, iconSecure, i18n.T.WritesDisabledHint)
-	}
 	if d.busy != "" && !d.busyOnButton && d.span.visible(time.Now()) {
 		// No opButton shows this operation: say it here (after busyDelay).
 		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Children(func() {
@@ -359,7 +356,7 @@ func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 		if d.msgErr {
 			errorNote(c, d.msg)
 		} else {
-			ui.Text(c, d.msg).TextColor(t.TextMuted).Wrap().Selectable()
+			ui.Text(c, d.msg).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
 		}
 	}
 	if d.loadErr != "" {
@@ -389,13 +386,13 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 			})
 			switch h.State {
 			case status.HelperNotRunning:
-				ui.Text(c, i18n.T.HelperNotRunningHint).FontSize(plat.bodySize).Wrap()
+				ui.Text(c, i18n.T.HelperNotRunningHint).FontSize(plat.bodySize).Wrap().LineHeight(lineText)
 			case status.HelperDenied:
-				ui.Text(c, i18n.T.HelperDeniedHint).FontSize(plat.bodySize).Wrap()
+				ui.Text(c, i18n.T.HelperDeniedHint).FontSize(plat.bodySize).Wrap().LineHeight(lineText)
 			}
 			kv(c, i18n.T.HelperSocket, h.Socket)
 			if h.Err != "" {
-				ui.Text(c, h.Err).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().Selectable()
+				ui.Text(c, h.Err).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
 			}
 			if pushButton(c.Key("retry"), i18n.T.HelperRetry).Clicked() {
 				a.hc.Retry()

@@ -230,7 +230,7 @@ func (a *app) subscriptionForm(c *ui.Context, w bool) {
 	if v.subFile != "" {
 		ui.Text(c, fmt.Sprintf(T.SubFileChosen, v.subFile, status.Bytes(int64(len(v.subContent))))).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 	}
-	ui.Text(c, T.SubURLHint).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap()
+	ui.Text(c, T.SubURLHint).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 	ui.Row(c).Gap(8).Children(func() {
 		ready := strings.TrimSpace(v.subID) != "" && (strings.TrimSpace(v.subURL) != "" || v.subContent != "")
 		if ui.PrimaryButton(c.Key("sub-save"), T.Save).Disabled(!w || !ready).Clicked() {
@@ -331,7 +331,6 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 	}
 	listCard(c, func() {
 		ui.Text(c, T.Layers).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Shrink(0)
-		ui.Text(c, T.LayersHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).Shrink(1).SingleLine().Tooltip(T.LayersHint)
 		ui.Spacer(c)
 		if !v.isNew && pushButton(c.Key("layer-new"), T.LayerNew).Disabled(!w).Clicked() {
 			a.newLayer()
@@ -443,7 +442,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 			if sw.Changed() {
 				a.setLayerEnabled(l, on)
 			}
-			ui.Column(c).Gap(2).Grow(1).Shrink(1).Children(func() {
+			ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					if l.Managed {
 						icon := iconManaged
@@ -692,7 +691,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 	}
 	ed.Children(func() {
 		if v.managed {
-			ui.Text(c, T.LayerManagedHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap()
+			ui.Text(c, T.LayerManagedHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 		} else {
 			ui.Row(c).Gap(12).AlignItems(ui.End).Children(func() {
 				ui.Column(c).Gap(4).Basis(0).Grow(1).Children(func() {
@@ -788,7 +787,7 @@ func (a *app) lintNotes(c *ui.Context) {
 			if n.Line > 0 {
 				text = fmt.Sprintf(i18n.T.LintLine, n.Line) + text
 			}
-			ui.Text(c, text).FontSize(plat.calloutSize).TextColor(col).Grow(1).Wrap().Selectable()
+			ui.Text(c, text).FontSize(plat.calloutSize).TextColor(col).Grow(1).Wrap().LineHeight(lineText).Selectable()
 		})
 	}
 }
@@ -836,12 +835,11 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 			a.runPreview(s)
 		}
 	}, func() {
-		ui.Text(c, T.PreviewHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap()
 		if p := v.preview; p != nil {
 			composeSummary(c, *p)
 		}
 		if v.diffErr != "" {
-			ui.Text(c, v.diffErr).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap()
+			ui.Text(c, v.diffErr).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 		}
 		if v.diff != nil {
 			add, del := v.diff.Stats()
@@ -883,7 +881,7 @@ func composeSummary(c *ui.Context, r rpc.ComposeResult) {
 	}
 	kv(c, T.ComposeChanged, changed)
 	for _, e := range r.ValidateErrors {
-		ui.Text(c, e).Font("monospace").FontSize(plat.smallSize).TextColor(pal(t).badText).Wrap().Selectable()
+		ui.Text(c, e).Font("monospace").FontSize(plat.smallSize).TextColor(pal(t).badText).Wrap().LineHeight(lineText).Selectable()
 	}
 	for _, wn := range r.Warnings {
 		warningNote(c, wn)
@@ -916,7 +914,7 @@ func applySummary(c *ui.Context, r rpc.ApplyResult) {
 	if r.HistoryID != "" {
 		flags = append(flags, T.HistoryEntry+" "+r.HistoryID)
 	}
-	ui.Text(c, strings.Join(flags, " · ")).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().Selectable()
+	ui.Text(c, strings.Join(flags, " · ")).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
 	impactRow(c, r.Impact)
 	for _, w := range r.Warnings {
 		if k := i18n.WarningKind(w); r.Impact != nil && (k == "reload-disrupts" || k == "restart-needed") {
@@ -946,10 +944,10 @@ func impactRow(c *ui.Context, im *rpc.ReloadImpact) {
 		ui.Column(c).Gap(4).Grow(1).Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
-				ui.Text(c, text).TextColor(map[bool]ui.Color{true: col, false: t.Text}[im.Disruptive]).Wrap()
+				ui.Text(c, text).TextColor(map[bool]ui.Color{true: col, false: t.Text}[im.Disruptive]).Wrap().LineHeight(lineText)
 			})
 			if len(im.RestartNeeded) > 0 {
-				small(c, T.ImpactRestart+"："+strings.Join(im.RestartNeeded, "、")).Wrap()
+				small(c, T.ImpactRestart+"："+strings.Join(im.RestartNeeded, "、")).Wrap().LineHeight(lineText)
 			}
 			if im.Disruptive {
 				for _, n := range im.Notes {

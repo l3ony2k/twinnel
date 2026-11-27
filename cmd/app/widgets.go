@@ -62,7 +62,13 @@ const (
 	groupPadX  = 16 // a group's side padding; its heading lines up with it
 	groupPadY  = 12
 	labelWidth = 96 // the label column of kv rows
+	gapSub     = 2  // between a line and the secondary line under it
 )
+
+// lineText is the line height of text that wraps, as a multiple of its
+// size: every paragraph (hints, notes, errors, row details) spaces its
+// lines alike, CJK and Latin mixed, whatever font the fallback picks.
+const lineText = 1.4
 
 // Icon sizes: one per role.
 const (
@@ -233,7 +239,7 @@ func num(e ui.Element) ui.Element { return e.FontFeatures("tnum") }
 
 // small draws secondary text.
 func small(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(plat.calloutSize).TextColor(c.Theme().TextMuted)
+	return ui.Text(c, s).FontSize(plat.calloutSize).TextColor(c.Theme().TextMuted).LineHeight(lineText)
 }
 
 // kv draws a label and a value on one row.
@@ -355,7 +361,7 @@ func listRow(c *ui.Context) ui.Element {
 
 // hintText is a line of secondary, wrapping text: what a group is for.
 func hintText(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(plat.calloutSize).TextColor(c.Theme().TextMuted).Wrap()
+	return ui.Text(c, s).FontSize(plat.calloutSize).TextColor(c.Theme().TextMuted).Wrap().LineHeight(lineText)
 }
 
 // pageHeader puts the page's title, and its actions at the right, in
@@ -386,7 +392,7 @@ func notice(c *ui.Context, icon *ui.SVG, text string) ui.Element {
 	return ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 12).Radius(plat.groupRadius).
 		Background(pal(t).group).Border(1, pal(t).groupLine).Children(func() {
 		ui.Icon(c, icon).FontSize(iconInline).TextColor(t.TextMuted)
-		ui.Text(c, text).FontSize(plat.calloutSize).TextColor(t.TextMuted).Grow(1).Wrap()
+		ui.Text(c, text).FontSize(plat.calloutSize).TextColor(t.TextMuted).Grow(1).Wrap().LineHeight(lineText)
 	})
 }
 
@@ -400,12 +406,12 @@ func errorNote(c *ui.Context, text string) ui.Element {
 	return ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
 		ui.Icon(c, iconError).FontSize(iconInline).TextColor(t.Danger).MarginY(1)
 		if plain == "" {
-			ui.Text(c, text).FontSize(plat.calloutSize).TextColor(pal(t).badText).Grow(1).Wrap().Selectable()
+			ui.Text(c, text).FontSize(plat.calloutSize).TextColor(pal(t).badText).Grow(1).Wrap().LineHeight(lineText).Selectable()
 			return
 		}
-		ui.Column(c).Gap(2).Grow(1).Shrink(1).Children(func() {
-			ui.Text(c, plain).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().Selectable()
-			ui.Text(c, raw).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().
+		ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).Children(func() {
+			ui.Text(c, plain).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().LineHeight(lineText).Selectable()
+			ui.Text(c, raw).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).
 				Selectable().Label(i18n.T.UnreachableDetail + "：" + raw)
 		})
 	})
@@ -417,7 +423,7 @@ func warningNote(c *ui.Context, w string) ui.Element {
 	t := c.Theme()
 	return ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
 		ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText).MarginY(1)
-		ui.Text(c, i18n.T.Warning(w)).FontSize(plat.calloutSize).Grow(1).Wrap().Selectable()
+		ui.Text(c, i18n.T.Warning(w)).FontSize(plat.calloutSize).Grow(1).Wrap().LineHeight(lineText).Selectable()
 	})
 }
 
@@ -428,7 +434,7 @@ func emptyState(c *ui.Context, icon *ui.SVG, title, hint string) ui.Element {
 		ui.Icon(c, icon).FontSize(iconLarge).TextColor(t.TextMuted)
 		ui.Text(c, title).FontWeight(500)
 		if hint != "" {
-			ui.Text(c, hint).FontSize(plat.calloutSize).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().MaxWidth(420)
+			ui.Text(c, hint).FontSize(plat.calloutSize).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().LineHeight(lineText).MaxWidth(420)
 		}
 	})
 }

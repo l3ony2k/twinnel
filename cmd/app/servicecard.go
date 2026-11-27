@@ -86,7 +86,6 @@ func (a *app) servicesCard(c *ui.Context, s status.Snapshot) {
 			a.loadServices()
 		}
 	}), func() {
-		listRow(c).Children(func() { hintText(c, T.ServicesHint) })
 		if v.status == nil && len(v.errs) == 0 {
 			listRow(c).Children(func() { ui.Text(c, T.Loading).TextColor(t.TextMuted) })
 			return
@@ -110,7 +109,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			dot(c, t.TextMuted, 8)
 			ui.Text(c, name).FontWeight(600)
-			ui.Text(c, v.errs[name]).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().Shrink(1)
+			ui.Text(c, v.errs[name]).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().LineHeight(lineText).Shrink(1)
 		})
 		return
 	}
@@ -122,7 +121,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		ui.Spacer(c)
 		if !st.Installed {
 			if name == "mihomo" && a.opButton(c.Key("install"), iconOK, T.ServiceInstall, false, T.ServiceInstall+" "+name).Disabled(!w).Clicked() {
-				a.confirm(fmt.Sprintf(T.ServiceInstallTitle, name), T.ServiceInstallBody, T.ServiceInstall, func() {
+				a.confirm(fmt.Sprintf(T.ServiceInstallTitle, name), "", T.ServiceInstall, func() {
 					a.serviceOp(rpc.MethodServiceInstall, name, T.ServiceInstall)
 				})
 			}
@@ -143,7 +142,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		}
 		if name == "mihomo" && pushButton(c.Key("uninstall"), T.ServiceUninstall).Disabled(!w).Clicked() {
 			a.confirm(fmt.Sprintf(T.ServiceUninstallTitle, name),
-				fmt.Sprintf(T.ServiceUninstallBody, st.Label, orDash(st.Definition)), T.ServiceUninstall, func() {
+				T.ServiceUninstallBody, T.ServiceUninstall, func() {
 					a.serviceOp(rpc.MethodServiceUninstall, name, T.ServiceUninstall)
 				})
 		}
@@ -189,12 +188,12 @@ func serviceOpResult(c *ui.Context, r *rpc.ServiceOpResult) {
 		if r.DryRun {
 			head += " · " + T.ServiceDryRun
 		}
-		ui.Text(c, head).FontWeight(600)
+		h := ui.Text(c, head).FontWeight(600)
 		if r.DryRun {
-			ui.Text(c, T.ServiceDryRunHint).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Wrap()
+			h.Tooltip(T.ServiceDryRunHint)
 		}
 		for i, step := range r.Steps {
-			ui.Text(c.Key(fmt.Sprint("step", i)), step).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().Selectable()
+			ui.Text(c.Key(fmt.Sprint("step", i)), step).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
 		}
 	})
 }
@@ -219,7 +218,7 @@ func (a *app) serviceOp(method, name, label string) {
 // --- geo databases and external UI ---
 
 type accessoryKind struct {
-	title, hint   string
+	title         string
 	icon          *ui.SVG
 	check, update string
 	view          func(a *app) *accessoryView
@@ -227,7 +226,7 @@ type accessoryKind struct {
 
 func geoKind() accessoryKind {
 	return accessoryKind{
-		title: i18n.T.GeoTitle, hint: i18n.T.GeoHint, icon: iconGeo,
+		title: i18n.T.GeoTitle, icon: iconGeo,
 		check: rpc.MethodGeoCheck, update: rpc.MethodGeoUpdate,
 		view: func(a *app) *accessoryView { return &a.hd.kern.geo },
 	}
@@ -235,7 +234,7 @@ func geoKind() accessoryKind {
 
 func uiKind() accessoryKind {
 	return accessoryKind{
-		title: i18n.T.UITitle, hint: i18n.T.UIHint, icon: iconDashboard,
+		title: i18n.T.UITitle, icon: iconDashboard,
 		check: rpc.MethodUICheck, update: rpc.MethodUIUpdate,
 		view: func(a *app) *accessoryView { return &a.hd.kern.ui },
 	}
@@ -252,7 +251,6 @@ func (a *app) accessoryCard(c *ui.Context, s status.Snapshot, k accessoryKind) {
 		}
 	}), func() {
 		listRow(c).Children(func() {
-			hintText(c, k.hint)
 			if ck := v.check; ck != nil && ck.Dir != "" {
 				kv(c, T.AccessoryDir, ck.Dir)
 			}
@@ -345,22 +343,22 @@ func (a *app) accessoryResult(c *ui.Context, s status.Snapshot, r *rpc.Accessory
 	T := i18n.T
 	ui.Column(c).Gap(4).Children(func() {
 		if len(r.Updated) > 0 {
-			ui.Text(c, fmt.Sprintf(T.AccessoryUpdated, strings.Join(r.Updated, ", "))).FontSize(plat.calloutSize).TextColor(pal(t).okText).Wrap()
+			ui.Text(c, fmt.Sprintf(T.AccessoryUpdated, strings.Join(r.Updated, ", "))).FontSize(plat.calloutSize).TextColor(pal(t).okText).Wrap().LineHeight(lineText)
 		} else if r.Error == "" {
 			ui.Text(c, T.AccessoryNothing).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 		}
 		if len(r.Skipped) > 0 {
-			ui.Text(c, fmt.Sprintf(T.AccessorySkipped, strings.Join(r.Skipped, ", "))).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap()
+			ui.Text(c, fmt.Sprintf(T.AccessorySkipped, strings.Join(r.Skipped, ", "))).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 		}
 		if r.RolledBack {
-			ui.Text(c, T.AccessoryRolledBack).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Wrap()
+			ui.Text(c, T.AccessoryRolledBack).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Wrap().LineHeight(lineText)
 		}
 		if r.Error != "" {
 			errorNote(c, T.ErrorPrefix+r.Error)
 		}
 		if r.ReloadNeeded {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, T.AccessoryReloadNeeded).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Grow(1).Wrap()
+				ui.Text(c, T.AccessoryReloadNeeded).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Grow(1).Wrap().LineHeight(lineText)
 				if a.opButton(c.Key("apply"), iconRefresh, T.AccessoryApply, true, T.AccessoryApply).Disabled(!a.helperWrites(s)).Clicked() {
 					a.applyForce(T.AccessoryApplyReason, func() { r.ReloadNeeded = false })
 				}

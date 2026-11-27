@@ -36,15 +36,15 @@ var zhTakeover = TakeoverStrings{
 	ClauseSep:          "；",
 	CountSep:           "，",
 	TakeoverChanges: map[string]string{
-		"reordered":        "条目相同、顺序不同；带 include-all 的策略组按列表顺序取用，所以优先级会变",
+		"reordered":        "条目相同、顺序不同（include-all 策略组的优先级会变）",
 		"sub-rule-differs": "子规则「%s」不同",
 		"rules-reordered":  "目标相同的前部规则换了顺序；没有连接会因此走别的路线",
 		"tailscale-rules":  "%s 条 Tailscale 规则改动：%s",
 	},
 	TakeoverWhys: map[string]string{
 		"coexist":                   "由托管的 Tailscale 共存层写入",
-		"coexist-nameserver-policy": "Tailscale 共存：tailnet 的名字（MagicDNS 后缀、单标签名、tailnet 反向解析区）交给 %s 解析，不再绕回系统解析器",
-		"coexist-fake-ip-filter":    "Tailscale 共存：tailnet 的名字和单标签名拿到真实地址，不用 fake-ip",
+		"coexist-nameserver-policy": "Tailscale 共存：tailnet 的名字交给 %s 解析",
+		"coexist-fake-ip-filter":    "Tailscale 共存：tailnet 的名字拿到真实地址，不用 fake-ip",
 		"coexist-hosts":             "Tailscale 共存：设备名在本地解析（%s 台设备）",
 		"coexist-use-hosts":         "Tailscale 共存：设备名要用到 hosts",
 		"coexist-prepended":         "Tailscale 共存的规则在用户覆写之后前置，所以排在最前",

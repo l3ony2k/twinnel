@@ -128,12 +128,12 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 			ui.Icon(c, iconDuet).FontSize(iconHero).TextColor(t.Accent)
 			ui.Text(c, T.OnboardTitle).FontSize(plat.titleSize - 3).FontWeight(plat.titleWeight)
 		})
-		ui.Text(c, T.OnboardIntro).Wrap()
+		ui.Text(c, T.OnboardIntro).Wrap().LineHeight(lineText)
 		ui.Column(c).Gap(6).Children(func() {
 			for _, line := range T.OnboardPoints {
 				ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
 					ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Accent).MarginY(1).Shrink(0)
-					ui.Text(c, line).Grow(1).Wrap()
+					ui.Text(c, line).Grow(1).Wrap().LineHeight(lineText)
 				})
 			}
 		})
@@ -225,9 +225,9 @@ func (a *app) installStepRow(c *ui.Context, n int, st planStep) {
 	ui.Row(c).Gap(10).AlignItems(ui.Start).PaddingY(8).PaddingStart(22).Clip().Transition(expandFor(true)).Children(func() {
 		num(ui.Text(c, i18n.F("%d", n)).FontSize(plat.smallSize).TextColor(t.TextMuted).Width(14).TextAlign(ui.End).MarginY(2).Shrink(0))
 		ui.Column(c).Gap(3).Grow(1).Shrink(1).Children(func() {
-			ui.Text(c, st.what).Wrap()
+			ui.Text(c, st.what).Wrap().LineHeight(lineText)
 			if st.what != st.cmd {
-				ui.Text(c, st.cmd).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().Selectable()
+				ui.Text(c, st.cmd).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
 			}
 			if st.content == "" {
 				return
@@ -250,7 +250,7 @@ func (a *app) installStepRow(c *ui.Context, n int, st planStep) {
 func codeBlock(c *ui.Context, s string) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Radius(plat.controlRadius).Background(pal(t).code).Border(1, pal(t).groupLine).Children(func() {
-		ui.Text(c, strings.TrimRight(s, "\n")).Font("monospace").FontSize(plat.smallSize).Padding(10, 12).Wrap().Selectable()
+		ui.Text(c, strings.TrimRight(s, "\n")).Font("monospace").FontSize(plat.smallSize).Padding(10, 12).Wrap().LineHeight(lineText).Selectable()
 	})
 }
 
