@@ -129,6 +129,9 @@ type Status struct {
 	Tailnet            TailnetStatus  `json:"tailnet"`
 	Kernel             KernelList     `json:"kernel"`
 	Subscriptions      []Subscription `json:"subscriptions,omitempty"`
+	// DNSWatch is the DNS watchdog (nil: a helper without one, or a
+	// platform where Twinnel does not set the system DNS).
+	DNSWatch *DNSWatch `json:"dns_watch,omitempty"`
 }
 
 type MihomoStatus struct {
@@ -871,6 +874,10 @@ type TakeoverPlan struct {
 	Warnings    []string         `json:"warnings,omitempty"`
 	Summary     string           `json:"summary,omitempty"`
 	SemDiff     string           `json:"semdiff,omitempty"`
+	// SemDiffFull is SemDiff with every shadowed and redundant rule
+	// listed; set only when SemDiff folded some (the ones the live and the
+	// composed config share).
+	SemDiffFull string `json:"semdiff_full,omitempty"`
 	// Impact of the adopt's reload on the running mihomo (live config →
 	// composed config).
 	Impact *ReloadImpact `json:"impact,omitempty"`

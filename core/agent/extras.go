@@ -33,7 +33,7 @@ var AdminActions = map[string]string{
 }
 
 type adminIn struct {
-	Action string `json:"action" jsonschema:"what you wanted to do"`
+	Action string `json:"action" jsonschema:"the action you wanted to take"`
 }
 
 func (s *Server) registerAdminOnly() {
@@ -46,11 +46,8 @@ func (s *Server) registerAdminOnly() {
 		"Actions an agent can never take through Twinnel, because they install, remove or move system pieces "+
 			"or change what agents may do: "+strings.Join(names, ", ")+". Call this with the action to get "+
 			"where the person does it in the Twinnel app, then tell them. It changes nothing.",
-		toolOpts{noHelper: true}, func(c *call, in adminIn) (any, error) {
-			where, ok := AdminActions[in.Action]
-			if !ok {
-				where = "the Twinnel app"
-			}
+		toolOpts{noHelper: true, enums: map[string][]string{"action": names}}, func(c *call, in adminIn) (any, error) {
+			where := AdminActions[in.Action]
 			return map[string]any{
 				"action":  in.Action,
 				"allowed": false,

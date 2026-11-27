@@ -221,10 +221,11 @@ func (s *Server) subRemove(c *call, in idIn) (any, error) {
 type applyIn struct {
 	PreviewHash string `json:"preview_hash,omitempty" jsonschema:"the preview_hash of the preview the person saw; empty returns the preview"`
 	Reason      string `json:"reason,omitempty" jsonschema:"why, in a few words (kept in history)"`
+	Verbose     bool   `json:"verbose,omitempty" jsonschema:"without preview_hash: list every shadowed or redundant rule in the diff"`
 }
 
 func (s *Server) apply(c *call, in applyIn) (any, error) {
-	p, err := c.previewNow()
+	p, err := c.previewNow(in.Verbose)
 	if err != nil {
 		return nil, err
 	}

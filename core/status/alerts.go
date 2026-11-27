@@ -39,6 +39,9 @@ type Alerter struct {
 	lastReport time.Time
 }
 
+// systemDNSCheck is the ID of health.SystemDNS.
+const systemDNSCheck = "system-dns"
+
 type episode struct {
 	since time.Time
 	fired bool
@@ -86,6 +89,10 @@ func (a *Alerter) Check(s Snapshot) []Alert {
 		active = append(active, cond{key: "mihomo-down", title: t.AlertMihomoDown,
 			body: s.Mihomo.Err, grace: a.MihomoGrace, eligible: true})
 	}
+	if s.DNSRestored() {
+		active = append(active, cond{key: "dns-restored", title: t.AlertDNSRestored,
+			body: t.AlertDNSRestoredBody, eligible: true})
+	}
 	ts := s.Tailscale
 	if ts.Reachable {
 		switch ts.State.BackendState {
@@ -120,6 +127,11 @@ func (a *Alerter) Check(s Snapshot) []Alert {
 			a.lastReport = rep.Started
 		}
 		for _, c := range rep.Checks {
+			// The DNS watchdog's own alert says why the system DNS is
+			// not mihomo's: no second one for the check.
+			if c.ID == systemDNSCheck && s.DNSRestored() {
+				continue
+			}
 			if c.Status == health.StatusFail {
 				active = append(active, cond{key: "health/" + c.ID, title: fmt.Sprintf(t.AlertHealthFail, c.Title), body: c.Summary})
 			}
