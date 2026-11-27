@@ -592,7 +592,22 @@ func sortedKeys(m map[string]bool) []string {
 
 // ---------------------------------------------------------------------------
 
-// SystemDNS: every active network service resolves through mihomo.
+// ConnectedDevices are the interfaces whose link carries traffic now
+// (sysdns.LinkConnected): a network service counts for the system-dns
+// verdict only while it is enabled and its device is one of them, the
+// same rule dns.status applies (sysdns.Counted).
+func ConnectedDevices(ctx context.Context, env Env) map[string]bool {
+	ifs, _ := env.Interfaces(ctx)
+	out := map[string]bool{}
+	for _, i := range ifs {
+		if sysdns.LinkConnected(i.Up, i.Active, i.Addrs) {
+			out[i.Name] = true
+		}
+	}
+	return out
+}
+
+// SystemDNS: every connected network service resolves through mihomo.
 type SystemDNS struct{}
 
 func (SystemDNS) ID() string            { return "system-dns" }
@@ -625,17 +640,9 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	if err != nil {
 		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "network services", err), Reasons: []string{ReasonReadFailed}}
 	}
-	ifs, _ := env.Interfaces(ctx)
-	active := map[string]bool{}
-	for _, i := range ifs {
-		if i.Up && i.Active {
-			for _, a := range i.Addrs {
-				if a.Is4() && !a.IsLinkLocalUnicast() {
-					active[i.Name] = true
-				}
-			}
-		}
-	}
+	// Only connected services count: the one rule dns.status and the
+	// setup share (sysdns.LinkConnected, ConnectedDevices).
+	active := ConnectedDevices(ctx, env)
 	// The default resolver shows what DHCP handed out for services without
 	// manual DNS.
 	var defaultNS []string

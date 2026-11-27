@@ -13,6 +13,11 @@
 // that still hold exactly the values it restored. A service the user
 // changed by hand in between is left as the user set it.
 //
+// It acts on every service in the backup, connected or not (the action
+// side of sysdns's rule: a network that connects while mihomo is down
+// must resolve too); whether the system DNS counts as pointed is
+// sysdns.Counted's job, not the watchdog's.
+//
 // The platform parts (the resolver probe, the service manager, the system
 // DNS) are functions and interfaces, so tests drive it with fakes and a
 // fake clock through Tick.

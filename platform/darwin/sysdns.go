@@ -18,15 +18,27 @@ type SystemDNS struct {
 	Run CommandRunner
 }
 
-const networksetup = "/usr/sbin/networksetup"
+const (
+	networksetup = "/usr/sbin/networksetup"
+	ifconfig     = "/sbin/ifconfig"
+)
 
 // Services lists the enabled services with a hardware port (Wi-Fi,
-// Ethernet, USB/Thunderbolt adapters): the ones the system-dns check
-// looks at.
+// Ethernet, USB/Thunderbolt adapters), and whether each one's device is
+// connected (sysdns.LinkConnected over ifconfig: up, "status: active",
+// a routable IPv4 address), the same rule the system-dns check applies.
 func (d SystemDNS) Services(ctx context.Context) ([]sysdns.Service, error) {
 	out, err := d.Run(ctx, networksetup, "-listnetworkserviceorder")
 	if err != nil {
 		return nil, err
+	}
+	ifc, err := d.Run(ctx, ifconfig)
+	if err != nil {
+		return nil, err
+	}
+	connected := map[string]bool{}
+	for _, i := range ParseIfconfig(string(ifc)) {
+		connected[i.Name] = sysdns.LinkConnected(i.Up, i.Active, i.Addrs)
 	}
 	var svcs []sysdns.Service
 	for _, s := range ParseServiceOrder(string(out)) {
@@ -37,7 +49,7 @@ func (d SystemDNS) Services(ctx context.Context) ([]sysdns.Service, error) {
 		if err != nil {
 			return nil, err
 		}
-		svcs = append(svcs, sysdns.Service{Name: s.Name, Servers: ParseGetDNSServers(string(dns))})
+		svcs = append(svcs, sysdns.Service{Name: s.Name, Servers: ParseGetDNSServers(string(dns)), Connected: connected[s.Device]})
 	}
 	return svcs, nil
 }
