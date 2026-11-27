@@ -68,7 +68,7 @@ var enInfoTips = InfoTipStrings{
 	TipKernelState: "Managed by duet: duet downloads and verifies mihomo and can update or roll it back.\nExternal binary: the service still runs your own binary, which duet doesn't update.\nRestart pending: a new version is installed and takes effect when mihomo restarts.",
 	TipGeo:         "The data files that GEOIP and GEOSITE rules use, downloaded from the config's geox-url. Files marked Verifiable are checked against a published digest.",
 
-	TipLogs: "mihomo: the core's live log, from when you open this page.\nduet: what the helper did.\nThe level only filters what shows here; mihomo's config is not changed.",
+	TipLogs: "mihomo shows the core's live log from when you open this page.\nduet shows what the helper has done.\nThe level only filters what shows here; mihomo's config is not changed.",
 
 	TipPrimaryGroup:  "duet treats this group as the exit: the overview and the menu bar show the node it chose and its latency.",
 	TipNotifications: "You get a notification when mihomo stops responding, Tailscale needs a login or its key is about to expire, or a health check fails.",

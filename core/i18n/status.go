@@ -104,13 +104,13 @@ var enStatus = StatusStrings{
 
 	ReasonHealthFound: "%d coexistence issues found",
 	FindingsView:      "View",
-	FindingsTakeover:  "Fixed by Takeover",
+	FindingsTakeover:  "Fix by Taking Over",
 
 	GetStarted:       "Get Started",
 	StepCheckCoexist: "Check Coexistence",
-	StepTakeOver:     "Take Over Current Config",
+	StepTakeOver:     "Take Over Your Setup",
 
-	ExitNodeAcceptedRow: "Exit node %s · conflict with the proxy accepted",
+	ExitNodeAcceptedRow: "Exit node %s · proxy conflict accepted",
 	ExitNodeAccept:      "Accept",
 	ExitNodeTurnOff:     "Turn Off Exit Node",
 	HealthAccepted:      "Accepted",
