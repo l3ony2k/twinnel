@@ -133,7 +133,7 @@ func helperOutdated(s status.Snapshot) bool { return helperMatch(s) == version.M
 // is not older (the CLI refuses a downgrade).
 func (a *app) canUpdateHelper() bool {
 	c := a.hm.check
-	return c != nil && (c.Action == "upgrade" || c.Action == "restart" || c.Action == "migrate")
+	return c != nil && (c.Action == "upgrade" || c.Action == "restart" || c.Action == "migrate" || c.Action == "service-host")
 }
 
 // helperOpsEnabled: writes allowed and nothing running.

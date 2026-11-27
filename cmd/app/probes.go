@@ -141,9 +141,9 @@ func (p *shotProbes) runCLI(_ context.Context, args ...string) (string, error) {
 	return "", errors.New("shot run: Twinnel " + cmd + " is not run")
 }
 
-// shotInstallPlan is the synthetic `twinnel helper install --dry-run`.
+// shotInstallPlan is the synthetic `twinnel helper install --dry-run --json`.
 //
-//go:embed testdata/shots-install-plan.txt
+//go:embed testdata/shots-install-plan.json
 var shotInstallPlan string
 
 // probesFor picks the run's probes: fixtures in shot mode, else the host.

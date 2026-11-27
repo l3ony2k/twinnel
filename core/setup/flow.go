@@ -41,6 +41,7 @@ import (
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/msg"
 	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/core/store"
 	"github.com/l3ony2k/twinnel/core/tailscale"
 	"github.com/l3ony2k/twinnel/overrides"
@@ -700,7 +701,7 @@ func (f *Flow) runApply(ctx context.Context, hc Caller) (string, error) {
 			return "", err
 		}
 		if op.DryRun {
-			return "", fail(CodeNotRoot, "the helper is not running as root: the mihomo service was only planned")
+			return "", fail(CodeNotRoot, "the helper is not running %s: the mihomo service was only planned", service.Current().AsAdmin())
 		}
 	} else if !svc.Running {
 		if err := hc.Call(ctx, rpc.MethodServiceStart, rpc.ServiceParams{Name: "mihomo"}, nil); err != nil {
@@ -763,7 +764,7 @@ func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 		f.warn(StepTailscale, WarnSystemVPN, "the Tailscale app uses the system VPN slot, which conflicts with mihomo's TUN; the open-source tailscaled avoids that")
 	}
 	if r.Service != nil && r.Service.DryRun {
-		return r.Version, fail(CodeNotRoot, "the helper is not running as root: the tailscaled service was only planned")
+		return r.Version, fail(CodeNotRoot, "the helper is not running %s: the tailscaled service was only planned", service.Current().AsAdmin())
 	}
 	if r.Kind == "twinnel" && r.Path != "" && f.Env.LinkTailscale != nil {
 		if _, err := f.Env.LinkTailscale(r.Path); err != nil {

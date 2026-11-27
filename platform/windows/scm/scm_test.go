@@ -186,8 +186,8 @@ func TestPlansRefuse(t *testing.T) {
 func TestRestartStopStatus(t *testing.T) {
 	m := newTestManager()
 	r, _ := m.Plan(service.OpRestart, service.Spec{Label: "Tailscale"})
-	if got := argvs(r); len(got) != 3 || got[2] != "sc.exe start Tailscale" {
-		t.Errorf("restart %q", got)
+	if got := argvs(r); len(got) != 3 || !strings.HasPrefix(got[2], "sc.exe start Tailscale") || !r[2].Always {
+		t.Errorf("restart %q (the start must run even when the stop wait fails)", got)
 	}
 	s, _ := m.Plan(service.OpStop, service.Spec{Label: "TwinnelMihomo"})
 	if s[0].IgnoreError {

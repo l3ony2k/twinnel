@@ -138,6 +138,32 @@ type Status struct {
 	// DNSWatch is the DNS watchdog (nil: a helper without one, or a
 	// platform where Twinnel does not set the system DNS).
 	DNSWatch *DNSWatch `json:"dns_watch,omitempty"`
+	// ServiceHost is Windows' service host (nil elsewhere, or before the
+	// mihomo service is installed).
+	ServiceHost *ServiceHost `json:"service_host,omitempty"`
+}
+
+// ServiceHost is the Windows service host (twinnel-svchost.exe): the
+// copy of the helper binary that runs mihomo.exe as a Windows service.
+// The helper refreshes it when it starts and twinnel helper upgrade with
+// the helper.
+type ServiceHost struct {
+	Path    string `json:"path"`
+	Version string `json:"version,omitempty"`
+	// Stale: its file differs from the running helper's, or mihomo runs
+	// an older host. Error says why the last refresh failed.
+	Stale bool   `json:"stale,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+// ServiceHostRefresh is what a refresh of the service host did (the data
+// of EventServiceChanged with op "host-refresh").
+type ServiceHostRefresh struct {
+	From      string   `json:"from,omitempty"` // the host's version before
+	To        string   `json:"to,omitempty"`   // and after
+	Replaced  bool     `json:"replaced"`       // the file was replaced
+	Restarted []string `json:"restarted,omitempty"`
+	Error     string   `json:"error,omitempty"`
 }
 
 type MihomoStatus struct {

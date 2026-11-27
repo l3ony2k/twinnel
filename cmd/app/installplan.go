@@ -1,17 +1,21 @@
 package main
 
 import (
-	"regexp"
+	"encoding/json"
+	"path/filepath"
 	"strings"
 
 	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
-// The install plan of the first-run view: `twinnel helper install --dry-run`
-// prints numbered steps (core/service.FormatPlan: "N. <command>", a written
-// file's content between "----- <path> -----" and "----- end -----").
-// parsePlan turns that into steps a person reads: what the step does in
+// The install plan of the first-run view: `twinnel helper install --dry-run
+// --json` gives the plan's steps as data (core/service.StepView: kind,
+// paths, argv, and the command as the system's dialect prints it).
+// parsePlan turns them into steps a person reads: what the step does in
 // words, the command under it, and a file's content behind a disclosure.
+// Nothing here reads the printed commands, so the plan reads the same way
+// whatever system's words print it.
 
 type planStep struct {
 	what    string // in words; the command when the step is not one Twinnel knows
@@ -19,60 +23,74 @@ type planStep struct {
 	content string // a written file's content
 }
 
-var (
-	planLine   = regexp.MustCompile(`^(\d+)\. (.*)$`)
-	planMkdir  = regexp.MustCompile(`^install -d -m \d+ (.+)$`)
-	planCopy   = regexp.MustCompile(`^install -m \d+ ('[^']*'|\S+) ('[^']*'|\S+)$`)
-	planWrite  = regexp.MustCompile(`^write ('[^']*'|\S+) \(mode \d+, \d+ bytes\)$`)
-	planRemove = regexp.MustCompile(`^rm -f (.+)$`)
-)
+// planResult is the part of the CLI's --json result (OpResult) the view
+// reads.
+type planResult struct {
+	Steps []service.StepView `json:"steps"`
+	Error string             `json:"error"`
+}
 
-// parsePlan reads the dry-run output; ok is false when it has no steps
-// (the view then shows the raw text).
+// parsePlan reads the dry run's --json output; ok is false when it has no
+// steps (the view then shows the raw text).
 func parsePlan(out string) (steps []planStep, ok bool) {
-	lines := strings.Split(out, "\n")
-	for i := 0; i < len(lines); i++ {
-		l := lines[i]
-		if strings.HasPrefix(l, "----- ") && strings.HasSuffix(l, " -----") && l != "----- end -----" && len(steps) > 0 {
-			var body []string
-			for i++; i < len(lines) && lines[i] != "----- end -----"; i++ {
-				body = append(body, lines[i])
-			}
-			steps[len(steps)-1].content = strings.Join(body, "\n")
-			continue
-		}
-		m := planLine.FindStringSubmatch(l)
-		if m == nil {
-			continue
-		}
-		cmd := m[2]
-		steps = append(steps, planStep{what: describeStep(cmd), cmd: cmd})
+	var r planResult
+	if json.Unmarshal([]byte(strings.TrimSpace(out)), &r) != nil {
+		return nil, false
+	}
+	for _, v := range r.Steps {
+		steps = append(steps, planStep{what: describeStep(v), cmd: v.Text, content: strings.TrimSuffix(v.Content, "\n")})
 	}
 	return steps, len(steps) > 0
 }
 
-// describeStep says what a plan command does, in the UI language.
-func describeStep(cmd string) string {
+// planError is the error a failed --json dry run reports ("" when out is
+// not one).
+func planError(out string) string {
+	var r planResult
+	if json.Unmarshal([]byte(strings.TrimSpace(out)), &r) != nil {
+		return ""
+	}
+	return r.Error
+}
+
+// describeStep says what a plan step does, in the UI language.
+func describeStep(v service.StepView) string {
 	T := i18n.T
-	bare, _, _ := strings.Cut(cmd, "  # ")
-	switch {
-	case planMkdir.MatchString(bare):
-		return i18n.F(T.PlanMkdir, unquote(planMkdir.FindStringSubmatch(bare)[1]))
-	case planCopy.MatchString(bare):
-		return i18n.F(T.PlanCopy, unquote(planCopy.FindStringSubmatch(bare)[2]))
-	case planWrite.MatchString(bare):
-		return i18n.F(T.PlanWrite, unquote(planWrite.FindStringSubmatch(bare)[1]))
-	case planRemove.MatchString(bare):
-		return i18n.F(T.PlanRemove, unquote(planRemove.FindStringSubmatch(bare)[1]))
+	switch v.Kind {
+	case service.StepMkdir:
+		return i18n.F(T.PlanMkdir, v.Path)
+	case service.StepCopy:
+		return i18n.F(T.PlanCopy, v.Path)
+	case service.StepWrite:
+		return i18n.F(T.PlanWrite, v.Path)
+	case service.StepRemove:
+		return i18n.F(T.PlanRemove, v.Path)
+	case service.StepWait:
+		if len(v.Argv) > 0 {
+			return T.PlanWaitStopped
+		}
+	case service.StepRun:
+		if w := describeRun(v.Argv); w != "" {
+			return w
+		}
 	}
-	if strings.HasPrefix(bare, "wait until `") && (strings.Contains(bare, "launchctl print") || strings.Contains(strings.ToLower(bare), "sc.exe query")) {
-		return T.PlanWaitStopped
+	return v.Text
+}
+
+// describeRun says what a service command does ("" when it is not one
+// Twinnel knows).
+func describeRun(argv []string) string {
+	T := i18n.T
+	if len(argv) < 2 {
+		return ""
 	}
-	f := strings.Fields(bare)
-	// Windows: the service steps, printed as the sc.exe commands they
-	// stand for (platform/windows/scm runs them through the SCM API).
-	if len(f) >= 2 && strings.HasSuffix(strings.ToLower(unquote(f[0])), "sc.exe") {
-		switch strings.ToLower(f[1]) {
+	tool := strings.ToLower(filepath.Base(strings.ReplaceAll(argv[0], `\`, "/")))
+	sub := strings.ToLower(argv[1])
+	switch tool {
+	case "sc.exe":
+		// Windows: the service steps, the sc.exe commands they stand
+		// for (platform/windows/scm runs them through the SCM API).
+		switch sub {
 		case "stop":
 			return T.PlanBootout
 		case "create":
@@ -88,9 +106,8 @@ func describeStep(cmd string) string {
 		case "delete":
 			return T.PlanSCDelete
 		}
-	}
-	if len(f) >= 3 && strings.HasSuffix(f[0], "launchctl") {
-		switch f[1] {
+	case "launchctl":
+		switch sub {
 		case "kickstart":
 			return T.PlanKickstart
 		case "bootout":
@@ -100,9 +117,8 @@ func describeStep(cmd string) string {
 		case "enable":
 			return T.PlanEnable
 		}
-	}
-	if len(f) >= 2 && strings.HasSuffix(f[0], "systemctl") {
-		switch f[1] {
+	case "systemctl":
+		switch sub {
 		case "daemon-reload":
 			return T.PlanDaemonReload
 		case "enable":
@@ -113,13 +129,5 @@ func describeStep(cmd string) string {
 			return T.PlanBootout
 		}
 	}
-	return bare
-}
-
-// unquote undoes core/service's shell quoting of one word.
-func unquote(s string) string {
-	if len(s) >= 2 && s[0] == '\'' && s[len(s)-1] == '\'' {
-		return strings.ReplaceAll(s[1:len(s)-1], `'\''`, "'")
-	}
-	return s
+	return ""
 }

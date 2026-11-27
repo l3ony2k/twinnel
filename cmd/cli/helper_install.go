@@ -157,6 +157,7 @@ func helperInstall(f *installFlags) error {
 // runPlan prints the plan, then runs it as root (directly with --as-root,
 // else by re-executing Twinnel through osascript).
 func runPlan(op string, f *installFlags, steps []service.Step, precheck func() error) error {
+	recordPlan(steps)
 	return runAsRoot(op, f, func(w io.Writer) { service.FormatPlan(w, steps) }, func(ctx context.Context) error {
 		return applyPlan(ctx, steps)
 	}, precheck)
@@ -174,7 +175,7 @@ func runAsRoot(op string, f *installFlags, show func(io.Writer), run func(contex
 		if err := attachOutput(f.output); err != nil {
 			return err
 		}
-		fmt.Fprintf(stdout, "# twinnel helper %s: running as root\n", op)
+		fmt.Fprintf(stdout, "# twinnel helper %s: running %s\n", op, service.Current().AsAdmin())
 		if precheck != nil {
 			if err := precheck(); err != nil {
 				return err
@@ -190,7 +191,7 @@ func runAsRoot(op string, f *installFlags, show func(io.Writer), run func(contex
 	if f.dryRun {
 		fmt.Fprintf(stdout, "# twinnel helper %s --dry-run: nothing below has been run.\n", op)
 	} else {
-		fmt.Fprintf(stdout, "# twinnel helper %s will run these steps as root:\n", op)
+		fmt.Fprintf(stdout, "# twinnel helper %s will run these steps %s:\n", op, service.Current().AsAdmin())
 	}
 	show(stdout)
 	if f.dryRun {

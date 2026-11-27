@@ -101,6 +101,11 @@ func (l *stringList) Set(v string) error { *l = append(*l, v); return nil }
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "svchost" {
+		if len(os.Args) == 3 && os.Args[2] == "--revision" {
+			// What an upgrade asks a host binary (scm.HostRevision).
+			fmt.Println(svchost.Revision)
+			return
+		}
 		// Windows: host a program that is not a service (mihomo.exe).
 		os.Exit(svchost.Main(os.Args[2:]))
 	}

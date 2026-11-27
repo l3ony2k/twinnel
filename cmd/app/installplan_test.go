@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -9,10 +10,19 @@ import (
 	"github.com/l3ony2k/twinnel/platform/windows/scm"
 )
 
+// planJSON is what `twinnel helper install --dry-run --json` prints for
+// steps, in dialect d.
+func planJSON(t *testing.T, d service.Dialect, steps []service.Step) string {
+	t.Helper()
+	b, err := json.Marshal(map[string]any{"op": "install", "ok": true, "dry_run": true, "steps": d.Views(steps)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
 func TestParsePlan(t *testing.T) {
-	var b strings.Builder
-	b.WriteString("# twinnel helper install --dry-run: nothing below has been run.\n")
-	service.FormatPlan(&b, []service.Step{
+	out := planJSON(t, service.Unix, []service.Step{
 		{Kind: service.StepMkdir, Path: "/Library/Application Support/twinnel", Mode: 0o755},
 		{Kind: service.StepCopy, Src: "/x/twinnel-helper", Path: "/Library/PrivilegedHelperTools/h", Mode: 0o755},
 		{Kind: service.StepRun, Argv: []string{"/bin/launchctl", "bootout", "system/h"}, IgnoreError: true},
@@ -22,7 +32,7 @@ func TestParsePlan(t *testing.T) {
 		{Kind: service.StepWait, Argv: []string{"/bin/launchctl", "print", "system/h"}, Until: "Could not find service", Timeout: 10e9, IgnoreError: true},
 		{Kind: service.StepRun, Argv: []string{"/bin/launchctl", "kickstart", "-k", "system/h"}},
 	})
-	steps, ok := parsePlan(b.String())
+	steps, ok := parsePlan(out)
 	if !ok || len(steps) != 8 {
 		t.Fatalf("steps = %+v", steps)
 	}
@@ -44,8 +54,14 @@ func TestParsePlan(t *testing.T) {
 	if steps[3].content != "<plist>\n</plist>" {
 		t.Errorf("content %q", steps[3].content)
 	}
+	if steps[1].cmd != "install -m 0755 /x/twinnel-helper /Library/PrivilegedHelperTools/h" {
+		t.Errorf("cmd %q", steps[1].cmd)
+	}
 	if _, ok := parsePlan("error: something"); ok {
 		t.Error("parsed garbage")
+	}
+	if e := planError(`{"op":"install","ok":false,"output":[],"error":"helper binary x not found"}`); e != "helper binary x not found" {
+		t.Errorf("planError = %q", e)
 	}
 }
 
@@ -79,38 +95,52 @@ func TestParsePlanWindows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var b strings.Builder
-	service.FormatPlan(&b, plan)
-	steps, ok := parsePlan(b.String())
+	steps, ok := parsePlan(planJSON(t, scm.Dialect, plan))
 	if !ok || len(steps) != len(plan) {
 		t.Fatalf("steps = %+v", steps)
 	}
+	var all []string
 	for i, st := range steps {
 		if st.what == st.cmd {
 			t.Errorf("step %d not worded: %s", i+1, st.cmd)
 		}
+		all = append(all, st.cmd)
 	}
-	if !strings.Contains(b.String(), "sc.exe") {
-		t.Fatalf("plan without sc.exe steps:\n%s", b.String())
+	text := strings.Join(all, "\n")
+	if !strings.Contains(text, "sc.exe") || !strings.Contains(text, "copy /y") {
+		t.Fatalf("plan not in Windows terms:\n%s", text)
 	}
 }
 
 // The Linux plan (systemd) reads in words too.
 func TestParsePlanSystemd(t *testing.T) {
-	var b strings.Builder
-	service.FormatPlan(&b, []service.Step{
+	out := planJSON(t, service.Unix, []service.Step{
 		{Kind: service.StepRun, Argv: []string{"systemctl", "daemon-reload"}},
 		{Kind: service.StepRun, Argv: []string{"systemctl", "enable", "twinnel-helper.service"}},
 		{Kind: service.StepRun, Argv: []string{"systemctl", "restart", "twinnel-helper.service"}},
 		{Kind: service.StepRun, Argv: []string{"systemctl", "disable", "--now", "twinnel-helper.service"}, IgnoreError: true},
 	})
-	steps, ok := parsePlan(b.String())
+	steps, ok := parsePlan(out)
 	if !ok || len(steps) != 4 {
 		t.Fatalf("steps = %+v", steps)
 	}
 	for i, want := range []string{"让 systemd 重新读取服务定义", "设为开机自动启动", "加载服务：后台助手以 root 启动", "停掉旧的后台助手（如果有）"} {
 		if steps[i].what != want {
 			t.Errorf("step %d = %q, want %q", i, steps[i].what, want)
+		}
+	}
+}
+
+// The shots' synthetic plan is the --json form the view reads.
+func TestShotInstallPlanParses(t *testing.T) {
+	i18n.Set("zh-Hans")
+	steps, ok := parsePlan(shotInstallPlan)
+	if !ok || len(steps) != 8 || steps[5].content == "" {
+		t.Fatalf("steps = %+v", steps)
+	}
+	for i, st := range steps {
+		if st.what == st.cmd {
+			t.Errorf("step %d not worded: %s", i+1, st.cmd)
 		}
 	}
 }

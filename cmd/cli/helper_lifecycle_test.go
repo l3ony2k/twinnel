@@ -468,3 +468,79 @@ func TestUninstallAsRootRestoresDNSFirst(t *testing.T) {
 		t.Fatalf("err = %v, applied %v", err, l2.applied)
 	}
 }
+
+// stubHost makes the service host (Windows) stale, with a refresh that
+// restarts mihomo; the plan logic around it is the same on every OS.
+func stubHost(t *testing.T) []service.Step {
+	steps := []service.Step{
+		{Kind: service.StepRun, Argv: []string{"sc.exe", "stop", "TwinnelMihomo"}},
+		{Kind: service.StepRename, Src: `C:\T\twinnel-svchost.exe`, Path: `C:\T\twinnel-svchost.old-1.exe`},
+		{Kind: service.StepCopy, Src: `C:\b\twinnel-helper.exe`, Path: `C:\T\twinnel-svchost.exe`},
+		{Kind: service.StepRun, Argv: []string{"sc.exe", "start", "TwinnelMihomo"}},
+	}
+	old := serviceHostCheck
+	serviceHostCheck = func(context.Context, string) (*HostCheck, []service.Step) {
+		return &HostCheck{Path: `C:\T\twinnel-svchost.exe`, Version: "0.1.0", Action: HostRefresh, Restarts: []string{"TwinnelMihomo"}}, steps
+	}
+	t.Cleanup(func() { serviceHostCheck = old })
+	return steps
+}
+
+// The helper is current, the service host is not: the upgrade refreshes
+// only the host, and says mihomo restarts for it.
+func TestUpgradeServiceHostOnly(t *testing.T) {
+	l := lifecycle(t, 0)
+	host := stubHost(t)
+	bin := helperBinary(t)
+	l.versions[bin] = "0.2.0"
+	l.versions["/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"] = "0.2.0"
+	l.exists["/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"] = true
+	l.same = true
+	l.statuses = []rpc.Status{{HelperVersion: "0.2.0", PID: 5}}
+	if err := runHelperUpgrade([]string{"--helper-bin", bin, "--check", "--json"}); err != nil {
+		t.Fatal(err)
+	}
+	var c UpgradeCheck
+	if err := json.Unmarshal(l.out.Bytes(), &c); err != nil {
+		t.Fatal(err)
+	}
+	if c.Action != UpgradeServiceHost || c.ServiceHost == nil || c.ServiceHost.Action != HostRefresh {
+		t.Fatalf("check = %+v", c)
+	}
+	l.out.Reset()
+	if err := runHelperUpgrade([]string{"--helper-bin", bin, "--yes"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(l.applied) != 1 || len(l.applied[0]) != len(host) {
+		t.Fatalf("applied %v", l.steps())
+	}
+	if out := l.out.String(); !strings.Contains(out, "TwinnelMihomo restarts for it") {
+		t.Errorf("does not say mihomo restarts:\n%s", out)
+	}
+}
+
+// A new helper: the host is refreshed first, while the old helper runs.
+func TestUpgradeRefreshesServiceHostFirst(t *testing.T) {
+	l := lifecycle(t, 0)
+	host := stubHost(t)
+	bin := helperBinary(t)
+	l.versions[bin] = "0.3.0"
+	l.versions["/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"] = "0.2.0"
+	l.exists["/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"] = true
+	l.statuses = []rpc.Status{{HelperVersion: "0.2.0", PID: 5}, {HelperVersion: "0.3.0", PID: 6}}
+	if err := runHelperUpgrade([]string{"--helper-bin", bin, "--yes"}); err != nil {
+		t.Fatal(err)
+	}
+	got := l.steps()
+	if len(got) <= len(host) {
+		t.Fatalf("steps %v", got)
+	}
+	for i, s := range host {
+		if got[i] != s.String() {
+			t.Errorf("step %d = %s, want %s", i, got[i], s)
+		}
+	}
+	if !strings.Contains(strings.Join(got[len(host):], "\n"), "/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper") {
+		t.Errorf("no helper steps after the host's: %v", got)
+	}
+}

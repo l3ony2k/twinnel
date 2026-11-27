@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -19,6 +21,7 @@ import (
 	"github.com/l3ony2k/twinnel/core/store"
 	"github.com/l3ony2k/twinnel/platform/windows"
 	"github.com/l3ony2k/twinnel/platform/windows/scm"
+	"github.com/l3ony2k/twinnel/platform/windows/svchost"
 	"github.com/l3ony2k/twinnel/platform/windows/winpath"
 	"github.com/l3ony2k/twinnel/platform/windows/winsec"
 )
@@ -137,9 +140,10 @@ func tailnetInterface(ctx context.Context) (string, error) {
 }
 
 // setupPlatform attaches the Windows pieces: the Tailscale CLI path in
-// settings, the Tailscale adapter lookup and the health scheduler over
-// windows.Env. No network watcher yet: health runs on the interval and
-// after applies and service operations.
+// settings, the Tailscale adapter lookup, the service host's keeper and
+// the health scheduler over windows.Env. No network watcher yet: health
+// runs on the interval and after applies and service operations. The
+// returned func refreshes the service host once the helper listens.
 func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	windowsSettings(e)
 	e.Autostarts = autostartSource(o)
@@ -150,6 +154,7 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	// tailscaled gives SYSTEM's logins to no user: the app or the CLI
 	// starts the login in the user's session (tailscale.LoginInSession).
 	e.TSLoginInSession = true
+	e.ServiceHost = serviceHostKeeper(e)
 	switch o.tailnetIface {
 	case "", "auto":
 		e.TailnetInterface = tailnetInterface
@@ -170,7 +175,33 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 			return windows.New(opt)
 		})
 	}
-	return func(context.Context) {}
+	return func(ctx context.Context) { e.RefreshServiceHost(ctx) }
+}
+
+// serviceHostKeeper keeps twinnel-svchost.exe a copy of this helper. Only
+// the installed helper, elevated, replaces it: a development helper (any
+// other binary, or not elevated) reports it and never writes.
+func serviceHostKeeper(e *engine.Engine) engine.ServiceHostKeeper {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil
+	}
+	k := &scm.HostKeeper{
+		Src:      exe,
+		Reader:   scm.DefaultHostReader(),
+		Revision: svchost.Revision,
+		Labels: func() []string {
+			labels := []string{store.DefaultMihomoLabel}
+			if st, err := e.Store.Settings(); err == nil && st.Mihomo.ServiceLabel != "" {
+				labels = append(labels, st.Mihomo.ServiceLabel)
+			}
+			return labels
+		},
+	}
+	if priv.Elevated() && strings.EqualFold(filepath.Clean(exe), filepath.Clean(winpath.HelperBin())) {
+		k.Exec, k.Files = scm.Executor{}, service.OSFiles{}
+	}
+	return k
 }
 
 // systemDNS is dns.*'s platform part: adapters from iphlpapi, hand-set
