@@ -169,9 +169,9 @@ func printCheck(w io.Writer, rep *health.Report, _ string) {
 // dialFixer connects to the helper, mihomo's controller (credentials from
 // the helper) and Tailscale's LocalAPI.
 func dialFixer(ctx context.Context, socket, lang string) (*healthfix.Fixer, func(), error) {
-	c, err := rpc.Dial(ctx, nil, socket)
+	c, err := dialHelper(ctx, socket)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot reach the helper at %s: %w", socket, err)
+		return nil, nil, err
 	}
 	f := &healthfix.Fixer{Helper: c, Lang: lang, Platform: runtime.GOOS}
 	var cr rpc.ControllerCredentials

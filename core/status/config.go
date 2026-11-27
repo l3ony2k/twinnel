@@ -135,3 +135,36 @@ func SaveConfig(path string, c Config) error {
 	}
 	return os.Rename(tmp, path)
 }
+
+// AppConfigPath is the app's settings file (app.json) under the user's
+// config directory; "" when there is none. The CLI reads it as the
+// fallback for the controller when the helper is not reachable.
+func AppConfigPath() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "twinnel", "app.json")
+}
+
+// WithHelperCredentials returns c with the controller address and secret
+// the helper reported (controller.credentials). The helper knows the
+// secret mihomo actually loaded, so it wins over what app.json or the
+// environment hold (app.json goes stale after controller.secure); an empty
+// address keeps c's. One exception, for development: TWINNEL_CONTROLLER
+// pins the controller (its secret comes from the environment too), so a
+// dev or shot run against a scratch helper never reaches the live mihomo
+// through the helper's default settings.
+//
+// The app and every CLI command that talks to mihomo go through this, so
+// they always agree on where mihomo is and how to authenticate.
+func (c Config) WithHelperCredentials(controller, secret string, getenv func(string) string) Config {
+	if strings.TrimSpace(getenv(EnvController)) != "" {
+		return c
+	}
+	if controller != "" {
+		c.Controller = controller
+	}
+	c.Secret = secret
+	return c
+}

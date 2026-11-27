@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net/netip"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -139,6 +141,30 @@ func (r *Registry) Get(id string) (Check, bool) {
 		}
 	}
 	return nil, false
+}
+
+// CheckIDs returns an error naming the ids that are no registered check,
+// with the list of valid ones; nil when all are known. A run limited to
+// an unknown id would run nothing and report "pass".
+func (r *Registry) CheckIDs(ids []string) error {
+	var bad []string
+	for _, id := range ids {
+		if _, ok := r.Get(id); !ok {
+			bad = append(bad, id)
+		}
+	}
+	if len(bad) == 0 {
+		return nil
+	}
+	return fmt.Errorf("unknown check %s (checks: %s)", strings.Join(quoteAll(bad), ", "), strings.Join(r.IDs(), ", "))
+}
+
+func quoteAll(ss []string) []string {
+	out := make([]string, len(ss))
+	for i, s := range ss {
+		out[i] = strconv.Quote(s)
+	}
+	return out
 }
 
 // IDs returns the sorted IDs of registered checks.

@@ -90,6 +90,19 @@ func DefaultSettings() Settings {
 	return Settings{SensitiveGroups: []string{"Google", "Meta"}}
 }
 
+// ApplyUserChoices puts what the user chose in Twinnel (the helper's
+// settings) into s: leakGuard are the groups 防泄漏 guards (empty keeps
+// s's, the defaults), egress is 定期检测 (the egress test runs with every
+// run). The helper, and the CLI's doctor and MCP doctor from the helper's
+// settings.get, build check settings through it, so leak-guard checks the
+// same groups everywhere.
+func (s *Settings) ApplyUserChoices(leakGuard []string, egress bool) {
+	if len(leakGuard) > 0 {
+		s.SensitiveGroups = append([]string(nil), leakGuard...)
+	}
+	s.Egress = egress
+}
+
 // RouteLookup is the answer of a single route lookup.
 type RouteLookup struct {
 	Destination string

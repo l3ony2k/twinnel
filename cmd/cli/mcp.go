@@ -86,8 +86,9 @@ func mcpDeps(socket string) agent.Deps {
 		return collectHelperBinaries(ctx, 5*time.Second, running)
 	}
 	d.Doctor = func(ctx context.Context) (json.RawMessage, error) {
-		settings := health.DefaultSettings()
-		env, err := newHealthEnv(healthEnvOptions{Controller: d.Controller, Settings: &settings})
+		// The same run as `twinnel doctor`: the helper's settings and controller.
+		settings, _ := healthSettings(ctx, socket)
+		env, err := localHealthEnv(ctx, socket, "", "", &settings)
 		if err != nil {
 			return nil, err
 		}
