@@ -1,0 +1,11 @@
+# gitleaks config: default rules, plus an allowlist for synthetic test data.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic Tailscale status fixtures (made-up node keys, not secrets)"
+paths = [
+  '''cmd/app/testdata/readme/tailscale-status\.json''',
+  '''cmd/app/testdata/shots-tailscale-status\.json''',
+  '''core/agent/testdata/tailscale-status\.json''',
+]
