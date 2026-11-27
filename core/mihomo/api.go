@@ -124,6 +124,33 @@ func (c *Client) Proxies(ctx context.Context) (map[string]Proxy, error) {
 	return out.Proxies, nil
 }
 
+// builtinTypes are the entries mihomo lists in /proxies on its own, not
+// nodes from a config.
+var builtinTypes = map[string]bool{"Direct": true, "Reject": true, "RejectDrop": true, "Compatible": true, "Pass": true, "Dns": true}
+
+// CountNodes counts the nodes in a /proxies listing: every entry that is
+// not a group and not one of mihomo's built-ins (DIRECT, REJECT, ...).
+func CountNodes(proxies map[string]Proxy) int {
+	n := 0
+	for _, p := range proxies {
+		if !p.IsGroup() && !builtinTypes[p.Type] {
+			n++
+		}
+	}
+	return n
+}
+
+// RuleCount returns how many rules the running config has (GET /rules).
+func (c *Client) RuleCount(ctx context.Context) (int, error) {
+	var out struct {
+		Rules []json.RawMessage `json:"rules"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/rules", nil, nil, &out); err != nil {
+		return 0, err
+	}
+	return len(out.Rules), nil
+}
+
 // Proxy returns one proxy or group.
 func (c *Client) Proxy(ctx context.Context, name string) (Proxy, error) {
 	var p Proxy
