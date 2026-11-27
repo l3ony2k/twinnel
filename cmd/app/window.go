@@ -1064,7 +1064,12 @@ const settingsFieldW = 260
 // is set) taking the room, the control at the right edge.
 func settingsRow(c *ui.Context, label, tip string, more func(), control func()) {
 	ui.Row(c).Gap(12).AlignItems(ui.Center).MinHeight(28).Children(func() {
-		switchLabel(c, label, tip, more)
+		ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Shrink(1).Children(func() {
+			ui.Text(c, label).Shrink(1)
+			if tip != "" { // an ⓘ only where there is something to explain
+				infoTipAbout(c, label, tip, more)
+			}
+		})
 		control()
 	})
 }
@@ -1106,7 +1111,7 @@ func (a *app) mihomoSettingsCard(c *ui.Context, s status.Snapshot) {
 	fromHelper := a.creds.cur != nil
 	dirty := f.dirty(a.cfg)
 	cardWith(c, T.Mihomo, func() {
-		if ui.PrimaryButton(c.Key("save"), T.Save).Disabled(!dirty).Clicked() {
+		if primaryButton(c.Key("save"), T.Save, !dirty).Clicked() {
 			a.saveSettings()
 		}
 	}, func() {
@@ -1159,15 +1164,6 @@ func (a *app) mihomoSettingsCard(c *ui.Context, s status.Snapshot) {
 		if f.msg != "" && f.failed && f.mihomoErr {
 			errorNote(c, f.msg)
 		}
-	})
-}
-
-// switchLabel is the label of a 设置 switch row, taking the room before
-// the switch, with an ⓘ after it.
-func switchLabel(c *ui.Context, label, tip string, more func()) {
-	ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Shrink(1).Children(func() {
-		ui.Text(c, label).Shrink(1)
-		infoTipAbout(c, label, tip, more)
 	})
 }
 

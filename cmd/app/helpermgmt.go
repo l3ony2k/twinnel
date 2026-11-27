@@ -483,7 +483,7 @@ func (a *app) helperSection(c *ui.Context, s status.Snapshot) {
 		trailing = func() {
 			on := a.helperOpsEnabled(s)
 			if a.canUpdateHelper() {
-				if busyButton(c.Key("hm-update"), T.HelperUpdate, true, v.running == T.HelperUpdate, !on).Clicked() {
+				if disabledPrimaryFace(c, busyButton(c.Key("hm-update"), T.HelperUpdate, true, v.running == T.HelperUpdate, !on)).Clicked() {
 					a.updateHelper()
 				}
 			}
