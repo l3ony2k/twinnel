@@ -1293,6 +1293,11 @@ func (a *app) removeLayer(id, name string) {
 	})
 }
 
+// asyncLintSize is the override size from which layerNotes lints in the
+// background (a 10k-rule override takes ~8 ms on a fast Mac, more on a
+// slow PC: too long for every keystroke on the main thread).
+const asyncLintSize = 64 << 10
+
 // layerNotes are the edited layer's notes: the helper's refusal of the
 // last save first (at its line when it has one), then the merge-directive
 // notes; blocked reports an error among them (the save then waits).
@@ -1300,9 +1305,25 @@ func (a *app) layerNotes() (notes []status.LintNote, blocked bool) {
 	v := &a.hd.cfg
 	key := lintKey{v.ed.Buffer, v.ed.Buffer.Version(), v.edFormat}
 	if key != v.lintKey {
-		v.lintKey, v.lint = key, nil
-		if layerFormats[v.edFormat] == formatMerge {
-			v.lint = status.LintOverride(v.ed.Buffer.String())
+		v.lintKey = key
+		switch text := v.ed.Buffer.String(); {
+		case layerFormats[v.edFormat] != formatMerge:
+			v.lint = nil
+		case len(text) < asyncLintSize:
+			v.lint = status.LintOverride(text)
+		default:
+			// A big override (thousands of rules) is linted off the main
+			// thread, so typing stays smooth; the last notes show until
+			// the new ones come (the helper checks the save anyway).
+			go func() {
+				notes := status.LintOverride(text)
+				mygo.RunOnMain(func() {
+					if v.lintKey == key {
+						v.lint = notes
+						a.invalidate()
+					}
+				})
+			}()
 		}
 	}
 	notes = v.lint
