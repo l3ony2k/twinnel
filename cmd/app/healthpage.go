@@ -571,6 +571,9 @@ func egressOff(cr health.CheckReport) bool {
 // carries the report's time.
 func egressLine(cr health.CheckReport, s status.Snapshot) string {
 	T := i18n.T
+	if cr.Unsupported {
+		return cr.Summary // can't run here: no time, nothing to test
+	}
 	if egressOff(cr) {
 		return T.EgressUntested
 	}
@@ -625,6 +628,18 @@ func (a *app) egressControls(c *ui.Context, cr health.CheckReport, s status.Snap
 		set := a.hd.settings
 		if !s.Helper.Connected() || set == nil {
 			return // the switch is the helper's setting
+		}
+		if cr.Unsupported {
+			// The test can't run here (the row says so): no switch, and
+			// if 定期检测 is on, one button to turn it off.
+			if set.HealthEgress {
+				off := !a.helperOpsEnabled(s) || a.hd.busy != ""
+				if busyButton(c.Key("egress-periodic-off"), T.EgressPeriodicOff, false, a.hd.busy == T.EgressPeriodic, off).Clicked() {
+					set.HealthEgress = false
+					a.setEgressPeriodic(false)
+				}
+			}
+			return
 		}
 		small(c, T.EgressPeriodic).SingleLine().Shrink(0)
 		on := set.HealthEgress

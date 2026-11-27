@@ -42,6 +42,9 @@ func (o *ownerEnv) ControllerOwner(ctx context.Context) (foreign.Owner, error) {
 	return o.owner(ctx), nil
 }
 
+// EgressSupported forwards whether the wrapped Env can run the egress test.
+func (o *ownerEnv) EgressSupported() bool { return egressSupported(o.Env) }
+
 func (o *ownerEnv) DirectEgress(ctx context.Context, url string) (netip.Addr, error) {
 	if e, ok := o.Env.(EgressEnv); ok {
 		return e.DirectEgress(ctx, url)
@@ -103,6 +106,9 @@ func (t *trackEnv) LookupMihomo(ctx context.Context, name string) (DNSAnswer, er
 	}
 	return t.Env.LookupMihomo(ctx, name)
 }
+
+// EgressSupported forwards whether the wrapped Env can run the egress test.
+func (t *trackEnv) EgressSupported() bool { return egressSupported(t.Env) }
 
 func (t *trackEnv) DirectEgress(ctx context.Context, url string) (netip.Addr, error) {
 	if e, ok := t.Env.(EgressEnv); ok {

@@ -81,6 +81,9 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 		return *r
 	}
 	ifs, err := env.Interfaces(ctx)
+	if r, ok := unsupportedErr(ctx, env, err); ok {
+		return r
+	}
 	if err != nil {
 		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "interfaces", err), Reasons: []string{ReasonReadFailed}}
 	}
@@ -126,6 +129,9 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 	var bad []string
 	for _, d := range dests {
 		rl, err := env.RouteGet(ctx, d.String())
+		if r, ok := unsupportedErr(ctx, env, err); ok {
+			return r
+		}
 		if err != nil {
 			res.Evidence = append(res.Evidence, fmt.Sprintf("%s → %v", d, err))
 			res.Status = Worse(res.Status, StatusWarn)
@@ -614,6 +620,9 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	hijack := hijacksAll53(tun)
 
 	svcs, err := env.NetworkServices(ctx)
+	if r, ok := unsupportedErr(ctx, env, err); ok {
+		return r
+	}
 	if err != nil {
 		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "network services", err), Reasons: []string{ReasonReadFailed}}
 	}
@@ -764,7 +773,9 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 		res.because(causeReason[cause])
 	}
 
-	if vpns, err := env.VPNs(ctx); err != nil {
+	if vpns, err := env.VPNs(ctx); errors.Is(err, ErrNotSupported) {
+		// No VPN list on this platform: the routes below still tell.
+	} else if err != nil {
 		res.Evidence = append(res.Evidence, fmt.Sprintf(L.msgReadFailed, "VPN list", err))
 		res.Status = Worse(res.Status, StatusWarn)
 		res.because(ReasonReadFailed)

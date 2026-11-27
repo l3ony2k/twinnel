@@ -122,7 +122,7 @@ func routeText(p *status.Group) string {
 // in-process run's (no helper), else the egress check of the health
 // report unless that only says the test is off.
 func (a *app) egressNow(s status.Snapshot) (*health.CheckReport, time.Time) {
-	if r := a.egress.result; r != nil {
+	if r := a.egress.result; r != nil && !r.Unsupported {
 		return r, r.At
 	}
 	rep := s.Health.Report
@@ -131,7 +131,7 @@ func (a *app) egressNow(s status.Snapshot) (*health.CheckReport, time.Time) {
 	}
 	for i := range rep.Checks {
 		cr := &rep.Checks[i]
-		if cr.ID != (health.LeakEgress{}).ID() || egressOff(*cr) {
+		if cr.ID != (health.LeakEgress{}).ID() || egressOff(*cr) || cr.Unsupported {
 			continue
 		}
 		at := cr.At

@@ -180,6 +180,9 @@ const (
 	// address (the helper's preflight); what the controller says is that
 	// program's, so the mihomo reasons and controls are left out.
 	ReasonCtlForeign = "controller-foreign"
+	// ReasonDNSRestored: the helper's DNS watchdog put the system DNS
+	// back to the earlier settings because mihomo did not answer.
+	ReasonDNSRestored = "dns-restored"
 )
 
 // Can is what the app can change right now, per thing a control acts
@@ -226,6 +229,12 @@ func (s Snapshot) acceptedCauses() []string {
 		return []string{health.CauseExitNode}
 	}
 	return nil
+}
+
+// DNSRestored reports whether the helper's DNS watchdog holds the system
+// DNS back on the earlier settings (mihomo did not answer).
+func (s Snapshot) DNSRestored() bool {
+	return s.Helper.Status != nil && s.Helper.Status.DNSWatch.Restored()
 }
 
 // TakenOver reports whether Twinnel manages the config: the helper says it
@@ -356,6 +365,9 @@ func Evaluate(s *Snapshot) {
 		if p := m.Primary; p != nil && p.Tested && p.Delay <= 0 && !p.Builtin {
 			add(LevelWarn, ReasonPrimaryDead, fmt.Sprintf(t.ReasonPrimaryDead, p.Name))
 		}
+	}
+	if s.DNSRestored() {
+		add(LevelWarn, ReasonDNSRestored, t.ReasonDNSRestored)
 	}
 	ts := s.Tailscale
 	st := ts.State

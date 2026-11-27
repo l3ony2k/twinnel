@@ -90,3 +90,13 @@ func TestWithOwnerKeepsEgress(t *testing.T) {
 		t.Errorf("leak-guard controller %q", c.Controller)
 	}
 }
+
+// The owner wrappers keep an Env without the egress test unsupported.
+func TestWithOwnerKeepsUnsupportedEgress(t *testing.T) {
+	env := healthyEnv()
+	env.platform = Windows
+	env.settings.Egress = true
+	wrapped := WithOwner(noEgress{env}, func(context.Context) foreign.Owner { return foreign.Owner{Addr: "x:1", Verdict: foreign.Managed} })
+	rep := (&Runner{Registry: DefaultRegistry(), Only: []string{"leak-guard-egress"}}).Run(context.Background(), wrapped)
+	wantUnsupported(t, rep.Checks[0].Result, "owner-wrapped")
+}

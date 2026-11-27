@@ -13,7 +13,8 @@ import (
 var allowedASCII = map[string]bool{}
 
 func init() {
-	// Ctrl is the key (Linux shortcuts); wheel is the Unix admin group
+	// Ctrl is the key (Linux shortcuts); PATH is the variable (Windows CLI
+	// row); wheel is the Unix admin group
 	// (the helper's socket group on Linux).
 	for _, w := range strings.Fields(`
 		mihomo Tailscale tailscale tailscaled tailnet Twinnel MagicDNS DERP YAML yaml
@@ -29,7 +30,7 @@ func init() {
 		with doctor egress verbose root admin systemd hosts whitelist Standalone
 		upgrade DOMAIN SUFFIX KEYWORD example LaunchAgent LaunchAgents laptop
 		GEOIP GEOSITE Agent Claude Code Codex Cursor GNOME AppIndicator SYSTEM Alt
-		Ctrl wheel ClashX Meta FlClash SAFE_PATHS`) {
+		Ctrl wheel PATH ClashX Meta FlClash SAFE_PATHS`) {
 		allowedASCII[strings.ToLower(w)] = true
 	}
 }

@@ -15,6 +15,41 @@ type Report struct {
 	Helper    Entry `json:"helper"`
 	Mihomo    Entry `json:"mihomo"`
 	Tailscale Entry `json:"tailscale"`
+	// HelperBinaries are the helper's two copies on disk (nil when neither
+	// is found): the one shipped beside the CLI and the installed one the
+	// service runs.
+	HelperBinaries *HelperBinaries `json:"helper_binaries,omitempty"`
+}
+
+// HelperBinaries compares the helper binary shipped with Twinnel with the
+// installed one. On Windows they are %LOCALAPPDATA%\Programs\Twinnel\bin
+// and C:\Program Files\Twinnel; `twinnel helper upgrade` (设置 → 后台助手 →
+// 更新) copies the first over the second.
+type HelperBinaries struct {
+	Bundled   Entry  `json:"bundled"`           // Detail: its path
+	Installed Entry  `json:"installed"`         // Detail: its path
+	Warning   string `json:"warning,omitempty"` // they, or the running helper, differ
+}
+
+// HelperDrift says what is out of step between the bundled helper binary,
+// the installed one and the running helper ("" when nothing is, or when
+// a version is unknown).
+func HelperDrift(bundled, installed, running string) string {
+	if bundled != "" && installed != "" && bundled != installed {
+		cmp, ok := Compare(bundled, installed)
+		switch {
+		case ok && cmp > 0:
+			return "the installed helper (" + installed + ") is older than the one shipped with this Twinnel (" + bundled + "): run `twinnel helper upgrade` (or Twinnel → 设置 → 后台助手 → 更新)"
+		case ok && cmp < 0:
+			return "the installed helper (" + installed + ") is newer than the one shipped with this Twinnel (" + bundled + "): update Twinnel"
+		case !ok:
+			return "the installed helper (" + installed + ") is not the one shipped with this Twinnel (" + bundled + "): run `twinnel helper upgrade`"
+		}
+	}
+	if running != "" && installed != "" && running != installed {
+		return "the running helper (" + running + ") is not the installed binary (" + installed + "): run `twinnel helper upgrade` to restart it"
+	}
+	return ""
 }
 
 // Entry is one component. Version is empty when it could not be read.
