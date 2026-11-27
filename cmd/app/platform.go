@@ -58,6 +58,12 @@ type platformStyle struct {
 	titleBarSize    float32 // the page title in the toolbar
 	titleBarWeight  int
 	navSel          navSelection // how the sidebar shows its selected row (nav.go)
+	// menuDrop is how far below an element's bottom edge MyGo must anchor
+	// its native menu for the menu to open just under it (menuBelow): on
+	// macOS, AppKit's 5 pt inset above the first item plus a 4 pt gap,
+	// as NSPopUpButton's pull-down keeps. 0 where the menu opens at the
+	// point given.
+	menuDrop float32
 }
 
 // navSelection is how a platform's sidebar marks the selected row.
@@ -114,9 +120,19 @@ func platformFor(goos string) platformStyle {
 		// A unified toolbar's window title (System Settings, Finder): about
 		// 15 pt bold, not the 20 pt of an in-content heading.
 		titleBarSize: 15, titleBarWeight: 700,
-		navSel: navSel,
+		navSel: navSel, menuDrop: menuInsetTop + menuGap,
 	}
 }
+
+// The native menu's geometry on macOS (measured on macOS 27 with
+// NSMenu popUpMenuPositioningItem:nil atLocation:inView:, and against an
+// NSPopUpButton pull-down): the menu's top edge is menuInsetTop above
+// the point given, and a pull-down's menu starts a few points below its
+// button.
+const (
+	menuInsetTop = 5
+	menuGap      = 4
+)
 
 // systemTheme returns the app's theme for the appearance: the platform's
 // own grays and status colors (macOS system colors on darwin), the user's

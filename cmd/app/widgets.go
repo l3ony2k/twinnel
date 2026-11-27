@@ -583,14 +583,20 @@ func delayColor(t *ui.Theme, ms int, tested bool) ui.Color {
 // shadow. Other platforms keep MyGo's look. Use it on every plain button
 // that sits on a page; primary buttons keep theirs.
 func pushFace(c *ui.Context, b ui.Element) ui.Element {
+	return pushFaceOf(c, b, b)
+}
+
+// pushFaceOf is pushFace for a face drawn inside the control st, whose
+// press, hover and disabled state it shows (pushMenu).
+func pushFaceOf(c *ui.Context, b, st ui.Element) ui.Element {
 	if inToolbar {
-		return toolbarFace(c, b)
+		return toolbarFaceOf(c, b, st)
 	}
 	if !plat.pushFace {
 		return b
 	}
 	t := c.Theme()
-	pressed := b.Pressed()
+	pressed := st.Pressed()
 	if t.Dark {
 		face := ui.Hex("#4a4a4c")
 		if pressed {
@@ -612,14 +618,19 @@ func pushFace(c *ui.Context, b ui.Element) ui.Element {
 // rounded, faceless at rest, a faint fill of the same shape on hover and
 // press, and the glass pane behind it exactly its box.
 func toolbarFace(c *ui.Context, b ui.Element) ui.Element {
+	return toolbarFaceOf(c, b, b)
+}
+
+// toolbarFaceOf is toolbarFace for a face drawn inside the control st.
+func toolbarFaceOf(c *ui.Context, b, st ui.Element) ui.Element {
 	t := c.Theme()
 	b.Height(toolbarItemH).Padding(0, toolbarPadX).Radius(toolbarItemH / 2).
 		AlignItems(ui.Center).Justify(ui.Center).BorderWidth(0).Background(ui.Transparent).Shrink(0)
-	if !b.IsDisabled() {
+	if !st.IsDisabled() {
 		switch {
-		case b.Pressed() || toolbarForce == "pressed":
+		case st.Pressed() || toolbarForce == "pressed":
 			b.Background(t.Text.Alpha(0.12))
-		case b.Hovered() || toolbarForce == "hover":
+		case st.Hovered() || toolbarForce == "hover":
 			b.Background(t.Text.Alpha(0.07))
 		}
 	}
@@ -757,8 +768,73 @@ func pushButton(c *ui.Context, label string) ui.Element {
 // as pushButton, so a menu and a button side by side, or in the headings
 // of neighbouring cards, look alike. Use it for every ui.MenuButton on a
 // page (TestMenuButtonsHavePushFace).
+//
+// It is not ui.MenuButton: the button is a host carrying the menu, whose
+// box reaches plat.menuDrop below the face it holds (menuBelow), so that
+// the native menu opens just under the face instead of over its lower
+// part. The host shows nothing itself and takes the pointer only on the
+// face; it rings the face for the keyboard focus.
 func pushMenu(c *ui.Context, label string, items func(m *ui.Menu)) ui.Element {
-	return pushFace(c, ui.MenuButton(c, label, items))
+	t := c.Theme()
+	host := menuBelow(ui.ButtonBase(c).Label(label).FocusRing(false).Menu(items))
+	host.Children(func() {
+		face := ui.Row(c).AlignItems(ui.Center).Padding(t.Space(1.5), t.Space(3.5)).Gap(t.Space(1.5)).
+			Radius(t.Radius).Border(1, t.Border).TextColor(t.Text).Background(t.Surface)
+		if !host.IsDisabled() {
+			switch {
+			case host.Pressed():
+				face.Background(t.SurfacePressed)
+			case host.Hovered():
+				face.Background(t.SurfaceHover)
+			}
+		}
+		pushFaceOf(c, face, host)
+		if host.FocusVisible() {
+			face.Draw(func(p *ui.Painter, r ui.Rect) {
+				rad := t.Radius
+				if inToolbar {
+					rad = toolbarItemH / 2
+				}
+				p.FocusRing(r, [4]float32{rad, rad, rad, rad})
+			})
+		}
+		face.Children(func() {
+			ui.Text(c, label).SingleLine()
+			menuChevron(c, t.TextMuted)
+		})
+	})
+	return host
+}
+
+// menuChevron is the ▾ of a pull-down button, as ui.MenuButton draws it.
+func menuChevron(c *ui.Context, color ui.Color) {
+	t := c.Theme()
+	ui.Box(c).Size(t.Space(2.5), t.Space(2.5)).Shrink(0).Draw(func(p *ui.Painter, r ui.Rect) {
+		var path ui.Path
+		path.MoveTo(r.X+r.W*0.1, r.Y+r.H*0.3).LineTo(r.X+r.W*0.5, r.Y+r.H*0.7).LineTo(r.X+r.W*0.9, r.Y+r.H*0.3)
+		p.StrokePath(&path, 1.5, color)
+	})
+}
+
+// menuBelow makes e, an element with a native menu (Element.Menu), open
+// that menu just below what it shows, as a macOS pull-down button does.
+//
+// MyGo pops the menu up at the element's bottom-left corner
+// (popUpMenuPositioningItem:nil atLocation:), and AppKit puts the first
+// item there: the menu's top edge lands 5 pt higher, over the element.
+// e's box therefore reaches plat.menuDrop further down (bottom padding,
+// cancelled by a negative bottom margin, so that the layout around it does
+// not move) and takes the pointer only above that strip. Whatever e shows
+// must be drawn by a child, not by e's own background or border, and
+// e's margin must not be set after this.
+func menuBelow(e ui.Element) ui.Element {
+	d := plat.menuDrop
+	if d == 0 {
+		return e
+	}
+	return e.Padding(0, 0, d, 0).Margin(0, 0, -d, 0).HitTest(func(_, y float32, r ui.Rect) bool {
+		return y < r.Y+r.H-d
+	})
 }
 
 // toolIcon is a small faceless icon button for an action repeated on
