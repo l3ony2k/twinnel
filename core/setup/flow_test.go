@@ -38,7 +38,7 @@ type fakeHelper struct {
 
 func newFakeHelper() *fakeHelper {
 	return &fakeHelper{urls: map[string]string{}, content: map[string]string{}, layerText: map[string]string{},
-		dns: rpc.DNSStatus{Supported: true, Target: []string{"127.0.0.1"}},
+		dns:    rpc.DNSStatus{Supported: true, Target: []string{"127.0.0.1"}},
 		health: []health.CheckReport{{ID: "magicdns", Title: "MagicDNS", Result: health.Result{Status: health.StatusOK}}}}
 }
 
