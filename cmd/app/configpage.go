@@ -66,8 +66,11 @@ type configView struct {
 	baseIDs    []string // the stored base layers, in order (reorder sends them first)
 
 	// Managed layers' views.
-	showGen   bool     // the open managed layer shows its generated YAML
-	guardLast []string // leak guard's groups before it was switched off (this session)
+	showGen bool // the open managed layer shows its generated YAML
+	// What each stored layer does, by content hash (layersummary.go).
+	sums        map[string]layerSummary
+	sumsLoading map[string]bool
+	guardLast   []string // leak guard's groups before it was switched off (this session)
 
 	// Preview and apply.
 	reason  string
@@ -247,7 +250,7 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 		}
 		interval := T.SubManual
 		if sub.IntervalMinutes > 0 {
-			interval = fmt.Sprintf(T.SubEvery, sub.IntervalMinutes)
+			interval = T.Interval(sub.IntervalMinutes)
 		}
 		// Where the content comes from, and when it last did (U32): an
 		// adopted subscription runs on the file takeover used until its
@@ -563,7 +566,10 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 						infoTip(c, "", T.LeakGuardInfo, nil)
 					}
 				})
-				num(meta(c, a.layerMeta(l, s)).Shrink(1))
+				m := num(meta(c, a.layerMeta(l, s)).Shrink(1))
+				if !l.Managed {
+					m.Tooltip(status.Bytes(int64(l.Size)))
+				}
 			})
 			a.layerSwitch(c, l, w)
 		})
@@ -610,10 +616,17 @@ func (a *app) layerMeta(l rpc.Layer, s status.Snapshot) string {
 			return T.GuardNoGroups
 		}
 		return i18n.F(T.GuardMeta, strings.Join(groups, T.ListSep))
-	case l.Stage == stageBase:
-		return T.GroupBase + " · " + status.Bytes(int64(l.Size))
 	}
-	return status.Bytes(int64(l.Size))
+	// What it does (3 条规则 · 改 dns), once its content is read; the size
+	// is only the line's tooltip.
+	text := " " // holds the line while the content loads
+	if sum, ok := a.hd.cfg.sums[summaryKey(l)]; ok {
+		text = sum.text()
+	}
+	if l.Stage == stageBase {
+		text = T.GroupBase + " · " + strings.TrimSpace(text)
+	}
+	return text
 }
 
 // layerSwitch is a layer's switch, at the row's trailing edge. Leak
@@ -835,6 +848,7 @@ func (a *app) loadLayerContent(id string) {
 
 // layersLoaded keeps the editor in step with a reloaded layer list.
 func (a *app) layersLoaded() {
+	a.loadLayerSummaries()
 	v := &a.hd.cfg
 	if v.sel == "" || v.isNew {
 		return
