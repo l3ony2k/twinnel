@@ -6,7 +6,8 @@ name: release
 #
 # Minutes: the macOS job is billed at 10x, so it builds only Twinnel.app
 # (one universal build); the CLI archives for every OS cross-compile on
-# Linux. Builds are signed ad hoc: no Developer ID, no notarization
+# Linux; the Linux app (both architectures, AppImages, PKGBUILD) builds on
+# Linux too. Builds are signed ad hoc: no Developer ID, no notarization
 # (docs/install.md says how to open them).
 
 on:
@@ -124,6 +125,90 @@ jobs:
           compression-level: 0 # already compressed
           retention-days: 7
 
+  linux-app:
+    name: Twinnel (Linux GUI, amd64 + arm64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - name: tools
+        # mksquashfs for the AppImages, desktop-file-validate for the check.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq squashfs-tools desktop-file-utils
+      - name: build
+        # Pure Go: mygo cross-compiles both architectures here; the
+        # AppImage runtime is pinned in scripts/package-linux-app.sh.
+        run: |
+          set -- --targets "" --app-platform linux/amd64,linux/arm64 --appimage
+          if [ -n "$VERSION" ]; then set -- "$@" -v "${VERSION#v}"; fi
+          scripts/build-release.sh "$@"
+      - name: check the archives and the AppImages
+        run: |
+          arc=$(ls dist/Twinnel_*_linux_amd64_app.tar.gz)
+          want=${arc#dist/Twinnel_}; want=${want%_linux_amd64_app.tar.gz}
+          tmp=$(mktemp -d)
+          for a in amd64:x86-64 arm64:aarch64; do
+            tar -C "$tmp" -xzf "dist/Twinnel_${want}_linux_${a%:*}_app.tar.gz"
+            d="$tmp/Twinnel_${want}_linux_${a%:*}_app"
+            for f in Twinnel bin/twinnel bin/twinnel-helper install.sh uninstall.sh; do test -x "$d/$f"; done
+            file "$d/Twinnel" | grep -q "ELF 64-bit.*${a#*:}"
+            test -f "$d/share/icons/hicolor/scalable/apps/twinnel.svg"
+            test -f "$d/share/icons/hicolor/symbolic/apps/twinnel-symbolic.svg"
+            file "dist/Twinnel_${want}_linux_${a%:*}.AppImage" | grep -q "ELF 64-bit.*${a#*:}"
+          done
+          d="$tmp/Twinnel_${want}_linux_amd64_app"
+          desktop-file-validate "$d/share/applications/twinnel.desktop"
+          test "$("$d/bin/twinnel" version --short)" = "$want"
+          test "$("$d/bin/twinnel-helper" -version)" = "twinnel-helper $want"
+          # install.sh / uninstall.sh into a scratch home, without the helper.
+          home="$tmp/home"; mkdir -p "$home"
+          HOME="$home" "$d/install.sh" --no-helper
+          test -x "$home/.local/lib/twinnel/Twinnel"
+          test "$("$home/.local/bin/twinnel" version --short)" = "$want"
+          grep -qx "Exec=$home/.local/lib/twinnel/Twinnel" "$home/.local/share/applications/twinnel.desktop"
+          HOME="$home" "$d/install.sh" --dry-run | grep -q 'helper install'
+          HOME="$home" "$d/uninstall.sh" --keep-helper
+          test -z "$(find "$home/.local" -type f -o -type l)"
+          # The AppImage, unpacked without FUSE; AppRun's cli copies the
+          # tools out of the image.
+          (cd "$tmp" && "$GITHUB_WORKSPACE/dist/Twinnel_${want}_linux_amd64.AppImage" --appimage-extract >/dev/null)
+          test -x "$tmp/squashfs-root/AppRun" && test -x "$tmp/squashfs-root/usr/lib/twinnel/Twinnel"
+          desktop-file-validate "$tmp/squashfs-root/twinnel.desktop"
+          test "$(HOME="$home" "$tmp/squashfs-root/AppRun" cli version --short)" = "$want"
+          test -x "$home/.cache/twinnel/appimage/$want/twinnel-helper"
+          echo "Linux app $want"
+      - name: check the PKGBUILD (makepkg in Arch Linux)
+        run: |
+          docker run --rm -v "$PWD/dist:/dist:ro" archlinux:base-devel bash -euc '
+            useradd -m build
+            cp /dist/PKGBUILD /dist/twinnel-bin.install /dist/Twinnel_*_linux_amd64_app.tar.gz /home/build/
+            chown -R build /home/build
+            su build -c "cd ~ && makepkg --nodeps --noconfirm"
+            pkg=$(ls /home/build/twinnel-bin-*.pkg.tar.zst)
+            pacman -Qlpq "$pkg" | grep -qx /opt/twinnel/Twinnel
+            pacman -Qlpq "$pkg" | grep -qx /usr/bin/twinnel
+            pacman -Qlpq "$pkg" | grep -qx /usr/share/applications/twinnel.desktop
+            pacman -Qlpq "$pkg" | grep -qx /usr/share/icons/hicolor/scalable/apps/twinnel.svg
+            pacman -Qip "$pkg"
+          '
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-app
+          path: |
+            dist/*_app.tar.gz
+            dist/*.AppImage
+            dist/PKGBUILD
+            dist/twinnel-bin.install
+          if-no-files-found: error
+          compression-level: 0 # already compressed
+          retention-days: 7
+
   # windows:
   #   Not yet: the Windows platform layer is being built on another branch.
   #   When it lands, cross-compile the CLI + helper in the cli job (add
@@ -140,7 +225,7 @@ jobs:
 
   release:
     name: Checksums, notes, draft release
-    needs: [cli, app]
+    needs: [cli, app, linux-app]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -172,6 +257,9 @@ jobs:
             echo "| \`Twinnel_*_macos_universal.dmg\` / \`.zip\` | Twinnel.app, macOS 15+ (Apple silicon and Intel) |"
             echo "| \`twinnel_*_darwin_<arch>.tar.gz\` | macOS CLI and helper only |"
             echo "| \`twinnel_*_linux_<arch>.tar.gz\` | Linux CLI and helper (systemd), \`sudo ./install.sh\` |"
+            echo "| \`Twinnel_*_linux_<arch>_app.tar.gz\` | Twinnel for Linux (app, CLI, helper; systemd), \`./install.sh\` |"
+            echo "| \`Twinnel_*_linux_<arch>.AppImage\` | Twinnel for Linux in one file (needs FUSE 2) |"
+            echo "| \`PKGBUILD\` + \`twinnel-bin.install\` | Arch Linux: \`makepkg -si\` in a folder with both |"
             echo "| \`SHA256SUMS\` | \`shasum -a 256 -c SHA256SUMS --ignore-missing\` |"
             echo
             echo "## Changes $since"
