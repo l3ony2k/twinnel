@@ -41,6 +41,11 @@ func (s *Strings) Msg(m rpc.Msg) (string, bool) {
 	if !ok {
 		return "", false
 	}
+	if !strings.Contains(tmpl, "%") {
+		// The args are the helper's English detail (reload notes): the
+		// UI words that from structured data (ImpactLines) or not at all.
+		return tmpl, true
+	}
 	args := make([]any, len(m.Args))
 	for i, v := range m.Args {
 		args[i] = strings.ReplaceAll(v, "\n", s.ListSep)

@@ -405,6 +405,11 @@ func (a *app) verdict(c *ui.Context, s status.Snapshot) {
 				ui.Text(c, head).FontSize(plat.leadSize).FontWeight(600)
 				for _, r := range reasons {
 					ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
+					if r.Raw != "" {
+						// The system's own words, secondary (as errorNote).
+						ui.Text(c, r.Raw).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().
+							LineHeight(lineText).Selectable().Label(i18n.T.UnreachableDetail + "：" + r.Raw)
+					}
 				}
 				a.verdictActions(c, s)
 			})

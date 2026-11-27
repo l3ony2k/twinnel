@@ -70,6 +70,8 @@ type LifecycleStrings struct {
 	TkNextUndo                                       string
 	TkSecretState                                    string // row label
 	TkSecretSetWeak                                  string
+	// The takeover result's 控制接口密钥 line.
+	TkResSecretKept, TkResSecretNew, TkResSecretNone string
 	TkSecretNone                                     string
 
 	// --- Helper states (U6, U7). ---
@@ -210,6 +212,9 @@ var zhLifecycle = LifecycleStrings{
 	TkNextUndo:      "撤销接管…",
 	TkSecretState:   "当前密钥",
 	TkSecretSetWeak: "已设",
+	TkResSecretKept: "沿用你原来的密钥",
+	TkResSecretNew:  "已生成新密钥",
+	TkResSecretNone: "未设，可在下面加固",
 	TkSecretNone:    "未设",
 
 	HelperStateNotRunning: "后台助手未运行",
@@ -376,6 +381,9 @@ var enLifecycle = LifecycleStrings{
 	TkNextUndo:      "Undo Takeover…",
 	TkSecretState:   "Current secret",
 	TkSecretSetWeak: "Set",
+	TkResSecretKept: "Kept your existing secret",
+	TkResSecretNew:  "A new secret was generated",
+	TkResSecretNone: "Not set; harden it below",
 	TkSecretNone:    "None",
 
 	HelperStateNotRunning: "Helper not running",

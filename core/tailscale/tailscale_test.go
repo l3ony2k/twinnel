@@ -212,3 +212,14 @@ func TestDetectInstall(t *testing.T) {
 		}
 	}
 }
+
+// Logged out or stopped, an exit node set in the prefs carries no traffic:
+// it is not reported as in use (walkthrough 2, N4).
+func TestNoExitNodeWhenNotRunning(t *testing.T) {
+	for _, bs := range []string{"NeedsLogin", "NeedsMachineAuth", "Stopped"} {
+		st := &ipnstate.Status{BackendState: bs, ExitNodeStatus: &ipnstate.ExitNodeStatus{ID: "nA", Online: true}}
+		if s := FromStatus(st, &ipn.Prefs{ExitNodeID: "nA"}); s.ExitNode != nil {
+			t.Errorf("%s: exit node %+v reported", bs, s.ExitNode)
+		}
+	}
+}

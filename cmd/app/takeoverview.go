@@ -324,7 +324,7 @@ func effectRows(p *rpc.TakeoverPlan) []effectRow {
 			r.item, r.now = T.TkSecretItem, T.TakeoverSecretSet
 			r.after = T.TkEffKeepSecret
 			if e.Action == rpc.ActNone {
-				r.now, r.after, r.warn = T.TkSecretNone, T.TkEffNoSecret, true
+				r.now, r.after = T.TkSecretNone, T.TkEffNoSecret // not a risk: a plain chip (H13)
 			}
 		case rpc.EffTailscale:
 			r.item, r.now, r.after = T.TakeoverTSSvc, orDash(e.Subject), T.TkEffUnchanged
@@ -889,7 +889,8 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 						if im.Disruptive {
 							text = T.ImpactDisruptive
 						}
-						effectChip(c, text, strings.Join(impactLines(im), "\n"), im.Disruptive, false)
+						// A one-second blip is information, not a risk (H13).
+						effectChip(c, text, strings.Join(impactLines(im), "\n"), false, false)
 					}
 				})
 			}
@@ -967,15 +968,94 @@ func (a *app) adoptResultCard(c *ui.Context, s status.Snapshot, r *rpc.AdoptResu
 			ui.Divider(c)
 			healthCompare(c, r)
 		}
-		for _, w := range r.Warnings {
-			if i18n.WarningKind(w) == "binary-writable" {
-				continue // 下一步 has 改用 duet 管理的内核
+		for _, w := range adoptNotes(r) {
+			switch w.kind {
+			case noteInfo:
+				infoNote(c, w.text)
+			default:
+				warningNote(c, w.text)
 			}
-			warningNote(c, w)
 		}
 		if r.OK {
+			a.adoptSecretRow(c, r)
 			a.adoptNext(c, s, r, failing)
 		}
+	})
+}
+
+type noteKind int
+
+const (
+	noteWarn noteKind = iota
+	noteInfo
+)
+
+// adoptNote is one line under the result's health table.
+type adoptNote struct {
+	kind noteKind
+	text string // a helper text for warningNote, or worded (noteInfo, the impact)
+}
+
+// adoptNotes are the result's warnings as the page shows them: the reload
+// impact worded from its fields (the helper's notes are English), a
+// config rebuilt from a newer tailnet as information, and nothing that
+// 下一步 already offers (binary-writable → 改用 duet 管理的内核).
+func adoptNotes(r *rpc.AdoptResult) []adoptNote {
+	T := i18n.T
+	var out []adoptNote
+	for _, w := range r.Warnings {
+		switch i18n.WarningKind(w) {
+		case "binary-writable", "new-secret":
+			continue // 下一步; the secret row
+		case "reload-disrupts":
+			text, _ := T.Msg(rpc.Msg{Code: "reload-disrupts"})
+			var im *rpc.ReloadImpact
+			if r.Apply != nil {
+				im = r.Apply.Impact
+			}
+			if lines := T.ImpactLines(im); len(lines) > 0 {
+				text += T.LabelSep + strings.Join(lines, T.ListSep)
+			}
+			out = append(out, adoptNote{noteInfo, text})
+			continue
+		case "adopt-differs":
+			text, _ := T.Msg(rpc.Msg{Code: "adopt-differs"})
+			out = append(out, adoptNote{noteInfo, text})
+			continue
+		}
+		out = append(out, adoptNote{noteWarn, w})
+	}
+	return out
+}
+
+// adoptSecretText says whether the controller has a secret after the
+// takeover, and where it came from (walkthrough 2, N19).
+func adoptSecretText(r *rpc.AdoptResult, set bool) string {
+	T := i18n.T
+	for _, w := range r.Warnings {
+		if i18n.WarningKind(w) == "new-secret" {
+			return T.TkResSecretNew
+		}
+	}
+	if set {
+		return T.TkResSecretKept
+	}
+	return T.TkResSecretNone
+}
+
+// adoptSecretRow is the result's 控制接口密钥 line.
+func (a *app) adoptSecretRow(c *ui.Context, r *rpc.AdoptResult) {
+	t := c.Theme()
+	T := i18n.T
+	set := a.creds.cur != nil && a.creds.cur.Secret != ""
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		icon, col := iconOK, t.Success
+		if !set {
+			icon, col = iconSkip, t.TextMuted
+		}
+		ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
+		ui.Text(c, T.TkSecretItem).FontSize(plat.calloutSize).Width(120).Shrink(0)
+		small(c, adoptSecretText(r, set)).Wrap().LineHeight(lineText).Grow(1).Shrink(1)
 	})
 }
 

@@ -27,7 +27,7 @@ func TestEffectRows(t *testing.T) {
 	if len(rows) != 6 {
 		t.Fatalf("rows %+v", rows)
 	}
-	if !rows[1].warn || rows[1].now != "mihomo · v1.19.34" || !rows[4].warn {
+	if !rows[1].warn || rows[1].now != "mihomo · v1.19.34" || rows[4].warn { // H13: no secret is not a risk
 		t.Fatalf("binary/secret rows %+v %+v", rows[1], rows[4])
 	}
 	rw := rewriteRows(p)
