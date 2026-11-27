@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -35,11 +36,14 @@ func (a *app) configPolishShots(save func(*mygo.Window, string)) {
 		time.Sleep(600 * time.Millisecond)
 	}
 	call := func(method string, p any) {
-		on(func() {
-			a.helperOp("shot "+method, time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
-				return hc.Call(ctx, method, p, nil)
-			}, nil)
-		})
+		var hc *status.HelperConn
+		mygo.RunOnMain(func() { hc = a.hc })
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		if err := hc.Call(ctx, method, p, nil); err != nil {
+			log.Printf("shot %s: %v", method, err)
+		}
+		cancel()
+		on(func() { a.loadHelperData(); a.checkUnapplied() })
 		wait(800 * time.Millisecond)
 	}
 	scroll := func(y float32) {
@@ -82,6 +86,10 @@ func (a *app) configPolishShots(save func(*mygo.Window, string)) {
 	on(func() { a.selectLayer(layer(coexistLayerID)) })
 	wait(time.Second)
 	save(a.win, "p03-coexist-open")
+	on(func() { a.hd.cfg.showGen = true })
+	wait(time.Second)
+	save(a.win, "p03b-coexist-generated")
+	on(func() { a.hd.cfg.showGen = false })
 	on(func() { a.selectLayer(layer("leak-guard")) })
 	wait(time.Second)
 	save(a.win, "p04-guard-empty")

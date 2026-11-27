@@ -19,6 +19,30 @@ type ConfigUIStrings struct {
 	// Compose groups of the 覆写 list, in compose order (U33).
 	GroupSubscription, GroupBase, GroupUser, GroupManaged string
 
+	// The 订阅与覆写 page's structure (config-polish, 2026-11-27): the
+	// apply card's states, the empty page, the managed layers' own views,
+	// and the ⓘ texts that replace subtitles (AGENTS.md).
+	ManagedTitle               string // the managed layers' section
+	OverridesInfo, ManagedInfo string // ⓘ of the two sections
+	CoexistInfo, LeakGuardInfo string // ⓘ of the managed rows
+	DriftInfo                  string // ⓘ of the drift state
+	ConfigEmptyTitle           string // the page with no subscription
+	ConfigEmptyHint            string
+	ConfigEmptyTakeover        string // button: to 接管
+	StateInSync                string // the apply card: nothing to apply
+	StateUnknown               string // the check failed
+	NothingToApply             string // tooltip of the disabled 应用
+	PreviewHide                string
+	CoexistRanges, CoexistDNS  string // kv labels of the coexist view
+	CoexistDevices             string
+	CoexistDevicesN            string // %d: devices (row meta)
+	CoexistNoTailnet           string
+	GuardGroups, GuardPick     string
+	GuardNone, GuardNoGroups   string
+	GuardMeta                  string // %s: the groups
+	GuardNoCandidates          string
+	ShowGenerated              string
+
 	// Subscription row (U32).
 	SubSourceAdopted     string // %s: the base file, or "" (then SubSourceAdoptedBare)
 	SubSourceAdoptedBare string
@@ -112,6 +136,32 @@ var zhConfigUI = ConfigUIStrings{
 	GroupBase:         "基础",
 	GroupUser:         "用户覆写",
 	GroupManaged:      "托管",
+
+	ManagedTitle:        "duet 托管",
+	OverridesInfo:       "覆写按从上到下的顺序改写订阅，后面的可以覆盖前面的。拖动一行可以调整顺序。",
+	ManagedInfo:         "这些覆写由 duet 按 Tailscale 和设置生成并保持最新，只能开关。它们总排在你的覆写之后。",
+	CoexistInfo:         "让 mihomo 的 TUN 和 Tailscale 同时工作：tailnet 网段和设备名直连，MagicDNS 名称交给 Tailscale 解析。",
+	LeakGuardInfo:       "从所选策略组中去掉 DIRECT，这些组的流量就不会绕过代理。组里没有别的节点时改为 REJECT。",
+	DriftInfo:           "回滚后，mihomo 运行的是历史版本，不是这些覆写合成的结果。重新应用之前，订阅和 Tailscale 变化不会自动应用。",
+	ConfigEmptyTitle:    "还没有订阅",
+	ConfigEmptyHint:     "添加订阅链接或文件，或者接管这台 Mac 上已有的 mihomo 配置",
+	ConfigEmptyTakeover: "接管现有配置",
+	StateInSync:         "与运行中的配置一致",
+	StateUnknown:        "没能比较运行中的配置",
+	NothingToApply:      "没有未应用的改动",
+	PreviewHide:         "收起预览",
+	CoexistRanges:       "直连网段",
+	CoexistDNS:          "MagicDNS",
+	CoexistDevices:      "设备",
+	CoexistDevicesN:     "%d 台设备",
+	CoexistNoTailnet:    "还没有读到 Tailscale 的设备",
+	GuardGroups:         "受保护的策略组",
+	GuardPick:           "选择策略组",
+	GuardNone:           "还没有受保护的策略组",
+	GuardNoGroups:       "未选择策略组",
+	GuardMeta:           "保护 %s",
+	GuardNoCandidates:   "没有含 DIRECT 的策略组",
+	ShowGenerated:       "查看生成内容",
 
 	SubSourceAdopted:     "来源：接管时的配置（%s）",
 	SubSourceAdoptedBare: "来源：接管时的配置",
@@ -248,6 +298,32 @@ var enConfigUI = ConfigUIStrings{
 	GroupBase:         "Base",
 	GroupUser:         "User overrides",
 	GroupManaged:      "Managed",
+
+	ManagedTitle:        "Managed by duet",
+	OverridesInfo:       "Overrides change the subscription in order, top to bottom; a later one can override an earlier one. Drag a row to reorder.",
+	ManagedInfo:         "duet generates these from Tailscale and your settings and keeps them current. You can only turn them on or off. They always come after your own.",
+	CoexistInfo:         "Lets mihomo's TUN and Tailscale work together: tailnet addresses and device names go direct, and Tailscale resolves MagicDNS names.",
+	LeakGuardInfo:       "Removes DIRECT from the groups you choose, so their traffic never bypasses the proxy. A group left with no other node becomes REJECT.",
+	DriftInfo:           "After a rollback mihomo runs a history version, not what these overrides compose. Until you apply again, subscription and Tailscale changes are not applied on their own.",
+	ConfigEmptyTitle:    "No subscription yet",
+	ConfigEmptyHint:     "Add a subscription link or file, or take over the mihomo config already on this Mac",
+	ConfigEmptyTakeover: "Take Over Existing Config",
+	StateInSync:         "Matches the running config",
+	StateUnknown:        "Couldn't compare with the running config",
+	NothingToApply:      "Nothing to apply",
+	PreviewHide:         "Hide Preview",
+	CoexistRanges:       "Direct ranges",
+	CoexistDNS:          "MagicDNS",
+	CoexistDevices:      "Devices",
+	CoexistDevicesN:     "%d devices",
+	CoexistNoTailnet:    "No Tailscale devices read yet",
+	GuardGroups:         "Protected groups",
+	GuardPick:           "Choose Groups",
+	GuardNone:           "No protected groups yet",
+	GuardNoGroups:       "No groups chosen",
+	GuardMeta:           "Protects %s",
+	GuardNoCandidates:   "No group has DIRECT",
+	ShowGenerated:       "Show Generated Config",
 
 	SubSourceAdopted:     "Source: the config at takeover (%s)",
 	SubSourceAdoptedBare: "Source: the config at takeover",

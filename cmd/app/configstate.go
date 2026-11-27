@@ -142,38 +142,25 @@ func (a *app) activeSubscription() string {
 	return ""
 }
 
-// pendingRow is the 预览与应用 card's row while the composed config
-// differs from what mihomo runs (U39): what differs, by name, with
-// 预览 and 放弃改动. Nothing when nothing is pending.
-func (a *app) pendingRow(c *ui.Context, s status.Snapshot, w bool) {
+// pendingText is the apply card's state while the composed config
+// differs from what mihomo runs (U39): what differs, by name. last is the
+// entry mihomo runs, ch and sub what differs from it, for 放弃改动.
+func (a *app) pendingText() (text string, last *rpc.HistoryEntry, ch []layerChange, sub bool) {
 	d := &a.hd
-	if !d.unapplied || driftOf(d) != nil {
-		return
-	}
-	t := c.Theme()
 	T := i18n.T
-	last := lastApplied(d.history)
-	var ch []layerChange
-	var subChanged bool
+	last = lastApplied(d.history)
 	if last != nil {
-		ch, subChanged = pendingChanges(last.Layers, d.layers, d.settings, a.activeSubscription())
+		ch, sub = pendingChanges(last.Layers, d.layers, d.settings, a.activeSubscription())
 	}
 	names := changeNames(ch)
-	if subChanged {
+	if sub {
 		names = append([]string{T.PendingSub}, names...)
 	}
-	text := T.PendingUnknownRow
+	text = T.PendingUnknownRow
 	if len(names) > 0 {
 		text = i18n.F(T.PendingRow, len(names), strings.Join(names, T.ListSep))
 	}
-	ui.Row(c.Key("pending")).Gap(8).AlignItems(ui.Center).Children(func() {
-		dot(c, t.Accent, 8)
-		ui.Text(c, text).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
-		canDiscard := last != nil && last.Layers != nil && (len(ch) > 0 || subChanged)
-		if canDiscard && pushButton(c.Key("discard"), T.Discard+"…").Disabled(!w).Clicked() {
-			a.discardChanges(*last, ch)
-		}
-	})
+	return text, last, ch, sub
 }
 
 // discardChanges asks, then sets the overrides back to the applied
@@ -260,18 +247,13 @@ func driftOf(d *helperData) *rpc.Drift {
 	return d.settings.Drift
 }
 
-// driftRow is the top of the 订阅与覆写 page while mihomo runs a history
-// entry the overrides do not compose (U41): which one, and the two ways
-// back.
-func (a *app) driftRow(c *ui.Context, s status.Snapshot) {
+// driftState is the apply card's state while mihomo runs a history
+// entry the overrides do not compose (U41): which one, its ⓘ, and the
+// two ways back. Drawn in the card's first row.
+func (a *app) driftState(c *ui.Context, s status.Snapshot, dr rpc.Drift, w bool) {
 	d := &a.hd
-	dr := driftOf(d)
-	if dr == nil {
-		return
-	}
 	t := c.Theme()
 	T := i18n.T
-	w := a.helperWrites(s)
 	e := historyByID(d.history, dr.HistoryID)
 	when := dr.Since
 	if tt, ok := i18n.HistoryIDTime(dr.HistoryID); ok {
@@ -284,31 +266,28 @@ func (a *app) driftRow(c *ui.Context, s status.Snapshot) {
 	if !dr.Manifest {
 		text = T.DriftRowBackup
 	}
-	groupBox(c, t).Key("drift").Children(func() {
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText)
-			ui.Text(c, fmt.Sprintf(text, when.Local().Format("01-02 15:04"))).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
-		})
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Spacer(c)
-			if dr.Manifest && pushButton(c.Key("drift-restore"), T.DriftRestore+"…").Disabled(!w).Clicked() {
-				id := dr.HistoryID
-				var lines []string
-				if e != nil {
-					// Restoring the entry's overrides is the rollback's
-					// effect on them, said the same way.
-					lines = rollbackEffects(e.Layers, d.layers)
-				}
-				body := strings.Join(append(lines, T.DriftRestoreBody), "\n")
-				a.confirm(i18n.F(T.AskF, T.DriftRestore), body, T.DriftRestore, func() {
-					a.restoreLayers(T.DriftRestore, id, nil)
-				})
-			}
-			if a.opButton(c.Key("drift-reapply"), iconOK, T.DriftReapply, false, T.Apply).Disabled(!w).Clicked() {
-				a.runApply()
-			}
-		})
+	ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText).Shrink(0)
+	ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Shrink(1).Children(func() {
+		ui.Text(c, fmt.Sprintf(text, when.Local().Format("01-02 15:04"))).Shrink(1).Wrap().LineHeight(lineText)
+		infoTip(c, "", T.DriftInfo, nil).Shrink(0)
 	})
+	busy := d.busy != ""
+	if dr.Manifest && pushButton(c.Key("drift-restore"), T.DriftRestore+"…").Disabled(!w || busy).Clicked() {
+		id := dr.HistoryID
+		var lines []string
+		if e != nil {
+			// Restoring the entry's overrides is the rollback's
+			// effect on them, said the same way.
+			lines = rollbackEffects(e.Layers, d.layers)
+		}
+		body := strings.Join(append(lines, T.DriftRestoreBody), "\n")
+		a.confirm(i18n.F(T.AskF, T.DriftRestore), body, T.DriftRestore, func() {
+			a.restoreLayers(T.DriftRestore, id, nil)
+		})
+	}
+	if a.opButton(c.Key("drift-reapply"), iconOK, T.DriftReapply, true, T.Apply).Disabled(!w || busy).Clicked() {
+		a.runApply()
+	}
 }
 
 // adoptedSubID is the subscription takeover makes from the live config
@@ -340,9 +319,4 @@ func (a *app) activeSubscriptionName() string {
 		}
 	}
 	return ""
-}
-
-// groupLabel heads a compose group of the 覆写 list (U33).
-func groupLabel(c *ui.Context, text string) ui.Element {
-	return ui.Text(c, text).FontSize(plat.smallSize).FontWeight(600).TextColor(c.Theme().TextMuted).Padding(8, 0, 0).SingleLine()
 }
