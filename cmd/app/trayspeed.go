@@ -35,7 +35,7 @@ func (a *app) menuBarCard(c *ui.Context) {
 	t := c.Theme()
 	on := !a.cfg.TraySpeedOff
 	layout := 0
-	if a.cfg.TraySpeedLayout == status.TraySpeedTwoLines {
+	if a.cfg.TraySpeedTwo() {
 		layout = 1
 	}
 	card(c, T.MenuBar, func() {
@@ -52,9 +52,9 @@ func (a *app) menuBarCard(c *ui.Context) {
 			}
 			if ui.Segmented(c.Key("tray-layout"), &layout, T.TraySpeedOneLine, T.TraySpeedTwo).
 				Label(T.TraySpeedLayout).Disabled(!on).Changed() {
-				v := ""
+				v := status.TraySpeedOneLine
 				if layout == 1 {
-					v = status.TraySpeedTwoLines
+					v = ""
 				}
 				a.setTraySpeed(a.cfg.TraySpeedOff, v)
 			}
@@ -91,7 +91,7 @@ func trayLookFor(s status.Snapshot, cfg status.Config) trayLook {
 	if !s.Mihomo.Reachable || cfg.TraySpeedOff || !plat.trayTitle {
 		return l
 	}
-	if cfg.TraySpeedLayout == status.TraySpeedTwoLines {
+	if cfg.TraySpeedTwo() {
 		l.up, l.down = status.TrayUp(s.Mihomo.Traffic), status.TrayDown(s.Mihomo.Traffic)
 		return l
 	}
