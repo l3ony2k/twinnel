@@ -68,7 +68,14 @@ type Change struct {
 	Args    []string `json:"args,omitempty"`
 	WhyCode string   `json:"why_code,omitempty"`
 	WhyArgs []string `json:"why_args,omitempty"`
+	// Keys are the entries a counts change touched (e.g. the
+	// nameserver-policy keys), at most maxChangeKeys, so a UI can show
+	// samples and the full list.
+	Keys []string `json:"keys,omitempty"`
 }
+
+// maxChangeKeys bounds Change.Keys.
+const maxChangeKeys = 200
 
 // Change codes (Change.Code). Args are listed after each.
 const (
@@ -323,10 +330,22 @@ func coexistPrefixEquivalent(live, composed, coexistOverride []byte) bool {
 
 func classify(sd *config.SemDiff, ms *managedSet, cx Coexist, rulesCoexistOnly bool) []Change {
 	var out []Change
-	type agg struct{ added, removed, changed int }
+	type agg struct {
+		added, removed, changed int
+		keys                    []string
+	}
 	groups := map[string]*agg{}
 	var order []string
-	note := func(area string, kind string) {
+	note := func(area string, c config.SettingChange) {
+		kind := c.Kind
+		defer func() {
+			a := groups[area]
+			for _, k := range changeKeys(area, c) {
+				if len(a.keys) < maxChangeKeys {
+					a.keys = append(a.keys, k)
+				}
+			}
+		}()
 		a := groups[area]
 		if a == nil {
 			a = &agg{}
@@ -354,7 +373,7 @@ func classify(sd *config.SemDiff, ms *managedSet, cx Coexist, rulesCoexistOnly b
 		}
 		if len(areas) == len(parts) {
 			for i, area := range areas {
-				note(area, parts[i].Kind)
+				note(area, parts[i])
 			}
 			continue
 		}
@@ -375,7 +394,7 @@ func classify(sd *config.SemDiff, ms *managedSet, cx Coexist, rulesCoexistOnly b
 		why, whyCode, whyArgs := coexistWhy(area, cx)
 		out = append(out, Change{Area: area, What: strings.Join(parts, ", "), Deliberate: true,
 			Why: why, WhyCode: whyCode, WhyArgs: whyArgs, Code: ChangeCounts,
-			Args: []string{strconv.Itoa(a.added), strconv.Itoa(a.removed), strconv.Itoa(a.changed)}})
+			Args: []string{strconv.Itoa(a.added), strconv.Itoa(a.removed), strconv.Itoa(a.changed)}, Keys: a.keys})
 	}
 	named := func(area string, n config.NamedDiff) {
 		if n.Same() {
@@ -436,6 +455,40 @@ func firstN(s []string, n int) []string {
 
 // coexistSetting reports whether a setting change comes from the coexist
 // layer, and the area to group it under.
+// changeKeys names the entries one setting change touched in area: the
+// key after the area's path, or for a list that changed as a whole (rule
+// mode's fake-ip-filter) the entries only one side has.
+func changeKeys(area string, c config.SettingChange) []string {
+	if k, ok := strings.CutPrefix(c.Path, area+"."); ok && k != "" {
+		return []string{k}
+	}
+	var a, b []string
+	if json.Unmarshal([]byte(c.A), &a) != nil {
+		a = nil
+	}
+	if json.Unmarshal([]byte(c.B), &b) != nil {
+		b = nil
+	}
+	if a == nil && b == nil {
+		if v := c.B; v != "" && c.Kind != "removed" {
+			return []string{strings.Trim(v, `"`)}
+		}
+		return nil
+	}
+	var out []string
+	for _, x := range b {
+		if !slices.Contains(a, x) {
+			out = append(out, x)
+		}
+	}
+	for _, x := range a {
+		if !slices.Contains(b, x) {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
 func coexistSetting(c config.SettingChange, ms *managedSet) (string, bool) {
 	val := c.B
 	if c.Kind == "removed" {

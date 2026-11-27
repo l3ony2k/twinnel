@@ -235,7 +235,7 @@ func planSummary(p *takeover.Plan, ps *planState, full bool) rpc.TakeoverPlan {
 	}
 	for _, c := range p.Changes {
 		out.Changes = append(out.Changes, rpc.TakeoverChange{Area: c.Area, What: c.What, Deliberate: c.Deliberate, Why: c.Why,
-			Code: c.Code, Args: c.Args, WhyCode: c.WhyCode, WhyArgs: c.WhyArgs})
+			Code: c.Code, Args: c.Args, WhyCode: c.WhyCode, WhyArgs: c.WhyArgs, Keys: c.Keys})
 	}
 	for _, w := range p.Warnings {
 		out.Warnings = append(out.Warnings, config.RedactText(w))

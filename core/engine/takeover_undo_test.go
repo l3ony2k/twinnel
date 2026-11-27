@@ -27,6 +27,14 @@ func TestTakeoverEffects(t *testing.T) {
 			t.Errorf("%s: %+v, want %s", item, got[item], act)
 		}
 	}
+	keys := map[string][]string{}
+	for _, ch := range p.Changes {
+		keys[ch.Area] = ch.Keys
+	}
+	if len(keys["dns.nameserver-policy"]) == 0 {
+		t.Errorf("no nameserver-policy keys: %+v", p.Changes)
+	}
+	t.Logf("keys %v", keys)
 	if got[rpc.EffMihomoService].Subject != "com.mihomo.proxy" || got[rpc.EffConfig].Subject != h.live || got[rpc.EffConfig].Warn != rpc.WarnEditsLost {
 		t.Fatalf("effects %+v", p.Effects)
 	}

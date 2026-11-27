@@ -570,6 +570,8 @@ type TakeoverChange struct {
 	Args    []string `json:"args,omitempty"`
 	WhyCode string   `json:"why_code,omitempty"`
 	WhyArgs []string `json:"why_args,omitempty"`
+	// Keys are the entries a counts change touched (samples for the UI).
+	Keys []string `json:"keys,omitempty"`
 }
 
 // Plan states.
