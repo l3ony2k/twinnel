@@ -13,10 +13,10 @@ import (
 // controller secret may come from the environment (preferred) or from this
 // file, which is written 0600.
 type Config struct {
-	Controller      string `json:"controller"`
-	Secret          string `json:"secret,omitempty"`
-	PrimaryGroup    string `json:"primaryGroup,omitempty"`
-	TestURL         string `json:"testURL,omitempty"`
+	Controller   string `json:"controller"`
+	Secret       string `json:"secret,omitempty"`
+	PrimaryGroup string `json:"primaryGroup,omitempty"`
+	TestURL      string `json:"testURL,omitempty"`
 	// MihomoBinary and MihomoConfigDir are kept so older app.json files
 	// load; nothing reads them (the helper has its own).
 	MihomoBinary    string `json:"mihomoBinary,omitempty"`
