@@ -109,5 +109,3 @@ desktop on this Mac).
   instead (needs MyGo to take an icon name, or the packaging to install them).
 - The panel cannot sit under the icon: AppIndicator gives no position. On GNOME Wayland (no layer
   shell) Mutter centers it.
-- `helper_other.go` (Windows until feat/windows-platform lands) defines `elevation` as "not
-  implemented": the Windows agent must give Windows its own (UAC) when it splits that file.
