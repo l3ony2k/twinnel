@@ -66,7 +66,7 @@ func (a *app) modeControl(c *ui.Context, s status.Snapshot) ui.Element {
 func (a *app) mihomoMenu(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	off := !s.Can().Mihomo
-	ui.MenuButton(c.Key("mihomo-actions"), T.Actions, func(m *ui.Menu) {
+	pushMenu(c.Key("mihomo-actions"), T.Actions, func(m *ui.Menu) {
 		if !s.Mihomo.Reachable {
 			// Down: start it through the helper, which knows the
 			// service (an adopted one included).

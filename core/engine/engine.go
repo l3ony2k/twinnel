@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/duet/core/config"
+	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/kernel"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/service"
@@ -95,6 +96,10 @@ type Engine struct {
 	// old mihomo to stop and HardenStartTimeout (default 45s) for the new
 	// one to answer, polling every HardenPoll (default 250ms).
 	HardenStopTimeout, HardenStartTimeout, HardenPoll time.Duration
+
+	// EgressProbe runs the egress test (health.LeakEgress with the test
+	// on) once, for health.egress; nil where there is none.
+	EgressProbe func(ctx context.Context) health.CheckReport
 
 	applyMu   sync.Mutex
 	adoptMu   sync.Mutex
@@ -317,6 +322,27 @@ func (e *Engine) Run(ctx context.Context) {
 	wg.Wait()
 }
 
+// lastApplyFromHistory is the newest config the helper applied, read
+// from history: what status.get reports as the last apply after a helper
+// restart (an upgrade), until this run applies something. Backups and
+// entries from before duet are not applies; nil when there is none.
+func (e *Engine) lastApplyFromHistory() *rpc.ApplyResult {
+	hist, err := e.Store.History()
+	if err != nil {
+		return nil
+	}
+	for _, h := range hist { // newest first
+		if h.BeforeDuet || h.Kind != store.HistoryApplied && h.Kind != store.HistoryRollback {
+			continue
+		}
+		la := &rpc.ApplyResult{Reason: h.Reason, ReasonCode: h.ReasonCode, ReasonArgs: h.ReasonArgs,
+			Written: true, Reloaded: true, HistoryID: h.ID, Time: h.Time.UTC()}
+		la.Valid, la.Changed = true, true
+		return la
+	}
+	return nil
+}
+
 // Status assembles status.get.
 func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 	st, err := e.Store.Settings()
@@ -351,6 +377,9 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 	}
 	out.Tailnet = e.tailnet
 	e.mu.Unlock()
+	if out.LastApply == nil {
+		out.LastApply = e.lastApplyFromHistory()
+	}
 	out.Tailnet.Coexist = st.Tailscale.Coexist
 	if out.Tailnet.Peers == nil {
 		if info, ok := e.cachedTailnet(); ok {

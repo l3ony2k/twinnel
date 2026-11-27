@@ -49,8 +49,9 @@ const (
 	MethodServiceInstall   = "service.install"   // mihomo only
 	MethodServiceUninstall = "service.uninstall" // mihomo only
 
-	MethodHealthLast = "health.last"
-	MethodHealthRun  = "health.run"
+	MethodHealthLast   = "health.last"
+	MethodHealthRun    = "health.run"
+	MethodHealthEgress = "health.egress" // run the egress test once and keep its result
 
 	MethodConfigGet = "config.get"
 
@@ -386,6 +387,8 @@ type Settings struct {
 	HistoryKeep       int      `json:"history_keep"`
 	KernelChannel     string   `json:"kernel_channel"` // "stable" or "alpha"
 	AutoApply         bool     `json:"auto_apply"`     // re-compose and apply after subscription/tailnet changes
+	// HealthEgress: the egress test runs with every health run (定期检测).
+	HealthEgress bool `json:"health_egress"`
 	// Drift: mihomo runs a history entry the overrides do not compose
 	// (after a rollback); automatic re-compose waits until an apply.
 	Drift *Drift `json:"drift,omitempty"`
@@ -407,6 +410,7 @@ type SettingsUpdate struct {
 	HistoryKeep       *int      `json:"history_keep,omitempty"`
 	KernelChannel     *string   `json:"kernel_channel,omitempty"`
 	AutoApply         *bool     `json:"auto_apply,omitempty"`
+	HealthEgress      *bool     `json:"health_egress,omitempty"`
 	// Agent changes the local agent switches. `duet mcp` never sends it:
 	// an agent cannot widen its own tiers.
 	Agent *AgentSettingsUpdate `json:"agent,omitempty"`
@@ -536,6 +540,14 @@ type HealthRunParams struct {
 	// Lang is the language to word the report in (core/i18n tag, e.g.
 	// "en"); the helper keeps it for its scheduled runs. "" keeps the
 	// language the helper uses now.
+	Lang string `json:"lang,omitempty"`
+}
+
+// HealthEgressParams are the params of health.egress: the egress test
+// (leak-guard-egress) runs once now, whether or not it runs with every
+// health run; the helper keeps its result, with its time, in later
+// reports until it is stale. The result is the new report.
+type HealthEgressParams struct {
 	Lang string `json:"lang,omitempty"`
 }
 

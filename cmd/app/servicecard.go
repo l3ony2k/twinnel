@@ -158,7 +158,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		// duet is): it sits in ⋯, styled as destructive. Not for an
 		// adopted service, whose definition duet never changes.
 		if name == "mihomo" && !adopted {
-			ui.MenuButton(c.Key("more"), T.SvcMore, func(m *ui.Menu) {
+			pushMenu(c.Key("more"), T.SvcMore, func(m *ui.Menu) {
 				if m.Item(T.ServiceUninstall + "…").Danger().Disabled(!w).Chosen() {
 					a.confirm(fmt.Sprintf(T.ServiceUninstallTitle, name), T.ServiceUninstallBody, T.ServiceUninstall, func() {
 						a.serviceOp(rpc.MethodServiceUninstall, name, T.ServiceUninstall)

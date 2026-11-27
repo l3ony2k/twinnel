@@ -23,6 +23,10 @@ type Settings struct {
 
 	// LeakGuardGroups are proxy groups that must never use DIRECT.
 	LeakGuardGroups []string `json:"leak_guard_groups,omitempty"`
+	// HealthEgress runs the egress test (leak-guard-egress) with every
+	// health run: one HTTPS request direct and one through mihomo to an
+	// IP-echo address. Off: it runs only when asked (health.egress).
+	HealthEgress bool `json:"health_egress,omitempty"`
 
 	// Subscriptions; at most one is Active.
 	Subscriptions []Subscription `json:"subscriptions,omitempty"`

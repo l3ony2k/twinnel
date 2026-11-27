@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/duet/core/store"
 )
 
 func init() {
@@ -223,7 +224,7 @@ checks.
 	fs.BoolVar(&apply, "apply", false, "compose, check, write and reload through the helper")
 	fs.BoolVar(&preview, "preview", false, "compose and check through the helper; write nothing")
 	fs.BoolVar(&force, "force", false, "reload even if the config did not change")
-	fs.StringVar(&reason, "reason", "duet compose --apply", "reason recorded in history")
+	fs.StringVar(&reason, "reason", "", "reason recorded in history (default: applied from the command line)")
 	pos, done, err := parse(fs, args)
 	if done || err != nil {
 		return err
@@ -236,7 +237,11 @@ checks.
 		return cf.callPrint(rpc.MethodComposePreview, nil, &r, func() { printCompose(os.Stdout, r) })
 	}
 	var r rpc.ApplyResult
-	err = cf.call(rpc.MethodComposeApply, rpc.ApplyParams{Reason: reason, Force: force}, &r)
+	p := rpc.ApplyParams{Reason: reason, Force: force}
+	if reason == "" { // a code the app words; the text for older helpers and the CLI
+		p.Reason, p.ReasonCode = "duet compose --apply", store.ReasonCLI
+	}
+	err = cf.call(rpc.MethodComposeApply, p, &r)
 	if cf.json && err == nil {
 		b, _ := json.MarshalIndent(r, "", "  ")
 		fmt.Println(string(b))

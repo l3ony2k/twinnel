@@ -29,6 +29,9 @@ type CheckReport struct {
 	// whose accepted cause broke this one.
 	Was      Status `json:"was,omitempty"`
 	CausedBy string `json:"causedBy,omitempty"`
+	// At is when the result was measured, set when that was before the
+	// report's run: an on-demand egress test carried into later reports.
+	At time.Time `json:"at,omitzero"`
 }
 
 // Report is the result of a run.

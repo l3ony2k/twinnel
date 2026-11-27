@@ -88,14 +88,14 @@ func (a *app) levelMenu(c *ui.Context) bool {
 	changed := false
 	names := T.LogLevelNames
 	cur := logLevelName(v.levelName())
-	pushFace(c, ui.MenuButton(c.Key("level"), cur, func(m *ui.Menu) {
+	pushMenu(c.Key("level"), cur, func(m *ui.Menu) {
 		for i, n := range names {
 			if m.Item(n).Checked(i == v.level).Chosen() && i != v.level {
 				v.level = i
 				changed = true
 			}
 		}
-	})).Label(T.LogLevel + " " + cur).Tooltip(T.LogLevel)
+	}).Label(T.LogLevel + " " + cur).Tooltip(T.LogLevel)
 	return changed
 }
 

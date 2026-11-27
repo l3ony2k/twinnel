@@ -14,6 +14,7 @@ type InfoTipStrings struct {
 	TipExitAccepted                  string // 总览: the accepted exit node row
 	TipMagicDNS, TipPeerPath         string // Tailscale 设备
 	TipHealthAccepted                string // 健康检查 → 已接受
+	TipEgressPeriodic                string // 出口 IP 实测 → 定期检测
 	TipHistRollback                  string // 历史 → 这条记录
 	TipKernelState, TipGeo           string // 内核
 	TipLogs                          string // 日志: the two sources and the level
@@ -35,6 +36,7 @@ var zhInfoTips = InfoTipStrings{
 	TipPeerPath:     "直连：两台设备点对点相连。\nDERP 中继：流量经 Tailscale 的中继服务器转发，通常更慢；DERP 一列是所用的中继区域。",
 
 	TipHealthAccepted: "你接受的情况，例如 TUN 开着时使用出口节点。它们照常检查，但不再算作问题。",
+	TipEgressPeriodic: "每次健康检查都测一次出口：直连和经 mihomo 各向 IP 回显服务（1.1.1.1）发一次请求，比较两边的出口 IP。关闭时只在你点「检测出口」时测，结果保留 24 小时。",
 	TipHistRollback:   "回滚把这条记录的配置和当时的覆写设为当前配置，并重载 mihomo；现在的配置也会留在历史里。「接管前」是接管时备份的原配置。",
 
 	TipKernelState: "duet 管理：duet 下载并校验 mihomo，可以更新和回滚。\n外部程序：服务仍在用你自己的程序，duet 不更新它。\n待重启：新版本已装好，重启 mihomo 后生效。",
@@ -63,6 +65,7 @@ var enInfoTips = InfoTipStrings{
 	TipPeerPath:     "Direct: the two devices connect peer to peer.\nDERP relay: traffic goes through Tailscale's relay servers, usually slower; the DERP column is the relay region.",
 
 	TipHealthAccepted: "Situations you accepted, such as using an exit node while TUN is on. They are still checked but no longer count as problems.",
+	TipEgressPeriodic: "Test the egress with every health check: one request directly and one through mihomo to an IP echo service (1.1.1.1), comparing the two public IPs. When off, it runs only when you click Test Egress, and the result is kept for 24 hours.",
 	TipHistRollback:   "Rolling back makes this entry's config, with the overrides it had, the current config and reloads mihomo. The config you have now stays in history. “Before duet” is the original config backed up at takeover.",
 
 	TipKernelState: "Managed by duet: duet downloads and verifies mihomo and can update or roll it back.\nExternal binary: the service still runs your own binary, which duet doesn't update.\nRestart pending: a new version is installed and takes effect when mihomo restarts.",

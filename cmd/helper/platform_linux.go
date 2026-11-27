@@ -62,6 +62,11 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 			NewEnv:   func() health.Env { return linux.New(healthOptions(e, o)) },
 			Interval: o.healthInterval,
 		})
+		e.EgressProbe = egressProbe(func() health.Env {
+			opt := healthOptions(e, o)
+			opt.Settings.Egress = true
+			return linux.New(opt)
+		})
 	}
 	return func(context.Context) {}
 }
@@ -97,10 +102,13 @@ func linuxGroup(g string) string {
 // fresh from settings for every run.
 func healthOptions(e *engine.Engine, opts *options) linux.Options {
 	o := linux.Options{TailscaleStatus: devTailnetStatus(e, opts)}
+	settings := health.DefaultSettings()
+	o.Settings = &settings
 	st, err := e.Store.Settings()
 	if err != nil {
 		return o
 	}
+	settings.Egress = st.HealthEgress // 定期检测
 	o.Controller = st.Mihomo.Controller
 	o.ConfigPath = st.Mihomo.ConfigFile
 	o.TailscaleBin = st.Tailscale.Binary

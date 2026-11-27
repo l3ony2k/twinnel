@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/i18n"
 	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/duet/core/store"
 )
 
 // What duet did (U29, H7): the helper's events (events.wait), kept for
@@ -38,6 +40,10 @@ func (a *app) recordEvents(evs []rpc.Event) {
 		}
 		l.evs = append(l.evs, e)
 	}
+	// In time order: a backfill after a helper restart brings the new
+	// run's events (已启动) while the log already ends with the old run's
+	// (正在停止), and both runs number from 1.
+	sort.SliceStable(l.evs, func(i, j int) bool { return l.evs[i].Time.Before(l.evs[j].Time) })
 	if over := len(l.evs) - eventLogCap; over > 0 {
 		l.evs = append(l.evs[:0:0], l.evs[over:]...)
 	}
@@ -63,21 +69,9 @@ func (a *app) backfillEvents() {
 				return
 			}
 			l.backfilled = true
-			seen := map[uint64]bool{}
-			var merged []rpc.Event
-			for _, e := range r.Events {
-				if e.Type != rpc.EventEventsTruncated {
-					merged = append(merged, e)
-					seen[e.Seq] = true
-				}
-			}
-			for _, e := range l.evs {
-				if !seen[e.Seq] {
-					merged = append(merged, e)
-				}
-			}
-			l.evs = nil
-			a.recordEvents(merged)
+			// What the log has (an older helper run's events among them)
+			// and the buffer, once each; recordEvents sorts by time.
+			a.recordEvents(r.Events)
 			a.invalidate()
 		})
 	}()
@@ -111,15 +105,19 @@ func describeEvent(e rpc.Event, name nameOf) (eventRow, bool) {
 		var res rpc.ApplyResult
 		json.Unmarshal(e.Data, &res)
 		reason := T.HistoryReasonText(res.ReasonCode, res.ReasonArgs, res.Reason)
+		// The chip already says 应用: a plain apply's reason would repeat
+		// it, and one from the CLI says only where it came from.
+		switch code, _ := i18n.HistoryReasonCode(res.ReasonCode, res.ReasonArgs, res.Reason); code {
+		case store.ReasonApply:
+			reason = ""
+		case store.ReasonCLI:
+			reason = T.EvViaCLI
+		}
 		r.page, r.hist = pageHistory, res.HistoryID
 		switch {
 		case e.Type == rpc.EventComposeFailed:
+			// The system's text goes behind 复制原文.
 			r.failed, r.page, r.raw = true, pageConfig, res.Error
-			// The chip already says 应用: a plain apply's reason would
-			// repeat it. The system's text goes behind 复制原文.
-			if code, _ := i18n.HistoryReasonCode(res.ReasonCode, res.ReasonArgs, res.Reason); code == "apply" {
-				reason = ""
-			}
 			r.text = i18n.F(T.EvApplyFailed, joinNonEmpty(reason, T.MsgHead(errorMsg(res.Error, res.ErrorMsg))))
 		case !res.Changed && !res.Written:
 			r.text = i18n.F(T.EvApplyUnchanged, reason)
@@ -212,10 +210,10 @@ func joinNonEmpty(parts ...string) string {
 	return strings.Join(out, " · ")
 }
 
-// hasEvent reports whether evs ends with e among its recent entries (a
-// helper restart starts its numbers again, so the time counts too).
+// hasEvent reports whether evs has e (a helper restart starts its
+// numbers again, so the time counts too).
 func hasEvent(evs []rpc.Event, e rpc.Event) bool {
-	for i := len(evs) - 1; i >= 0 && i >= len(evs)-64; i-- {
+	for i := len(evs) - 1; i >= 0; i-- {
 		if evs[i].Seq == e.Seq && evs[i].Time.Equal(e.Time) {
 			return true
 		}

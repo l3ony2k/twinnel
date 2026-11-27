@@ -141,3 +141,88 @@ func TestHealthTriggers(t *testing.T) {
 type allowAll struct{}
 
 func (allowAll) Authorize(rpc.Peer) error { return nil }
+
+// egressOff is health.LeakEgress as a scheduled run sees it with 定期检测
+// off: skipped, the test offered.
+type egressOff struct{}
+
+func (egressOff) ID() string          { return health.LeakEgress{}.ID() }
+func (egressOff) Title() string       { return "egress" }
+func (egressOff) Platforms() []string { return []string{health.Darwin} }
+func (egressOff) Run(context.Context, health.Env) health.Result {
+	return health.Result{Status: health.StatusSkip, Summary: "未开启"}
+}
+
+// 检测出口: health.egress runs the test now, the report shows its result
+// with its time, later scheduled runs keep it (until EgressKeep), a new
+// helper run reads it back, and 定期检测 on leaves the run's own result.
+func TestHealthEgressKeepsResult(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	reg := health.NewRegistry()
+	reg.Register(egressOff{})
+	newSched := func(e *Engine) *health.Scheduler {
+		s := &health.Scheduler{Runner: &health.Runner{Registry: reg}, Env: stubEnv{}, Interval: time.Hour, SkipInitial: true}
+		e.SetHealth(s)
+		return s
+	}
+	s := newSched(h.e)
+	if _, err := h.e.HealthEgress(ctx, ""); err == nil {
+		t.Fatal("health.egress without a probe should fail")
+	}
+	probes := 0
+	h.e.EgressProbe = func(context.Context) health.CheckReport {
+		probes++
+		return health.CheckReport{ID: health.LeakEgress{}.ID(), Title: "egress", Result: health.Result{Status: health.StatusWarn, Summary: "same IP"}}
+	}
+	now := time.Date(2026, 11, 27, 10, 0, 0, 0, time.UTC)
+	h.e.Now = func() time.Time { return now }
+	s.RunNow(ctx, "start")
+
+	hr, err := h.e.HealthEgress(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	egress := func(raw json.RawMessage) health.CheckReport {
+		t.Helper()
+		var rep health.Report
+		if err := json.Unmarshal(raw, &rep); err != nil {
+			t.Fatal(err)
+		}
+		return rep.Checks[0]
+	}
+	if c := egress(hr.Report); probes != 1 || c.Status != health.StatusWarn || !c.At.Equal(now) {
+		t.Fatalf("health.egress: %d probes, check %+v", probes, c)
+	}
+	if lr, _ := h.e.HealthLast(""); egress(lr.Report).Status != health.StatusWarn {
+		t.Fatal("health.last lost the result")
+	}
+
+	// A scheduled run with the switch off keeps it.
+	if c := s.RunNow(ctx, "interval").Checks[0]; c.Status != health.StatusWarn || !c.At.Equal(now) {
+		t.Fatalf("periodic run: %+v", c)
+	}
+	// A restarted helper reads it back.
+	again := New(h.e.Store, h.e.Secrets)
+	again.Now = h.e.Now
+	if c := newSched(again).RunNow(ctx, "start").Checks[0]; c.Status != health.StatusWarn {
+		t.Fatalf("after restart: %+v", c)
+	}
+	// Stale: 未开启 again.
+	now = now.Add(EgressKeep + time.Minute)
+	if c := s.RunNow(ctx, "interval").Checks[0]; c.Status != health.StatusSkip || !c.At.IsZero() {
+		t.Fatalf("stale result kept: %+v", c)
+	}
+	// 定期检测 on: the run's own result stands.
+	now = now.Add(-EgressKeep)
+	on := true
+	if _, err := h.e.UpdateSettings(rpc.SettingsUpdate{HealthEgress: &on}); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := h.e.Settings(); !st.HealthEgress {
+		t.Fatal("health_egress not saved")
+	}
+	if c := s.RunNow(ctx, "interval").Checks[0]; !c.At.IsZero() {
+		t.Fatalf("switch on, the stored result replaced the run's: %+v", c)
+	}
+}

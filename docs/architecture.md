@@ -60,7 +60,7 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | kernels | `kernel.list`, `kernel.check`, `kernel.install` (takes a channel and optionally the version that was shown, never a URL), `kernel.rollback` |
 | accessories | `geo.check`, `geo.update {force}`, `ui.check`, `ui.update {force}` |
 | services | `service.status`, `service.start`, `service.stop`, `service.restart` (`mihomo`, `tailscaled`), `service.install`, `service.uninstall` (`mihomo` only). The client passes a name; labels come from settings. The helper's own service is refused (use `duet helper install/uninstall`). Without root the helper returns the plan with `dry_run: true` and runs nothing. |
-| health | `health.last` (the last report, no run), `health.run {reason}` (runs now, 2 min cap) |
+| health | `health.last` (the last report, no run), `health.run {reason}` (runs now, 2 min cap), `health.egress {lang}` (runs `leak-guard-egress` once now and keeps the result, see below) |
 | config | `config.get {source: live\|preview\|history, id}`: the config text with the top-level `secret` stripped |
 | info | `tailscale.info` |
 | controller | `controller.credentials` (the controller address and the secret mihomo loaded, for the app; any authorized peer can already reconfigure mihomo), `controller.secure` (generate a secret, store it, write it into the config and reload; it takes effect at mihomo's next start) |
@@ -130,7 +130,7 @@ A check implements `ID`, `Title`, `Platforms`, `Run(ctx, Env) Result`. `Env` is 
 | `system-dns` | Every active network service / link resolves through mihomo, or its queries are caught by the TUN's DNS hijack (warn). |
 | `vpn-conflict` | No other VPN is connected, no exit node (unless allowed), and mihomo's TUN holds the default route. |
 | `leak-guard` | Sensitive proxy groups (default `Google`, `Meta`) cannot resolve to `DIRECT`. |
-| `leak-guard-egress` | Opt-in. One HTTPS request direct and one through mihomo; the proxied exit IP must differ. Public IPs are masked. |
+| `leak-guard-egress` | Opt-in. One HTTPS request direct and one through mihomo; the proxied exit IP must differ. Public IPs are masked. With `health_egress` (定期检测) on it runs with every health run; off, it runs only on `health.egress` (检测出口), whose result (with its time, `CheckReport.at`) the helper keeps in `health-egress.json` and puts into later reports for 24 h. |
 | `controller-security` | The mihomo controller listens on loopback only and has a secret. |
 
 Check titles name the subject, not the passing condition (`vpn-conflict` is "VPN 冲突" / "VPN conflicts"), so a red mark next to a title reads as a problem with that subject. The texts are in `core/health/strings.go` (zh, reference) and `strings_en.go`; zh uses the UI glossary terms (出口节点, 密钥, 后台助手), and a one-sentence fix hint has no final period. `TestChineseUsesGlossaryTerms` and `TestTitlesNameTheSubject` check both.

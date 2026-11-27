@@ -81,6 +81,10 @@ type Scheduler struct {
 	SkipInitial bool
 	// OnEvent, if set, is called synchronously after every run.
 	OnEvent func(Event)
+	// Overlay, if set, may change a run's report before it is kept (the
+	// helper puts a stored on-demand result in place of a check that is
+	// off). It also sees reports passed to Replace.
+	Overlay func(*Report)
 	Clock   Clock // default RealClock
 
 	once    sync.Once
@@ -307,7 +311,57 @@ func (s *Scheduler) runOnce(ctx context.Context, reason string) *Report {
 		// Cancelled mid-run: the results are timeouts, not facts.
 		return rep
 	}
+	if s.Overlay != nil {
+		s.Overlay(rep)
+		rep.Overall = overall(rep.Checks)
+	}
+	s.keep(rep, reason)
+	return rep
+}
 
+func overall(checks []CheckReport) Status {
+	o := StatusOK
+	for _, c := range checks {
+		o = Worse(o, c.Status)
+	}
+	return o
+}
+
+// Replace puts cr in place of the check with its ID in the last report
+// (a check run on its own, on demand) and emits an Event as a run does.
+// It returns the new report; nil, and nothing emitted, before the first
+// run or when the report has no such check.
+func (s *Scheduler) Replace(cr CheckReport, reason string) *Report {
+	s.init()
+	s.runMu.Lock()
+	defer s.runMu.Unlock()
+	s.mu.Lock()
+	last := s.last
+	s.mu.Unlock()
+	if last == nil {
+		return nil
+	}
+	rep := *last
+	rep.Checks = append([]CheckReport(nil), last.Checks...)
+	found := false
+	for i := range rep.Checks {
+		if rep.Checks[i].ID == cr.ID {
+			rep.Checks[i], found = cr, true
+		}
+	}
+	if !found {
+		return nil
+	}
+	if s.Overlay != nil {
+		s.Overlay(&rep)
+	}
+	rep.Overall = overall(rep.Checks)
+	s.keep(&rep, reason)
+	return &rep
+}
+
+// keep makes rep the last report and emits its Event.
+func (s *Scheduler) keep(rep *Report, reason string) {
 	s.mu.Lock()
 	changes := Diff(s.last, rep)
 	s.last = rep
@@ -332,7 +386,6 @@ func (s *Scheduler) runOnce(ctx context.Context, reason string) *Report {
 	if s.OnEvent != nil {
 		s.OnEvent(ev)
 	}
-	return rep
 }
 
 // Diff returns the checks whose status differs between two reports, in the

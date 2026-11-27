@@ -26,7 +26,7 @@ var AllMethods = []string{
 	MethodTailscaleInfo,
 	MethodServiceStatus, MethodServiceStart, MethodServiceStop, MethodServiceRestart,
 	MethodServiceInstall, MethodServiceUninstall,
-	MethodHealthLast, MethodHealthRun,
+	MethodHealthLast, MethodHealthRun, MethodHealthEgress,
 	MethodConfigGet,
 	MethodGeoCheck, MethodGeoUpdate, MethodUICheck, MethodUIUpdate,
 	MethodTakeoverPlan, MethodTakeoverPlans, MethodTakeoverDiscard, MethodTakeoverAdopt, MethodTakeoverUndo,
