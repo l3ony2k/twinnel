@@ -132,6 +132,29 @@ func (e *Engine) validateOpts(st *store.Settings) []config.ValidateOption {
 	return opts
 }
 
+// blame names the overrides (or the subscription) that hold a name
+// mihomo -t's errors quote, so the app can point at them (walkthrough 2,
+// N5). Best effort: nothing when the sources can't be read.
+func (e *Engine) blame(ctx context.Context, st *store.Settings, errs []string) []rpc.Culprit {
+	sub, ok := st.ActiveSubscription()
+	if !ok {
+		return nil
+	}
+	raw, err := e.Store.ReadSubscription(sub.ID)
+	if err != nil {
+		return nil
+	}
+	layers, err := e.buildLayers(ctx, st)
+	if err != nil {
+		return nil
+	}
+	var out []rpc.Culprit
+	for _, c := range config.Blame(errs, raw, layers) {
+		out = append(out, rpc.Culprit{Name: c.Name, Layer: c.Layer, Title: c.Title})
+	}
+	return out
+}
+
 // Preview composes and validates without writing anything.
 func (e *Engine) Preview(ctx context.Context) (rpc.ComposeResult, error) {
 	st, err := e.Store.Settings()
@@ -179,6 +202,9 @@ func (e *Engine) check(ctx context.Context, st *store.Settings, cfg []byte, appl
 	}
 	cr.Valid = v.OK
 	cr.ValidateErrors = v.Errors
+	if !v.OK && (len(applied) == 0 || !strings.HasPrefix(applied[0], "history:")) {
+		cr.Culprits = e.blame(ctx, st, v.Errors)
+	}
 	warn, errs := exposureCheck(final, st)
 	cr.Warnings = append(cr.Warnings, warn...)
 	if len(errs) > 0 {
