@@ -175,8 +175,8 @@ func TestWriteExport(t *testing.T) {
 		rpc.MethodLayerGet + "/mine":    rpc.LayerContent{Content: "rules: []\n"},
 		rpc.MethodLayerGet + "/coexist": rpc.LayerContent{Content: "managed\n"},
 	}
-	layers := []rpc.Layer{{ID: "mine"}, {ID: "coexist", Managed: true}}
-	if err := writeExport(context.Background(), hc, to, layers); err != nil {
+	hc[rpc.MethodLayerList] = []rpc.Layer{{ID: "mine"}, {ID: "coexist", Managed: true}}
+	if err := writeExport(context.Background(), hc, to); err != nil {
 		t.Fatal(err)
 	}
 	zr, err := zip.OpenReader(to)
