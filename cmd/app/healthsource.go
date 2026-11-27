@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/duet/core/i18n"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/rpc/healthsrc"
 	"github.com/l3ony2k/duet/core/status"
@@ -27,7 +28,7 @@ type helperHealth struct {
 func (s *helperHealth) Run(ctx context.Context) (*health.Report, error) {
 	fresh := s.fresh.Swap(false)
 	if s.hc != nil && s.hc.State().Connected() {
-		rep, err := healthsrc.Source{Client: s.hc, Fresh: fresh, Reason: "app"}.Run(ctx)
+		rep, err := healthsrc.Source{Client: s.hc, Fresh: fresh, Reason: "app", Lang: i18n.Tag()}.Run(ctx)
 		var re *rpc.Error
 		if err == nil || !errors.As(err, &re) || re.Code != rpc.CodeMethodNotFound {
 			s.fromHelpr.Store(err == nil)

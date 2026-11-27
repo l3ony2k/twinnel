@@ -290,9 +290,9 @@ func planText(p *uninstall.Plan, all bool) string {
 	if all {
 		rm = append(rm, T.ItemLoginItem, T.ItemAppTrash)
 	}
-	text := fmt.Sprintf(T.UninstallRemoves, strings.Join(rm, T.UninstallListSep))
+	text := fmt.Sprintf(T.UninstallRemoves, strings.Join(rm, T.ListSep))
 	if len(keep) > 0 {
-		text += "\n" + fmt.Sprintf(T.UninstallKeeps, strings.Join(keep, T.UninstallListSep))
+		text += "\n" + fmt.Sprintf(T.UninstallKeeps, strings.Join(keep, T.ListSep))
 	}
 	return text
 }

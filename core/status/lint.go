@@ -24,7 +24,7 @@ type LintNote struct {
 // not a list, or whose name looks like a domain, is flagged as a likely
 // mistake; the others get a quiet reminder. A YAML error is one note.
 func LintOverride(src string) []LintNote {
-	T := i18n.T
+	T := i18n.Cur()
 	var doc yaml.Node
 	if err := yaml.Unmarshal([]byte(src), &doc); err != nil {
 		return []LintNote{{Level: LevelError, Text: fmt.Sprintf(T.LintYAMLError, err.Error())}}
@@ -52,7 +52,7 @@ func LintOverride(src string) []LintNote {
 }
 
 func lintKey(k, v *yaml.Node) (LintNote, bool) {
-	T := i18n.T
+	T := i18n.Cur()
 	key := k.Value
 	if k.Kind != yaml.ScalarNode || len(key) < 2 || isWrapped(key) {
 		return LintNote{}, false

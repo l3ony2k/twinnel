@@ -251,7 +251,7 @@ func TestTUNExclude(t *testing.T) {
 	e = healthyEnv()
 	e.rtErr = errors.New("refused")
 	e.cfg.TUN.RouteExcludeAddress = nil
-	want(t, TUNExclude{}, e, StatusFail, srcFile)
+	want(t, TUNExclude{}, e, StatusFail, zhTexts.srcFile)
 }
 
 func TestTailscaleRules(t *testing.T) {
@@ -323,7 +323,7 @@ func TestPeerNames(t *testing.T) {
 	}
 	e = healthyEnv()
 	e.rt.Rules = e.rt.Rules[:4]
-	want(t, PeerNames{}, e, StatusWarn, msgNamesNone)
+	want(t, PeerNames{}, e, StatusWarn, zhTexts.msgNamesNone)
 }
 
 func TestSystemDNS(t *testing.T) {
@@ -345,7 +345,7 @@ func TestSystemDNS(t *testing.T) {
 
 	e = healthyEnv()
 	e.ifs[0].Active = false
-	want(t, SystemDNS{}, e, StatusWarn, msgDNSNoActive)
+	want(t, SystemDNS{}, e, StatusWarn, zhTexts.msgDNSNoActive)
 
 	// No dns.listen: no empty parentheses in the summary.
 	e = healthyEnv()
@@ -355,7 +355,7 @@ func TestSystemDNS(t *testing.T) {
 			e.svcs[i].DNS = []string{"127.0.0.1"}
 		}
 	}
-	r := want(t, SystemDNS{}, e, StatusOK, msgDNSOKNoListen)
+	r := want(t, SystemDNS{}, e, StatusOK, zhTexts.msgDNSOKNoListen)
 	if strings.Contains(r.Summary, "（）") {
 		t.Fatal(r.Summary)
 	}
@@ -527,13 +527,13 @@ func TestExport(t *testing.T) {
 	e.cfg.SecretSet = false
 	rep := (&Runner{Registry: DefaultRegistry()}).Run(context.Background(), e)
 	md := rep.Markdown()
-	for _, s := range []string{"# " + titleReport, "## ⚠️ " + titleController, "```", labelFix} {
+	for _, s := range []string{"# " + zhTexts.titleReport, "## ⚠️ " + zhTexts.titleController, "```", zhTexts.labelFix} {
 		if !strings.Contains(md, s) {
 			t.Errorf("markdown missing %q", s)
 		}
 	}
 	txt := rep.Text()
-	if !strings.Contains(txt, "[WARN] "+titleController) || !strings.Contains(txt, "[OK  ] "+titleTailnetRoute) {
+	if !strings.Contains(txt, "[WARN] "+zhTexts.titleController) || !strings.Contains(txt, "[OK  ] "+zhTexts.titleTailnetRoute) {
 		t.Error(txt)
 	}
 	b, err := rep.JSON()

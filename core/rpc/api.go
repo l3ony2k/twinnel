@@ -436,6 +436,17 @@ type ServiceOpResult struct {
 // HealthRunParams are the params of health.run.
 type HealthRunParams struct {
 	Reason string `json:"reason,omitempty"` // default "manual"
+	// Lang is the language to word the report in (core/i18n tag, e.g.
+	// "en"); the helper keeps it for its scheduled runs. "" keeps the
+	// language the helper uses now.
+	Lang string `json:"lang,omitempty"`
+}
+
+// HealthLastParams are the params of health.last. A Lang other than the
+// last report's makes the helper run the checks again in it (an event
+// health.updated follows); the call still returns the report it has.
+type HealthLastParams struct {
+	Lang string `json:"lang,omitempty"`
 }
 
 // HealthReport is the result of health.last and health.run. Report is a

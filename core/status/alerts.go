@@ -79,7 +79,7 @@ func (a *Alerter) defaults() {
 func (a *Alerter) Check(s Snapshot) []Alert {
 	a.defaults()
 	now := s.Time
-	t := i18n.T
+	t := i18n.Cur()
 	var active []cond
 
 	if s.Loaded && !s.Mihomo.Reachable && s.Mihomo.Err != "" {

@@ -109,7 +109,7 @@ func (a *app) loadInstallPlan() {
 			v.loading, v.loaded = false, true
 			v.plan, v.planErr = out, ""
 			if err != nil {
-				v.planErr = i18n.T.ErrorPrefix + err.Error()
+				v.planErr = i18n.Cur().ErrorPrefix + err.Error()
 			}
 			a.invalidate()
 		})

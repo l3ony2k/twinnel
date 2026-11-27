@@ -26,13 +26,13 @@ const (
 func (l Level) Text() string {
 	switch l {
 	case LevelOK:
-		return i18n.T.StatusOK
+		return i18n.Cur().StatusOK
 	case LevelWarn:
-		return i18n.T.StatusWarn
+		return i18n.Cur().StatusWarn
 	case LevelError:
-		return i18n.T.StatusError
+		return i18n.Cur().StatusError
 	}
-	return i18n.T.StatusUnknown
+	return i18n.Cur().StatusUnknown
 }
 
 // TrafficSample is one /traffic sample with its time.
@@ -206,7 +206,7 @@ const KeyExpiryWarning = 7 * 24 * time.Hour
 
 // Evaluate sets s.Level and s.Reasons from the rest of s.
 func Evaluate(s *Snapshot) {
-	t := i18n.T
+	t := i18n.Cur()
 	var rs []Reason
 	add := func(l Level, text string) { rs = append(rs, Reason{Level: l, Text: text}) }
 	m := s.Mihomo

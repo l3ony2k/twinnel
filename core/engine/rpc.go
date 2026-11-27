@@ -136,9 +136,11 @@ func (e *Engine) Register(s *rpc.Server) {
 	})
 	e.registerCredentials(s)
 
-	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, _ rpc.Empty) (rpc.HealthReport, error) { return e.HealthLast() })
+	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, p rpc.HealthLastParams) (rpc.HealthReport, error) {
+		return e.HealthLast(p.Lang)
+	})
 	rpc.Typed(s, rpc.MethodHealthRun, func(ctx context.Context, p rpc.HealthRunParams) (rpc.HealthReport, error) {
-		return e.HealthRun(ctx, p.Reason)
+		return e.HealthRun(ctx, p.Reason, p.Lang)
 	})
 
 	rpc.Typed(s, rpc.MethodEventsWait, func(ctx context.Context, p rpc.EventsWaitParams) (rpc.EventsWaitResult, error) {

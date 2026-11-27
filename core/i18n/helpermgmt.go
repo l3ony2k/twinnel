@@ -23,7 +23,6 @@ type HelperMgmtStrings struct {
 	UninstallRemoves, UninstallKeeps       string // %s: the list
 	UninstallPurge                         string // the checkbox
 	UninstallConfirm, RemoveAllConfirm     string
-	UninstallListSep                       string
 	ItemHelper, ItemData, ItemSecrets      string
 	ItemDataCounts                         string // %d subscriptions, %d layers
 	ItemDuetMihomo                         string // %s: the original service it goes back to
@@ -59,7 +58,6 @@ var zhHelperMgmt = HelperMgmtStrings{
 	UninstallPurge:     "同时删除数据",
 	UninstallConfirm:   "卸载",
 	RemoveAllConfirm:   "移除",
-	UninstallListSep:   "、",
 	ItemHelper:         "后台助手",
 	ItemData:           "数据",
 	ItemDataCounts:     "数据（%d 个订阅、%d 个规则层、历史、日志）",
@@ -82,4 +80,47 @@ var zhHelperMgmt = HelperMgmtStrings{
 	OpenAtLogin:               "登录时打开",
 	OpenAtLoginUnsupportedTip: "只有打包后的 app 能登录时打开",
 	OpenAtLoginApprove:        "在系统设置 › 通用 › 登录项中允许 duet",
+}
+
+var enHelperMgmt = HelperMgmtStrings{
+	HelperSection:   "Helper",
+	HelperUpdate:    "Update",
+	HelperRestart:   "Restart",
+	HelperViewLog:   "View Log",
+	HelperUninstall: "Uninstall…",
+	HelperRemoveAll: "Remove duet Completely…",
+
+	HelperNeedsUpdate:  "Helper needs an update",
+	HelperNewerThanApp: "duet needs an update",
+	HelperVersionVsApp: "%s · app %s",
+
+	UninstallTitle:     "Uninstall the helper?",
+	RemoveAllTitle:     "Remove duet completely?",
+	UninstallRemoves:   "Removes: %s",
+	UninstallKeeps:     "Keeps: %s",
+	UninstallPurge:     "Also delete data",
+	UninstallConfirm:   "Uninstall",
+	RemoveAllConfirm:   "Remove",
+	ItemHelper:         "the helper",
+	ItemData:           "data",
+	ItemDataCounts:     "data (%d subscriptions, %d overrides, history, logs)",
+	ItemSecrets:        "keychain items",
+	ItemDuetMihomo:     "duet's mihomo service (back to %s, offline for a few seconds)",
+	ItemOriginalMihomo: "mihomo's original service",
+	ItemDuetMihomoKeep: "mihomo service",
+	ItemTailscale:      "Tailscale",
+	ItemApp:            "duet.app",
+	ItemAppTrash:       "duet.app (moved to the Trash)",
+	ItemLoginItem:      "Open at login",
+	UninstallOwnMihomo: "mihomo runs from duet's data; deleting it would cut the network. Uninstall the mihomo service on the Core page first.",
+	UninstallRefused:   "Can't uninstall: %s",
+
+	DoneHelperUpdated:     "Helper updated",
+	DoneHelperRestarted:   "Helper restarted",
+	DoneHelperUninstalled: "Helper uninstalled",
+
+	General:                   "General",
+	OpenAtLogin:               "Open at login",
+	OpenAtLoginUnsupportedTip: "Only the packaged app can open at login",
+	OpenAtLoginApprove:        "Allow duet in System Settings › General › Login Items",
 }

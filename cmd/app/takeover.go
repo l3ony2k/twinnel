@@ -423,7 +423,7 @@ func changeList(c *ui.Context, key, title string, list []rpc.TakeoverChange, col
 	}
 	t := c.Theme()
 	ui.Column(c.Key(key)).Gap(4).Children(func() {
-		ui.Text(c, fmt.Sprintf("%s（%d）", title, len(list))).FontWeight(600)
+		ui.Text(c, fmt.Sprintf(i18n.T.CountF, title, len(list))).FontWeight(600)
 		for i, ch := range list {
 			ui.Row(c.Key(fmt.Sprint(i))).Gap(8).AlignItems(ui.Start).Children(func() {
 				dot(c, col, 6).Margin(5, 0, 0, 0)
@@ -656,7 +656,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 			ui.Spacer(c)
 			can := a.helperWrites(s) && !v.unsupported && !v.fixture
 			if a.opButton(c.Key("secure"), iconSecure, T.SecureRun, false, T.SecureRun).Disabled(!can).Clicked() {
-				a.confirm(T.SecureTitle+"？", T.SecureBody, T.SecureRun, a.controllerSecure)
+				a.confirm(i18n.F(T.AskF, T.SecureTitle), T.SecureBody, T.SecureRun, a.controllerSecure)
 			}
 		})
 		if r := v.secure; r != nil {
