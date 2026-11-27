@@ -476,7 +476,32 @@ func (a *app) helperSection(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	v := &a.hm
 	h := s.Helper
-	cardTipWith(c, T.HelperSection, T.TipHelper, nil, nil, func() {
+	// The card's actions sit in its heading (R-unslop-37): 更新 when the
+	// helper is older than the app, then 操作 (重启, 查看日志).
+	var trailing func()
+	if h.State != status.HelperNotInstalled {
+		trailing = func() {
+			on := a.helperOpsEnabled(s)
+			if a.canUpdateHelper() {
+				if busyButton(c.Key("hm-update"), T.HelperUpdate, true, v.running == T.HelperUpdate, !on).Clicked() {
+					a.updateHelper()
+				}
+			}
+			restarting := v.running == T.HelperRestart
+			if restarting { // 重启 runs from the menu: its progress shows beside it
+				spinnerIcon(c).Label(T.HelperRestart)
+			}
+			pushFace(c, ui.MenuButton(c.Key("hm-actions"), T.Actions, func(m *ui.Menu) {
+				if m.Item(T.HelperRestart).Disabled(!on || restarting).Chosen() {
+					a.restartHelper()
+				}
+				if m.Item(T.HelperViewLog).Chosen() {
+					a.openHelperLog()
+				}
+			}))
+		}
+	}
+	cardTipWith(c, T.HelperSection, T.TipHelper, nil, trailing, func() {
 		kvWith(c, T.State, func() {
 			m, col := markDown, t.TextMuted
 			switch h.State {
@@ -499,20 +524,6 @@ func (a *app) helperSection(c *ui.Context, s status.Snapshot) {
 		if st := h.Status; st != nil && st.HelperVersion != "" {
 			a.helperVersionRow(c, s)
 		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingStart(labelWidth + 12).Wrap().Children(func() {
-			on := a.helperOpsEnabled(s)
-			if a.canUpdateHelper() {
-				if busyButton(c.Key("hm-update"), T.HelperUpdate, true, v.running == T.HelperUpdate, !on).Clicked() {
-					a.updateHelper()
-				}
-			}
-			if busyButton(c.Key("hm-restart"), T.HelperRestart, false, v.running == T.HelperRestart, !on).Clicked() {
-				a.restartHelper()
-			}
-			if pushButton(c.Key("hm-log"), T.HelperViewLog).Clicked() {
-				a.openHelperLog()
-			}
-		})
 		if v.errMsg != "" {
 			errorNote(c, v.errMsg)
 		}
@@ -525,19 +536,21 @@ func (a *app) helperSection(c *ui.Context, s status.Snapshot) {
 // 需要更新后台助手 is a tag on the same row.
 func (a *app) helperVersionRow(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
+	t := c.Theme()
 	hv := s.Helper.Status.HelperVersion
 	kvWith(c, T.Version, func() {
 		switch helperMatch(s) {
-		case version.MatchHelperOlder, version.MatchHelperNewer:
+		case version.MatchHelperOlder:
+			// The helper's version → the app's, with the attention ring;
+			// 更新 is the card's action (R-unslop-37).
+			stateDot(c, markAttention, t.Warning, 8)
+			monoText(c, hv+" → "+version.Version).SingleLine().Selectable().Tooltip(T.HelperNeedsUpdate)
+			ui.Text(c, T.HelperNeedsUpdate).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		case version.MatchHelperNewer:
 			num(ui.Text(c, fmt.Sprintf(T.HelperVersionVsApp, hv, version.Version)).SingleLine().Selectable())
+			tag(c, T.HelperNewerThanApp)
 		default:
 			monoText(c, hv).SingleLine().Selectable()
-		}
-		switch helperMatch(s) {
-		case version.MatchHelperOlder:
-			tag(c, T.HelperNeedsUpdate)
-		case version.MatchHelperNewer:
-			tag(c, T.HelperNewerThanApp)
 		}
 	})
 }
