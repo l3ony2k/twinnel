@@ -61,9 +61,12 @@ const (
 	gapGroup   = 20 // between groups on a page
 	groupPadX  = 16 // a group's side padding; its heading lines up with it
 	groupPadY  = 12
-	labelWidth = 96 // the label column of kv rows
 	gapSub     = 2  // between a line and the secondary line under it
 )
+
+// labelWidth is the label column of kv rows: as wide as the current
+// language's labels need (langLayouts).
+var labelWidth float32 = 96
 
 // lineText is the line height of text that wraps, as a multiple of its
 // size: every paragraph (hints, notes, errors, row details) spaces its

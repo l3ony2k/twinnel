@@ -5,7 +5,9 @@
 // Environment: DUET_CONTROLLER (default 127.0.0.1:9090), DUET_MIHOMO_SECRET,
 // DUET_ALLOW_WRITES=1 to enable the controls that change things,
 // DUET_SOCKET (the helper's socket, default /var/run/duet/helper.sock),
-// DUET_CLI (the duet command line tool, for the helper install plan).
+// DUET_CLI (the duet command line tool, for the helper install plan),
+// DUET_LANG=en|zh-Hans to show one UI language for this run without saving
+// it (screenshots; it overrides 设置 → 语言).
 package main
 
 import (

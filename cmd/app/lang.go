@@ -37,7 +37,32 @@ func initLang() {
 	if f := forcedLang(); f != "" {
 		os.Setenv("MYGO_LOCALE", f)
 		i18n.Set(f)
+		setLayout(f)
 	}
+}
+
+// langLayout is what a language's longer words need of the layout:
+// widths are set per language, never by shortening the text.
+type langLayout struct {
+	label        float32 // kv label column (labelWidth)
+	sidebarExtra float32 // added to the platform's sidebar width
+}
+
+var langLayouts = map[string]langLayout{
+	"zh-Hans": {label: 96},
+	"en":      {label: 116, sidebarExtra: 28}, // "This Mac's name", "Subscriptions & Overrides"
+}
+
+// sidebarExtra widens the sidebar for the current language.
+var sidebarExtra float32
+
+// setLayout sizes the layout for tag. Main thread.
+func setLayout(tag string) {
+	l, ok := langLayouts[tag]
+	if !ok {
+		l = langLayouts["en"]
+	}
+	labelWidth, sidebarExtra = l.label, l.sidebarExtra
 }
 
 // uiLang returns the language to show: DUET_LANG, else the setting, else
@@ -64,6 +89,7 @@ func (a *app) applyLang() {
 	first := !a.langShown
 	a.langShown = true
 	i18n.Set(tag)
+	setLayout(tag)
 	if first {
 		return // ready builds the menus and the tray next
 	}

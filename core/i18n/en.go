@@ -634,6 +634,8 @@ var enWindow = WindowStrings{
 	LanguageSystem: "System",
 
 	LabelSep: ": ",
+	CountF:   "%s (%d)",
+	AskF:     "%s?",
 }
 
 var enAbout = AboutStrings{

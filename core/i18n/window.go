@@ -26,6 +26,9 @@ type WindowStrings struct {
 	// LabelSep joins a label and what it labels in running text
 	// ("失败：tailnet 路由").
 	LabelSep string
+	// CountF is a heading with a count ("有意的修改（4）"; %s, %d);
+	// AskF makes a title a confirmation question (%s).
+	CountF, AskF string
 }
 
 var zhWindow = WindowStrings{
@@ -45,4 +48,6 @@ var zhWindow = WindowStrings{
 	LanguageSystem: "跟随系统",
 
 	LabelSep: "：",
+	CountF:   "%s（%d）",
+	AskF:     "%s？",
 }

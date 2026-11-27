@@ -208,7 +208,7 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	bar := c.TitleBar()
-	side := ui.Column(c).Width(plat.sidebarWidth).Shrink(0).DragWindow()
+	side := ui.Column(c).Width(plat.sidebarWidth + sidebarExtra).Shrink(0).DragWindow()
 	if !c.Vibrancy() { // an opaque stand-in for the material
 		side.Background(ui.Hex("#ebebeb"))
 		if t.Dark {
@@ -490,7 +490,9 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 	if st.KeyExpiry != nil {
 		kv(c, T.KeyExpiry, st.KeyExpiry.Local().Format("2006-01-02")+" ("+status.Until(s.Time, *st.KeyExpiry)+")")
 	}
-	kv(c, T.Install, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source))
+	kvWith(c, T.Install, func() { // wraps: long in some languages, and the card is half wide
+		num(ui.Text(c, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source)).Grow(1).Wrap().LineHeight(lineText).Selectable())
+	})
 }
 
 func sourceSuffix(s string) string {
