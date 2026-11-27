@@ -242,16 +242,17 @@ type Strings struct {
 
 	// Texts kept in their own files (one per area, so parallel work does
 	// not collide here). Fields are promoted: T.X reads them.
-	ControlStrings    // controls.go
-	ConfigStrings     // config.go
-	WindowStrings     // window.go
-	AboutStrings      // about.go
-	TakeoverStrings   // takeover.go
-	HelperMgmtStrings // helpermgmt.go
-	ConfigUIStrings   // configui.go
-	LifecycleStrings  // lifecycle.go
-	StatusStrings     // status.go
-	SidebarStrings    // sidebar.go
+	ControlStrings         // controls.go
+	ConfigStrings          // config.go
+	WindowStrings          // window.go
+	AboutStrings           // about.go
+	TakeoverStrings        // takeover.go
+	HelperMgmtStrings      // helpermgmt.go
+	ConfigUIStrings        // configui.go
+	LifecycleStrings       // lifecycle.go
+	TakeoverExplainStrings // takeoverexplain.go
+	StatusStrings          // status.go
+	SidebarStrings         // sidebar.go
 }
 
 // zh is the Chinese text.
@@ -789,15 +790,16 @@ var zh = Strings{
 	HealthProblems:      "需要处理",
 	HealthPassed:        "其他检查",
 
-	ConfigStrings:     zhConfig,
-	WindowStrings:     zhWindow,
-	AboutStrings:      zhAbout,
-	TakeoverStrings:   zhTakeover,
-	HelperMgmtStrings: zhHelperMgmt,
-	ConfigUIStrings:   zhConfigUI,
-	LifecycleStrings:  zhLifecycle,
-	StatusStrings:     zhStatus,
-	SidebarStrings:    zhSidebar,
+	ConfigStrings:          zhConfig,
+	WindowStrings:          zhWindow,
+	AboutStrings:           zhAbout,
+	TakeoverStrings:        zhTakeover,
+	HelperMgmtStrings:      zhHelperMgmt,
+	ConfigUIStrings:        zhConfigUI,
+	LifecycleStrings:       zhLifecycle,
+	TakeoverExplainStrings: zhTakeoverExplain,
+	StatusStrings:          zhStatus,
+	SidebarStrings:         zhSidebar,
 }
 
 // F formats one of the strings.

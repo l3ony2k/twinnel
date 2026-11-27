@@ -104,33 +104,17 @@ func Discover(ctx context.Context, p Probe, opt DiscoverOptions) (*Discovery, er
 	if err != nil {
 		d.Warnings = append(d.Warnings, "services: "+err.Error())
 	}
-	m := &MihomoSetup{}
+	m := &MihomoSetup{Service: MihomoService(svcs)}
 	for i := range svcs {
 		s := svcs[i]
-		if len(s.Program) == 0 {
-			continue
-		}
-		base := strings.ToLower(filepath.Base(s.Program[0]))
-		switch {
-		case m.Service == nil && (strings.Contains(base, "mihomo") || strings.Contains(base, "clash")):
-			m.Service = &s
-		case strings.Contains(base, "tailscaled"):
+		if len(s.Program) > 0 && strings.Contains(strings.ToLower(filepath.Base(s.Program[0])), "tailscaled") {
 			if d.Tailscale == nil {
 				d.Tailscale = &TailscaleSetup{}
 			}
 			d.Tailscale.Service = &s
 		}
 	}
-	if m.Service != nil {
-		m.Binary = m.Service.Program[0]
-		m.Dir, m.Config = ConfigFromArgs(m.Service.Program)
-	}
-	if m.Dir == "" {
-		m.Dir = filepath.Join(p.UserHome(), ".config", "mihomo")
-	}
-	if m.Config == "" {
-		m.Config = filepath.Join(m.Dir, "config.yaml")
-	}
+	m.Binary, m.Dir, m.Config = MihomoFiles(m.Service, p.UserHome())
 	if opt.ConfigPath != "" {
 		m.Config = opt.ConfigPath
 		if m.Service == nil {
@@ -186,6 +170,40 @@ func Discover(ctx context.Context, p Probe, opt DiscoverOptions) (*Discovery, er
 		d.Tailscale = ts
 	}
 	return d, nil
+}
+
+// MihomoService picks the service that runs mihomo (or a Clash core):
+// the first whose program is named so. Nil when there is none.
+func MihomoService(svcs []ServiceDef) *ServiceDef {
+	for i := range svcs {
+		if len(svcs[i].Program) == 0 {
+			continue
+		}
+		base := strings.ToLower(filepath.Base(svcs[i].Program[0]))
+		if strings.Contains(base, "mihomo") || strings.Contains(base, "clash") {
+			s := svcs[i]
+			return &s
+		}
+	}
+	return nil
+}
+
+// MihomoFiles is the binary, home dir and config file of the mihomo that
+// svc runs (its -d/-f), as a takeover plan reads them. With no service,
+// or no -d, the dir is ~/.config/mihomo; the file defaults to
+// <dir>/config.yaml.
+func MihomoFiles(svc *ServiceDef, home string) (bin, dir, config string) {
+	if svc != nil && len(svc.Program) > 0 {
+		bin = svc.Program[0]
+		dir, config = ConfigFromArgs(svc.Program)
+	}
+	if dir == "" {
+		dir = filepath.Join(home, ".config", "mihomo")
+	}
+	if config == "" {
+		config = filepath.Join(dir, "config.yaml")
+	}
+	return bin, dir, config
 }
 
 // ConfigFromArgs returns mihomo's home dir (-d) and config file (-f) from its
