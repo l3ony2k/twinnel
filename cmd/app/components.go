@@ -154,13 +154,16 @@ func (k accessoryKind) opCheck() string  { return k.title + " · " + i18n.T.Comp
 // accessorySummary is what the files of a section add up to.
 type accessorySummary struct {
 	installed, missing []string
-	updates            int   // files to download (missing or newer)
-	size               int64 // bytes to download (0: unknown)
-	from, to           string
-	version, date      string
-	source             string // "" when nothing installed came from Twinnel
-	foreign            bool   // something installed was not Twinnel's download
-	errs               []string
+	// unused: databases the running config never loads and that are not
+	// there (rpc.AccessoryFile.Unused): neither missing nor downloaded.
+	unused        int
+	updates       int   // files to download (missing or newer)
+	size          int64 // bytes to download (0: unknown)
+	from, to      string
+	version, date string
+	source        string // "" when nothing installed came from Twinnel
+	foreign       bool   // something installed was not Twinnel's download
+	errs          []string
 }
 
 func summarize(ck *rpc.AccessoryCheck) accessorySummary {
@@ -184,6 +187,9 @@ func summarize(ck *rpc.AccessoryCheck) accessorySummary {
 			} else {
 				s.foreign = true
 			}
+		} else if f.Unused {
+			s.unused++
+			continue
 		} else {
 			s.missing = append(s.missing, f.Name)
 		}
@@ -259,11 +265,15 @@ func (a *app) accessoryRows(c *ui.Context, s status.Snapshot, k accessoryKind) {
 		sum = summarize(ck)
 	}
 	none := ck != nil && len(sum.installed) == 0
+	// unused: nothing there and nothing the running config loads.
+	unused := none && len(sum.missing) == 0 && sum.unused > 0
 	listRow(c).Children(func() {
 		componentHead(c, k.title, k.tip, func() {
 			switch {
 			case ck == nil && v.loading:
 				small(c, T.Loading)
+			case unused:
+				tag(c, T.AccessoryUnused)
 			case none:
 				tag(c, T.AccessoryMissing)
 			}
@@ -308,6 +318,9 @@ func (a *app) accessoryRows(c *ui.Context, s status.Snapshot, k accessoryKind) {
 	})
 	if k.kind == rpc.AccessoryGeo && !none && ck != nil {
 		for i, f := range ck.Files {
+			if !f.Installed && f.Unused {
+				continue // not loaded, not there: nothing to say
+			}
 			listRow(c.Key(fmt.Sprint("f", i))).Children(func() { accessoryFileRow(c, f) })
 		}
 		listRow(c).Children(func() { a.geoAutoRow(c, s, ck) })

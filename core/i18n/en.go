@@ -419,6 +419,7 @@ var en = Strings{
 	AccessoryCurrent:      "Latest",
 	AccessoryError:        "Error",
 	AccessoryMissing:      "Not installed",
+	AccessoryUnused:       "Not used by the config",
 	AccessoryVerifiable:   "Verifiable",
 	AccessoryUnverifiable: "No checksum",
 	AccessoryUnchecked:    "Not checked",

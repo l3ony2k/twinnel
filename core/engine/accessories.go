@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -236,20 +238,75 @@ func (e *Engine) geoItems(st *store.Settings) []kernel.GeoItem {
 	return kernel.GeoItems(st.Mihomo.ConfigDir, readAccessorySettings(st.Mihomo.ConfigFile).geox)
 }
 
+// geoUse is which databases the config mihomo runs makes it load, with
+// its rule-set files read from mihomo's home dir; nil when unknown (no
+// config yet, or one that does not parse): then every database counts.
+func geoUse(st *store.Settings) config.GeoUse {
+	b, err := readConfined(st.Mihomo.ConfigFile)
+	if err != nil {
+		return nil
+	}
+	u, err := config.GeoNeeds(b, homeReader(st.Mihomo.ConfigDir))
+	if err != nil {
+		return nil
+	}
+	return u
+}
+
+// homeReader reads a file the config names relative to mihomo's home dir
+// (or by an absolute path inside it), confined to that dir.
+func homeReader(dir string) func(string) ([]byte, error) {
+	return func(name string) ([]byte, error) {
+		if filepath.IsAbs(name) {
+			if !inside(dir, name) {
+				return nil, fs.ErrNotExist
+			}
+			rel, err := filepath.Rel(dir, name)
+			if err != nil {
+				return nil, err
+			}
+			name = rel
+		}
+		r, err := os.OpenRoot(dir)
+		if err != nil {
+			return nil, err
+		}
+		defer r.Close()
+		f, err := r.Open(filepath.Clean(name))
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+			return nil, fs.ErrNotExist
+		}
+		return io.ReadAll(io.LimitReader(f, config.MaxConfigFileSize))
+	}
+}
+
+// geoWanted: a database to keep or fetch. One the config never loads
+// and that is not there is left alone (not missing, not downloaded).
+func geoWanted(f rpc.AccessoryFile) bool { return f.Installed || !f.Unused }
+
 // geoFiles describes the databases from the disk, the record and the
 // last check (no network). checked is false when the last check did not
 // cover these URLs.
 func (e *Engine) geoFiles(st *store.Settings, rec accKind) (files []rpc.AccessoryFile, checked bool) {
 	items := e.geoItems(st)
+	use := geoUse(st)
 	files = make([]rpc.AccessoryFile, len(items))
 	checked = !rec.CheckedAt.IsZero()
 	for i, it := range items {
-		af := rpc.AccessoryFile{Name: it.Name, File: it.File, URL: redactURL(it.URL)}
+		af := rpc.AccessoryFile{Name: it.Name, File: it.File, URL: redactURL(it.URL), Unused: use != nil && !use[it.Name]}
 		if sum, n, mod, ok := localFile(it.File); ok {
 			af.Installed, af.SHA256, af.Size, af.ModTime = true, sum, n, mod.UTC()
 			if r, ok := rec.Installed[it.Name]; ok && r.SHA256 == sum {
 				af.Version, af.Source = r.Tag, redactURL(r.URL)
 			}
+		}
+		if !geoWanted(af) {
+			files[i] = af // not checked either: nothing to compare
+			continue
 		}
 		r, ok := rec.Remote[it.Name]
 		if !ok || r.URL != it.URL {
@@ -283,9 +340,15 @@ func geoAuto(st *store.Settings) string {
 // geoResolve asks GitHub for every database and keeps the answer.
 func (e *Engine) geoResolve(ctx context.Context, f *kernel.Fetcher, st *store.Settings, via string) []kernel.Remote {
 	items := e.geoItems(st)
+	use := geoUse(st)
 	remotes := make([]kernel.Remote, len(items))
 	got := map[string]accRemote{}
 	for i, it := range items {
+		if use != nil && !use[it.Name] {
+			if _, err := os.Stat(it.File); err != nil {
+				continue // not loaded and not there: nothing to ask GitHub about
+			}
+		}
 		r, err := f.Resolve(ctx, it.URL)
 		remotes[i] = r
 		ar := accRemote{URL: it.URL, SHA256: r.SHA256, Tag: r.Tag, Size: r.Size, Time: r.Published}
@@ -327,7 +390,8 @@ func (e *Engine) GeoCheck(ctx context.Context, p rpc.AccessoryCheckParams) (rpc.
 }
 
 // GeoUpdate downloads every database that is missing or outdated (all of
-// them with force), verifies them, swaps them in as a set and, when a
+// them with force; never one the config does not load and that is not
+// there), verifies them, swaps them in as a set and, when a
 // config and a mihomo binary exist, re-validates the running config with
 // the new files (mihomo -t); if that fails, the old files are put back.
 // A database mihomo -t already downloaded into the validation cache (a
@@ -375,6 +439,10 @@ func (e *Engine) GeoUpdate(ctx context.Context, p rpc.AccessoryUpdateParams) (rp
 	}
 	var todo []int
 	for i, it := range items {
+		if !geoWanted(files[i]) {
+			out.Skipped = append(out.Skipped, it.Name)
+			continue
+		}
 		if files[i].Error != "" {
 			return fail(fmt.Errorf("%s: %s", it.Name, files[i].Error))
 		}
