@@ -154,7 +154,7 @@ func (a *app) mihomoService(method, label string) {
 // mihomoServiceItems are the 操作 menu's items while mihomo is down.
 func (a *app) mihomoServiceItems(m *ui.Menu, s status.Snapshot) {
 	T := i18n.T
-	off := !s.Can().Helper || a.hd.busy != ""
+	off := !a.canRestartMihomo(s)
 	if m.Item(T.StartMihomo).Disabled(off).Chosen() {
 		a.mihomoService(rpc.MethodServiceStart, T.StartMihomo)
 	}
@@ -176,7 +176,7 @@ func (a *app) recoveryMenu(c *ui.Context, s status.Snapshot) ui.Element {
 // row).
 func (a *app) recoveryItems(m *ui.Menu, s status.Snapshot) {
 	T := i18n.T
-	if m.Item(T.RestartMihomo).Disabled(!s.Can().Helper || a.hd.busy != "").Chosen() {
+	if m.Item(T.RestartMihomo).Disabled(!a.canRestartMihomo(s)).Chosen() {
 		a.mihomoService(rpc.MethodServiceRestart, T.RestartMihomo)
 	}
 	hasExit := s.Tailscale.Reachable && s.Tailscale.State.ExitNode != nil
@@ -410,6 +410,7 @@ type bannerAct struct {
 	key, label string
 	run        func()
 	menu       func(m *ui.Menu) // a submenu (应急恢复) instead of run
+	off        bool             // can't run now: the banner leaves it out
 }
 
 // bannerActs are the banner's actions that can run now, most useful
@@ -426,11 +427,16 @@ func (a *app) bannerActs(s status.Snapshot) []bannerAct {
 		return false
 	}
 	can := s.Can()
-	acts := a.dnsRestoredActs(s)
-	if has(status.ReasonCtlForeign) {
-		acts = append(acts, bannerAct{key: "foreign-fix", label: T.ForeignHowToFix, run: func() { a.openPage(pageHealth) }})
+	var acts []bannerAct
+	// Another program's mihomo on the controller leads: its two ways out,
+	// the card's own (restarting Twinnel's mihomo cannot help then).
+	for _, act := range a.foreignFixes(s) {
+		if !act.off {
+			acts = append(acts, act)
+		}
 	}
-	if has(status.ReasonMihomoDown) && !s.DNSRestored() && can.Helper && a.hd.busy == "" {
+	acts = append(acts, a.dnsRestoredActs(s)...)
+	if has(status.ReasonMihomoDown) && !s.DNSRestored() && a.canRestartMihomo(s) {
 		acts = append(acts, bannerAct{key: "start-mihomo", label: T.StartMihomo,
 			run: func() { a.mihomoService(rpc.MethodServiceStart, T.StartMihomo) }})
 	}

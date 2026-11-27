@@ -164,7 +164,7 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 			a.reloadMihomo(s)
 		}
 		ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-			if iconButton(c.Key("restart"), iconPower, T.RestartMihomo, false).Disabled(!can.Helper || a.hd.busy != "").Clicked() {
+			if lockTip(iconButton(c.Key("restart"), iconPower, T.RestartMihomo, false).Disabled(!a.canRestartMihomo(s)), lock).Clicked() {
 				a.confirmRestartMihomo()
 			}
 			a.helperLock(c, s)
