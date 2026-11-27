@@ -54,7 +54,7 @@ func (a *app) mainView(c *ui.Context) {
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
 		a.sidebarFrame(c, func() { a.sidebar(c, s) }) // sidebar.go
 		content := ui.Column(c).Grow(1).Background(t.Background)
-		if c.Vibrancy() && a.side.mode != sideHidden {
+		if c.Vibrancy() && a.contentHairline() {
 			content.BorderWidth(0, 0, 0, 1).BorderColor(pal(t).separator)
 		}
 		barH := toolbarHeight(c)
@@ -101,11 +101,12 @@ type toolbarSpec struct {
 // mainView builds the toolbar after the page. Main thread only.
 var pageBar toolbarSpec
 
-// toolbarHeight is the toolbar's height: the title bar's under a hidden
-// title bar (the traffic lights centered in it), at least a unified
-// toolbar's 52.
+// toolbarHeight is the toolbar's height: a band centered on the traffic
+// lights' line, as a unified toolbar's (52 on macOS 26). The window's
+// reported title bar height (66 under the hidden-inset style) is not that
+// line (sidebar.go, trafficLightsMid).
 func toolbarHeight(c *ui.Context) float32 {
-	return max(c.TitleBar().Height, 52)
+	return max(2*trafficLightsMid(c), 52)
 }
 
 func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
@@ -209,7 +210,6 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 // material, with the duet pair's state at its foot.
 func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
-	bar := c.TitleBar()
 	side := ui.Column(c).Width(a.sideInnerW()).Shrink(0).DragWindow()
 	if !c.Vibrancy() { // an opaque stand-in for the material
 		side.Background(ui.Hex("#ebebeb"))
@@ -217,7 +217,7 @@ func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 			side.Background(ui.Hex("#2a2a2c"))
 		}
 	}
-	side.Padding(max(bar.Bottom+12, 16), 10, 12).Gap(4).Children(func() {
+	side.Padding(sidebarTop(c), 10, 12).Gap(4).Children(func() {
 		old := a.page
 		ts := 0
 		if s.Tailscale.Reachable {
