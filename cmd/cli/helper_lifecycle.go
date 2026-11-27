@@ -412,7 +412,7 @@ func runHelperUpgrade(args []string) error {
 	var check, force, asJSON bool
 	fs.BoolVar(&check, "check", false, "only compare the versions")
 	fs.BoolVar(&force, "force", false, "install the bundled helper even when it is older")
-	fs.BoolVar(&asJSON, "json", false, "with --check: print the result as JSON")
+	fs.BoolVar(&asJSON, "json", false, "print as JSON: with --check the versions, else the result (OpResult)")
 	fs.Usage = func() { fmt.Fprint(fs.Output(), upgradeUsage); fs.PrintDefaults() }
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
@@ -442,6 +442,11 @@ func runHelperUpgrade(args []string) error {
 		printUpgradeCheck(stdout, c)
 		return nil
 	}
+	return jsonRun("upgrade", asJSON, f.dryRun, func() error { return helperUpgrade(ctx, f, c, force) })
+}
+
+func helperUpgrade(ctx context.Context, f *installFlags, c UpgradeCheck, force bool) error {
+	var err error
 	if !f.asRoot {
 		printUpgradeCheck(stdout, c)
 	}
@@ -642,9 +647,14 @@ func verifyHelper(ctx context.Context, socket, want string, oldPID int) error {
 
 func runHelperRestart(args []string) error {
 	fs, f := newInstallFlags("helper restart", false)
+	asJSON := fs.Bool("json", false, "print the result as JSON (OpResult)")
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
 	}
+	return jsonRun("restart", *asJSON, f.dryRun, func() error { return helperRestart(f) })
+}
+
+func helperRestart(f *installFlags) error {
 	ctx := context.Background()
 	if !f.asRoot && !f.dryRun {
 		// A running helper restarts itself (helper.restart: it exits and

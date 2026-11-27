@@ -97,9 +97,14 @@ func (f *installFlags) rootArgs(sub string) ([]string, error) {
 
 func runHelperInstall(args []string) error {
 	fs, f := newInstallFlags("helper install", true)
+	asJSON := fs.Bool("json", false, "print the result as JSON (OpResult)")
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
 	}
+	return jsonRun("install", *asJSON, f.dryRun, func() error { return helperInstall(f) })
+}
+
+func helperInstall(f *installFlags) error {
 	if f.helperBin == "" {
 		f.helperBin = defaultHelperBin()
 	}

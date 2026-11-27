@@ -111,9 +111,9 @@ func NewHelper(t testing.TB, ctrl string) *Helper {
 	t.Cleanup(func() { os.RemoveAll(d) })
 	h := &Helper{
 		Socket: filepath.Join(d, "h.sock"), Ctrl: ctrl, Hash: "hash-1",
-		Agent:  rpc.AgentSettings{MCP: true, Operate: true},
+		Agent: rpc.AgentSettings{MCP: true, Operate: true},
 		Layers: map[string]rpc.LayerContent{
-			"nodes": {Layer: rpc.Layer{ID: "nodes", Name: "My nodes", Stage: "user", Format: "merge", Enabled: true}, Content: LayerContent},
+			"nodes":   {Layer: rpc.Layer{ID: "nodes", Name: "My nodes", Stage: "user", Format: "merge", Enabled: true}, Content: LayerContent},
 			"coexist": {Layer: rpc.Layer{ID: "coexist", Name: "Tailscale coexist", Stage: "coexist", Format: "merge", Enabled: true, Managed: true}, Content: "dns: {}\n"},
 		},
 		Order: []string{"nodes"},

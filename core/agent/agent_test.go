@@ -160,7 +160,7 @@ func TestEveryToolRedacts(t *testing.T) {
 		"set_mode": {"mode": "global"}, "select_node": {"group": "Proxy", "node": "US 1"},
 		"delay_test": {"group": "Proxy"}, "set_tun": {"enabled": false}, "tailscale_up": nil, "tailscale_down": nil,
 		"set_exit_node": {"peer": "exit-jp"}, "clear_exit_node": nil, "refresh_subscription": nil, "flush_fakeip": nil,
-		"layer_put": {"id": "extra", "content": "proxies:\n  - {name: X, type: ss, password: " + agenttest.NodePassword + "}\n"},
+		"layer_put":    {"id": "extra", "content": "proxies:\n  - {name: X, type: ss, password: " + agenttest.NodePassword + "}\n"},
 		"layer_remove": {"id": "nodes"}, "layer_enable": {"id": "extra", "enabled": false},
 		"layer_order": {"ids": []string{"extra"}}, "sub_put": {"id": "main", "url": agenttest.SubURL},
 		"sub_activate": {"id": "spare"}, "sub_remove": {"id": "spare"}, "apply": nil,

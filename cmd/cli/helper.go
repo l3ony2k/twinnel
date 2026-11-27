@@ -569,6 +569,7 @@ func runHistory(args []string) error {
 func runSettings(args []string) error {
 	fs, cf := newFlagSet("settings", `usage: duet settings [--leak-guard G1,G2|""] [--coexist on|off] [--resolver R]
                      [--history-keep N] [--channel stable|alpha] [--auto-apply on|off]
+                     [--mcp on|off] [--agent-operate on|off] [--agent-configure on|off]
 
 `)
 	var u rpc.SettingsUpdate
@@ -594,12 +595,19 @@ func runSettings(args []string) error {
 		return nil
 	})
 	fs.Func("channel", "kernel channel stable|alpha", func(s string) error { u.KernelChannel = &s; return nil })
+	var ag rpc.AgentSettingsUpdate
+	fs.Func("mcp", "local agents may use `duet mcp` `on|off`", boolFlag(&ag.MCP))
+	fs.Func("agent-operate", "agents may operate (mode, node, TUN, exit node...) `on|off`", boolFlag(&ag.Operate))
+	fs.Func("agent-configure", "agents may change the stored configuration and apply `on|off`", boolFlag(&ag.Configure))
 	pos, done, err := parse(fs, args)
 	if done || err != nil {
 		return err
 	}
 	if len(pos) > 0 {
 		return fmt.Errorf("settings: unexpected %q", pos)
+	}
+	if ag != (rpc.AgentSettingsUpdate{}) {
+		u.Agent = &ag
 	}
 	method, params := rpc.MethodSettingsGet, any(nil)
 	if u != (rpc.SettingsUpdate{}) {
@@ -613,6 +621,7 @@ func runSettings(args []string) error {
 		fmt.Fprintf(w, "auto apply\t%v\n", s.AutoApply)
 		fmt.Fprintf(w, "history keep\t%d\n", s.HistoryKeep)
 		fmt.Fprintf(w, "kernel channel\t%s\n", s.KernelChannel)
+		fmt.Fprintf(w, "agents (mcp)\t%v (operate %v, configure %v)\n", s.Agent.MCP, s.Agent.Operate, s.Agent.Configure)
 		w.Flush()
 	})
 }
