@@ -31,13 +31,16 @@ func (s netService) texts() (title, body, short string) {
 // unreachableState is a page's box when mihomo or Tailscale can't be
 // reached: what didn't load, why in plain words, then 重试 and 打开设置;
 // the raw error is diagnostic, so it waits behind a 详细信息 disclosure,
-// left-aligned under it (unslop R-7). It draws the whole box, from its
-// top, so two side by side line up.
+// left-aligned under it (unslop R-7). It is a page's state (策略组,
+// Tailscale 设备): a box of a page's size with the state in its middle,
+// not a short strip at the top of an empty page (kubai R-12); a card
+// uses the card-size cardDown (overview.go). Two side by side have the
+// same height, so they line up.
 func (a *app) unreachableState(c *ui.Context, svc netService, err string) {
 	t := c.Theme()
 	T := i18n.T
 	title, body, _ := svc.texts()
-	groupBox(c, t).Justify(ui.Start).Children(func() {
+	groupBox(c, t).MinHeight(unreachablePageH).Justify(ui.Center).Children(func() {
 		ui.Column(c).Gap(6).AlignItems(ui.Center).Padding(28, 16).Children(func() {
 			ui.Icon(c, iconError).FontSize(iconLarge).TextColor(t.TextMuted)
 			ui.Text(c, title).FontWeight(500)
@@ -54,6 +57,10 @@ func (a *app) unreachableState(c *ui.Context, svc netService, err string) {
 		})
 	})
 }
+
+// unreachablePageH is the height of a page's unreachable box: about the
+// visible part of the content area in the smallest window.
+const unreachablePageH = 380
 
 // rawDetails is the raw text of a failure behind a 详细信息 disclosure,
 // closed by default: mono, small, selectable, left-aligned and wrapping

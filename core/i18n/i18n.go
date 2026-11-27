@@ -265,6 +265,7 @@ type Strings struct {
 	StatusStrings          // status.go
 	SidebarStrings         // sidebar.go
 	OverviewStrings        // overview.go
+	PagesStrings           // pages.go
 	ErrorStrings           // errors.go
 	AgentStrings           // agent.go
 }
@@ -827,6 +828,7 @@ var zh = Strings{
 	StatusStrings:          zhStatus,
 	SidebarStrings:         zhSidebar,
 	OverviewStrings:        zhOverview,
+	PagesStrings:           zhPages,
 	AgentStrings:           zhAgent,
 }
 

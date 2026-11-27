@@ -604,11 +604,7 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy)
 		spin := showBusy(c, b, busy)
 		b.Children(func() {
-			if spin {
-				spinnerIcon(c)
-			} else {
-				ui.Icon(c, iconSpeed).FontSize(iconInline)
-			}
+			busyIcon(c, iconSpeed, spin)
 			ui.Text(c, T.TestAllDelay).SingleLine()
 		})
 		if b.Clicked() {
@@ -698,8 +694,8 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 		})
 		head.Children(func() {
 			disclosure(c, open)
-			ui.Text(c, g.Name).FontWeight(600).SingleLine().Shrink(0)
-			meta(c, g.Type)
+			ui.Text(c, g.Name).FontWeight(500).SingleLine().Shrink(0) // a row title, not a heading (R-unslop-30)
+			typeMeta(c, g.Type)
 			ui.Text(c, chain).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(chain)
 			ui.Spacer(c)
 			num(ui.Text(c, g.DelayText()).TextColor(delayColor(t, g.Delay, g.Tested)).Shrink(0))
@@ -757,8 +753,15 @@ func (a *app) nodeTile(c *ui.Context, g status.Group, i, cols int, mem status.Me
 	// Every tile takes the focus, so the keyboard and VoiceOver can read
 	// the whole group; one that cannot be picked (read-only mode, or a
 	// group mihomo picks for itself) says so as unavailable.
+	// A tile is one step up from its card: in dark a faint white over
+	// the group fill, not the darker code fill that read as holes
+	// (R-unslop-16); in light the code fill already steps.
+	fill := p.code
+	if t.Dark {
+		fill = ui.RGBA(255, 255, 255, 0.04)
+	}
 	chip := ui.Column(c).MinWidth(0).Padding(8, 10).Gap(2).Radius(plat.innerRadius).
-		Background(p.code).Border(1, p.groupLine).Transition(colorMotion).
+		Background(fill).Border(1, p.groupLine).Transition(colorMotion).
 		Role(ui.RoleRadio).Label(desc).AccessSelected(selected).Tooltip(desc).
 		Focusable().AccessDisabled(!canSelect && !selected)
 	if selected {
@@ -792,13 +795,42 @@ func (a *app) nodeTile(c *ui.Context, g status.Group, i, cols int, mem status.Me
 	chip.Children(func() {
 		ui.Text(c, mem.Name).SingleLine()
 		ui.Row(c).Gap(6).Children(func() {
-			meta(c, typ).Grow(1).Shrink(1)
+			typeMeta(c, typ).Grow(1).Shrink(1)
 			num(ui.Text(c, delay).FontSize(plat.smallSize).TextColor(delayColor(t, mem.Delay, mem.Tested)))
 		})
 	})
 	if chip.Clicked() && canSelect {
 		a.selectNode(g.Name, mem.Name)
 	}
+}
+
+// typeMeta is a mihomo group or proxy type (Selector, URLTest, VLESS):
+// an identifier, not a word to translate, so small, muted and mono
+// (R-unslop-31), protocols in their own spelling.
+func typeMeta(c *ui.Context, typ string) ui.Element {
+	return mono(meta(c, protoName(typ)))
+}
+
+// protoName spells a proxy type as its protocol does; mihomo reports
+// them capitalised (Vless, Tuic).
+func protoName(typ string) string {
+	switch strings.ToLower(typ) {
+	case "vless":
+		return "VLESS"
+	case "vmess":
+		return "VMess"
+	case "tuic":
+		return "TUIC"
+	case "ssr":
+		return "SSR"
+	case "ssh":
+		return "SSH"
+	case "wireguard":
+		return "WireGuard"
+	case "anytls":
+		return "AnyTLS"
+	}
+	return typ
 }
 
 // tileRef names a node tile that takes the focus when next built.
@@ -912,12 +944,14 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 			}
 		}
 		// The name takes the room the others leave, so the table fits a
-		// narrow window (900 px) and the last column is never cut.
+		// narrow window (900 px) and the last column is never cut; the
+		// others are as wide as their longest value (windows, 中继 · tok)
+		// in either language (R-unslop-3).
 		cols := []ui.TableColumn{
-			{Title: T.PeerName, MinWidth: 100},
-			{Title: T.PeerIP, Width: 140},
-			{Title: T.PeerOS, Width: 72},
-			{Title: T.PeerPath, Width: 108},
+			{Title: T.PeerName, MinWidth: 120},
+			{Title: T.PeerIP, Width: 120},
+			{Title: T.PeerOS, Width: 84},
+			{Title: T.PeerPath, Width: 96},
 			{Title: T.PeerRelay, Width: 56},
 			{Title: T.PeerLastSeen, Width: 88},
 		}
@@ -942,18 +976,21 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 			case 2:
 				ui.Text(c, p.OS).TextColor(t.TextMuted).SingleLine()
 			case 3:
-				icon, col := (*ui.SVG)(nil), t.TextMuted
+				// The status mark, not a glyph (R-unslop-18): an accent dot
+				// for direct, a grey one for a relay (a fact of the
+				// network, not a problem: no alarm color), none when idle.
+				mark, col := ui.Color{}, t.TextMuted
 				switch p.Path() {
 				case "direct":
-					icon, col = iconPathDirect, t.Text
+					mark, col = t.Accent, t.Text
 				case "derp", "peer-relay":
-					icon, col = iconPathRelay, t.Text // a fact of the network, not a problem: no alarm color
+					mark, col = t.TextMuted, t.Text
 				}
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					if icon != nil {
-						ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
+					if mark != (ui.Color{}) {
+						dot(c, mark, 6).Shrink(0)
 					}
-					ui.Text(c, T.Path(p.Path())).TextColor(col).SingleLine()
+					ui.Text(c, T.Path(p.Path())).TextColor(col).SingleLine().Tooltip(T.Path(p.Path()))
 				})
 			case 4:
 				ui.Text(c, p.Relay).TextColor(t.TextMuted).SingleLine()
@@ -977,6 +1014,23 @@ type settingsForm struct {
 	controller, secret, primary, testURL string
 	msg                                  string
 	failed                               bool
+	mihomoErr                            bool // msg belongs to the mihomo card
+}
+
+// dirty reports whether the mihomo fields differ from the saved config.
+func (f *settingsForm) dirty(c status.Config) bool {
+	primary := strings.TrimSpace(f.primary)
+	if primary == "" {
+		primary = status.DefaultPrimaryGroup
+	}
+	cur := c.PrimaryGroup
+	if cur == "" {
+		cur = status.DefaultPrimaryGroup
+	}
+	if strings.TrimSpace(f.controller) != c.Controller || primary != cur {
+		return true
+	}
+	return !c.SecretFromEnv && f.secret != c.Secret
 }
 
 func (f *settingsForm) load(c status.Config) {
@@ -989,68 +1043,42 @@ func (f *settingsForm) load(c status.Config) {
 }
 
 func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
-	T := i18n.T
-	f := &a.settings
-	pageTitle(c, T.PageSettings)
-	a.loginSection(c)
-	// fromHelper: the helper provides the controller and its secret, so
-	// those fields do nothing while it is connected: shown locked.
-	fromHelper := a.creds.cur != nil
-	field := func(key, label, hint string, v *string, password, locked bool) {
-		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
-			settingsLabel(c, label, "").MarginY(5)
-			ui.Column(c).Gap(gapSub).Grow(1).Children(func() {
-				in := ui.TextInput(c.Key(key), v).Label(label).Disabled(locked)
-				if password {
-					in.Password()
-				}
-				if hint != "" {
-					small(c, hint).Wrap()
-				}
-			})
-		})
+	pageTitle(c, i18n.T.PageSettings)
+	// 通用 (login, notifications, language), 菜单栏, mihomo, 后台助手 and
+	// 停止使用 duet. Every row is the label, then its control at the
+	// card's right edge (R-unslop-5).
+	a.generalCard(c)
+	if plat.trayTitle {
+		a.menuBarCard(c)
 	}
-	card(c, T.Mihomo, func() {
-		ctlHint, secretHint := "", ""
-		if fromHelper {
-			secretHint = T.ControllerFromHelper // once, under the pair it locks
-		} else if a.cfg.SecretFromEnv {
-			secretHint = T.SecretFromEnv
-		}
-		field("controller", T.Controller, ctlHint, &f.controller, false, fromHelper)
-		field("secret", T.Secret, secretHint, &f.secret, true, fromHelper || a.cfg.SecretFromEnv)
-		// The main group by its own name, as mihomo lists it: a picker
-		// of the groups one can choose a node in, while mihomo answers.
-		if names := selectorGroups(s); len(names) > 0 {
-			if !contains(names, f.primary) && f.primary != "" {
-				names = append([]string{f.primary}, names...)
-			}
-			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-				settingsLabel(c, T.PrimaryGroup, T.TipPrimaryGroup)
-				ui.Select(c.Key("primary"), &f.primary, names).Label(T.PrimaryGroup).Grow(1).MaxWidth(320)
-			})
-		} else {
-			ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
-				settingsLabel(c, T.PrimaryGroup, T.TipPrimaryGroup).MarginY(5)
-				ui.TextInput(c.Key("primary"), &f.primary).Label(T.PrimaryGroup).Grow(1)
-			})
-		}
-		// No mihomo 程序 / 配置目录 fields: nothing read them (the helper
-		// keeps its own, found by takeover; walkthrough 2, N27).
-		ui.Row(c).Gap(12).AlignItems(ui.Center).PaddingStart(labelWidth + 36).Children(func() {
-			if ui.PrimaryButton(c.Key("save"), T.Save).Clicked() {
-				a.saveSettings()
-			}
-		})
-		if f.msg != "" && f.failed {
-			errorNote(c, f.msg)
-		}
+	a.mihomoSettingsCard(c, s)
+	a.agentSection(c, s) // agentsection.go
+	a.refreshHelperMgmt(s)
+	a.helperSection(c, s)
+}
+
+// settingsFieldW is the width of a 设置 text field or pop-up: an address
+// or a group name, not the card's width.
+const settingsFieldW = 260
+
+// settingsRow is one row of a 设置 card: the label (with an ⓘ when tip
+// is set) taking the room, the control at the right edge.
+func settingsRow(c *ui.Context, label, tip string, more func(), control func()) {
+	ui.Row(c).Gap(12).AlignItems(ui.Center).MinHeight(28).Children(func() {
+		switchLabel(c, label, tip, more) // an ⓘ only where there is something to explain
+		control()
 	})
-	card(c, T.Notifications, func() {
+}
+
+// generalCard is 设置 → 通用: 登录时打开, 出现故障时发通知 and the
+// interface language, one card for three one-row settings.
+func (a *app) generalCard(c *ui.Context) {
+	T := i18n.T
+	card(c, T.General, func() {
+		a.loginRow(c)
 		on := !a.cfg.NotificationsOff
 		ok := notificationsSupported()
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			switchLabel(c, T.NotificationsSwitch, T.TipNotifications, nil)
+		settingsRow(c, T.NotificationsSwitch, T.TipNotifications, nil, func() {
 			if tg := needsBundleTag(appBundled()); !ok && tg != "" {
 				// Dev runs cannot post notifications: the switch is off
 				// limits, and the tag says why (the tooltip, how).
@@ -1060,35 +1088,78 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 				a.setNotifications(on)
 			}
 		})
+		a.languageRow(c)
+		if f := &a.settings; f.msg != "" && f.failed && !f.mihomoErr {
+			errorNote(c, f.msg)
+		}
 	})
-	if plat.trayTitle {
-		a.menuBarCard(c)
-	}
-	a.languageCard(c)
-	a.agentSection(c, s) // agentsection.go
-	a.refreshHelperMgmt(s)
-	a.helperSection(c, s)
 }
 
-// settingsLabel is the label column of a 设置 field row, with an ⓘ after
-// the label when tip is not empty.
-func settingsLabel(c *ui.Context, label, tip string) ui.Element {
+// mihomoSettingsCard is 设置 → mihomo: the controller, its secret and the
+// main group. They take effect together (the monitor reconnects), so
+// 保存 is the card's one action, in its heading, enabled once something
+// changed (R-unslop-6). While the helper provides the controller, its
+// address and secret are values, not locked fields.
+func (a *app) mihomoSettingsCard(c *ui.Context, s status.Snapshot) {
+	T := i18n.T
 	t := c.Theme()
-	if tip == "" {
-		return ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth + 24).Shrink(0)
-	}
-	return ui.Row(c).Gap(4).AlignItems(ui.Center).Width(labelWidth + 24).Shrink(0).Children(func() {
-		ui.Text(c, label).TextColor(t.TextMuted).SingleLine().Shrink(1)
-		infoTipAbout(c, label, tip, nil)
-	})
-}
-
-// switchLabel is the label of a 设置 switch row, taking the room before
-// the switch, with an ⓘ after it.
-func switchLabel(c *ui.Context, label, tip string, more func()) {
-	ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Shrink(1).Children(func() {
-		ui.Text(c, label).Shrink(1)
-		infoTipAbout(c, label, tip, more)
+	f := &a.settings
+	fromHelper := a.creds.cur != nil
+	dirty := f.dirty(a.cfg)
+	cardWith(c, T.Mihomo, func() {
+		if primaryButton(c.Key("save"), T.Save, !dirty).Clicked() {
+			a.saveSettings()
+		}
+	}, func() {
+		field := func(key, label string, v *string, password bool) {
+			settingsRow(c, label, "", nil, func() {
+				in := ui.TextInput(c.Key(key), v).Label(label).Width(settingsFieldW)
+				if password {
+					in.Password()
+				}
+				in.OnSubmit(func() { // Return saves, as 保存
+					if f.dirty(a.cfg) {
+						a.saveSettings()
+					}
+				})
+			})
+		}
+		value := func(label, v string, isMono bool) {
+			settingsRow(c, label, "", nil, func() {
+				e := ui.Text(c, v).TextColor(t.TextMuted).SingleLine().Selectable()
+				if isMono {
+					mono(e)
+				}
+			})
+		}
+		switch {
+		case fromHelper:
+			value(T.Controller, a.cfg.Controller, true)
+			value(T.Secret, T.ControllerFromHelper, false)
+		case a.cfg.SecretFromEnv:
+			field("controller", T.Controller, &f.controller, false)
+			value(T.Secret, T.SecretFromEnv, false)
+		default:
+			field("controller", T.Controller, &f.controller, false)
+			field("secret", T.Secret, &f.secret, true)
+		}
+		// The main group by its own name, as mihomo lists it: a picker
+		// of the groups one can choose a node in, while mihomo answers.
+		settingsRow(c, T.PrimaryGroup, T.TipPrimaryGroup, nil, func() {
+			if names := selectorGroups(s); len(names) > 0 {
+				if !contains(names, f.primary) && f.primary != "" {
+					names = append([]string{f.primary}, names...)
+				}
+				ui.Select(c.Key("primary"), &f.primary, names).Label(T.PrimaryGroup).Width(settingsFieldW)
+			} else {
+				ui.TextInput(c.Key("primary"), &f.primary).Label(T.PrimaryGroup).Width(settingsFieldW)
+			}
+		})
+		// No mihomo 程序 / 配置目录 fields: nothing read them (the helper
+		// keeps its own, found by takeover; walkthrough 2, N27).
+		if f.msg != "" && f.failed && f.mihomoErr {
+			errorNote(c, f.msg)
+		}
 	})
 }
 
@@ -1119,7 +1190,7 @@ func (a *app) setNotifications(on bool) {
 	cfg := a.cfg
 	cfg.NotificationsOff = !on
 	if err := status.SaveConfig(a.cfgPath, cfg); err != nil {
-		a.settings.msg, a.settings.failed = i18n.T.SaveFailed+err.Error(), true
+		a.settings.msg, a.settings.failed, a.settings.mihomoErr = i18n.T.SaveFailed+err.Error(), true, false
 		return
 	}
 	a.cfg = cfg
@@ -1146,15 +1217,15 @@ func (a *app) saveSettings() {
 		cfg.PrimaryGroup = status.DefaultPrimaryGroup
 	}
 	if _, err := mihomo.New(mihomo.Options{Address: cfg.Controller}); err != nil {
-		f.msg, f.failed = i18n.T.SaveFailed+err.Error(), true
+		f.msg, f.failed, f.mihomoErr = i18n.T.SaveFailed+err.Error(), true, true
 		return
 	}
 	if err := status.SaveConfig(a.cfgPath, cfg); err != nil {
-		f.msg, f.failed = i18n.T.SaveFailed+err.Error(), true
+		f.msg, f.failed, f.mihomoErr = i18n.T.SaveFailed+err.Error(), true, true
 		return
 	}
 	a.cfg = cfg
-	f.msg, f.failed = "", false
+	f.msg, f.failed, f.mihomoErr = "", false, false
 	a.toast = i18n.T.Saved
 	a.groupsOpen = map[string]bool{}
 	a.tileCols = map[string]int{}
@@ -1170,4 +1241,28 @@ func levelHeadline(s status.Snapshot) (string, []status.Reason) {
 		return s.Reasons[0].Text, nil
 	}
 	return s.Level.Text(), s.Reasons
+}
+
+// settingsLabel is the label column of a 设置 field row (the agent
+// card's), with an ⓘ after the label when tip is not empty.
+func settingsLabel(c *ui.Context, label, tip string) ui.Element {
+	t := c.Theme()
+	if tip == "" {
+		return ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth + 24).Shrink(0)
+	}
+	return ui.Row(c).Gap(4).AlignItems(ui.Center).Width(labelWidth + 24).Shrink(0).Children(func() {
+		ui.Text(c, label).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		infoTipAbout(c, label, tip, nil)
+	})
+}
+
+// switchLabel is the label of a 设置 switch row, taking the room before
+// the switch, with an ⓘ after it when tip is not empty.
+func switchLabel(c *ui.Context, label, tip string, more func()) {
+	ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Shrink(1).Children(func() {
+		ui.Text(c, label).Shrink(1)
+		if tip != "" {
+			infoTipAbout(c, label, tip, more)
+		}
+	})
 }

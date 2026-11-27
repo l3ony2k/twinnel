@@ -159,7 +159,7 @@ func describeEvent(e rpc.Event, name nameOf) (eventRow, bool) {
 		var ch health.Change
 		json.Unmarshal(e.Data, &ch)
 		st := healthStatusName(ch.To)
-		r.text, r.page = i18n.F(T.EvCheck, ch.Check.Title, st), pageHealth
+		r.text, r.page = i18n.F(T.EvCheck, checkTitle(ch.Check.ID, ch.Check.Title), st), pageHealth
 		r.failed = ch.To == health.StatusFail
 	case rpc.EventHealthUpdated:
 		var hs rpc.HealthSummary
@@ -234,4 +234,14 @@ func healthStatusName(s health.Status) string {
 		return T.HealthFail
 	}
 	return T.HealthSkip
+}
+
+// checkTitle names a health check in the UI language by its ID; an event
+// carries the title in the helper's language, kept for a check this build
+// does not know.
+func checkTitle(id, title string) string {
+	if t := health.TitleOf(i18n.Tag(), id); t != "" {
+		return t
+	}
+	return title
 }

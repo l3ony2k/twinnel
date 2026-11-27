@@ -72,7 +72,8 @@ what it stands for in duet. **New** = added in the design pass and not yet wired
 | `gauge.svg` | 测速 | stock |
 | `power.svg` | Tailscale 启停 | stock |
 | `globe.svg` | global mode / internet (no longer the TUN icon) | stock |
-| `eraser.svg` | 清空缓存 | stock |
+| `eraser.svg` | 清空缓存, 日志 → 清空 | stock |
+| `pause.svg`, `play.svg` | 日志 → 暂停 / 继续 | stock |
 | `triangle-alert.svg`, `circle-check.svg`, `circle-x.svg`, `circle-minus.svg` | 警告 / 正常 / 错误 / 跳过 | stock |
 | `chevron-right.svg`, `chevron-down.svg` | 折叠 / 展开 | stock |
 | `duet.svg` | app mark (sidebar, onboarding) | `src/duet.mjs` |

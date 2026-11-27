@@ -60,6 +60,9 @@ var (
 	iconLeakGuard  = svgIcon("shield-droplet")
 	iconPathDirect = svgIcon("nodes-direct")
 	iconPathRelay  = svgIcon("nodes-relay")
+	iconPause      = svgIcon("pause")  // 日志 → 暂停
+	iconPlay       = svgIcon("play")   // 日志 → 继续
+	iconClear      = svgIcon("eraser") // 日志 → 清空
 )
 
 // trayIcon returns a menu bar template icon (41×36 PNG = 18 pt tall @2x,

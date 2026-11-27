@@ -46,16 +46,20 @@ func initLang() {
 type langLayout struct {
 	label    float32 // kv label column (labelWidth)
 	halfCard float32 // narrowest a half-width card may be before cards stack
+	logLevel float32 // 日志's level column: the widest level name on one line
 }
 
 var langLayouts = map[string]langLayout{
-	"zh-Hans": {label: 96},
-	"en":      {label: 116, halfCard: 360}, // "This Mac's name"
+	"zh-Hans": {label: 96, logLevel: 32},
+	"en":      {label: 116, halfCard: 360, logLevel: 56}, // "This Mac's name"; "Warning"
 }
 
 // halfCardMin is langLayout.halfCard of the current language. (The
 // sidebar's width is measured from its labels, sidebarNeed.)
 var halfCardMin float32
+
+// levelColW is langLayout.logLevel of the current language.
+var levelColW float32 = 32
 
 // setLayout sizes the layout for tag. Main thread.
 func setLayout(tag string) {
@@ -63,7 +67,7 @@ func setLayout(tag string) {
 	if !ok {
 		l = langLayouts["en"]
 	}
-	labelWidth, halfCardMin = l.label, l.halfCard
+	labelWidth, halfCardMin, levelColW = l.label, l.halfCard, l.logLevel
 }
 
 // uiLang returns the language to show: DUET_LANG, else the setting, else
@@ -150,8 +154,9 @@ func langOptions() (labels, values []string) {
 	return labels, values
 }
 
-// languageCard is 设置 → 语言.
-func (a *app) languageCard(c *ui.Context) {
+// languageRow is 设置 → 通用 → 界面语言: a pop-up, the macOS convention
+// for a language (kubai R-26 left as is on purpose).
+func (a *app) languageRow(c *ui.Context) {
 	T := i18n.T
 	labels, values := langOptions()
 	sel := labels[0]
@@ -162,16 +167,13 @@ func (a *app) languageCard(c *ui.Context) {
 			}
 		}
 	}
-	card(c, T.Language, func() {
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, T.LanguageLabel).Grow(1)
-			if ui.Select(c.Key("language"), &sel, labels).Label(T.Language).Changed() {
-				for i, l := range labels {
-					if l == sel {
-						a.setLanguage(values[i])
-					}
+	settingsRow(c, T.LanguageLabel, "", nil, func() {
+		if ui.Select(c.Key("language"), &sel, labels).Label(T.Language).Changed() {
+			for i, l := range labels {
+				if l == sel {
+					a.setLanguage(values[i])
 				}
 			}
-		})
+		}
 	})
 }

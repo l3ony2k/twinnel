@@ -31,9 +31,10 @@ type serviceView struct {
 }
 
 type accessoryView struct {
-	check *rpc.AccessoryCheck
-	res   *rpc.AccessoryUpdateResult
-	force bool
+	check    *rpc.AccessoryCheck
+	checkErr string // the last check's error (a failed row, raw behind 复制详情)
+	res      *rpc.AccessoryUpdateResult
+	force    bool
 }
 
 // loadServices reads service.status for every service (launchctl print in
@@ -81,7 +82,7 @@ func (a *app) servicesCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.kern.svc
-	listCard(c, listHead(c, iconService, T.Services, func() {
+	listCard(c, listHead(c, nil, T.Services, func() {
 		if iconButton(c.Key("svc-refresh"), iconRefresh, T.Refresh, false).Disabled(v.loading).Clicked() {
 			a.loadServices()
 		}
@@ -108,7 +109,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 	if !ok {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			dot(c, t.TextMuted, 8)
-			ui.Text(c, name).FontWeight(600)
+			ui.Text(c, name).FontWeight(500)
 			ui.Text(c, v.errs[name]).FontSize(plat.calloutSize).TextColor(pal(t).badText).Wrap().LineHeight(lineText).Shrink(1)
 		})
 		return
@@ -124,7 +125,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Height(28).Children(func() { // one height with or without buttons
 		dot(c, col, 8)
-		ui.Text(c, name).FontWeight(600)
+		ui.Text(c, name).FontWeight(500)
 		ui.Text(c, state).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 		if adopted {
 			tag(c, T.SvcAdopted).Tooltip(T.SvcAdoptedTip)
@@ -166,11 +167,16 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 			})
 		}
 	})
+	// Rows without a value are left out, not shown as — (R-unslop-27).
 	if own {
-		kvMono(c, T.ServiceLabel, orDash(a.ownMihomoLabel()))
+		if l := a.ownMihomoLabel(); l != "" {
+			kvMono(c, T.ServiceLabel, l)
+		}
 		return
 	}
-	kvMono(c, T.ServiceLabel, orDash(st.Label))
+	if st.Label != "" {
+		kvMono(c, T.ServiceLabel, st.Label)
+	}
 	if st.PID > 0 {
 		kvMono(c, "PID", fmt.Sprint(st.PID))
 	}
@@ -281,48 +287,67 @@ func uiKind() accessoryKind {
 	}
 }
 
-func (a *app) accessoryCard(c *ui.Context, s status.Snapshot, k accessoryKind) {
+// accessoryRows are a GEO 数据库 or 控制面板 section of 内核 → 组件: a
+// head row (the name, where its files live or 未检查), then each file,
+// the update row and the last update's result. The page's one 检查更新
+// checks it (R-unslop-35).
+func (a *app) accessoryRows(c *ui.Context, s status.Snapshot, k accessoryKind) {
+	t := c.Theme()
 	T := i18n.T
 	d := &a.hd
 	v := k.view(a)
 	w := a.helperWrites(s)
-	listCard(c, listHeadTip(c, k.icon, k.title, k.tip, func() {
-		if a.opButton(c.Key("check"), iconRefresh, T.KernelCheck, false, k.title+" · "+T.KernelCheck).Disabled(d.busy != "").Clicked() {
-			a.accessoryCheck(k)
-		}
-	}), func() {
-		listRow(c).Children(func() {
+	listRow(c).Children(func() {
+		componentHead(c, k.title, k.tip, func() {
 			if ck := v.check; ck != nil && ck.Dir != "" {
-				kvMono(c, T.AccessoryDir, ck.Dir)
-			} else if ck == nil {
-				small(c, T.AccessoryUnchecked) // state, before the first check
+				mono(ui.Text(c, ck.Dir)).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable().Tooltip(ck.Dir)
+			} else if v.check == nil && v.checkErr == "" {
+				ui.Text(c, T.AccessoryUnchecked).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine() // before the first check
 			}
 		})
-		if ck := v.check; ck != nil {
-			updates := 0
-			for i, f := range ck.Files {
-				if f.UpdateAvailable || !f.Installed {
-					updates++
-				}
-				listRow(c.Key(fmt.Sprint("f", i))).Children(func() { accessoryFile(c, f) })
-			}
-			listRow(c).Children(func() {
-				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-					ui.Switch(c.Key("force"), &v.force).Label(T.AccessoryForce)
-					ui.Text(c, T.AccessoryForce).FontSize(plat.calloutSize)
-					ui.Spacer(c)
-					label := T.AccessoryUpdate
-					if updates == 0 && !v.force {
-						label = T.AccessoryUpToDate
-					}
-					if a.opButton(c.Key("update"), iconOK, label, updates > 0 || v.force, k.title+" · "+T.AccessoryUpdate).Disabled(!w || (updates == 0 && !v.force)).Clicked() {
-						a.accessoryUpdate(k, v.force)
-					}
-				})
-			})
+		if v.checkErr != "" {
+			failedRow(c.Key("failed"), i18n.F(T.PgCheckFailed, k.title), v.checkErr, func() { a.accessoryCheck(k) }, d.busy != "")
 		}
-		if r := v.res; r != nil {
-			listRow(c).Children(func() { a.accessoryResult(c, s, r) })
+	})
+	if ck := v.check; ck != nil {
+		updates := 0
+		for i, f := range ck.Files {
+			if f.UpdateAvailable || !f.Installed {
+				updates++
+			}
+			listRow(c.Key(fmt.Sprint("f", i))).Children(func() { accessoryFile(c, f) })
+		}
+		listRow(c).Children(func() {
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Switch(c.Key("force"), &v.force).Label(T.AccessoryForce)
+				ui.Text(c, T.AccessoryForce).FontSize(plat.calloutSize)
+				ui.Spacer(c)
+				label := T.AccessoryUpdate
+				if updates == 0 && !v.force {
+					label = T.AccessoryUpToDate
+				}
+				if a.opButton(c.Key("update"), iconOK, label, updates > 0 || v.force, k.title+" · "+T.AccessoryUpdate).Disabled(!w || (updates == 0 && !v.force)).Clicked() {
+					a.accessoryUpdate(k, v.force)
+				}
+			})
+		})
+	}
+	if r := v.res; r != nil {
+		listRow(c).Children(func() { a.accessoryResult(c, s, r) })
+	}
+}
+
+// componentHead is the first line of a 组件 section: its name (and ⓘ),
+// then what is known of it.
+func componentHead(c *ui.Context, title, tip string, rest func()) {
+	ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).Children(func() {
+		ui.Text(c, title).FontWeight(500).SingleLine().Shrink(0)
+		if tip != "" {
+			infoTipAbout(c, title, tip, nil)
+		}
+		ui.Spacer(c)
+		if rest != nil {
+			rest()
 		}
 	})
 }
@@ -341,7 +366,7 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		dot(c, col, 8)
-		ui.Text(c, f.Name).FontWeight(600).SingleLine().Shrink(0)
+		ui.Text(c, f.Name).SingleLine().Shrink(0)
 		ui.Text(c, state).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine().Shrink(0)
 		if f.Verifiable {
 			tag(c, T.AccessoryVerifiable)
@@ -440,9 +465,14 @@ func (a *app) accessoryCheck(k accessoryKind) {
 		return hc.Call(ctx, k.check, nil, &r)
 	}, func(err error) {
 		v := k.view(a)
+		v.checkErr = ""
 		if err == nil {
 			v.check = &r
+			return
 		}
+		// The failed row says it; the helper's text is behind 复制详情.
+		v.checkErr = helperError(err)
+		a.hd.msg, a.hd.msgErr = "", false
 	})
 }
 

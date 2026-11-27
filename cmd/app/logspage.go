@@ -39,6 +39,8 @@ type logsView struct {
 	evPaused  bool
 	evFrozen  []rpc.Event
 	evCleared uint64
+
+	width float32 // the page's width last frame (the bar's search follows it)
 }
 
 func (l *logsView) levelName() string {
@@ -68,9 +70,46 @@ func (a *app) logsPage(c *ui.Context, barH float32) {
 	}
 	// Logs fill the pane, and so does their toolbar (window.go): long
 	// lines want the width.
-	ui.Column(c).Grow(1).Padding(barH+4, plat.pagePadX, 20).Children(func() {
+	col := ui.Column(c).Grow(1).Padding(barH+4, plat.pagePadX, 20)
+	col.Children(func() {
 		a.logsBody(c, entries)
 	})
+	if w := col.Bounds().W; w > 0 && w != a.logs.width { // the bar's search follows the width
+		a.logs.width = w
+		c.Invalidate()
+	}
+}
+
+// levelMenu is the level pop-up of the 日志 toolbar: its value is the
+// chosen level, the menu lists the four. It reports a change.
+func (a *app) levelMenu(c *ui.Context) bool {
+	T := i18n.T
+	v := &a.logs
+	changed := false
+	names := T.LogLevelNames
+	cur := logLevelName(v.levelName())
+	pushFace(c, ui.MenuButton(c.Key("level"), cur, func(m *ui.Menu) {
+		for i, n := range names {
+			if m.Item(n).Checked(i == v.level).Chosen() && i != v.level {
+				v.level = i
+				changed = true
+			}
+		}
+	})).Label(T.LogLevel + " " + cur).Tooltip(T.LogLevel)
+	return changed
+}
+
+// barIcon is an icon-only toolbar button (the toolbar's capsule, as
+// wide as it is tall), its name in the tooltip and for VoiceOver.
+func barIcon(c *ui.Context, icon *ui.SVG, label string) ui.Element {
+	b := pushButton(c, "").Label(label).Tooltip(label)
+	if inToolbar {
+		b.Width(toolbarItemH).Padding(0)
+	}
+	b.Children(func() {
+		ui.Icon(c, icon).FontSize(iconInline)
+	})
+	return b
 }
 
 // matches reports whether text holds every word of the query, ignoring
@@ -92,28 +131,35 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 	v := &a.logs
 	ui.Column(c).Grow(1).Gap(16).Children(func() {
 		pageHeader(c, T.PageLogs, func() {
+			// What the bar holds, in the order it gives way: the source,
+			// its ⓘ, the search, the level as a pop-up (its value names
+			// it), then 暂停 and 清空 as icons. It fits a 900 pt window in
+			// every language; the title never drops (R-kubai-1).
 			segmented(c.Key("source"), &v.source, T.LogsSourceMihomo, T.LogsSourceDuet).Label(T.PageLogs)
 			infoTipAbout(c, T.PageLogs, T.TipLogs, nil)
-			ui.TextInput(c.Key("search"), &v.query).Label(T.LogSearch).Placeholder(T.LogSearch).Width(160)
-			small(c, T.LogLevel)
-			if segmented(c.Key("level"), &v.level, i18n.T.LogLevelNames...).Label(T.LogLevel).Changed() && v.source == logsMihomo {
+			searchW := float32(200)
+			if v.width > 0 && v.width < 760 {
+				searchW = 140
+			}
+			ui.TextInput(c.Key("search"), &v.query).Label(T.LogSearch).Placeholder(T.LogSearch).Width(searchW)
+			if a.levelMenu(c) && v.source == logsMihomo {
 				a.mon.ClearLogs()
 				a.mon.SetLogLevel(v.levelName())
 			}
-			// A toggle: 暂停 and 继续 are one width, so the bar does not
+			// A toggle: 暂停 and 继续 are one place, so the bar does not
 			// shift as it flips; the state is also spoken (selected). Both
 			// tabs have both buttons, each with its own state.
 			paused := &v.paused
 			if v.source == logsDuet {
 				paused = &v.evPaused
 			}
-			pause := T.LogPause
+			icon, pause := iconPause, T.LogPause
 			if *paused {
-				pause = T.LogResume
+				icon, pause = iconPlay, T.LogResume
 			}
-			b := pushButton(c.Key("pause"), pause).Role(ui.RoleToggleButton).AccessSelected(*paused).Label(T.LogPause)
+			b := barIcon(c.Key("pause"), icon, pause).Role(ui.RoleToggleButton).AccessSelected(*paused)
 			if *paused {
-				b.Tooltip(i18n.T.LogPaused)
+				b.Tooltip(T.LogPaused)
 			}
 			if b.Clicked() {
 				*paused = !*paused
@@ -123,7 +169,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 					v.frozen = a.mon.Logs()
 				}
 			}
-			if pushButton(c.Key("clear"), T.LogClear).Clicked() {
+			if barIcon(c.Key("clear"), iconClear, T.LogClear).Clicked() {
 				if v.source == logsDuet {
 					if n := len(a.events.evs); n > 0 {
 						v.evCleared = a.events.evs[n-1].Seq
@@ -172,7 +218,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 				line := e.Time.Format("15:04:05") + " " + e.Type + " " + e.Payload
 				ui.Row(c).Gap(12).Padding(3, 12).AlignItems(ui.Start).Children(func() {
 					ui.Text(c, e.Time.Format("15:04:05")).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Shrink(0)
-					ui.Text(c, logLevelName(e.Type)).FontSize(plat.smallSize).TextColor(col).Width(32).Shrink(0)
+					ui.Text(c, logLevelName(e.Type)).FontSize(plat.smallSize).TextColor(col).Width(levelColW).SingleLine().Shrink(0)
 					ui.Text(c, e.Payload).Font("monospace").FontSize(plat.smallSize).TextColor(col).Grow(1).Wrap().LineHeight(lineText).Selectable().
 						ContextMenu(func(m *ui.Menu) {
 							if m.Item(i18n.T.CopyLine).Chosen() {
