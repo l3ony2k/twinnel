@@ -127,3 +127,39 @@ func (NetProbesEnv) DialViaProxy(context.Context, string, string, string) error 
 	return errDialMarker
 }
 func (NetProbesEnv) Ping(context.Context, string) error { return errDialMarker }
+
+// TestForeignUnknownClientWording: an owner whose program is not known is
+// "another mihomo" once, never "（看起来是 另一个 mihomo）" nor "退出 另一个
+// mihomo" (Windows QA round 2), and no evidence line is blank.
+func TestForeignUnknownClientWording(t *testing.T) {
+	env := foreignEnv().(*fakeEnv)
+	env.owner = &foreign.Owner{Addr: "127.0.0.1:9090", Verdict: foreign.Foreign, PID: 5150, Exe: `C:\synthetic\foreign\mihomo.exe`}
+	for _, lang := range []string{"zh-Hans", "en"} {
+		rep := runAll(t, env, lang)
+		for _, c := range rep.Checks {
+			for _, bad := range []string{"看起来是", "it looks like", " 另一个", "Quit another"} {
+				if strings.Contains(c.Summary, bad) || (c.Fix != nil && strings.Contains(c.Fix.Text, bad)) {
+					t.Errorf("%s %s: %q / %+v", lang, c.ID, c.Summary, c.Fix)
+				}
+			}
+			for _, e := range c.Evidence {
+				if strings.TrimSpace(e) == "" {
+					t.Errorf("%s %s: blank evidence line in %q", lang, c.ID, c.Evidence)
+				}
+			}
+		}
+		o := byID(rep)["controller-owner"]
+		if o.Status != StatusFail || o.Fix == nil || o.Fix.Text == "" {
+			t.Fatalf("%s owner: %+v", lang, o)
+		}
+	}
+}
+
+func TestDropBlank(t *testing.T) {
+	if got := dropBlank([]string{"a", "", "  ", "b"}); fmt.Sprint(got) != "[a b]" {
+		t.Fatalf("%q", got)
+	}
+	if dropBlank([]string{" "}) != nil {
+		t.Fatal("all blank: want nil")
+	}
+}

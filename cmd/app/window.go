@@ -483,6 +483,10 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot, height float32) {
 	t := c.Theme()
 	T := i18n.T
 	hist := a.mon.TrafficHistory()
+	traffic := s.Mihomo.Traffic
+	if !s.MihomoLive() { // another program's traffic is not Twinnel's
+		hist, traffic = nil, status.TrafficSample{}
+	}
 	up := t.TextMuted
 	// Room under the figures: the plot's top tick label sits at its top
 	// edge and would touch the 累计 line otherwise.
@@ -496,8 +500,8 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot, height float32) {
 				num(ui.Text(c, status.Rate(rate)).FontSize(plat.figureSize).FontWeight(500))
 			})
 		}
-		figure(T.Download, t.Accent, s.Mihomo.Traffic.Down)
-		figure(T.Upload, up, s.Mihomo.Traffic.Up)
+		figure(T.Download, t.Accent, traffic.Down)
+		figure(T.Upload, up, traffic.Up)
 	})
 	const n = 120
 	var hi float64 = 1024
@@ -635,8 +639,9 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	m := s.Mihomo
+	live := s.MihomoLive()
 	pageHeader(c, T.PageProxies, func() {
-		if !m.Reachable || len(m.Groups) == 0 {
+		if !live || len(m.Groups) == 0 {
 			return
 		}
 		// One batch tests every node once (status.Monitor.TestAll); the
@@ -663,7 +668,11 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 			}()
 		}
 	})
-	if !m.Reachable {
+	if s.MihomoView().Foreign() { // another program's groups are not Twinnel's
+		a.foreignPageState(c, s)
+		return
+	}
+	if !live {
 		a.unreachableState(c, svcMihomo, m.Err)
 		return
 	}
@@ -1283,7 +1292,7 @@ func (a *app) mihomoSettingsCard(c *ui.Context, s status.Snapshot) {
 // selectorGroups are mihomo's groups a node can be chosen in, by name.
 func selectorGroups(s status.Snapshot) []string {
 	var out []string
-	if !s.Mihomo.Reachable {
+	if !s.MihomoLive() {
 		return nil
 	}
 	for _, g := range s.Mihomo.Groups {

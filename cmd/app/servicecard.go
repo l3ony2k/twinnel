@@ -109,7 +109,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 	// mihomo runs, but not from a service Twinnel knows (the person's own
 	// LaunchDaemon before takeover, or a terminal): it is running, and
 	// Twinnel offers no service of its own over it (walkthrough 2, N11).
-	own := name == "mihomo" && !st.Installed && !adopted && s.Mihomo.Reachable
+	own := name == "mihomo" && !st.Installed && !adopted && s.MihomoLive()
 	if own {
 		state, col = T.SvcOwnRunning, t.Success
 	}

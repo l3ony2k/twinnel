@@ -18,10 +18,7 @@ func (a *app) twinnelPair(c *ui.Context, s status.Snapshot, padX float32) {
 	t := c.Theme()
 	T := i18n.T
 	a.windowKeys(c)
-	mstate, mtext := markDown, T.Unreachable
-	if s.Mihomo.Reachable {
-		mstate, mtext = markOK, T.Running
-	}
+	mstate, mcol, mtext := mihomoMark(t, s.MihomoView())
 	pair := func(key, name, text string, m stateMark, col ui.Color) {
 		label := i18n.F(i18n.T.StateLabel, name, text)
 		ui.Row(c.Key(key)).Gap(navGap).AlignItems(ui.Center).Shrink(1).MinWidth(0).Tooltip(label).Label(label).Role(ui.RoleStatus).Children(func() {
@@ -40,7 +37,7 @@ func (a *app) twinnelPair(c *ui.Context, s status.Snapshot, padX float32) {
 	// wide as these lines need, sidebarNeed). The helper's line is the
 	// way to deal with it when it needs something.
 	ui.Column(c).Gap(5).Padding(8, padX).Children(func() {
-		pair("m", T.Mihomo, mtext, mstate, stateMarkColor(t, mstate))
+		pair("m", T.Mihomo, mtext, mstate, mcol)
 		tm := tsMark(s)
 		ttext := T.Unreachable
 		if s.Tailscale.Reachable {
@@ -121,6 +118,9 @@ const (
 	markOK        stateMark = iota // filled dot
 	markAttention                  // ring with a dot in it
 	markDown                       // empty ring
+	// markForeign: a ring with a bar across (⊖), neutral: another
+	// program's mihomo holds the controller (mihomoMark).
+	markForeign
 )
 
 func stateMarkColor(t *ui.Theme, m stateMark) ui.Color {
@@ -129,6 +129,8 @@ func stateMarkColor(t *ui.Theme, m stateMark) ui.Color {
 		return t.Success
 	case markAttention:
 		return t.Warning
+	case markForeign:
+		return t.TextMuted
 	}
 	return t.Danger
 }
@@ -142,6 +144,11 @@ func stateDot(c *ui.Context, m stateMark, col ui.Color, size float32) ui.Element
 		return ui.Box(c).Size(size, size).Radius(size/2).Border(1.5, col).Shrink(0).
 			AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			ui.Box(c).Size(size/2-1, size/2-1).Radius(size / 4).Background(col)
+		})
+	case markForeign:
+		return ui.Box(c).Size(size, size).Radius(size/2).Border(1.5, col).Shrink(0).
+			AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+			ui.Box(c).Size(size-4, 1.5).Radius(0.75).Background(col)
 		})
 	}
 	return ui.Box(c).Size(size, size).Radius(size/2).Border(1.5, col).Shrink(0)

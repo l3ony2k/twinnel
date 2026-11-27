@@ -156,11 +156,30 @@ func clientName(ot *ownerTexts, o foreign.Owner) string {
 	return ot.anotherMihomo
 }
 
+// byClient words o's owner with withApp when its client is known (the
+// client's name is the last argument) and with anon otherwise, a text
+// that says "another mihomo" itself: the unknown name is never repeated
+// or spaced as a product name ("（看起来是 另一个 mihomo）", Windows QA
+// round 2). addr is the controller address, the first argument ("" for
+// texts without one).
+func byClient(o foreign.Owner, withApp, anon, addr string) string {
+	n := o.Client.Name()
+	switch {
+	case n != "" && addr != "":
+		return fmt.Sprintf(withApp, addr, n)
+	case n != "":
+		return fmt.Sprintf(withApp, n)
+	case addr != "":
+		return fmt.Sprintf(anon, addr)
+	}
+	return anon
+}
+
 // notJudged is the result of a check whose evidence would have come from
 // another program's mihomo.
 func notJudged(L *texts, o foreign.Owner, was Result) Result {
 	ot := otx(L)
-	r := Result{Status: StatusSkip, Summary: fmt.Sprintf(ot.notJudged, o.Addr, clientName(ot, o))}
+	r := Result{Status: StatusSkip, Summary: byClient(o, ot.notJudged, ot.notJudgedAnon, o.Addr)}
 	if was.Summary != "" && was.Status != StatusSkip {
 		r.Evidence = append(r.Evidence, fmt.Sprintf(ot.evWouldBe, was.Summary))
 	}
@@ -234,7 +253,7 @@ func (ControllerOwnerCheck) Run(ctx context.Context, env Env) Result {
 		}
 		return r
 	case foreign.Foreign:
-		r := Result{Status: StatusFail, Summary: fmt.Sprintf(ot.foreign, o.Addr, clientName(ot, o))}
+		r := Result{Status: StatusFail, Summary: byClient(o, ot.foreign, ot.foreignAnon, o.Addr)}
 		if o.PID > 0 {
 			r.Evidence = append(r.Evidence, fmt.Sprintf("pid %d: %s", o.PID, orDash(o.Exe)))
 		}
@@ -250,7 +269,7 @@ func (ControllerOwnerCheck) Run(ctx context.Context, env Env) Result {
 		r.Evidence = append(r.Evidence, ot.evWhy)
 		r.because(ReasonOwnerOtherClient)
 		r.because(ReasonOwnerPortShared)
-		r.Fix = &FixHint{Text: fmt.Sprintf(ot.fix, clientName(ot, o)), AutoFix: FixControllerPort}
+		r.Fix = &FixHint{Text: byClient(o, ot.fix, ot.fixAnon, ""), AutoFix: FixControllerPort}
 		return r
 	}
 	if o.Addr == "" {
@@ -262,6 +281,7 @@ func (ControllerOwnerCheck) Run(ctx context.Context, env Env) Result {
 // ownerTexts are the texts of the owner check and the evidence labels.
 type ownerTexts struct {
 	title, ok, foreign, nobody, unavailable  string
+	foreignAnon, fixAnon, notJudgedAnon      string // the client is not known
 	evParent, evWorkDir, evSafePaths, evWhy  string
 	fix                                      string
 	labelManaged, labelForeign, labelUnknown string
@@ -273,6 +293,9 @@ var zhOwnerTexts = ownerTexts{
 	title:           "控制端口归属",
 	ok:              "%s 是 Twinnel 管理的 mihomo",
 	foreign:         "%s 被另一个 mihomo 占用（看起来是 %s）",
+	foreignAnon:     "%s 被另一个 mihomo 占用",
+	fixAnon:         "退出占着端口的那个 mihomo（并关掉它的开机自启），或把 Twinnel 的控制端口换到空闲端口",
+	notJudgedAnon:   "%s 被另一个 mihomo 占用，读到的是它的配置，这项不判断",
 	nobody:          "%s 上没有程序在监听",
 	unavailable:     "没有读到控制端口上是哪个程序",
 	evParent:        "父进程：%s",
@@ -293,6 +316,9 @@ var enOwnerTexts = ownerTexts{
 	title:           "Controller owner",
 	ok:              "%s is the mihomo Twinnel manages",
 	foreign:         "%s is taken by another mihomo (it looks like %s)",
+	foreignAnon:     "%s is taken by another mihomo",
+	fixAnon:         "Quit the program that runs that mihomo (and turn off its launch at login), or move Twinnel's controller to a free port",
+	notJudgedAnon:   "%s is taken by another mihomo; what it reports is that program's config, so this check is not judged",
 	nobody:          "Nothing listens on %s",
 	unavailable:     "Could not read which program listens on the controller port",
 	evParent:        "parent process: %s",

@@ -380,7 +380,7 @@ func (a *app) accessoryActionRow(c *ui.Context, s status.Snapshot, k accessoryKi
 			}
 		}
 		if k.kind == rpc.AccessoryUI && !none && ck.Configured {
-			if pushButton(c.Key("open"), T.CompOpenUI).Disabled(!s.Mihomo.Reachable).Tooltip(dashTooltip(s)).Clicked() {
+			if pushButton(c.Key("open"), T.CompOpenUI).Disabled(!s.MihomoLive()).Tooltip(dashTooltip(s)).Clicked() {
 				a.openDashboard(ck.Path)
 			}
 		}
@@ -388,7 +388,10 @@ func (a *app) accessoryActionRow(c *ui.Context, s status.Snapshot, k accessoryKi
 }
 
 func dashTooltip(s status.Snapshot) string {
-	if !s.Mihomo.Reachable {
+	if tip := mihomoLockTip(s); tip != "" {
+		return tip
+	}
+	if !s.MihomoLive() {
 		return i18n.T.CompUIStopped
 	}
 	return ""

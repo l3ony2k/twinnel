@@ -88,7 +88,7 @@ type trayLook struct {
 // trayLookFor is the menu bar item for a snapshot and the settings.
 func trayLookFor(s status.Snapshot, cfg status.Config) trayLook {
 	l := trayLook{shape: status.TrayIconFor(s)}
-	if !s.Mihomo.Reachable || cfg.TraySpeedOff || !plat.trayTitle {
+	if !s.MihomoLive() || cfg.TraySpeedOff || !plat.trayTitle {
 		return l
 	}
 	if cfg.TraySpeedTwo() {
