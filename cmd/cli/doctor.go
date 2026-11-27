@@ -31,7 +31,6 @@ func runDoctor(args []string) error {
 	asJSON := fs.Bool("json", false, "print the report as JSON")
 	controller := fs.String("controller", "", "mihomo controller host:port (default: from the config, else 127.0.0.1:9090)")
 	configPath := fs.String("mihomo-config", "", "mihomo config file (default: "+configDiscovery+")")
-	peers := fs.String("peers", "", "comma-separated Tailscale peers expected to connect directly (default: all online peers)")
 	groups := fs.String("sensitive-groups", "", "comma-separated proxy groups that must never go DIRECT (default: Google,Meta)")
 	allowExit := fs.Bool("allow-exit-node", false, "accept a Tailscale exit node (warn instead of fail)")
 	only := fs.String("only", "", "comma-separated check IDs to run")
@@ -47,9 +46,6 @@ func runDoctor(args []string) error {
 	}
 
 	settings := health.DefaultSettings()
-	if *peers != "" {
-		settings.PreferredPeers = splitList(*peers)
-	}
 	if *groups != "" {
 		settings.SensitiveGroups = splitList(*groups)
 	}

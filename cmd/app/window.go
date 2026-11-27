@@ -1021,7 +1021,7 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 				case "direct":
 					icon, col = iconPathDirect, t.Text
 				case "derp", "peer-relay":
-					icon, col = iconPathRelay, pal(t).warnText
+					icon, col = iconPathRelay, t.Text // a fact of the network, not a problem: no alarm color
 				}
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 					if icon != nil {

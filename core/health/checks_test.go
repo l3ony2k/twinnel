@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -345,7 +347,7 @@ func TestSystemDNS(t *testing.T) {
 
 	e = healthyEnv()
 	e.ifs[0].Active = false
-	want(t, SystemDNS{}, e, StatusWarn, zhTexts.msgDNSNoActive)
+	want(t, SystemDNS{}, e, StatusSkip, zhTexts.msgDNSNoActive)
 
 	// No dns.listen: no empty parentheses in the summary.
 	e = healthyEnv()
@@ -386,20 +388,6 @@ func TestVPNConflict(t *testing.T) {
 	e.rtErr = errors.New("refused")
 	e.cfg.TUN.Device = "utun"
 	want(t, VPNConflict{}, e, StatusOK, "utun5")
-}
-
-func TestDirectPeers(t *testing.T) {
-	e := healthyEnv()
-	e.ts.Peers[1].Active = true
-	want(t, DirectPeers{}, e, StatusWarn, "nas")
-
-	e = healthyEnv()
-	e.settings.PreferredPeers = []string{"phone"}
-	want(t, DirectPeers{}, e, StatusWarn, "phone")
-
-	e = healthyEnv()
-	e.ts.Self.Addrs = append(e.ts.Self.Addrs, "198.18.0.1:41641")
-	want(t, DirectPeers{}, e, StatusOK, "198.18.0.1:41641")
 }
 
 func TestLeakGuard(t *testing.T) {
@@ -476,6 +464,43 @@ func (linuxOnly) Title() string                   { return "linux" }
 func (linuxOnly) Platforms() []string             { return []string{Linux} }
 func (linuxOnly) Run(context.Context, Env) Result { return Result{Status: StatusFail} }
 
+// Relayed peers are a fact of the network (NAT, ISP), not something duet or
+// the config can fix: no built-in check may warn about them.
+func TestRelayedPeersNeverWarn(t *testing.T) {
+	if _, ok := DefaultRegistry().Get("peer-direct"); ok {
+		t.Fatal("peer-direct is registered again")
+	}
+	base := (&Runner{Registry: DefaultRegistry()}).Run(context.Background(), healthyEnv())
+	e := healthyEnv()
+	for i := range e.ts.Peers {
+		e.ts.Peers[i].Active = e.ts.Peers[i].Online
+		e.ts.Peers[i].CurAddr, e.ts.Peers[i].Relay = "", "fra"
+	}
+	rep := (&Runner{Registry: DefaultRegistry()}).Run(context.Background(), e)
+	if rep.Overall != base.Overall {
+		t.Errorf("all peers relayed: overall %s, healthy %s", rep.Overall, base.Overall)
+	}
+	for i, c := range rep.Checks {
+		if c.Status != base.Checks[i].Status {
+			t.Errorf("%s: %s with relayed peers, %s healthy", c.ID, c.Status, base.Checks[i].Status)
+		}
+	}
+	// DUET_RELAYED_REPORT=<dir>: save this synthetic report (zh, en) for
+	// the app's derpinfo shots.
+	if dir := os.Getenv("DUET_RELAYED_REPORT"); dir != "" {
+		for _, lang := range []string{"zh-Hans", "en"} {
+			r := (&Runner{Registry: DefaultRegistry()}).Run(WithLang(context.Background(), lang), e)
+			b, err := r.JSON()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "report-"+lang+".json"), b, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}
+
 func TestRunner(t *testing.T) {
 	reg := DefaultRegistry()
 	reg.Register(slowCheck{time.Second})
@@ -483,7 +508,7 @@ func TestRunner(t *testing.T) {
 	reg.Register(linuxOnly{})
 	env := healthyEnv()
 	rep := (&Runner{Registry: reg, Timeout: 50 * time.Millisecond, Concurrency: 3}).Run(context.Background(), env)
-	if len(rep.Checks) != 16 {
+	if len(rep.Checks) != len(DefaultRegistry().Checks())+3 {
 		t.Fatalf("got %d checks", len(rep.Checks))
 	}
 	by := map[string]CheckReport{}

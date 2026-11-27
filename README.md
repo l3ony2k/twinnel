@@ -17,7 +17,7 @@ It is a manager for the cores you already trust. It is **not** another Clash cli
 
 | Area | State |
 |---|---|
-| `duet doctor`: 13 coexistence health checks, text / Markdown / JSON | macOS, Linux |
+| `duet doctor`: 12 coexistence health checks, text / Markdown / JSON | macOS, Linux |
 | `duet takeover plan`: read a hand-made mihomo + Tailscale setup and derive override layers that reproduce it, proven with `mihomo -t` and a semantic diff | macOS, Linux (read-only) |
 | Adopt through the helper (`duet takeover plan --via-helper`, `duet helper adopt`): exact backup, import, apply, health before/after, automatic restore; `duet helper secure-controller`; `duet helper harden`: move the adopted mihomo to the managed kernel and a root-owned config dir in one restart. Procedure: [docs/runbook-adopt-macos.md](docs/runbook-adopt-macos.md) | macOS. Rehearsed on a copy of a real setup with a non-root helper (dry run for launchctl); not yet run as root on the real one |
 | `duet compose`: subscription + override layers → config, validated with `mihomo -t` | all |
@@ -112,7 +112,7 @@ Commands that ask `Proceed? [y/N]` need `--yes` when stdin is not a terminal.
 
 ## Health checks
 
-`tailnet-route`, `tun-route-exclude`, `tailscale-direct-rules`, `magicdns`, `peer-short-names`, `tailnet-resolver-binding`, `fake-ip-filter-mode`, `system-dns`, `vpn-conflict`, `peer-direct`, `leak-guard`, `leak-guard-egress` (opt-in), `controller-security`. Each reports a status, the evidence it read, and a fix hint. See [docs/architecture.md](docs/architecture.md#health-checks) for what each one checks.
+`tailnet-route`, `tun-route-exclude`, `tailscale-direct-rules`, `magicdns`, `peer-short-names`, `tailnet-resolver-binding`, `fake-ip-filter-mode`, `system-dns`, `vpn-conflict`, `leak-guard`, `leak-guard-egress` (opt-in), `controller-security`. Each reports a status, the evidence it read, and a fix hint. See [docs/architecture.md](docs/architecture.md#health-checks) for what each one checks.
 
 ## Safety model
 

@@ -48,9 +48,6 @@ var ErrDNSTimeout = errors.New("DNS query timed out")
 
 // Settings are user preferences for the checks.
 type Settings struct {
-	// PreferredPeers are Tailscale peers (host name, MagicDNS short name or
-	// IP) expected to connect directly. Empty means all online peers.
-	PreferredPeers []string `json:"preferredPeers,omitempty"`
 	// SensitiveGroups are mihomo proxy groups that must never go DIRECT.
 	SensitiveGroups []string `json:"sensitiveGroups,omitempty"`
 	// AllowExitNode accepts a Tailscale exit node without failing.
