@@ -4,7 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/platform/windows/scm"
 )
 
 func TestParsePlan(t *testing.T) {
@@ -67,5 +69,28 @@ func TestTileLayout(t *testing.T) {
 				t.Errorf("w %v: tile %v outside %d–%d", tc.w, tile, tileMin, tileMax)
 			}
 		}
+	}
+}
+
+// The Windows plan (platform/windows/scm): every step is worded.
+func TestParsePlanWindows(t *testing.T) {
+	i18n.Set("zh-Hans")
+	plan, err := scm.HelperInstallPlan(`C:\Users\x\AppData\Local\Programs\Twinnel\bin\twinnel-helper.exe`, `C:\ProgramData\Twinnel`, `\\.\pipe\twinnel-helper`, "TwinnelHelper", []string{"S-1-5-21-1-2-3-1001"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b strings.Builder
+	service.FormatPlan(&b, plan)
+	steps, ok := parsePlan(b.String())
+	if !ok || len(steps) != len(plan) {
+		t.Fatalf("steps = %+v", steps)
+	}
+	for i, st := range steps {
+		if st.what == st.cmd {
+			t.Errorf("step %d not worded: %s", i+1, st.cmd)
+		}
+	}
+	if !strings.Contains(b.String(), "sc.exe") {
+		t.Fatalf("plan without sc.exe steps:\n%s", b.String())
 	}
 }

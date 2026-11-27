@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -105,7 +106,7 @@ func installCLI(dir string) (string, error) {
 			return "", err
 		}
 	}
-	if home, _ := os.UserHomeDir(); home != "" && strings.HasPrefix(dir, home+"/") {
+	if home, _ := os.UserHomeDir(); home != "" && strings.HasPrefix(dir, home+string(filepath.Separator)) {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return "", err
 		}
@@ -146,9 +147,9 @@ func agentSnippet(i int, cmd string) string {
 	q, _ := json.Marshal(cmd)
 	switch i {
 	case 0:
-		return "claude mcp add twinnel -- " + shellQuote(cmd) + " mcp"
+		return "claude mcp add twinnel -- " + cmdQuote(cmd) + " mcp"
 	case 1:
-		return "codex mcp add twinnel -- " + shellQuote(cmd) + " mcp"
+		return "codex mcp add twinnel -- " + cmdQuote(cmd) + " mcp"
 	}
 	// Cursor (~/.cursor/mcp.json) and most others take this JSON.
 	return `{
@@ -156,6 +157,21 @@ func agentSnippet(i int, cmd string) string {
     "twinnel": { "command": ` + string(q) + `, "args": ["mcp"] }
   }
 }`
+}
+
+// cmdQuote quotes a program path for the platform's shell: POSIX quoting
+// on macOS and Linux; on Windows double quotes, which PowerShell and
+// cmd.exe both take (a Windows path has no double quote in it).
+func cmdQuote(s string) string { return cmdQuoteFor(runtime.GOOS, s) }
+
+func cmdQuoteFor(goos, s string) string {
+	if goos != "windows" {
+		return shellQuote(s)
+	}
+	if s != "" && !strings.ContainsAny(s, " &()[]{}^=;!'+,`~$@#%") {
+		return s
+	}
+	return `"` + s + `"`
 }
 
 func shellQuote(s string) string {
@@ -290,6 +306,9 @@ func (a *app) agentSection(c *ui.Context, s status.Snapshot) {
 func (a *app) agentCLIRow(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	v := &a.agent
+	if !plat.cliLink { // Windows: install.ps1 puts bin\ on PATH
+		return
+	}
 	links := a.cliLinks()
 	ui.Row(c).Gap(12).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Children(func() {
 		settingsLabel(c, T.AgentCLI, T.TipAgentCLI)

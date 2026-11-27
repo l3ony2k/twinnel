@@ -65,10 +65,30 @@ func describeStep(cmd string) string {
 	case planRemove.MatchString(bare):
 		return i18n.F(T.PlanRemove, unquote(planRemove.FindStringSubmatch(bare)[1]))
 	}
-	if strings.HasPrefix(bare, "wait until `") && strings.Contains(bare, "launchctl print") {
+	if strings.HasPrefix(bare, "wait until `") && (strings.Contains(bare, "launchctl print") || strings.Contains(strings.ToLower(bare), "sc.exe query")) {
 		return T.PlanWaitStopped
 	}
 	f := strings.Fields(bare)
+	// Windows: the service steps, printed as the sc.exe commands they
+	// stand for (platform/windows/scm runs them through the SCM API).
+	if len(f) >= 2 && strings.HasSuffix(strings.ToLower(unquote(f[0])), "sc.exe") {
+		switch strings.ToLower(f[1]) {
+		case "stop":
+			return T.PlanBootout
+		case "create":
+			return T.PlanSCCreate
+		case "config":
+			return T.PlanSCConfig
+		case "failure", "failureflag":
+			return T.PlanSCFailure
+		case "description":
+			return T.PlanSCDescription
+		case "start":
+			return T.PlanSCStart
+		case "delete":
+			return T.PlanSCDelete
+		}
+	}
 	if len(f) >= 3 && strings.HasSuffix(f[0], "launchctl") {
 		switch f[1] {
 		case "kickstart":

@@ -668,7 +668,7 @@ func appExtraItems() []string {
 
 // tildePath shows a path under the home dir as ~/….
 func tildePath(p string) string {
-	if home, err := os.UserHomeDir(); err == nil && home != "" && strings.HasPrefix(p, home+"/") {
+	if home, err := os.UserHomeDir(); err == nil && home != "" && strings.HasPrefix(p, home+string(filepath.Separator)) {
 		return "~" + strings.TrimPrefix(p, home)
 	}
 	return p

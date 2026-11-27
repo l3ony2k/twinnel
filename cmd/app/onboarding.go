@@ -51,18 +51,20 @@ func cliPath() (string, error) {
 		return p, nil
 	}
 	if dir, err := resourcesDir(); err == nil && dir != "" {
-		p := filepath.Join(dir, "bin", "twinnel")
+		p := filepath.Join(dir, "bin", exeName("twinnel"))
 		if fi, err := os.Stat(p); err == nil && fi.Mode().IsRegular() {
 			return p, nil
 		}
 	}
 	if exe, err := os.Executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "twinnel")
-		if fi, err := os.Stat(p); err == nil && !fi.IsDir() && p != exe {
+		// Not the app itself: Twinnel.exe is twinnel.exe on a
+		// case-insensitive file system.
+		p := filepath.Join(filepath.Dir(exe), exeName("twinnel"))
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() && !sameFile(p, exe) {
 			return p, nil
 		}
 	}
-	if p, err := exec.LookPath("twinnel"); err == nil {
+	if p, err := exec.LookPath("twinnel"); err == nil && !isOwnExe(p) {
 		return p, nil
 	}
 	return "", errors.New(i18n.T.CLINotFound)
@@ -73,7 +75,7 @@ func cliPath() (string, error) {
 func installArgs(extra ...string) []string {
 	args := []string{"helper", "install"}
 	if cli, err := cliPath(); err == nil {
-		if p := filepath.Join(filepath.Dir(cli), "twinnel-helper"); fileExists(p) {
+		if p := filepath.Join(filepath.Dir(cli), exeName("twinnel-helper")); fileExists(p) {
 			args = append(args, "--helper-bin", p)
 		}
 	}
@@ -308,4 +310,21 @@ func (a *app) installHelper() {
 			a.invalidate()
 		})
 	}()
+}
+
+// sameFile reports whether a and b are one file (by identity, so case and
+// links do not matter), or the same path when either cannot be read.
+func sameFile(a, b string) bool {
+	fa, errA := os.Stat(a)
+	fb, errB := os.Stat(b)
+	if errA != nil || errB != nil {
+		return a == b
+	}
+	return os.SameFile(fa, fb)
+}
+
+// isOwnExe reports whether p is the running app's executable.
+func isOwnExe(p string) bool {
+	exe, err := os.Executable()
+	return err == nil && sameFile(p, exe)
 }
