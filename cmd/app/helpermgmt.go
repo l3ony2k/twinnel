@@ -536,6 +536,7 @@ func (a *app) helperSection(c *ui.Context, s status.Snapshot) {
 			stateDot(c, m, col, 8)
 			ui.Text(c, h.State.Text()).SingleLine()
 		})
+		a.helperGroupRow(c, s) // Linux: not in the socket's group
 		if h.State == status.HelperNotInstalled {
 			kvWith(c, "", func() {
 				if pushButton(c.Key("hm-install"), T.OnboardInstall).Disabled(!s.WritesAllowed).Clicked() {

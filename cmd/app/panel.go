@@ -277,7 +277,7 @@ func (a *app) helperLine(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	icon, col, text := iconSkip, t.TextMuted, T.Helper+T.LabelSep+h.State.Text()
 	if h.State != status.HelperNotInstalled {
-		icon, col, text = iconWarning, t.Warning, T.HelperDownRow
+		icon, col, text = iconWarning, t.Warning, a.helperDownText(s) // helpergroup.go
 	}
 	row := panelRow(c.Key("helper-line"), text).Role(ui.RoleButton)
 	row.Children(func() {
