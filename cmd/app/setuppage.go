@@ -87,6 +87,10 @@ func (a *app) setupFlow() *setup.Flow {
 		OpenURL:      func(u string) error { return mygo.Shell.OpenExternal(u) },
 		Lang:         i18n.Tag(),
 		ImportConfig: setupImport,
+		LinkTailscale: func(cli string) (string, error) {
+			// cliLinks reads the file system only: safe off the main thread.
+			return tailscaleTool(cli).Link(a.linkTailscaleDirs())
+		},
 	}, setup.Options{})
 	v.flow.OnChange = func() { mygo.RunOnMain(a.invalidate) }
 	return v.flow
@@ -284,6 +288,10 @@ func setupWarning(w setup.Warning) string {
 		return T.SetupWarnGeo
 	case setup.WarnSystemVPN:
 		return T.SetupWarnSystemVPN
+	case setup.WarnTSOnPath:
+		return i18n.F(T.SetupWarnTSOnPath, tildePath(w.Text))
+	case setup.WarnTSLink:
+		return T.SetupWarnTSLink
 	}
 	return w.Text
 }

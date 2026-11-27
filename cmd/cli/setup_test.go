@@ -12,7 +12,8 @@ import (
 )
 
 func setupFakes(t *testing.T) (*bytes.Buffer, *int) {
-	oc, oi, oo, oin, out := setupConnect, setupInstallHelper, setupOpenURL, setupInteractive, stdout
+	oc, oi, oo, oin, out, ol := setupConnect, setupInstallHelper, setupOpenURL, setupInteractive, stdout, setupLinkTailscale
+	setupLinkTailscale = func(string) (string, error) { return "", nil }
 	installs := 0
 	var buf bytes.Buffer
 	setupConnect = func(string) func(context.Context) (setup.Caller, error) {
@@ -23,7 +24,7 @@ func setupFakes(t *testing.T) (*bytes.Buffer, *int) {
 	setupInteractive = func() bool { return false }
 	stdout = &buf
 	t.Cleanup(func() {
-		setupConnect, setupInstallHelper, setupOpenURL, setupInteractive, stdout = oc, oi, oo, oin, out
+		setupConnect, setupInstallHelper, setupOpenURL, setupInteractive, stdout, setupLinkTailscale = oc, oi, oo, oin, out, ol
 	})
 	t.Setenv("TWINNEL_SUBSCRIPTION_URL", "")
 	return &buf, &installs

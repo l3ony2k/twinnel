@@ -34,6 +34,8 @@ type SetupStrings struct {
 
 	// Warnings by core/setup code.
 	SetupWarnGeo, SetupWarnSystemVPN string
+	SetupWarnTSOnPath                string // %s: the other tailscale command
+	SetupWarnTSLink                  string
 
 	// ⓘ.
 	TipSetup, TipSetupDNS, TipSetupProxy string
@@ -83,6 +85,8 @@ var zhSetup = SetupStrings{
 
 	SetupWarnGeo:       "GEO 数据库没有下载，mihomo 启动时会自己下载",
 	SetupWarnSystemVPN: "保留了 Tailscale app，它占用系统 VPN 通道，会和 mihomo 的 TUN 冲突",
+	SetupWarnTSOnPath:  "已经有一个 tailscale 命令（%s），没有替换它",
+	SetupWarnTSLink:    "没能把 tailscale 命令放进命令行工具的文件夹",
 
 	TipSetup:      "从零开始：安装后台助手和 mihomo，添加订阅，打开 TUN 和 Tailscale 共存，把系统 DNS 指向 mihomo，再装好并登录 Tailscale。已完成的步骤会自动跳过。",
 	TipSetupDNS:   "把每个网络服务的 DNS 设为 127.0.0.1，由 mihomo 解析。原来的设置会保存，卸载后台助手时改回去。",
@@ -133,6 +137,8 @@ var enSetup = SetupStrings{
 
 	SetupWarnGeo:       "The GEO databases did not download; mihomo downloads them when it starts",
 	SetupWarnSystemVPN: "Kept the Tailscale app; it takes the system VPN slot, which conflicts with mihomo's TUN",
+	SetupWarnTSOnPath:  "Another tailscale command is installed (%s); left as it is",
+	SetupWarnTSLink:    "Couldn't put the tailscale command in the command line tool folder",
 
 	TipSetup:      "From nothing: installs the helper and mihomo, adds your subscription, turns on TUN and Tailscale coexistence, points the system DNS at mihomo, then installs and logs in to Tailscale. Steps already done are skipped.",
 	TipSetupDNS:   "Sets the DNS of every network service to 127.0.0.1, so mihomo answers. The old settings are kept and put back when you uninstall the helper.",

@@ -31,7 +31,7 @@
 | 启动 mihomo | 写入配置（自动生成控制接口密钥），安装 LaunchDaemon `com.l3ony2k.twinnel.mihomo` 并启动，等控制接口应答 |
 | 系统 DNS | 先确认 127.0.0.1:53 有应答，再把每个启用的网络服务的 DNS 设为 127.0.0.1；原来的值存在 `<状态目录>/dns-backup.json` |
 | 安装 Tailscale | 已经装了任何 Tailscale 就保留；否则装开源的 tailscaled（不装 App Store / 独立版 app，它们占用系统 VPN 通道） |
-| 登录 Tailscale | 通过 LocalAPI 发起交互登录，在浏览器打开登录页，等到「已连接」 |
+| 登录 Tailscale | 后台助手（root）通过 LocalAPI 连接并发起交互登录（`tailscale.login`），app / 命令行只在浏览器打开登录页，等到「已连接」 |
 | 健康检查 | 刷新 tailnet 设备后跑一遍全部检查 |
 
 ### Tailscale 从哪来
@@ -39,6 +39,7 @@
 - **Linux**：pkgs.tailscale.com 的官方静态包 `tailscale_<版本>_<架构>.tgz`，用同目录下的 `.sha256` 校验。
 - **macOS**：pkgs.tailscale.com 没有 macOS 的静态包（只有 app），Tailscale 的 GitHub release 也没有附件。所以用 Homebrew 的 tailscale bottle（开源 tailscaled，Homebrew 编译）：版本和 sha256 来自 formulae.brew.sh 的 API，文件从 ghcr.io 下载并校验。只有 Apple 芯片的 bottle；Intel Mac 会提示用 `brew install tailscale`。
 - 装在 `<状态目录>/tailscale/<版本>/`，LaunchDaemon 用 `com.tailscale.tailscaled`（和 `tailscaled install-system-daemon` 相同），socket 是默认的 `/var/run/tailscaled.socket`。
+- `tailscale` 命令：和 Twinnel 命令行工具一样，以符号链接放进 `/usr/local/bin`（写不了就放 `~/.local/bin`；装过命令行工具就放在同一个文件夹）。已经有别的 `tailscale` 命令（比如 Homebrew 的）就不放，也不替换。「本地 Agent → 移除」、「完全移除」和卸载后台助手会删掉这个链接，Tailscale 本身保留。
 
 ### 下载不了怎么办（先有鸡还是先有蛋）
 
@@ -91,7 +92,7 @@ On a Mac with nothing installed, Twinnel sets up the proxy and the tailnet from 
 | Start mihomo | writes the config (a controller secret is generated), installs and starts the LaunchDaemon `com.l3ony2k.twinnel.mihomo`, waits until the controller answers |
 | System DNS | checks that 127.0.0.1:53 answers, then sets the DNS of every enabled network service to 127.0.0.1; the old values go to `<state>/dns-backup.json` |
 | Install Tailscale | any existing Tailscale install is kept; otherwise the open-source tailscaled (never the App Store or standalone app: they take the system VPN slot) |
-| Log in to Tailscale | starts an interactive login over the LocalAPI, opens the login page, waits for Running |
+| Log in to Tailscale | the helper (root) connects and starts an interactive login over the LocalAPI (`tailscale.login`); the app or CLI only opens the login page, then waits for Running |
 | Health | refreshes the tailnet's devices and runs every check |
 
 ### Where Tailscale comes from
@@ -99,6 +100,7 @@ On a Mac with nothing installed, Twinnel sets up the proxy and the tailnet from 
 - **Linux**: the official static tarball from pkgs.tailscale.com, verified against the `.sha256` file next to it.
 - **macOS**: pkgs.tailscale.com has no macOS tarball (only the app) and Tailscale's GitHub releases have no assets, so Twinnel uses Homebrew's bottle of the tailscale formula (the open-source tailscaled built by Homebrew): version and sha256 from the formulae.brew.sh API, bytes from ghcr.io, verified. Bottles exist for Apple silicon only; an Intel Mac is told to `brew install tailscale`.
 - Installed under `<state>/tailscale/<version>/`, LaunchDaemon `com.tailscale.tailscaled` (as `tailscaled install-system-daemon` makes), default socket `/var/run/tailscaled.socket`.
+- The `tailscale` command goes on PATH the way the Twinnel CLI does: a symlink in `/usr/local/bin` (else `~/.local/bin`; the Twinnel CLI's folder when that is installed). If another `tailscale` command exists (Homebrew's, say) nothing is linked or replaced. Local Agent → Remove, Remove Completely and uninstalling the helper delete the link; Tailscale itself stays.
 
 ### When downloads fail (chicken and egg)
 

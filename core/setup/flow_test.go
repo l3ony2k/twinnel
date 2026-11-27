@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/clilink"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
@@ -168,7 +169,7 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 			return h.tsErr
 		}
 		h.tsInst = true
-		return out(rpc.TailscaleInstallResult{Version: "1.104.7"})
+		return out(rpc.TailscaleInstallResult{Version: "1.104.7", Kind: "twinnel", Path: "/S/twinnel/tailscale/current/tailscale"})
 	case rpc.MethodTailscaleLogin:
 		if h.login == nil {
 			return errors.New("no tailscaled")
@@ -376,5 +377,23 @@ func TestFlowImportHook(t *testing.T) {
 	var se *StepError
 	if err := g.Run(context.Background()); !errors.As(err, &se) || se.Code != CodeNeedsSubscription {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestFlowLinksTailscale(t *testing.T) {
+	h := newFakeHelper()
+	installed := true
+	f, _, _ := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	var linked []string
+	f.Env.LinkTailscale = func(cli string) (string, error) {
+		linked = append(linked, cli)
+		return "", &clilink.OnPathError{Path: "/opt/homebrew/bin/tailscale"}
+	}
+	if err := f.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ws := f.Step(StepTailscale).Warnings
+	if len(linked) != 1 || linked[0] != "/S/twinnel/tailscale/current/tailscale" || len(ws) != 1 || ws[0].Code != WarnTSOnPath {
+		t.Fatalf("linked %v warnings %+v", linked, ws)
 	}
 }

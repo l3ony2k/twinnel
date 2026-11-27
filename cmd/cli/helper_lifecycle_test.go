@@ -457,7 +457,7 @@ func TestUninstallAsRootRestoresDNSFirst(t *testing.T) {
 	if err := runHelperUninstall([]string{"--as-root", "--yes", "--state-dir", dir}); err != nil {
 		t.Fatal(err)
 	}
-	if restored != dir {
+	if restored != dir || l.tsLinksRemoved != 1 {
 		t.Fatalf("restored %q, output:\n%s", restored, l.out.String())
 	}
 	// A failed restore stops the uninstall: nothing else changes.

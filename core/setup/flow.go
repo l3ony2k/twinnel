@@ -35,6 +35,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/clilink"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/store"
@@ -115,6 +116,11 @@ type Warning struct {
 const (
 	WarnGeo       = "geo"        // the geo databases did not download
 	WarnSystemVPN = "system-vpn" // the kept Tailscale is the app (system VPN slot)
+	// WarnTSOnPath: another tailscale command exists, so Twinnel's was not
+	// linked onto PATH (Text names it).
+	WarnTSOnPath = "tailscale-on-path"
+	// WarnTSLink: the tailscale command could not be linked (Text: why).
+	WarnTSLink = "tailscale-link"
 )
 
 // Options are the user's choices.
@@ -152,6 +158,10 @@ type Env struct {
 	Sleep func(ctx context.Context, d time.Duration) error
 	// Lang words the health report.
 	Lang string
+	// LinkTailscale puts the tailscale CLI Twinnel installed (cli) on the
+	// user's PATH (core/clilink: never over another tailscale) and returns
+	// the link. nil: no link.
+	LinkTailscale func(cli string) (string, error)
 	// ImportConfig restores Options.ImportZip. HOOK: the helper's
 	// config.import RPC is built on feat/import-config; until it lands
 	// this is nil and an import fails with ErrNoImport. It reports whether
@@ -686,6 +696,16 @@ func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 	}
 	if r.Service != nil && r.Service.DryRun {
 		return r.Version, fail(CodeNotRoot, "the helper is not running as root: the tailscaled service was only planned")
+	}
+	if r.Kind == "twinnel" && r.Path != "" && f.Env.LinkTailscale != nil {
+		if _, err := f.Env.LinkTailscale(r.Path); err != nil {
+			var op *clilink.OnPathError
+			if errors.As(err, &op) {
+				f.warn(StepTailscale, WarnTSOnPath, op.Path)
+			} else {
+				f.warn(StepTailscale, WarnTSLink, err.Error())
+			}
+		}
 	}
 	return r.Version, nil
 }

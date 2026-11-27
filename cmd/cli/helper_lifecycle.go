@@ -267,6 +267,9 @@ func runUninstall(ctx context.Context, p uninstall.Plan, steps, purge []service.
 			return fmt.Errorf("restore the system DNS: %w (nothing else was changed)", err)
 		}
 	}
+	for _, l := range removeTailscaleLinks(stateDir) {
+		fmt.Fprintf(stdout, "# removed the tailscale command link %s (Tailscale stays installed)\n", l)
+	}
 	if r := p.Restore; r != nil {
 		if err := restoreMihomo(ctx, r, p.Removes(uninstall.StateDir), stateDir); err != nil {
 			return err

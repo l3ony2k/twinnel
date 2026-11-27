@@ -127,6 +127,7 @@ func runSetupFlow(args []string, statusOnly bool) error {
 		InstallHelper: setupInstallHelper,
 		OpenURL:       setupOpenURL,
 		ImportConfig:  setupImport,
+		LinkTailscale: setupLinkTailscale,
 	}, f.o)
 	flow.Detect(ctx)
 	if statusOnly {
