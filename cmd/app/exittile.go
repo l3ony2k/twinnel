@@ -235,8 +235,8 @@ func (a *app) exitIPLine(c *ui.Context, v exitView) {
 // overview and the flyout call it as they draw, which they do only while
 // they show; a monitor change redraws them every few seconds.
 func (a *app) keepExitFresh(s status.Snapshot) {
-	if a.mon == nil || !s.Mihomo.Reachable {
-		return
+	if a.mon == nil || !s.Mihomo.Reachable || a.shotMode {
+		return // shots test only when their flow says (shots_exit.go)
 	}
 	a.mon.TestExit()
 }
