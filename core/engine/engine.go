@@ -19,9 +19,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/autostart"
 	"github.com/l3ony2k/twinnel/core/config"
 	"github.com/l3ony2k/twinnel/core/health"
-	"github.com/l3ony2k/twinnel/core/autostart"
 	"github.com/l3ony2k/twinnel/core/kernel"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/service"
