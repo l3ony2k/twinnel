@@ -62,6 +62,9 @@ type Engine struct {
 	// NetChanges delivers network change reasons (darwin.NetWatcher). Run
 	// turns each into a health trigger and a tailnet refresh.
 	NetChanges <-chan string
+	// RotateServiceLogs: the helper rotates mihomo's output files
+	// (servicelog.go); macOS and Linux, where launchd/systemd write them.
+	RotateServiceLogs bool
 
 	// NewController builds the controller client for an address and secret
 	// (default *HTTPController).
@@ -349,12 +352,13 @@ func (e *Engine) mihomoBinary(st *store.Settings) (string, error) {
 }
 
 // Run starts the background loops (subscription schedule, tailnet poll,
-// network changes, health schedule, DNS watchdog)
+// network changes, health schedule, DNS watchdog, service log rotation)
 // and blocks until ctx ends.
 func (e *Engine) Run(ctx context.Context) {
 	e.RecoverHarden(ctx)
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(5)
+	go func() { defer wg.Done(); e.serviceLogLoop(ctx) }()
 	go func() { defer wg.Done(); e.dnsWatchLoop(ctx) }()
 	go func() { defer wg.Done(); e.subscriptionLoop(ctx) }()
 	go func() { defer wg.Done(); e.tailnetLoop(ctx) }()

@@ -101,7 +101,7 @@ func linuxGroup(g string) string {
 // healthOptions points the checks at the mihomo the helper manages, read
 // fresh from settings for every run.
 func healthOptions(e *engine.Engine, opts *options) linux.Options {
-	o := linux.Options{TailscaleStatus: devTailnetStatus(e, opts)}
+	o := linux.Options{TailscaleStatus: devTailnetStatus(e, opts), Dataplane: health.NetProbes{}}
 	settings := health.DefaultSettings()
 	o.Settings = &settings
 	st, err := e.Store.Settings()

@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -181,6 +182,9 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 	if priv.Elevated() {
 		e.ServiceRunner = &engine.ServiceRunner{Exec: platformExecutor(), Files: service.OSFiles{}}
 	}
+	// launchd and systemd write mihomo's output files; twinnel-svchost
+	// rotates its own on Windows.
+	e.RotateServiceLogs = runtime.GOOS != "windows"
 	watch := setupPlatform(e, o)
 	e.TakeoverDiscover.ConfigPath = o.takeoverConfig
 	e.TakeoverDiscover.MihomoBin = o.takeoverMihomo

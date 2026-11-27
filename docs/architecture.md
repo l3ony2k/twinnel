@@ -61,7 +61,7 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | tailnet | `tailnet.refresh` |
 | kernels | `kernel.list`, `kernel.check`, `kernel.install` (takes a channel, optionally the version that was shown and a download `proxy`: `direct`, `subscription` or a proxy URL; never a download URL), `kernel.rollback` |
 | accessories | `geo.check`, `geo.update {force}`, `ui.check`, `ui.update {force}` |
-| services | `service.status`, `service.start`, `service.stop`, `service.restart` (`mihomo`, `tailscaled`), `service.install`, `service.uninstall` (`mihomo` only). The client passes a name; labels come from settings. The helper's own service is refused (use `twinnel helper install/uninstall`). Without root the helper returns the plan with `dry_run: true` and runs nothing. |
+| services | `service.status`, `service.start`, `service.stop`, `service.restart` (`mihomo`, `tailscaled`), `service.install`, `service.uninstall` (`mihomo` only). The client passes a name; labels come from settings. The helper's own service is refused (use `twinnel helper install/uninstall`). Without root the helper returns the plan with `dry_run: true` and runs nothing. `service.log {name: mihomo, lines}`: the tail of mihomo's stdout/stderr files under `<state>/logs` (startup errors the controller's stream never carries), URLs redacted; the helper rotates them at 10 MB (copy and truncate for launchd/systemd; `twinnel-svchost` rotates its own file on Windows). 日志 → mihomo shows them before the live stream; MCP `logs source=mihomo-output`. |
 | health | `health.last` (the last report, no run), `health.run {reason}` (runs now, 2 min cap), `health.egress {lang}` (runs `leak-guard-egress` once now and keeps the result, see below) |
 | config | `config.get {source: live\|preview\|history, id}`: the config text with the top-level `secret` stripped |
 | info | `tailscale.info` |
@@ -132,6 +132,7 @@ A check implements `ID`, `Title`, `Platforms`, `Run(ctx, Env) Result`. `Env` is 
 | `fake-ip-filter-mode` | `'*'` in `fake-ip-filter` is only used with the blacklist mode. |
 | `system-dns` | Every active network service / link resolves through mihomo, or its queries are caught by the TUN's DNS hijack (warn). |
 | `vpn-conflict` | No other VPN is connected, no exit node (unless allowed), and mihomo's TUN holds the default route. |
+| `tun-dataplane` | With mihomo's TUN on, one real TCP handshake to an address routed into the TUN (`1.1.1.1:443`, else a fake-ip), 2.5 s. No answer fails, with ICMP-to-gateway and proxy-port evidence; the fix switches `tun.stack` to gvisor (`docs/tun-dataplane.md`). |
 | `leak-guard` | Sensitive proxy groups (default `Google`, `Meta`) cannot resolve to `DIRECT`. |
 | `leak-guard-egress` | Opt-in. One HTTPS request direct and one through mihomo; the proxied exit IP must differ. Public IPs are masked. With `health_egress` (定期检测) on it runs with every health run; off, it runs only on `health.egress` (检测出口), whose result (with its time, `CheckReport.at`) the helper keeps in `health-egress.json` and puts into later reports for 24 h. |
 | `controller-security` | The mihomo controller listens on loopback only and has a secret. |

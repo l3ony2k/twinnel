@@ -55,7 +55,7 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 | `proxies` | groups, current node, members, last delays; `group` for one with its chain |
 | `connections` | open connections summarized: top destinations, rules, chains, processes |
 | `traffic` | throughput over ~3 s and totals |
-| `logs` | `source=twinnel` (the helper's events) or `source=mihomo` (live log for ~3 s, `level`) |
+| `logs` | `source=twinnel` (the helper's events), `source=mihomo` (live log for ~3 s, `level`) or `source=mihomo-output` (the service's output file, startup errors included, `level`) |
 | `subscriptions` | id, name, active, interval, last fetch/error (never the URL) |
 | `layers` | the overrides; `id` returns one with its content (credentials redacted) |
 | `history` | applied configs; `diff=<id>` (and `against=<id>`) gives a semantic diff |

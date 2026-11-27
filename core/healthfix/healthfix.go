@@ -164,6 +164,10 @@ func (f *Fixer) Plan(ctx context.Context, cr health.CheckReport, reason string) 
 	case health.FixController:
 		need(f.Helper != nil, L.blockedHelper)
 		p.Steps = []string{L.stepSecret, L.stepApply, L.stepSecretNote}
+	case health.FixTUNStack:
+		need(f.Helper != nil, L.blockedHelper)
+		p.Steps = []string{L.stepTUNStack, L.stepApply, L.stepTUNRebuild}
+		p.Undo = true
 	case health.FixSystemDNS:
 		need(f.Helper != nil, L.blockedHelper)
 		if f.Helper != nil {
@@ -233,6 +237,8 @@ func (f *Fixer) Apply(ctx context.Context, p Plan) (*Outcome, error) {
 		out.Undo, err = f.applyLeakGuard(ctx, p)
 	case health.FixControllerLoopback:
 		out.Undo, err = f.applyLoopback(ctx, p)
+	case health.FixTUNStack:
+		out.Undo, err = f.applyTUNStack(ctx, p)
 	case health.FixController:
 		var r rpc.ControllerSecureResult
 		err = f.Helper.Call(ctx, rpc.MethodControllerSecure, rpc.Empty{}, &r)
@@ -448,6 +454,41 @@ func (f *Fixer) applyLoopback(ctx context.Context, p Plan) (*Undo, error) {
 	if err := f.apply(ctx, p.Check); err != nil {
 		f.revert(ctx, u)
 		return nil, err
+	}
+	return u, nil
+}
+
+// applyTUNStack adds the override that switches mihomo's TUN to the
+// gvisor stack (health.TUNStackLayer), enabled and last among the user
+// overrides so it wins over a stack set in another one, then applies.
+//
+// An override of that id may exist already (one written by hand): then
+// its content is put back if the apply fails, and the undo rolls back to
+// the config before the fix instead of deleting the override.
+func (f *Fixer) applyTUNStack(ctx context.Context, p Plan) (*Undo, error) {
+	var old rpc.LayerContent
+	existed := f.Helper.Call(ctx, rpc.MethodLayerGet, rpc.IDParams{ID: health.TUNStackLayerID}, &old) == nil && old.ID != ""
+	u := &Undo{Action: p.Action, LayerID: health.TUNStackLayerID}
+	if existed {
+		u = &Undo{Action: p.Action, HistoryID: f.latestHistory(ctx)}
+	}
+	on := true
+	if err := f.Helper.Call(ctx, rpc.MethodLayerPut, rpc.LayerPutParams{ID: health.TUNStackLayerID, Name: tx(f.Lang).layerTUNStack,
+		Enabled: &on, Content: health.TUNStackLayer}, &rpc.Layer{}); err != nil {
+		return nil, err
+	}
+	if err := f.apply(ctx, p.Check); err != nil {
+		if existed {
+			was := old.Enabled
+			_ = f.Helper.Call(ctx, rpc.MethodLayerPut, rpc.LayerPutParams{ID: old.ID, Name: old.Name, Stage: old.Stage, Format: old.Format,
+				Enabled: &was, Content: old.Content}, &rpc.Layer{})
+		} else {
+			f.revert(ctx, u)
+		}
+		return nil, err
+	}
+	if u.LayerID == "" && u.HistoryID == "" {
+		return nil, nil // no history to go back to: applied, without an undo
 	}
 	return u, nil
 }

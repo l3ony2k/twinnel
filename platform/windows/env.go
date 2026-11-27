@@ -75,6 +75,9 @@ type Options struct {
 	TailscaleStatus func(ctx context.Context) ([]byte, error)
 	// Settings are check preferences. Default: health.DefaultSettings().
 	Settings *health.Settings
+	// Dataplane runs the tun-dataplane probes (health.NetProbes on a real
+	// machine). Nil: the check is skipped, so tests never dial out.
+	Dataplane health.DataplaneEnv
 
 	// Sys reads adapters, routes and the NRPT. Default: NewSys().
 	Sys      Sys
