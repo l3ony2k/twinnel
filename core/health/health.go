@@ -66,6 +66,9 @@ type Result struct {
 	Summary  string   `json:"summary"`
 	Evidence []string `json:"evidence,omitempty"`
 	Fix      *FixHint `json:"fix,omitempty"`
+	// Causes name what a warn or fail comes from (Cause* codes), so a
+	// cause the user accepted can be told apart (Accept). Empty: unknown.
+	Causes []string `json:"causes,omitempty"`
 }
 
 // Check is one health check.
@@ -135,6 +138,11 @@ func supports(c Check, platform string) bool {
 
 func skip(format string, a ...any) Result {
 	return Result{Status: StatusSkip, Summary: fmt.Sprintf(format, a...)}
+}
+
+// skipErr is a skip with a short reason; the error goes to the evidence.
+func skipErr(summary string, err any) Result {
+	return Result{Status: StatusSkip, Summary: summary, Evidence: []string{fmt.Sprint(err)}}
 }
 
 // skipText is skip with a text that has no format verbs.
