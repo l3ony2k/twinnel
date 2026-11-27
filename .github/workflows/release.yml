@@ -6,7 +6,7 @@ name: release
 #
 # Minutes: the macOS job is billed at 10x, so it builds only Twinnel.app
 # (one universal build); the CLI archives for every OS cross-compile on
-# Linux. Builds are signed ad hoc: no Developer ID, no notarization
+# Linux, the Windows app too. Builds are signed ad hoc: no Developer ID, no notarization
 # (docs/install.md says how to open them).
 
 on:
@@ -124,23 +124,61 @@ jobs:
           compression-level: 0 # already compressed
           retention-days: 7
 
-  # windows:
-  #   Not yet: the Windows platform layer is being built on another branch.
-  #   When it lands, cross-compile the CLI + helper in the cli job (add
-  #   windows/amd64 and windows/arm64 to --targets, as .zip) and, for the GUI,
-  #   add a job like this one:
-  #   name: Twinnel (Windows)
-  #   runs-on: windows-latest
-  #   steps:
-  #     - checkout + setup-go as above
-  #     - run: go run github.com/egoist/mygo/cmd/mygo@<go.mod version> build -platform windows/amd64,windows/arm64 -o dist/app cmd/app
-  #     - upload-artifact: name windows, path dist/app/**/*.exe
-  #   and list it in release.needs. Unsigned (no Authenticode certificate):
-  #   SmartScreen shows "More info → Run anyway"; say so in docs/install.md.
+  windows:
+    name: Twinnel (Windows amd64, arm64)
+    # Cross-compiled on Linux (pure Go; mygo build makes the exe's icon,
+    # version info and manifest on any host). Unsigned: no Authenticode
+    # certificate, SmartScreen warns (docs/install.md).
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - name: vet for Windows
+        run: |
+          GOOS=windows GOARCH=amd64 go vet ./...
+          GOOS=windows GOARCH=arm64 go vet ./cmd/... ./platform/windows/...
+      - name: parse install.ps1
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/packaging/windows/install.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors | ForEach-Object { Write-Error $_.ToString() }; exit 1 }
+      - name: build
+        run: |
+          set -- --no-app --targets "" --windows-app "windows/amd64 windows/arm64"
+          if [ -n "$VERSION" ]; then set -- "$@" -v "${VERSION#v}"; fi
+          scripts/build-release.sh "$@"
+      - name: check the zips
+        run: |
+          for arch in amd64 arm64; do
+            zip=$(ls dist/Twinnel_*_windows_${arch}.zip)
+            name=$(basename "$zip" .zip)
+            tmp=$(mktemp -d)
+            unzip -q "$zip" -d "$tmp"
+            d="$tmp/$name"
+            for f in Twinnel.exe bin/twinnel.exe bin/twinnel-helper.exe install.ps1 INSTALL.md; do
+              test -f "$d/$f" || { echo "missing $f in $zip"; exit 1; }
+            done
+            file "$d/Twinnel.exe" | grep -q 'PE32+ executable (GUI)'
+            if grep -q WebView2Loader "$d/Twinnel.exe"; then echo "WebView2 linked into $zip"; exit 1; fi
+            echo "$zip ok"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows
+          path: dist/*.zip
+          if-no-files-found: error
+          compression-level: 0 # already compressed
+          retention-days: 7
 
   release:
     name: Checksums, notes, draft release
-    needs: [cli, app]
+    needs: [cli, app, windows]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -172,6 +210,7 @@ jobs:
             echo "| \`Twinnel_*_macos_universal.dmg\` / \`.zip\` | Twinnel.app, macOS 15+ (Apple silicon and Intel) |"
             echo "| \`twinnel_*_darwin_<arch>.tar.gz\` | macOS CLI and helper only |"
             echo "| \`twinnel_*_linux_<arch>.tar.gz\` | Linux CLI and helper (systemd), \`sudo ./install.sh\` |"
+            echo "| \`Twinnel_*_windows_<arch>.zip\` | Twinnel for Windows 10 1809+ / 11 (x64, Arm64): unzip, then \`powershell -ExecutionPolicy Bypass -File .\\install.ps1\` (unsigned: SmartScreen warns) |"
             echo "| \`SHA256SUMS\` | \`shasum -a 256 -c SHA256SUMS --ignore-missing\` |"
             echo
             echo "## Changes $since"

@@ -101,6 +101,7 @@ func execCLI(ctx context.Context, args ...string) (string, error) {
 	var out bytes.Buffer
 	cmd := exec.CommandContext(ctx, p, args...)
 	cmd.Stdout, cmd.Stderr = &out, &out
+	hideConsole(cmd) // Windows: twinnel.exe is a console program; no window flashes up
 	err = cmd.Run()
 	return out.String(), err
 }
@@ -286,8 +287,9 @@ func codeBlock(c *ui.Context, s string) ui.Element {
 }
 
 // installHelper runs `twinnel helper install`, which asks for the
-// administrator password (osascript) and sets up the LaunchDaemon. Does
-// nothing with TWINNEL_READ_ONLY=1.
+// administrator password (osascript; UAC on Windows) and sets up the
+// LaunchDaemon (the Windows service). Does nothing with
+// TWINNEL_READ_ONLY=1.
 func (a *app) installHelper() {
 	v := &a.hd.onb
 	if !a.cfg.AllowWrites || v.running {

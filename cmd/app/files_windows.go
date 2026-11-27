@@ -53,3 +53,20 @@ func startMenuShortcut() string {
 	}
 	return ""
 }
+
+// hideConsole runs a console program (twinnel.exe) without a console
+// window of its own: the app is a GUI program, so one would flash up.
+func hideConsole(cmd *exec.Cmd) {
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.HideWindow = true
+	cmd.SysProcAttr.CreationFlags |= createNoWindow
+	// `helper install|upgrade|uninstall` raises the UAC prompt from this
+	// child: let it come to the front rather than flash in the taskbar.
+	procAllowSetForeground.Call(asfwAny)
+}
+
+var procAllowSetForeground = user32.NewProc("AllowSetForegroundWindow")
+
+const asfwAny = ^uintptr(0) // ASFW_ANY, (DWORD)-1

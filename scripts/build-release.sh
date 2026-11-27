@@ -5,14 +5,20 @@
 #   dist/Twinnel_<version>_macos_<arch>.dmg     Twinnel.app in a disk image  } macOS
 #   dist/Twinnel_<version>_macos_<arch>.zip     Twinnel.app zipped (ditto)    } hosts
 #   dist/app/<platform>/Twinnel.app            the signed bundle itself      } only
+#   dist/Twinnel_<version>_windows_<arch>.zip   Twinnel.exe, bin\twinnel.exe, bin\twinnel-helper.exe,
+#                                             install.ps1, INSTALL.md (--windows-app; any host)
 #   dist/SHA256SUMS
 #
 # Usage: scripts/build-release.sh [-v VERSION] [--no-app] [--targets "darwin/arm64 linux/amd64"]
 #                                 [--app-platform darwin/arm64|darwin/amd64|darwin/universal]
+#                                 [--windows-app "windows/amd64 windows/arm64"]
 #
 # --targets "" builds no CLI archives (the app only). --app-platform picks the
 # app's architecture (default darwin/arm64); darwin/universal makes one app
 # for Apple silicon and Intel, with universal embedded tools (no Xcode needed).
+# --windows-app builds the Windows app zips (default none); it cross-compiles
+# from any host, unsigned (no Authenticode certificate: SmartScreen warns,
+# docs/install.md says what to do).
 #
 # Pure Go, no cgo: every target cross-compiles from any host. The .app needs
 # `mygo build` (run through `go run`, pinned to the version in go.mod) and,
@@ -40,13 +46,15 @@ version=""
 build_app=1
 app_platform="darwin/arm64"
 targets="darwin/arm64 darwin/amd64 linux/amd64 linux/arm64"
+windows_app=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 	-v | --version) version="$2"; shift 2 ;;
 	--no-app) build_app=0; shift ;;
 	--targets) targets="$2"; shift 2 ;;
 	--app-platform) app_platform="$2"; shift 2 ;;
-	-h | --help) sed -n '2,19p' "$0"; exit 0 ;;
+	--windows-app) windows_app="$2"; shift 2 ;;
+	-h | --help) sed -n '2,25p' "$0"; exit 0 ;;
 	*) echo "unknown argument: $1" >&2; exit 2 ;;
 	esac
 done
@@ -225,6 +233,60 @@ if [ "$build_app" = 1 ]; then
 		echo "==> skipping Twinnel.app: mygo signs and packages .app bundles on macOS only"
 	fi
 fi
+
+# Windows: Twinnel.exe (mygo build: icon, version info, manifest, no console)
+# with the CLI and the helper in bin\ (Twinnel.exe and twinnel.exe cannot
+# share a folder on a case-insensitive file system), plus install.ps1. Built
+# without WebView2 (mygo_nowebview): the app is native UI only, and an
+# unsigned exe naming WebView2 looks suspicious to antivirus heuristics.
+for t in $windows_app; do
+	arch="${t#*/}"
+	case "$t" in
+	windows/amd64 | windows/arm64) ;;
+	*) echo "unsupported --windows-app $t" >&2; exit 2 ;;
+	esac
+	res="cmd/app/resources"
+	app_json="cmd/app/mygo.json"
+	app_json_orig="$dist/.mygo.json.orig"
+	cp "$app_json" "$app_json_orig"
+	cleanup_win() {
+		cp "$app_json_orig" "$app_json" && rm -f "$app_json_orig"
+		rm -rf "$res"
+	}
+	trap cleanup_win EXIT
+	rm -rf "$res"
+	mkdir -p "$res/windows-$arch/bin"
+	for cmd in cli:twinnel helper:twinnel-helper; do
+		CGO_ENABLED=0 GOOS=windows GOARCH="$arch" go build -trimpath -ldflags "$ldflags" \
+			-o "$res/windows-$arch/bin/${cmd#*:}.exe" "./cmd/${cmd%:*}"
+	done
+	# The exe's file version wants numbers: 1.2.3 from v1.2.3-4-gabc.
+	file_version="$(printf '%s' "$version" | sed -nE 's/^([0-9]+(\.[0-9]+){0,2}).*/\1/p')"
+	file_version="${file_version:-0.0.0}"
+	awk -v v="$file_version" '
+		/^[[:space:]]*"version":/ { next }
+		{ print }
+		/^[[:space:]]*"name":/ && !done { match($0, /^[[:space:]]*/); printf "%s\"version\": \"%s\",\n", substr($0, 1, RLENGTH), v; done = 1 }
+	' "$app_json_orig" >"$app_json"
+	mygo_version="$(go list -m -f '{{.Version}}' github.com/egoist/mygo)"
+	echo "==> Twinnel.exe windows/$arch ${file_version} (mygo $mygo_version)"
+	GOFLAGS="-tags=mygo_nowebview" MYGO_LDFLAGS="$vflags" go run "github.com/egoist/mygo/cmd/mygo@${mygo_version}" \
+		build -platform "windows/$arch" -skip-installer -o "$PWD/$dist/app" cmd/app
+	cleanup_win
+	trap - EXIT
+	built="$dist/app/windows-$arch"
+	name="Twinnel_${version}_windows_${arch}"
+	stage="$dist/.win-stage/$name"
+	rm -rf "$dist/.win-stage" && mkdir -p "$stage/bin"
+	cp "$built/Twinnel.exe" "$stage/Twinnel.exe"
+	cp "$built/bin/twinnel.exe" "$built/bin/twinnel-helper.exe" "$stage/bin/"
+	cp packaging/windows/install.ps1 "$stage/install.ps1"
+	cp docs/install.md "$stage/INSTALL.md"
+	cp LICENSE README.md "$stage/" 2>/dev/null || true
+	(cd "$dist/.win-stage" && zip -qr -X "../$name.zip" "$name")
+	rm -rf "$dist/.win-stage"
+	echo "    zip: $dist/$name.zip"
+done
 
 echo "==> checksums"
 (

@@ -3,6 +3,8 @@
 package main
 
 import (
+	"os/exec"
+
 	"github.com/egoist/mygo"
 
 	"github.com/l3ony2k/twinnel/core/legacy"
@@ -24,3 +26,6 @@ var helperInstalledPaths = []string{
 
 // removeAppBundle moves the app to the Trash (完全移除).
 func removeAppBundle(path string) { mygo.Shell.TrashItem(path) }
+
+// hideConsole: nothing to hide outside Windows.
+func hideConsole(*exec.Cmd) {}
