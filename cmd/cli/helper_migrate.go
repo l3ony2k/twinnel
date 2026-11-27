@@ -80,6 +80,7 @@ type migration struct {
 	old, cur  migrateSide
 	helperBin string
 	want      string // the bundled helper's version ("" any)
+	copied    bool   // the new state dir was created by this run (a rollback deletes it)
 }
 
 func newMigration(f *installFlags, want string) *migration {
@@ -183,7 +184,7 @@ func (m *migration) run(ctx context.Context) error {
 
 	// 4.-6.
 	if err := m.move(ctx, base); err != nil {
-		return m.rollback(ctx, err, true)
+		return m.rollback(ctx, err, m.copied)
 	}
 
 	// 7. the old install goes.
@@ -265,6 +266,10 @@ func waitGone(ctx context.Context, socket string) error {
 // move copies the state, installs the new helper and checks it.
 func (m *migration) move(ctx context.Context, base migrateBaseline) error {
 	fmt.Fprintf(stdout, "# copying %s to %s\n", m.old.StateDir, m.cur.StateDir)
+	if entries, err := os.ReadDir(m.cur.StateDir); err == nil && len(entries) > 0 {
+		return fmt.Errorf("%s exists and is not empty; move it away first", m.cur.StateDir)
+	}
+	m.copied = true
 	if err := copyTree(m.old.StateDir, m.cur.StateDir); err != nil {
 		return fmt.Errorf("copying the state dir: %w", err)
 	}
@@ -307,7 +312,7 @@ func reflectEqual(a, b migrateBaseline) bool {
 }
 
 // rollback undoes a failed migration: the new helper and the copy go, the
-// old helper starts again. copied: the state copy may exist.
+// old helper starts again. copied: this run created the new state dir.
 func (m *migration) rollback(ctx context.Context, cause error, copied bool) error {
 	fmt.Fprintf(stdout, "# migration failed: %v\n# rolling back: removing the new helper, starting the old one\n", cause)
 	var errs []error

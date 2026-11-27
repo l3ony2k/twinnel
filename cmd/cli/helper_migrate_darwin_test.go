@@ -475,3 +475,21 @@ func TestPurgeRemovesMigrationLeftovers(t *testing.T) {
 		}
 	}
 }
+
+// A new state dir that holds something else (no settings.json) is never
+// deleted by a rollback.
+func TestMigrateKeepsForeignNewStateDir(t *testing.T) {
+	m := newMigrateModel(t, 0)
+	os.MkdirAll(m.newDir, 0o755)
+	os.WriteFile(filepath.Join(m.newDir, "notes.txt"), []byte("mine"), 0o600)
+	err := runHelperUpgrade(m.upgradeArgs("--as-root", "--yes"))
+	if err == nil || !strings.Contains(err.Error(), "not empty") || !strings.Contains(err.Error(), "rolled back") {
+		t.Fatalf("err = %v", err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(m.newDir, "notes.txt")); string(b) != "mine" {
+		t.Error("foreign file deleted")
+	}
+	if !m.oldRunning {
+		t.Error("old helper not running again")
+	}
+}
