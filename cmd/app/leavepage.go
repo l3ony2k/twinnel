@@ -235,8 +235,9 @@ func (a *app) leaveSection(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	t := c.Theme()
 	listBox(c, t).Children(func() {
-		row := ui.Row(c.Key("leave-entry")).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).PaddingY(8).
-			Focusable().Role(ui.RoleButton).Label(T.LeavePage)
+		row := ui.Row(c.Key("leave-entry")).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).PaddingY(listRowPadY).
+			Transition(colorMotion).Focusable().Role(ui.RoleButton).Label(T.LeavePage)
+		rowFill(c, rowBleed(row), false)
 		row.Children(func() {
 			ui.Text(c, T.LeavePage).Grow(1)
 			ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
@@ -311,7 +312,7 @@ func (a *app) inventoryCard(c *ui.Context, s status.Snapshot) {
 					} else if it.Label != "" && it.Kind != invLaunchAgent {
 						detail = it.Label
 					}
-					ui.Text(c, tildePath(detail)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Grow(1).Shrink(1).Selectable().Tooltip(it.Path)
+					mono(ui.Text(c, tildePath(detail))).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Grow(1).Shrink(1).Selectable().Tooltip(it.Path)
 					switch {
 					case it.Count > 0 && it.Size > 0:
 						num(meta(c, i18n.F(T.InvCount, it.Count)+" · "+status.Bytes(it.Size)))
