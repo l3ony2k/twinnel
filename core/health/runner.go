@@ -124,6 +124,7 @@ func (r *Runner) Run(ctx context.Context, env Env) *Report {
 					res = notJudged(L, owner, res)
 				}
 			}
+			res.Evidence = TidyEvidence(res.Evidence)
 			rep.Checks[i].Result = res
 			rep.Checks[i].Duration = now().Sub(t0)
 		}()

@@ -180,7 +180,7 @@ func printEgress(w io.Writer, cr health.CheckReport) {
 		at = ", " + cr.At.Local().Format("15:04:05")
 	}
 	fmt.Fprintf(w, "%s%s: %s\n", cr.Status, at, cr.Summary)
-	for _, e := range cr.Evidence {
+	for _, e := range health.TidyEvidence(cr.Evidence) {
 		fmt.Fprintf(w, "  %s\n", e)
 	}
 }

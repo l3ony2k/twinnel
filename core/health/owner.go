@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/l3ony2k/twinnel/core/foreign"
+	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
 // Which controller the evidence came from (report pits #3/#16): when
@@ -144,7 +145,7 @@ func controllerLabel(L *texts, o foreign.Owner, known bool) string {
 	case foreign.Managed:
 		return fmt.Sprintf(ot.labelManaged, o.Addr)
 	case foreign.Foreign:
-		return fmt.Sprintf(ot.labelForeign, o.Addr, clientName(ot, o))
+		return i18n.F(ot.labelForeign, o.Addr, clientName(ot, o))
 	}
 	return o.Addr
 }
@@ -156,11 +157,20 @@ func clientName(ot *ownerTexts, o foreign.Owner) string {
 	return ot.anotherMihomo
 }
 
+// foreignSummary names the client only when it is known: "（看起来是
+// 另一个 mihomo）" would repeat the summary.
+func foreignSummary(ot *ownerTexts, o foreign.Owner) string {
+	if n := o.Client.Name(); n != "" {
+		return i18n.F(ot.foreign, o.Addr, n)
+	}
+	return i18n.F(ot.foreignUnnamed, o.Addr)
+}
+
 // notJudged is the result of a check whose evidence would have come from
 // another program's mihomo.
 func notJudged(L *texts, o foreign.Owner, was Result) Result {
 	ot := otx(L)
-	r := Result{Status: StatusSkip, Summary: fmt.Sprintf(ot.notJudged, o.Addr, clientName(ot, o))}
+	r := Result{Status: StatusSkip, Summary: i18n.F(ot.notJudged, o.Addr, clientName(ot, o))}
 	if was.Summary != "" && was.Status != StatusSkip {
 		r.Evidence = append(r.Evidence, fmt.Sprintf(ot.evWouldBe, was.Summary))
 	}
@@ -234,7 +244,7 @@ func (ControllerOwnerCheck) Run(ctx context.Context, env Env) Result {
 		}
 		return r
 	case foreign.Foreign:
-		r := Result{Status: StatusFail, Summary: fmt.Sprintf(ot.foreign, o.Addr, clientName(ot, o))}
+		r := Result{Status: StatusFail, Summary: foreignSummary(ot, o)}
 		if o.PID > 0 {
 			r.Evidence = append(r.Evidence, fmt.Sprintf("pid %d: %s", o.PID, orDash(o.Exe)))
 		}
@@ -250,7 +260,7 @@ func (ControllerOwnerCheck) Run(ctx context.Context, env Env) Result {
 		r.Evidence = append(r.Evidence, ot.evWhy)
 		r.because(ReasonOwnerOtherClient)
 		r.because(ReasonOwnerPortShared)
-		r.Fix = &FixHint{Text: fmt.Sprintf(ot.fix, clientName(ot, o)), AutoFix: FixControllerPort}
+		r.Fix = &FixHint{Text: i18n.F(ot.fix, clientName(ot, o)), AutoFix: FixControllerPort}
 		return r
 	}
 	if o.Addr == "" {
@@ -262,6 +272,7 @@ func (ControllerOwnerCheck) Run(ctx context.Context, env Env) Result {
 // ownerTexts are the texts of the owner check and the evidence labels.
 type ownerTexts struct {
 	title, ok, foreign, nobody, unavailable  string
+	foreignUnnamed                           string // foreign, the client not known
 	evParent, evWorkDir, evSafePaths, evWhy  string
 	fix                                      string
 	labelManaged, labelForeign, labelUnknown string
@@ -273,6 +284,7 @@ var zhOwnerTexts = ownerTexts{
 	title:           "控制端口归属",
 	ok:              "%s 是 Twinnel 管理的 mihomo",
 	foreign:         "%s 被另一个 mihomo 占用（看起来是 %s）",
+	foreignUnnamed:  "%s 被另一个 mihomo 占用",
 	nobody:          "%s 上没有程序在监听",
 	unavailable:     "没有读到控制端口上是哪个程序",
 	evParent:        "父进程：%s",
@@ -293,6 +305,7 @@ var enOwnerTexts = ownerTexts{
 	title:           "Controller owner",
 	ok:              "%s is the mihomo Twinnel manages",
 	foreign:         "%s is taken by another mihomo (it looks like %s)",
+	foreignUnnamed:  "%s is taken by another mihomo",
 	nobody:          "Nothing listens on %s",
 	unavailable:     "Could not read which program listens on the controller port",
 	evParent:        "parent process: %s",

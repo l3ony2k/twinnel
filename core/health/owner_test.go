@@ -127,3 +127,41 @@ func (NetProbesEnv) DialViaProxy(context.Context, string, string, string) error 
 	return errDialMarker
 }
 func (NetProbesEnv) Ping(context.Context, string) error { return errDialMarker }
+
+// TestForeignUnknownClientWording: a foreign mihomo of no known client is
+// named once, with no stray spaces around the Chinese name, and no check
+// renders an empty evidence line (QA round 2, E).
+func TestForeignUnknownClientWording(t *testing.T) {
+	e := foreignEnv().(*fakeEnv)
+	e.owner.Client, e.owner.Exe, e.owner.WorkDir = "", "", ""
+	rep := runAll(t, e, "zh-Hans")
+	o := byID(rep)["controller-owner"]
+	if o.Summary != "127.0.0.1:9090 被另一个 mihomo 占用" {
+		t.Errorf("summary %q", o.Summary)
+	}
+	if o.Fix == nil || !strings.HasPrefix(o.Fix.Text, "退出另一个 mihomo（") {
+		t.Errorf("fix %+v", o.Fix)
+	}
+	for _, c := range rep.Checks {
+		if strings.Contains(c.Summary, "被 另") || strings.Contains(c.Controller, "（ ") {
+			t.Errorf("%s: stray space: %q / %q", c.ID, c.Summary, c.Controller)
+		}
+		for _, ev := range c.Evidence {
+			for _, l := range strings.Split(ev, "\n") {
+				if strings.TrimSpace(l) == "" {
+					t.Errorf("%s: empty evidence line in %q", c.ID, c.Evidence)
+				}
+			}
+		}
+	}
+	if txt := rep.Text(); strings.Contains(txt, "· \n") {
+		t.Errorf("empty evidence line in the text report:\n%s", txt)
+	}
+}
+
+func TestTidyEvidence(t *testing.T) {
+	got := TidyEvidence([]string{"", "  ", "a\n\nb  \n", "\n", "c"})
+	if strings.Join(got, "|") != "a\nb|c" {
+		t.Errorf("TidyEvidence = %q", got)
+	}
+}

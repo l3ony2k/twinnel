@@ -195,5 +195,25 @@ func skipErr(summary string, err any) Result {
 	return Result{Status: StatusSkip, Summary: summary, Evidence: []string{fmt.Sprint(err)}}
 }
 
+// TidyEvidence drops what would render as an empty evidence line: blank
+// entries, and blank lines and trailing spaces inside an entry. The runner
+// tidies every result, and every renderer (Report.Text, Markdown, the
+// app's DedupeEvidence) tidies again, for reports from an older helper.
+func TidyEvidence(lines []string) []string {
+	var out []string
+	for _, e := range lines {
+		var keep []string
+		for _, l := range strings.Split(e, "\n") {
+			if l = strings.TrimRight(l, " \t\r"); strings.TrimSpace(l) != "" {
+				keep = append(keep, l)
+			}
+		}
+		if len(keep) > 0 {
+			out = append(out, strings.Join(keep, "\n"))
+		}
+	}
+	return out
+}
+
 // skipText is skip with a text that has no format verbs.
 func skipText(s string) Result { return Result{Status: StatusSkip, Summary: s} }
