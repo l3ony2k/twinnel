@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"strings"
 
 	"github.com/l3ony2k/twinnel/core/sysdns"
 )
@@ -14,7 +15,7 @@ import (
 // (tests pass a fake); only the helper, as root, may pass a real one for
 // -setdnsservers.
 type SystemDNS struct {
-	Run func(ctx context.Context, name string, args ...string) (string, error)
+	Run CommandRunner
 }
 
 const networksetup = "/usr/sbin/networksetup"
@@ -28,7 +29,7 @@ func (d SystemDNS) Services(ctx context.Context) ([]sysdns.Service, error) {
 		return nil, err
 	}
 	var svcs []sysdns.Service
-	for _, s := range ParseServiceOrder(out) {
+	for _, s := range ParseServiceOrder(string(out)) {
 		if !s.Enabled || s.Device == "" {
 			continue
 		}
@@ -36,7 +37,7 @@ func (d SystemDNS) Services(ctx context.Context) ([]sysdns.Service, error) {
 		if err != nil {
 			return nil, err
 		}
-		svcs = append(svcs, sysdns.Service{Name: s.Name, Servers: ParseGetDNSServers(dns)})
+		svcs = append(svcs, sysdns.Service{Name: s.Name, Servers: ParseGetDNSServers(string(dns))})
 	}
 	return svcs, nil
 }
@@ -56,7 +57,7 @@ func (d SystemDNS) Set(ctx context.Context, name string, servers []string) error
 	}
 	out, err := d.Run(ctx, networksetup, args...)
 	if err != nil {
-		return fmt.Errorf("%w: %s", err, out)
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }

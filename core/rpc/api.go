@@ -465,6 +465,8 @@ type KernelInstallParams struct {
 	// Version, if set, must equal the version the release check finds;
 	// it guards against installing something other than what the user saw.
 	Version string `json:"version,omitempty"`
+	// Proxy for the download (Proxy* or a proxy URL; default ProxyAuto).
+	Proxy string `json:"proxy,omitempty"`
 }
 
 type TailscaleInfo struct {

@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/user"
 	"strconv"
@@ -53,6 +54,9 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 		e.TailnetInterface = func(context.Context) (string, error) { return name, nil }
 	}
 	setupTakeover(e, o)
+	if d := systemDNS(o); d != nil {
+		e.SystemDNS = d
+	}
 	if o.noHealth {
 		return func(context.Context) {}
 	}
@@ -134,4 +138,22 @@ func consoleUserHome() string {
 	}
 	home, _ := os.UserHomeDir()
 	return home
+}
+
+// systemDNS is dns.*'s platform part: networksetup, with -setdnsservers
+// only when the helper runs as root (a development helper reads only).
+func systemDNS(o *options) *darwin.SystemDNS {
+	if o.noSystemDNS {
+		return nil
+	}
+	read := takeoverprobe.SafeRunner(10 * time.Second)
+	return &darwin.SystemDNS{Run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "-setdnsservers" {
+			if os.Geteuid() != 0 {
+				return nil, errors.New("setting the system DNS needs the installed (root) helper")
+			}
+			return service.ExecExecutor{Timeout: 10 * time.Second}.Run(ctx, append([]string{name}, args...))
+		}
+		return read(ctx, name, args...)
+	}}
 }

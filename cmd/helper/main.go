@@ -42,6 +42,7 @@ type options struct {
 	keychain       string
 	tailnetIface   string
 	noHealth       bool
+	noSystemDNS    bool
 	healthInterval time.Duration
 
 	// takeover discovery overrides (development against a copied setup)
@@ -63,6 +64,7 @@ func parseFlags(args []string) (*options, error) {
 	fs.StringVar(&o.keychain, "keychain", "", "keychain `FILE` for --secrets keychain (default the System keychain)")
 	fs.StringVar(&o.tailnetIface, "tailnet-iface", "auto", "Tailscale interface for the coexist resolver: auto (route to 100.100.100.100), none, or a `NAME`")
 	fs.BoolVar(&o.noHealth, "no-health", false, "do not run the health checks (health.last/run then fail)")
+	fs.BoolVar(&o.noSystemDNS, "no-system-dns", false, "development: do not read or set the system DNS (dns.* report it as unsupported)")
 	fs.DurationVar(&o.healthInterval, "health-interval", 5*time.Minute, "time between scheduled health runs")
 	fs.StringVar(&o.takeoverServices, "takeover-services-dir", "", "development: look for launchd plists only in `DIR` (takeover.plan/adopt)")
 	fs.StringVar(&o.takeoverConfig, "takeover-config", "", "development: live mihomo config `FILE` for takeover discovery")
@@ -133,7 +135,7 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 
 	e := engine.New(st, secrets)
 	e.Log = log
-	probe := &kernel.TailscaleProbe{Binary: settings.Tailscale.Binary}
+	probe := &kernel.TailscaleProbe{Binary: settings.Tailscale.Binary, Managed: st.Path("tailscale", "current", "tailscale")}
 	e.TSProbe = probe
 	if o.tailnetStatus != "" {
 		e.Tailnet = fileTailnet(o.tailnetStatus)

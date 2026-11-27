@@ -10,13 +10,19 @@ import (
 	"testing"
 )
 
+var fakeNS func(name string, args ...string) (string, error)
+
 func TestSystemDNS(t *testing.T) {
 	order, err := os.ReadFile(filepath.Join("testdata", "service_order.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var ran []string
-	d := SystemDNS{Run: func(_ context.Context, name string, args ...string) (string, error) {
+	d := SystemDNS{Run: func(_ context.Context, name string, args ...string) ([]byte, error) {
+		out, err := fakeNS(name, args...)
+		return []byte(out), err
+	}}
+	fakeNS = func(name string, args ...string) (string, error) {
 		cmd := filepath.Base(name) + " " + strings.Join(args, " ")
 		ran = append(ran, cmd)
 		switch cmd {
@@ -29,7 +35,7 @@ func TestSystemDNS(t *testing.T) {
 			return "There aren't any DNS Servers set on X.\n", nil
 		}
 		return "", nil
-	}}
+	}
 	svcs, err := d.Services(context.Background())
 	if err != nil {
 		t.Fatal(err)
