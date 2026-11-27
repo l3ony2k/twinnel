@@ -51,7 +51,7 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 | `version` | Twinnel, helper, kernel, Tailscale; `check_updates` asks GitHub for the latest kernel and geo files |
 | `health` | the helper's checks; `run=true` runs them now |
 | `health_fixes` | why a check fails (reason codes) and each reason's fix: `auto` (one call), `guided` (where in the app), `manual` (why Twinnel can't, what to do instead); see [health-fixes.md](health-fixes.md) |
-| `doctor` | `twinnel doctor`: the helper's run (like `health` with `run=true`); in-process only when the helper is down (`source: local-no-helper`) |
+| `doctor` | `twinnel doctor`: the helper's last report when under a minute old (`ageNs` says how old), else its run now (like `health` with `run=true`); `fresh=true` always runs; in-process only when the helper is down (`source: local-no-helper`) |
 | `proxies` | groups, current node, members, last delays; `group` for one with its chain |
 | `connections` | open connections summarized: top destinations, rules, chains, processes |
 | `traffic` | throughput over ~3 s and totals |

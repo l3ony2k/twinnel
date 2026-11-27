@@ -102,7 +102,8 @@ peer-relay, idle), whether it is or may be an exit node. online_only limits the 
 
 	if s.d.Doctor != nil {
 		addTool(s, rpc.TierRead, "doctor", "Doctor",
-			"Runs `twinnel doctor`: the helper runs the coexistence checks now (the same report as health with run=true). "+
+			"Runs `twinnel doctor`: the helper's coexistence checks, the report the app shows. Its last report when it is under a minute old "+
+				"(ageNs then says how old), else the helper runs them now; fresh=true always runs them now. "+
 				"When the helper does not answer, this process runs them itself against the running mihomo and Tailscale; "+
 				"the report's source then says local-no-helper, and checks that need the helper's knowledge skip (read-only).",
 			toolOpts{noHelper: true}, s.doctor)
@@ -823,8 +824,12 @@ func (s *Server) tailnetPeers(c *call, in peersIn) (any, error) {
 	return map[string]any{"self": st.Self.DNSName, "state": st.BackendState, "peers": out}, nil
 }
 
-func (s *Server) doctor(c *call, _ noArgs) (any, error) {
-	raw, err := s.d.Doctor(c.ctx)
+type doctorIn struct {
+	Fresh bool `json:"fresh,omitempty" jsonschema:"run the checks now even when the helper's last report is under a minute old"`
+}
+
+func (s *Server) doctor(c *call, in doctorIn) (any, error) {
+	raw, err := s.d.Doctor(c.ctx, in.Fresh)
 	if err != nil {
 		return nil, err
 	}

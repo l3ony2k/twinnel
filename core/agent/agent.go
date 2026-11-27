@@ -61,9 +61,9 @@ type Deps struct {
 	HTTPTransport http.RoundTripper
 	// Tailscale is the LocalAPI (nil: Tailscale tools report it missing).
 	Tailscale tailscale.API
-	// Doctor runs the local health checks (`twinnel doctor --json`); nil: the
+	// Doctor is `twinnel doctor --json` (with fresh: --fresh); nil: the
 	// doctor tool is not offered.
-	Doctor func(ctx context.Context) (json.RawMessage, error)
+	Doctor func(ctx context.Context, fresh bool) (json.RawMessage, error)
 	// HelperBinaries compares the helper binary shipped with Twinnel with
 	// the installed one, given the running helper's version ("" unknown);
 	// nil: the version tool leaves it out.

@@ -84,10 +84,11 @@ func mcpDeps(socket string) agent.Deps {
 	d.HelperBinaries = func(ctx context.Context, running string) *coreversion.HelperBinaries {
 		return collectHelperBinaries(ctx, 5*time.Second, running)
 	}
-	d.Doctor = func(ctx context.Context) (json.RawMessage, error) {
-		// The same run as `twinnel doctor`: the helper's, locally only
-		// when it does not answer (the report's source says which).
-		rep, err := doctorReport(ctx, doctorRequest{socket: socket, timeout: 15 * time.Second})
+	d.Doctor = func(ctx context.Context, fresh bool) (json.RawMessage, error) {
+		// The same report as `twinnel doctor`: the helper's (its last
+		// one when recent, ageNs set), locally only when it does not
+		// answer (the report's source says which).
+		rep, err := doctorReport(ctx, doctorRequest{socket: socket, fresh: fresh, timeout: 15 * time.Second})
 		if err != nil {
 			return nil, err
 		}

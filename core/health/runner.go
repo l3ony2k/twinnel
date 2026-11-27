@@ -55,6 +55,11 @@ type Report struct {
 	// Source is where the checks ran (Source*), set by the client that
 	// shows the report; "" when it does not say.
 	Source string `json:"source,omitempty"`
+	// Age is set when a client shows the helper's last report instead of
+	// asking for a run (twinnel doctor, MCP doctor): how long ago that run
+	// ended, in whole seconds and at least one. 0: the run was made for
+	// this request.
+	Age time.Duration `json:"ageNs,omitempty"`
 }
 
 // Where a report's checks ran (Report.Source). The helper's run is the
