@@ -31,6 +31,8 @@ var (
 	iconSettings  = svgIcon("settings")
 	iconAbout     = svgIcon("info")
 
+	iconSidebarToggle = svgIcon("sidebar") // the title bar's sidebar toggle
+
 	iconRefresh   = svgIcon("rotate-cw")
 	iconCopy      = svgIcon("copy")
 	iconSpeed     = svgIcon("gauge")

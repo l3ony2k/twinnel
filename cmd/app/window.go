@@ -52,9 +52,9 @@ func (a *app) mainView(c *ui.Context) {
 		c.Root().Background(ui.Transparent)
 	}
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		a.sidebar(c, s)
+		a.sidebarFrame(c, func() { a.sidebar(c, s) }) // sidebar.go
 		content := ui.Column(c).Grow(1).Background(t.Background)
-		if c.Vibrancy() {
+		if c.Vibrancy() && a.side.mode != sideHidden {
 			content.BorderWidth(0, 0, 0, 1).BorderColor(pal(t).separator)
 		}
 		barH := toolbarHeight(c)
@@ -82,6 +82,7 @@ func (a *app) mainView(c *ui.Context) {
 			a.toolbar(c, barH, scrolled)
 		})
 	})
+	a.sidebarChrome(c, toolbarHeight(c)) // the sidebar toggle and the divider's grip
 }
 
 // The toolbar: the page's title and actions on the traffic lights' line,
@@ -121,7 +122,7 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 	if a.page == pageLogs {
 		inner = 0
 	}
-	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).PaddingX(plat.pagePadX).
+	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).Padding(0, plat.pagePadX, 0, a.toolbarLead(c)).
 		AlignItems(ui.Center).Justify(ui.Center).DragWindow().Role(ui.RoleToolbar).Label(spec.title).Children(func() {
 		row := ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center)
 		if inner > 0 {
@@ -211,7 +212,7 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	bar := c.TitleBar()
-	side := ui.Column(c).Width(plat.sidebarWidth + sidebarExtra).Shrink(0).DragWindow()
+	side := ui.Column(c).Width(a.sideInnerW()).Shrink(0).DragWindow()
 	if !c.Vibrancy() { // an opaque stand-in for the material
 		side.Background(ui.Hex("#ebebeb"))
 		if t.Dark {
@@ -245,7 +246,7 @@ func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 				a.pageChanged(old)
 			}
 		})
-		a.duetPair(c, s, 6)
+		a.sideFooter(c, s) // the duet pair, or its marks on the rail (sidebar.go)
 	})
 }
 
@@ -263,7 +264,7 @@ func navSections(ts, health int, healthTone navTone) []navSection {
 			{id: pageHealth, icon: iconHealth, label: T.PageHealth, count: health, tone: healthTone},
 		}},
 		{title: T.SidebarHelper, items: []navItem{
-			{id: pageConfig, icon: iconConfig, label: T.PageConfig},
+			{id: pageConfig, icon: iconConfig, label: T.NavConfig},
 			{id: pageHistory, icon: iconHistory, label: T.PageHistory},
 			{id: pageKernel, icon: iconKernel, label: T.PageKernel},
 			{id: pageTakeover, icon: iconTakeover, label: T.PageTakeover},

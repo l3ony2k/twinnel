@@ -24,6 +24,11 @@ type Config struct {
 	// Language is the UI language (a core/i18n tag such as "en"); ""
 	// follows the system's preferred languages.
 	Language string `json:"language,omitempty"`
+	// Sidebar is the main window's sidebar: "" expanded, "icons" a rail
+	// of icons, "hidden"; SidebarWidth its expanded width in points, 0 for
+	// the default (the platform's, wider in some languages).
+	Sidebar      string  `json:"sidebar,omitempty"`
+	SidebarWidth float32 `json:"sidebarWidth,omitempty"`
 
 	// From the environment only, never saved.
 	AllowWrites   bool `json:"-"`
