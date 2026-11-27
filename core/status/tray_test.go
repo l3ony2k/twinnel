@@ -1,6 +1,7 @@
 package status
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/l3ony2k/duet/core/mihomo"
@@ -55,5 +56,15 @@ func TestTrayIconFor(t *testing.T) {
 		if got := TrayIconFor(s); got != c.want {
 			t.Errorf("%s: %s, want %s (level %v, reasons %+v)", c.name, got, c.want, s.Level, s.Reasons)
 		}
+	}
+}
+
+func TestTrayToolTip(t *testing.T) {
+	s := Snapshot{Level: LevelError, Reasons: []Reason{{Level: LevelWarn, Text: "w"}, {Level: LevelError, Text: "e"}}}
+	if got := TrayToolTip(s); !strings.HasSuffix(got, " · e") {
+		t.Errorf("tooltip %q", got)
+	}
+	if got := TrayToolTip(Snapshot{Level: LevelOK}); strings.Count(got, " · ") != 1 {
+		t.Errorf("ok tooltip %q", got)
 	}
 }

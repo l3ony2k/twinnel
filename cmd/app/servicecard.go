@@ -114,13 +114,19 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		return
 	}
 	state, col := serviceState(t, st)
+	adopted := a.serviceAdopted(name)
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Height(28).Children(func() { // one height with or without buttons
 		dot(c, col, 8)
 		ui.Text(c, name).FontWeight(600)
 		ui.Text(c, state).FontSize(plat.calloutSize).TextColor(t.TextMuted)
+		if adopted {
+			tag(c, T.SvcAdopted).Tooltip(T.SvcAdoptedTip)
+		}
 		ui.Spacer(c)
 		if !st.Installed {
-			if name == "mihomo" && a.opButton(c.Key("install"), iconOK, T.ServiceInstall, false, T.ServiceInstall+" "+name).Disabled(!w).Clicked() {
+			// Never offer duet's own service while the person's adopted
+			// one fills the role.
+			if name == "mihomo" && !adopted && a.opButton(c.Key("install"), iconOK, T.ServiceInstall, false, T.ServiceInstall+" "+name).Disabled(!w).Clicked() {
 				a.confirm(fmt.Sprintf(T.ServiceInstallTitle, name), "", T.ServiceInstall, func() {
 					a.serviceOp(rpc.MethodServiceInstall, name, T.ServiceInstall)
 				})
@@ -140,11 +146,17 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 				a.serviceOp(rpc.MethodServiceStop, name, T.ServiceStop)
 			})
 		}
-		if name == "mihomo" && pushButton(c.Key("uninstall"), T.ServiceUninstall).Disabled(!w).Clicked() {
-			a.confirm(fmt.Sprintf(T.ServiceUninstallTitle, name),
-				T.ServiceUninstallBody, T.ServiceUninstall, func() {
-					a.serviceOp(rpc.MethodServiceUninstall, name, T.ServiceUninstall)
-				})
+		// 卸载服务 is legitimate but not the way out of duet (停止使用
+		// duet is): it sits in ⋯, styled as destructive. Not for an
+		// adopted service, whose definition duet never changes.
+		if name == "mihomo" && !adopted {
+			ui.MenuButton(c.Key("more"), T.SvcMore, func(m *ui.Menu) {
+				if m.Item(T.ServiceUninstall + "…").Danger().Disabled(!w).Chosen() {
+					a.confirm(fmt.Sprintf(T.ServiceUninstallTitle, name), T.ServiceUninstallBody, T.ServiceUninstall, func() {
+						a.serviceOp(rpc.MethodServiceUninstall, name, T.ServiceUninstall)
+					})
+				}
+			})
 		}
 	})
 	kv(c, T.ServiceLabel, orDash(st.Label))
@@ -163,6 +175,13 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 	if st.Error != "" {
 		errorNote(c, T.ErrorPrefix+st.Error)
 	}
+}
+
+// serviceAdopted: the helper runs this service under a definition it
+// adopted (takeover), so it only starts and stops it.
+func (a *app) serviceAdopted(name string) bool {
+	i := a.hm.info
+	return name == "mihomo" && i != nil && i.Mihomo.Adopted && i.Hardened == nil
 }
 
 // serviceState is the one-word state and its dot color.

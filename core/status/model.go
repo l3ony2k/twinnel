@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/i18n"
 	"github.com/l3ony2k/duet/core/mihomo"
 	"github.com/l3ony2k/duet/core/tailscale"
@@ -121,8 +122,11 @@ type Snapshot struct {
 	Helper        Helper
 	Level         Level
 	Reasons       []Reason
-	WritesAllowed bool
+	WritesAllowed bool // off only in development and test runs (DUET_READ_ONLY=1)
 	Loaded        bool // both sides answered or failed at least once
+	// AcceptedExitNode is the exit node the user accepted using while
+	// mihomo's TUN is on (Config.ExitNodeAccepted).
+	AcceptedExitNode string
 }
 
 // Reason explains a level other than OK.
@@ -130,6 +134,89 @@ type Reason struct {
 	Level  Level
 	Text   string
 	Health bool // comes from the health checks (the panel shows those on a line of their own)
+	Code   string
+	Count  int // ReasonHealth: the number the text says
+}
+
+// Reason codes.
+const (
+	ReasonMihomoAuth     = "mihomo-auth"
+	ReasonMihomoDown     = "mihomo-down"
+	ReasonTunOff         = "tun-off"
+	ReasonPrimaryDead    = "primary-dead"
+	ReasonTSNotInstalled = "ts-not-installed"
+	ReasonTSDown         = "ts-down"
+	ReasonTSNeedsLogin   = "ts-needs-login"
+	ReasonTSStopped      = "ts-stopped"
+	ReasonTSExitNode     = "exit-node"
+	ReasonTSKeyExpiry    = "key-expiry"
+	ReasonTSHealth       = "ts-health"
+	ReasonTSSystemVPN    = "system-vpn"
+	ReasonHealth         = "health"
+)
+
+// Can is what the app can change right now, per thing a control acts
+// on: a control whose target can't act is disabled.
+type Can struct {
+	Mihomo    bool // the controller answers and takes the secret: mode, node, TUN, reload
+	Tailscale bool // the LocalAPI answers: connect, exit node
+	Helper    bool // the helper is connected: config, services, kernel
+}
+
+// Can returns what the controls can change in s.
+func (s Snapshot) Can() Can {
+	w := s.WritesAllowed
+	return Can{
+		Mihomo:    w && s.Mihomo.Reachable && !s.Mihomo.Unauthorized,
+		Tailscale: w && s.Tailscale.Reachable,
+		Helper:    w && s.Helper.Connected(),
+	}
+}
+
+// ExitNodeAccepted reports whether Tailscale uses an exit node the user
+// accepted (AcceptedExitNode), and its name.
+func (s Snapshot) ExitNodeAccepted() (string, bool) {
+	ts := s.Tailscale
+	if !ts.Reachable || ts.State.ExitNode == nil {
+		return "", false
+	}
+	n := ts.State.ExitNode.Name
+	return n, s.AcceptedExitNode != "" && n == s.AcceptedExitNode
+}
+
+// acceptedCauses are the health causes the user accepted in s.
+func (s Snapshot) acceptedCauses() []string {
+	if _, ok := s.ExitNodeAccepted(); ok {
+		return []string{health.CauseExitNode}
+	}
+	return nil
+}
+
+// TakenOver reports whether duet manages the config: the helper says it
+// applied one or has an active subscription. Without a helper answer it
+// is false when no helper is installed and true otherwise, so a helper
+// that went down after takeover does not make problems look harmless.
+func (s Snapshot) TakenOver() bool {
+	h := s.Helper
+	switch {
+	case h.Status != nil:
+		return h.Status.LastApply != nil || h.Status.ActiveSubscription != ""
+	case h.State == HelperNotInstalled:
+		return false
+	}
+	return true
+}
+
+// HealthBadge is the health checks' one number, as every place shows it:
+// the failures when there are some, else the warnings, with the level
+// they count at (0 and LevelOK: nothing to show).
+func (s Snapshot) HealthBadge() (int, Level) {
+	for _, r := range s.Reasons {
+		if r.Code == ReasonHealth {
+			return r.Count, r.Level
+		}
+	}
+	return 0, LevelOK
 }
 
 // BuildGroups turns a /proxies answer into groups in configuration order.
@@ -208,56 +295,62 @@ const KeyExpiryWarning = 7 * 24 * time.Hour
 func Evaluate(s *Snapshot) {
 	t := i18n.Cur()
 	var rs []Reason
-	add := func(l Level, text string) { rs = append(rs, Reason{Level: l, Text: text}) }
+	add := func(l Level, code, text string) { rs = append(rs, Reason{Level: l, Text: text, Code: code}) }
 	m := s.Mihomo
 	switch {
 	case m.Unauthorized:
-		add(LevelError, t.ReasonMihomoAuth)
+		add(LevelError, ReasonMihomoAuth, t.ReasonMihomoAuth)
 	case !m.Reachable && m.Err != "":
-		add(LevelError, fmt.Sprintf(t.ReasonMihomoDown, m.Err))
+		add(LevelError, ReasonMihomoDown, fmt.Sprintf(t.ReasonMihomoDown, m.Err))
 	case m.Reachable:
 		if !m.Config.Tun.Enable {
-			add(LevelWarn, t.ReasonTunOff)
+			add(LevelWarn, ReasonTunOff, t.ReasonTunOff)
 		}
 		if p := m.Primary; p != nil && p.Tested && p.Delay <= 0 && !p.Builtin {
-			add(LevelWarn, fmt.Sprintf(t.ReasonPrimaryDead, p.Name))
+			add(LevelWarn, ReasonPrimaryDead, fmt.Sprintf(t.ReasonPrimaryDead, p.Name))
 		}
 	}
 	ts := s.Tailscale
 	st := ts.State
 	switch {
 	case !ts.Reachable && ts.Install.Kind == tailscale.InstallUnknown && ts.Err != "":
-		add(LevelWarn, t.ReasonTSNotInstalled)
+		add(LevelWarn, ReasonTSNotInstalled, t.ReasonTSNotInstalled)
 	case !ts.Reachable && ts.Err != "":
-		add(LevelError, fmt.Sprintf(t.ReasonTSDown, ts.Err))
+		add(LevelError, ReasonTSDown, fmt.Sprintf(t.ReasonTSDown, ts.Err))
 	case ts.Reachable:
 		switch st.BackendState {
 		case "NeedsLogin", "NeedsMachineAuth":
-			add(LevelError, t.ReasonTSNeedsLogin)
+			add(LevelError, ReasonTSNeedsLogin, t.ReasonTSNeedsLogin)
 		case "Stopped":
-			add(LevelWarn, t.ReasonTSStopped)
+			add(LevelWarn, ReasonTSStopped, t.ReasonTSStopped)
 		}
-		if st.ExitNode != nil {
-			add(LevelWarn, fmt.Sprintf(t.ReasonTSExitNode, st.ExitNode.Name))
+		// An exit node the user accepted is a state, not a problem
+		// (the overview shows it on a neutral row).
+		if _, ok := s.ExitNodeAccepted(); st.ExitNode != nil && !ok {
+			add(LevelWarn, ReasonTSExitNode, fmt.Sprintf(t.ReasonTSExitNode, st.ExitNode.Name))
 		}
 		if st.KeyExpiry != nil && st.KeyExpiresWithin(s.Time, KeyExpiryWarning) {
-			add(LevelWarn, fmt.Sprintf(t.ReasonTSKeyExpiry, Until(s.Time, *st.KeyExpiry)))
+			add(LevelWarn, ReasonTSKeyExpiry, fmt.Sprintf(t.ReasonTSKeyExpiry, Until(s.Time, *st.KeyExpiry)))
 		}
 		for _, h := range st.Health {
-			add(LevelWarn, fmt.Sprintf(t.ReasonTSHealth, h))
+			add(LevelWarn, ReasonTSHealth, fmt.Sprintf(t.ReasonTSHealth, h))
 		}
 	}
 	if ts.Install.UsesSystemVPN {
-		add(LevelWarn, t.ReasonTSSystemVPN)
+		add(LevelWarn, ReasonTSSystemVPN, t.ReasonTSSystemVPN)
 	}
 	// The health checks overlap the reasons above (mihomo down fails some of
 	// them too), but they also see what the snapshot cannot: routes, DNS,
-	// rules. Their worst result counts.
+	// rules. One number counts: the failures, else the warnings. Before
+	// duet manages the config, failures are what it found on this Mac,
+	// not something that broke: a warning.
 	switch warn, fail := s.Health.Counts(); {
+	case fail > 0 && !s.TakenOver():
+		rs = append(rs, Reason{Level: LevelWarn, Text: fmt.Sprintf(t.ReasonHealthFound, fail), Health: true, Code: ReasonHealth, Count: fail})
 	case fail > 0:
-		rs = append(rs, Reason{LevelError, fmt.Sprintf(t.ReasonHealthFail, fail), true})
+		rs = append(rs, Reason{Level: LevelError, Text: fmt.Sprintf(t.ReasonHealthFail, fail), Health: true, Code: ReasonHealth, Count: fail})
 	case warn > 0:
-		rs = append(rs, Reason{LevelWarn, fmt.Sprintf(t.ReasonHealthWarn, warn), true})
+		rs = append(rs, Reason{Level: LevelWarn, Text: fmt.Sprintf(t.ReasonHealthWarn, warn), Health: true, Code: ReasonHealth, Count: warn})
 	}
 	s.Reasons = rs
 	switch {

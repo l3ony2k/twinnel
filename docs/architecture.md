@@ -64,7 +64,7 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | config | `config.get {source: live\|preview\|history, id}`: the config text with the top-level `secret` stripped |
 | info | `tailscale.info` |
 | controller | `controller.credentials` (the controller address and the secret mihomo loaded, for the app; any authorized peer can already reconfigure mihomo), `controller.secure` (generate a secret, store it, write it into the config and reload; it takes effect at mihomo's next start) |
-| takeover | `takeover.plan` (discover, plan and keep the plan under `<state>/takeover/<id>/`), `takeover.plans`, `takeover.discard`, `takeover.adopt {plan_id, confirm_hash}` (see [Takeover](#takeover)) |
+| takeover | `takeover.plan` (discover, plan and keep the plan under `<state>/takeover/<id>/`), `takeover.plans`, `takeover.discard`, `takeover.adopt {plan_id, confirm_hash}`, `takeover.undo {dry_run}` (write back the pre-takeover copy, remove what adopt imported) (see [Takeover](#takeover)) |
 | harden | `service.harden.plan`, `service.harden.plans`, `service.harden.apply`: move an adopted mihomo to the managed kernel, a root-owned config dir and duet's LaunchDaemon in one restart (macOS; see [Takeover](#takeover)) |
 | events | `events.wait {after, timeout_ms}`: long-poll on a ring buffer. Types: `compose.applied/failed`, `state.changed`, `subscription.updated/failed`, `tailnet.changed`, `kernel.changed`, `check.changed`, `health.updated`, `accessory.changed`, `service.changed`, `takeover.changed`, `helper.started/stopping`, `events.truncated`. |
 

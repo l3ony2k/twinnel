@@ -25,7 +25,7 @@ It is a manager for the cores you already trust. It is **not** another Clash cli
 | Health checks inside the helper: on a timer, after applies and service operations, and on network changes (macOS); `duet helper health` | macOS, Linux (no network-change trigger on Linux yet) |
 | Service control over RPC: start / stop / restart mihomo and tailscaled, install / uninstall the mihomo service | macOS (launchd), Linux (systemd); without root the helper only reports the plan |
 | `duet helper install` / `uninstall` / `upgrade` / `restart`: prints the plan (uninstall: what goes and what stays; `--purge` also deletes duet's data), then runs it as root. Uninstall never leaves mihomo without its service: after `harden` it moves mihomo back first (`--restore-mihomo`) | macOS: one administrator password dialog; Linux: run it with `sudo` (`--dry-run` needs no root). Not yet run on a real machine. |
-| Menu bar app: monochrome status icon whose states differ by shape only (badge, broken ring, glyph), and a panel; main window with overview, proxy groups, Tailscale devices, health, logs, settings, and, through the helper, subscriptions and overrides, history, kernels; a first-run view while the helper is not installed | macOS; controls that change anything are disabled unless `DUET_ALLOW_WRITES=1` |
+| Menu bar app: monochrome status icon whose states differ by shape only (badge, broken ring, glyph), and a panel; main window with overview, proxy groups, Tailscale devices, health, logs, settings, and, through the helper, subscriptions and overrides, history, kernels; a first-run view while the helper is not installed | macOS; a control is enabled when what it acts on can act (mihomo's controller, Tailscale's LocalAPI, the helper); `DUET_READ_ONLY=1` turns every write off for development and test runs |
 | Secrets (controller secret, subscription URLs) | macOS: System keychain when the helper runs as root; Linux and development helpers: a 0600 `secrets.json` in the state dir (Secret Service later) |
 
 ## Install from source
@@ -36,7 +36,7 @@ You need Go (the version in `go.mod`). No cgo, no other toolchain.
 git clone https://github.com/l3ony2k/duet && cd duet
 go build -o bin/duet ./cmd/cli          # CLI
 go build -o bin/duet-helper ./cmd/helper  # root helper daemon
-go run ./cmd/app                         # menu bar app (macOS), development run
+DUET_READ_ONLY=1 go run ./cmd/app        # menu bar app (macOS), development run, read-only
 ```
 
 Release archives (CLI + helper for macOS and Linux, plus `duet.app` and a disk image when built on a Mac) come from:
@@ -51,7 +51,7 @@ The `.app` and the CLI and helper inside it are signed ad hoc (`SIGN_IDENTITY` a
 ### Daily use and development side by side
 
 - **Daily:** `scripts/install-local.sh` builds the release, quits the running `/Applications/duet.app`, keeps a backup of it (`~/Library/Application Support/duet/backups`, newest 3), installs the new one, and runs `duet helper upgrade` only when the bundled helper differs from the installed one (one password prompt). This copy and the installed helper are the only ones with write access to the live system. 设置 → 后台助手 in the app shows the helper's version, updates, restarts or uninstalls it; 设置 → 通用 → 登录时打开 starts the app at login (packaged app only).
-- **Development:** `go run ./cmd/app` against a development helper on a temp socket and a fake controller (`DUET_SOCKET`, `DUET_CONTROLLER`, see CONTRIBUTING), or read-only against the live setup (the default: writes stay off unless `DUET_ALLOW_WRITES=1`). A development build never asks for a helper update.
+- **Development:** `go run ./cmd/app` against a development helper on a temp socket and a fake controller (`DUET_SOCKET`, `DUET_CONTROLLER`, see CONTRIBUTING), or read-only against the live setup (`DUET_READ_ONLY=1`; screenshot runs default to it). A development build never asks for a helper update.
 
 ## CLI tour
 

@@ -79,6 +79,7 @@ type texts struct {
 	evEgressGroup        string
 	evEgressURL          string
 	fixEgress            string
+	fixEgressProbe       string
 
 	// Labels and evidence fragments.
 	srcRuntime  string
@@ -276,7 +277,7 @@ var zhTexts = texts{
 	labelDefaultBlack: "blacklist（默认）",
 
 	// leak-guard-egress
-	msgEgressOff:         "未开启（duet doctor --egress）",
+	msgEgressOff:         "未开启",
 	msgEgressErr:         "出口测试失败：%v",
 	msgEgressOK:          "敏感策略组的出口 IP 和本机直连出口不同：%s",
 	msgEgressSame:        "经 mihomo 代理（%s）的出口 IP 和本机直连出口相同",
@@ -288,6 +289,7 @@ var zhTexts = texts{
 	evEgressProxied:      "经 mihomo 出口：%s（链路：%s）",
 	evEgressGroup:        "%s 当前节点：%s",
 	evEgressURL:          "测试地址：%s（只发一次 GET，不带任何个人数据）",
+	fixEgressProbe:       "检测一次出口：直连和经 mihomo 各请求一次 IP 回显地址。",
 	fixEgress:            "检查敏感策略组当前节点：节点的出口和本机相同，说明它没有真正代理（例如本地转发或 DIRECT 类节点）。",
 
 	// Labels and evidence fragments.
@@ -302,9 +304,9 @@ var zhTexts = texts{
 	labelLinkDNS:         "该网卡的 DNS，分不清手动还是 DHCP",
 	labelGlobalDNS:       "系统全局 DNS",
 	msgReadFailed:        "读取 %s 失败：%v",
-	msgTSUnavailable:     "读不到 Tailscale 状态：%v",
-	msgTSNotRunning:      "Tailscale 未在运行（BackendState=%s）",
-	msgMihomoUnavailable: "读不到 mihomo 状态：%v",
+	msgTSUnavailable:     "Tailscale 未连接",
+	msgTSNotRunning:      "Tailscale 未运行",
+	msgMihomoUnavailable: "mihomo 未连接",
 	msgTUNOff:            "mihomo TUN 未启用",
 	msgNoRules:           "mihomo 没有规则",
 

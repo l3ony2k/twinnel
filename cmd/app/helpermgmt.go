@@ -288,6 +288,7 @@ func planText(p *uninstall.Plan, all bool) string {
 		add(&keep, it)
 	}
 	if all {
+		rm = append(rm, appExtraItems()...)
 		rm = append(rm, T.ItemLoginItem, T.ItemAppTrash)
 	}
 	text := fmt.Sprintf(T.UninstallRemoves, strings.Join(rm, T.ListSep))
@@ -397,6 +398,7 @@ func (a *app) removeAppPieces() {
 		mygo.App.SetOpenAtLogin(false)
 	}
 	os.Remove(a.cfgPath)
+	removeAppExtras()
 	if b := appBundlePath(); b != "" {
 		mygo.Shell.TrashItem(b)
 	}
@@ -496,24 +498,13 @@ func (a *app) helperSection(c *ui.Context, s status.Snapshot) {
 			if pushButton(c.Key("hm-log"), T.HelperViewLog).Clicked() {
 				a.openHelperLog()
 			}
-			ui.Spacer(c)
-			if pushButton(c.Key("hm-uninstall"), T.HelperUninstall).Disabled(!on).Clicked() {
-				a.askUninstall()
-			}
 		})
 		if v.errMsg != "" {
 			errorNote(c, v.errMsg)
 		}
 	})
-	// 完全移除 stands apart: the one action that also takes the app.
-	ui.Row(c).PaddingX(groupPadX).Children(func() {
-		ui.Spacer(c)
-		b := pushButton(c.Key("hm-remove-all"), T.HelperRemoveAll).Disabled(!a.helperOpsEnabled(s))
-		b.TextColor(t.Danger)
-		if b.Clicked() {
-			a.askRemoveAll()
-		}
-	})
+	// The ways out (撤销接管, 卸载, 完全移除) are on their own page.
+	a.leaveSection(c, s)
 }
 
 // helperVersionRow: the helper's version, and the app's when they differ;

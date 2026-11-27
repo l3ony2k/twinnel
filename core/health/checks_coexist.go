@@ -25,7 +25,7 @@ func (ResolverBinding) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skip(L.msgMihomoUnavailable, err)
+		return skipErr(L.msgMihomoUnavailable, err)
 	}
 	if !cfg.DNS.Enable {
 		return skipText(L.msgMihomoDNSOff)
@@ -105,7 +105,7 @@ func (ResolverBinding) Run(ctx context.Context, env Env) Result {
 		}
 	}
 	res.Evidence = append(res.Evidence, fmt.Sprintf(L.evBindHosts, hosts))
-	fix := &FixHint{Text: L.fixBind, AutoFix: "tailscale-coexist-override"}
+	fix := &FixHint{Text: L.fixBind, AutoFix: FixCoexist}
 	switch {
 	case len(stale) > 0:
 		res.Status, res.Summary, res.Fix = StatusWarn, fmt.Sprintf(L.msgBindStale, staleIface, current), fix
@@ -181,7 +181,7 @@ func (FakeIPMode) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skip(L.msgMihomoUnavailable, err)
+		return skipErr(L.msgMihomoUnavailable, err)
 	}
 	if !cfg.DNS.Enable || !strings.EqualFold(cfg.DNS.EnhancedMode, "fake-ip") {
 		return skipText(L.msgFakeIPNotUsed)
@@ -206,7 +206,7 @@ func (FakeIPMode) Run(ctx context.Context, env Env) Result {
 	default:
 		res.Status = StatusWarn
 		res.Summary = fmt.Sprintf(L.msgWildcardBad, mode)
-		res.Fix = &FixHint{Text: L.fixWildcard, AutoFix: "tailscale-coexist-override"}
+		res.Fix = &FixHint{Text: L.fixWildcard, AutoFix: FixCoexist}
 	}
 	return res
 }
@@ -227,7 +227,9 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	s := env.Settings()
 	if !s.Egress {
-		return skipText(L.msgEgressOff)
+		r := skipText(L.msgEgressOff)
+		r.Fix = &FixHint{Text: L.fixEgressProbe, AutoFix: FixEgressProbe}
+		return r
 	}
 	ee, ok := env.(EgressEnv)
 	if !ok {
@@ -289,7 +291,7 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	}
 	rt, err := env.MihomoRuntime(ctx)
 	if err != nil {
-		return skip(L.msgMihomoUnavailable, err)
+		return skipErr(L.msgMihomoUnavailable, err)
 	}
 	var measured []string
 	for _, g := range s.SensitiveGroups {

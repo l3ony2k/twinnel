@@ -1053,7 +1053,7 @@ func (a *app) applySummary(c *ui.Context, r rpc.ApplyResult) {
 		}
 	})
 	if r.Error == "" {
-		impactLines(c, r.Impact)
+		impactDetail(c, r.Impact)
 	}
 	for i, m := range resultMessages(r.ComposeResult, r.Impact) {
 		msgNote(c.Key(fmt.Sprint("aw", i)), m, true)
@@ -1095,14 +1095,14 @@ func impactRow(c *ui.Context, im *rpc.ReloadImpact) {
 				ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
 				ui.Text(c, text).TextColor(map[bool]ui.Color{true: col, false: t.Text}[im.Disruptive]).Wrap().LineHeight(lineText)
 			})
-			impactLines(c, im)
+			impactDetail(c, im)
 		})
 	})
 }
 
-// impactLines are the reasons a reload interrupts the network, and what
+// impactDetail draws the reasons a reload interrupts the network, and what
 // only a restart applies, from the impact's fields (U57: no English notes).
-func impactLines(c *ui.Context, im *rpc.ReloadImpact) {
+func impactDetail(c *ui.Context, im *rpc.ReloadImpact) {
 	if im == nil {
 		return
 	}

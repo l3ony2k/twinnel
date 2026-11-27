@@ -57,7 +57,7 @@ var enTexts = texts{
 	labelDefaultBlack: "blacklist (default)",
 
 	// leak-guard-egress
-	msgEgressOff:         "Off (duet doctor --egress)",
+	msgEgressOff:         "Off",
 	msgEgressErr:         "Exit test failed: %v",
 	msgEgressOK:          "Sensitive groups exit from an IP other than this computer's direct one: %s",
 	msgEgressSame:        "The exit IP through the mihomo proxy (%s) is the same as the direct one",
@@ -69,6 +69,7 @@ var enTexts = texts{
 	evEgressProxied:      "Exit through mihomo: %s (chain: %s)",
 	evEgressGroup:        "%s uses: %s",
 	evEgressURL:          "Test URL: %s (one GET, no personal data)",
+	fixEgressProbe:       "Test the egress once: one request to an IP-echo address directly and one through mihomo.",
 	fixEgress:            "Check the node of the sensitive groups: an exit the same as this computer's means it doesn't really proxy (for example a local forward or a DIRECT-type node).",
 
 	// Labels and evidence fragments.
@@ -83,9 +84,9 @@ var enTexts = texts{
 	labelLinkDNS:         "the interface's DNS, manual or DHCP",
 	labelGlobalDNS:       "system-wide DNS",
 	msgReadFailed:        "Couldn't read %s: %v",
-	msgTSUnavailable:     "Can't read the Tailscale status: %v",
-	msgTSNotRunning:      "Tailscale isn't running (BackendState=%s)",
-	msgMihomoUnavailable: "Can't read the mihomo status: %v",
+	msgTSUnavailable:     "Tailscale not connected",
+	msgTSNotRunning:      "Tailscale not running",
+	msgMihomoUnavailable: "mihomo not connected",
 	msgTUNOff:            "mihomo TUN is off",
 	msgNoRules:           "mihomo has no rules",
 

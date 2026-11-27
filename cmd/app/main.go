@@ -3,7 +3,7 @@
 // and wires; the logic lives in core/....
 //
 // Environment: DUET_CONTROLLER (default 127.0.0.1:9090), DUET_MIHOMO_SECRET,
-// DUET_ALLOW_WRITES=1 to enable the controls that change things,
+// DUET_READ_ONLY=1 to keep every control that changes things off,
 // DUET_SOCKET (the helper's socket, default /var/run/duet/helper.sock),
 // DUET_CLI (the duet command line tool, for the helper install plan),
 // DUET_LANG=en|zh-Hans to show one UI language for this run without saving
@@ -24,6 +24,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/i18n"
 	"github.com/l3ony2k/duet/core/mihomo"
 	"github.com/l3ony2k/duet/core/status"
@@ -56,7 +57,6 @@ type app struct {
 	// main thread
 	tray      *mygo.Tray
 	trayTitle string
-	trayLevel status.Level
 	trayShape status.TrayIcon
 	panel     *mygo.Window
 	win       *mygo.Window
@@ -92,8 +92,12 @@ type app struct {
 	retry       busySpan                   // the unreachable states' 重试 press (states.go)
 	loadingSeen map[string][2]time.Time    // loadingBox: first and last frame per key
 	langShown   bool                       // applyLang ran once
-	side        sidebarState               // the sidebar's mode and width (sidebar.go)
-	shotNav     struct {                   // shot mode: force the sidebar's key/hover looks
+	trayTip     string                     // the tray's tooltip as last set
+	egress      egressState                // the on-demand egress test (statusui.go)
+	egressProbe func(context.Context) *health.CheckReport
+	evidenceAll map[string]bool // health check ID → all evidence lines shown
+	side        sidebarState    // the sidebar's mode and width (sidebar.go)
+	shotNav     struct {        // shot mode: force the sidebar's key/hover looks
 		active *bool
 		hover  string
 	}
@@ -110,6 +114,15 @@ func main() {
 	if err != nil {
 		log.Printf("config %s: %v (using defaults)", a.cfgPath, err)
 		a.cfg, _ = status.LoadConfig("", os.Getenv)
+	}
+	// Shots are read-only unless a run asks for writes against fakes
+	// (DUET_READ_ONLY=0): an agent's screenshot run never changes the
+	// owner's network.
+	if os.Getenv("DUET_SHOTS") != "" && os.Getenv(status.EnvReadOnly) != "0" {
+		a.cfg.AllowWrites = false
+	}
+	if !a.cfg.AllowWrites {
+		log.Printf("read-only (%s)", status.EnvReadOnly)
 	}
 	a.install = tailscale.DetectInstall(runtime.GOOS, func(p string) bool {
 		_, err := os.Stat(p)
@@ -223,7 +236,10 @@ func (a *app) start() {
 		PrimaryGroup:  a.cfg.PrimaryGroup,
 		TestURL:       a.cfg.TestURL,
 		WritesAllowed: a.cfg.AllowWrites,
+
+		ExitNodeAccepted: a.cfg.ExitNodeAccepted,
 	})
+	a.egressProbe = newEgressProbe(cc)
 	if a.hc != nil {
 		a.mon.SetHelper(a.hc.State())
 	}
@@ -280,10 +296,11 @@ func (a *app) changed(mon *status.Monitor) {
 			a.trayShape = shape
 			a.tray.SetIcon(trayIcon(shape), true)
 		}
-		if a.tray != nil && s.Level != a.trayLevel {
-			a.trayLevel = s.Level
-			a.tray.SetToolTip(i18n.T.AppName + " · " + s.Level.Text())
+		if tip := status.TrayToolTip(s); a.tray != nil && tip != a.trayTip {
+			a.trayTip = tip
+			a.tray.SetToolTip(tip)
 		}
+		a.syncExitNodeAcceptance(s)
 		if a.panel != nil {
 			a.panel.Invalidate()
 		}

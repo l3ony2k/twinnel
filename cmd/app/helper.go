@@ -15,6 +15,7 @@ import (
 	"github.com/l3ony2k/duet/core/i18n"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/duet/core/version"
 )
 
 // Paths that tell an installed helper from none (see `duet helper install
@@ -29,9 +30,14 @@ var helperInstalledPaths = []string{
 // reloads after events. It lives across monitor restarts. Main thread.
 func (a *app) startHelper() {
 	hc := &status.HelperConn{Socket: rpc.SocketFromEnv()}
-	if os.Getenv("DUET_SOCKET") == "" {
-		hc.Installed = status.FileExists(helperInstalledPaths...)
+	// Installed: the LaunchDaemon plist or the binary exists (readable
+	// without root). A development helper named by DUET_SOCKET counts as
+	// installed while its socket exists.
+	paths := helperInstalledPaths
+	if os.Getenv("DUET_SOCKET") != "" {
+		paths = []string{hc.Socket}
 	}
+	hc.Installed = status.FileExists(paths...)
 	hc.OnChange = func(h status.Helper) {
 		mygo.RunOnMain(func() {
 			wasUp := a.hd.connected
@@ -123,11 +129,12 @@ type helperData struct {
 	unappliedCheck bool // a check runs
 	unappliedAgain bool // something changed during it: check again
 
-	cfg  configView
-	hist historyView
-	kern kernelView
-	take takeoverView
-	onb  onboardingView
+	cfg   configView
+	hist  historyView
+	kern  kernelView
+	take  takeoverView
+	onb   onboardingView
+	leave leaveView
 }
 
 // loadHelperData reloads the cheap lists (all local reads in the helper).
@@ -375,7 +382,10 @@ func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 }
 
 // helperGate draws the helper's state instead of a page when it is not
-// connected, and reports whether the page can draw.
+// connected, and reports whether the page can draw. Three states: not
+// installed (the install guide), not running (重新启动, 查看日志 when the
+// log exists, 复制诊断信息), and connected. No socket path or raw error
+// on screen: those go to 复制诊断信息.
 func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 	h := s.Helper
 	switch h.State {
@@ -383,33 +393,73 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 		return true
 	case status.HelperNotInstalled:
 		a.onboarding(c, s)
-	default:
-		t := c.Theme()
-		card(c, "", func() {
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				col := t.Warning
-				if h.State == status.HelperUnknown {
-					col = t.TextMuted
-				}
-				dot(c, col, 10)
-				ui.Text(c, i18n.T.Helper+" · "+h.State.Text()).FontSize(plat.leadSize).Bold()
-			})
+		return false
+	}
+	t := c.Theme()
+	T := i18n.T
+	groupBox(c, t).Padding(12, groupPadX).Gap(8).Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(32).Children(func() {
 			switch h.State {
-			case status.HelperNotRunning:
-				ui.Text(c, i18n.T.HelperNotRunningHint).FontSize(plat.bodySize).Wrap().LineHeight(lineText)
+			case status.HelperUnknown:
+				ui.Spinner(c)
+				ui.Text(c, T.Helper+" · "+h.State.Text()).FontWeight(600)
 			case status.HelperDenied:
-				ui.Text(c, i18n.T.HelperDeniedHint).FontSize(plat.bodySize).Wrap().LineHeight(lineText)
+				stateDot(c, markAttention, t.Warning, 10)
+				ui.Text(c, T.Helper+" · "+h.State.Text()).FontWeight(600)
+			default:
+				stateDot(c, markAttention, t.Warning, 10)
+				ui.Text(c, T.HelperStateNotRunning).FontWeight(600)
 			}
-			kv(c, i18n.T.HelperSocket, h.Socket)
-			if h.Err != "" {
-				ui.Text(c, h.Err).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
+			ui.Spacer(c)
+			if actionLink(c.Key("diag"), T.HelperCopyDiag).Clicked() {
+				copyText(c, a.helperDiagnostics(s))
 			}
-			if pushButton(c.Key("retry"), i18n.T.HelperRetry).Clicked() {
+			if h.State == status.HelperUnknown {
+				return
+			}
+			if fileExists(a.helperLogFile()) && pushButton(c.Key("log"), T.HelperViewLog).Clicked() {
+				a.openHelperLog()
+			}
+			if h.State == status.HelperNotRunning {
+				if !s.WritesAllowed {
+					ui.Icon(c, iconSecure).FontSize(iconInline).TextColor(t.TextMuted).Tooltip(T.InstallNeedsWrites)
+				}
+				if busyButton(c.Key("restart"), T.HelperRestartAdmin, true, a.hm.running == T.HelperRestart, !a.helperOpsEnabled(s)).Clicked() {
+					a.restartHelper()
+				}
+			} else if pushButton(c.Key("retry"), T.HelperRetry).Clicked() {
 				a.hc.Retry()
 			}
 		})
-	}
+		if h.State == status.HelperDenied {
+			small(c, T.HelperDeniedHint).Wrap().LineHeight(lineText)
+		}
+		if a.hm.errMsg != "" {
+			errorNote(c, a.hm.errMsg)
+		}
+	})
 	return false
+}
+
+// helperDiagnostics is 复制诊断信息: socket, state, error and versions,
+// for a bug report.
+func (a *app) helperDiagnostics(s status.Snapshot) string {
+	h := s.Helper
+	var b strings.Builder
+	fmt.Fprintf(&b, "duet %s\n", version.Version)
+	fmt.Fprintf(&b, "helper state: %d\n", h.State)
+	fmt.Fprintf(&b, "socket: %s\n", h.Socket)
+	if h.Err != "" {
+		fmt.Fprintf(&b, "error: %s\n", h.Err)
+	}
+	if st := h.Status; st != nil {
+		fmt.Fprintf(&b, "helper version: %s\n", st.HelperVersion)
+	}
+	fmt.Fprintf(&b, "log: %s\n", a.helperLogFile())
+	for _, p := range helperInstalledPaths {
+		fmt.Fprintf(&b, "%s exists: %v\n", p, fileExists(p))
+	}
+	return b.String()
 }
 
 // --- config text (for the diff views) ---

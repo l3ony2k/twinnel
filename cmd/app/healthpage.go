@@ -29,6 +29,8 @@ func healthStatusLook(t *ui.Theme, s health.Status) (*ui.SVG, ui.Color, string) 
 		return iconWarning, t.Warning, T.HealthWarn
 	case health.StatusFail:
 		return iconError, t.Danger, T.HealthFail
+	case health.StatusAccepted:
+		return iconSkip, t.TextMuted, T.HealthAccepted
 	}
 	return iconSkip, t.TextMuted, T.HealthSkip
 }
@@ -129,22 +131,35 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 				ui.Text(c, healthHeadline(label, cnt)).FontSize(plat.leadSize).FontWeight(600)
 				num(small(c, healthCountsText(cnt)))
 				last := fmt.Sprintf(T.HealthLastRun, rep.Started.Format("15:04:05"), fmt.Sprintf(T.Seconds, rep.Duration.Seconds()))
-				num(small(c, last))
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					num(small(c, last))
+					if h.Running {
+						ui.Spinner(c).Size(12, 12) // a new report is on its way
+					}
+				})
 			})
 		})
 		if h.Err != "" {
 			errorNote(c, fmt.Sprintf(T.HealthError, h.Err))
 		}
 	})
-	var problems, rest []health.CheckReport
+	var problems, accepted, caused, rest []health.CheckReport
 	for _, cr := range rep.Checks {
-		if cr.Status == health.StatusWarn || cr.Status == health.StatusFail {
+		if cr.ID == (health.LeakEgress{}).ID() && a.egress.result != nil {
+			cr = *a.egress.result // the on-demand test stands in for 未开启
+		}
+		switch {
+		case cr.Status == health.StatusWarn || cr.Status == health.StatusFail:
 			problems = append(problems, cr)
-		} else {
+		case cr.Status == health.StatusAccepted && cr.CausedBy != "":
+			caused = append(caused, cr)
+		case cr.Status == health.StatusAccepted:
+			accepted = append(accepted, cr)
+		default:
 			rest = append(rest, cr)
 		}
 	}
-	list := func(title string, crs []health.CheckReport) {
+	list := func(title string, crs []health.CheckReport, extra func()) {
 		if len(crs) == 0 {
 			return
 		}
@@ -154,15 +169,39 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			num(small(c, fmt.Sprint(len(crs))))
 		}), func() {
 			for _, cr := range crs {
-				a.healthCheckRow(c.Key("check:"+cr.ID), cr)
+				a.healthCheckRow(c.Key("check:"+cr.ID), cr, s)
+			}
+			if extra != nil {
+				extra()
 			}
 		})
 	}
-	list(T.HealthProblems, problems)
-	list(T.HealthPassed, rest)
+	list(T.HealthProblems, problems, nil)
+	// An accepted exit node: its check, and the checks it breaks grouped
+	// under it, folded; none of them counts.
+	list(T.HealthAccepted, accepted, func() {
+		if len(caused) == 0 {
+			return
+		}
+		open := a.healthOpen["caused-by"]
+		ui.Column(c.Key("caused")).PaddingY(8).Gap(4).Clip().Transition(expandFor(open)).Children(func() {
+			l := linkDisclosure(c.Key("caused-head"), open, fmt.Sprintf(T.CountF, T.CausedByExitNode, len(caused)))
+			if l.Clicked() {
+				a.healthOpen["caused-by"] = !open
+			}
+			if open {
+				ui.Column(c).MarginStart(26).Children(func() {
+					for _, cr := range caused {
+						a.healthCheckRow(c.Key("caused:"+cr.ID), cr, s)
+					}
+				})
+			}
+		})
+	})
+	list(T.HealthPassed, rest, nil)
 }
 
-func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
+func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	p := pal(t)
@@ -187,6 +226,12 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 			ui.Icon(c, icon).FontSize(iconNav).TextColor(col).Shrink(0).AccessHidden(true)
 			ui.Text(c, cr.Title).FontWeight(500).SingleLine().Shrink(0)
 			switch {
+			case cr.Status == health.StatusSkip:
+				// Skipped: the short reason as a chip; the error, if
+				// any, is in the evidence.
+				tag(c, cr.Summary).Shrink(1)
+			case cr.Status == health.StatusAccepted:
+				tag(c, T.HealthAccepted)
 			case !expandable:
 				// Nothing to open, so nothing may be cut off: the
 				// sentence wraps under itself.
@@ -211,22 +256,48 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 			return
 		}
 		ui.Column(c).Gap(10).MarginStart(26).Children(func() {
-			ui.Text(c, cr.Summary).Wrap().LineHeight(lineText).Selectable()
 			if !expandable {
-				return
+				return // the head wraps the whole sentence already
+			}
+			if cr.Status != health.StatusSkip {
+				ui.Text(c, cr.Summary).Wrap().LineHeight(lineText).Selectable()
 			}
 			if len(cr.Evidence) > 0 {
+				// Repeated lines fold into one with a count; at most
+				// evidenceShown lines until 显示全部.
+				lines := health.DedupeEvidence(cr.Evidence)
+				all := a.evidenceAll[cr.ID]
 				ui.Column(c).Gap(6).Children(func() {
 					small(c, T.HealthEvidence)
 					ui.Column(c).Gap(3).Padding(10, 12).Radius(plat.innerRadius).Background(p.code).Border(1, p.groupLine).Children(func() {
-						evidenceLines(c, cr.Evidence)
+						shown := lines
+						if !all && len(shown) > evidenceShown {
+							shown = shown[:evidenceShown]
+						}
+						evidenceLines(c, evidenceTexts(shown))
 					})
+					if len(lines) > evidenceShown {
+						if linkDisclosure(c.Key("ev-all"), all, fmt.Sprintf(T.EvidenceAll, len(lines))).Clicked() {
+							if a.evidenceAll == nil {
+								a.evidenceAll = map[string]bool{}
+							}
+							a.evidenceAll[cr.ID] = !all
+						}
+					}
 				})
 			}
 			if f := cr.Fix; f != nil {
 				ui.Column(c).Gap(6).Children(func() {
 					small(c, T.HealthFix)
 					ui.Text(c, f.Text).Wrap().LineHeight(lineText).Selectable()
+					if act := a.fixAction(cr, s); act != nil {
+						ui.Row(c).Children(func() {
+							busy := cr.ID == (health.LeakEgress{}).ID() && a.egress.running || a.hd.busy == act.label
+							if busyButton(c.Key("fix"), act.label, false, busy, act.off).Clicked() {
+								act.run()
+							}
+						})
+					}
 					if f.Command != "" {
 						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 							ui.Text(c, "$ "+strings.ReplaceAll(f.Command, "\n", "\n$ ")).Font("monospace").FontSize(plat.calloutSize).
@@ -254,22 +325,35 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 	var icon *ui.SVG
 	var col ui.Color
 	var text string
-	warn, fail := h.Counts()
+	// The one number (status.Snapshot.HealthBadge): the badge, the
+	// overview and the health page show the same.
+	n, lvl := s.HealthBadge()
+	_, fail := h.Counts()
 	switch {
 	case h.Report == nil:
 		icon, col, text = iconHealth, t.TextMuted, T.PanelHealthPending
-	case fail > 0:
-		icon, col, text = iconError, t.Danger, fmt.Sprintf(T.PanelHealthFail, fail)
-	case warn > 0:
-		icon, col, text = iconWarning, t.Warning, fmt.Sprintf(T.PanelHealthWarn, warn)
+	case n > 0 && fail > 0:
+		icon, col, text = iconError, levelColor(t, lvl), fmt.Sprintf(T.PanelHealthFail, n)
+	case n > 0:
+		icon, col, text = iconWarning, t.Warning, fmt.Sprintf(T.PanelHealthWarn, n)
 	default:
 		icon, col, text = iconOK, t.Success, T.PanelHealthOK
 	}
+	if lvl == status.LevelWarn && fail > 0 {
+		icon = iconWarning // before takeover: findings, not faults
+	}
+	age := healthAge(s)
 	row := ui.Row(c.Key("health-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).
 		Focusable().Role(ui.RoleButton).Label(text)
 	row.Children(func() {
 		ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
 		ui.Text(c, text).Grow(1).SingleLine()
+		switch {
+		case h.Running:
+			ui.Spinner(c).Size(12, 12) // the number is being updated
+		case age != "":
+			num(small(c, age)).SingleLine()
+		}
 		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
 	})
 	if row.Hovered() {
@@ -281,6 +365,36 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 		a.openMain()
 		a.pageChanged(old)
 	}
+}
+
+// evidenceShown is how many evidence lines a check shows until 显示全部.
+const evidenceShown = 3
+
+// evidenceTexts are deduplicated lines as text, a repeated one with its
+// count (×12).
+func evidenceTexts(lines []health.EvidenceLine) []string {
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		out[i] = l.Text
+		if l.Count > 1 {
+			out[i] += " " + fmt.Sprintf(i18n.T.EvidenceTimes, l.Count)
+		}
+	}
+	return out
+}
+
+// healthStaleAfter is when a report's age shows: twice the background
+// interval (status.Options.HealthInterval, 10 minutes).
+const healthStaleAfter = 20 * time.Minute
+
+// healthAge is the report's age while it is stale ("25 分钟前更新"), else
+// "": a number that is not current says so.
+func healthAge(s status.Snapshot) string {
+	h := s.Health
+	if !h.Stale(s.Time, healthStaleAfter) {
+		return ""
+	}
+	return fmt.Sprintf(i18n.T.HealthAge, status.Ago(s.Time, h.Report.Started))
 }
 
 // healthCountsText is the report's counts: 通过 always, the others only

@@ -53,11 +53,11 @@ func runningTailscale(ctx context.Context, env Env) (*TailscaleStatus, *Result) 
 	L := tx(ctx)
 	ts, err := env.Tailscale(ctx)
 	if err != nil {
-		r := skip(L.msgTSUnavailable, err)
+		r := skipErr(L.msgTSUnavailable, err)
 		return nil, &r
 	}
 	if ts.BackendState != "Running" {
-		r := skip(L.msgTSNotRunning, ts.BackendState)
+		r := skipErr(L.msgTSNotRunning, "BackendState="+ts.BackendState)
 		return nil, &r
 	}
 	return ts, nil
@@ -155,7 +155,7 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 	if len(bad) > 0 {
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgRouteBad, strings.Join(bad, ", "))
-		res.Fix = &FixHint{Text: L.fixRouteBad, AutoFix: "tailscale-coexist-override"}
+		res.Fix = &FixHint{Text: L.fixRouteBad, AutoFix: FixCoexist}
 	}
 	return res
 }
@@ -181,7 +181,7 @@ func (TUNExclude) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	t, src, err := tunConfig(ctx, env)
 	if err != nil {
-		return skip(L.msgMihomoUnavailable, err)
+		return skipErr(L.msgMihomoUnavailable, err)
 	}
 	if !t.Enable {
 		return skipText(L.msgTUNOff)
@@ -199,7 +199,7 @@ func (TUNExclude) Run(ctx context.Context, env Env) Result {
 	if len(missing) > 0 {
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgExcludeMissing, strings.Join(missing, ", "))
-		res.Fix = &FixHint{Text: L.fixExclude, AutoFix: "tailscale-coexist-override"}
+		res.Fix = &FixHint{Text: L.fixExclude, AutoFix: FixCoexist}
 	}
 	return res
 }
@@ -219,7 +219,7 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	rules, src, err := mihomoRules(ctx, env)
 	if err != nil {
-		return skip(L.msgMihomoUnavailable, err)
+		return skipErr(L.msgMihomoUnavailable, err)
 	}
 	// Rules only apply in rule mode: global sends everything to GLOBAL,
 	// direct sends everything DIRECT.
@@ -271,11 +271,11 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 	case len(bad) > 0:
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgRulesBad, strings.Join(bad, ", "))
-		res.Fix = &FixHint{Text: L.fixRules, AutoFix: "tailscale-coexist-override"}
+		res.Fix = &FixHint{Text: L.fixRules, AutoFix: FixCoexist}
 	case len(risky) > 0:
 		res.Status = StatusWarn
 		res.Summary = fmt.Sprintf(L.msgRulesRisky, strings.Join(risky, ", "))
-		res.Fix = &FixHint{Text: L.fixRules, AutoFix: "tailscale-coexist-override"}
+		res.Fix = &FixHint{Text: L.fixRules, AutoFix: FixCoexist}
 	}
 	return res
 }
@@ -432,7 +432,7 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 				fix = L.fixMagicSystemLoop + fix
 			}
 		}
-		res.Fix = &FixHint{Text: fix, AutoFix: "tailscale-coexist-override"}
+		res.Fix = &FixHint{Text: fix, AutoFix: FixCoexist}
 	}
 	return res
 }
@@ -494,7 +494,7 @@ func (PeerNames) Run(ctx context.Context, env Env) Result {
 	}
 	rules, src, err := mihomoRules(ctx, env)
 	if err != nil {
-		return skip(L.msgMihomoUnavailable, err)
+		return skipErr(L.msgMihomoUnavailable, err)
 	}
 	inRules := map[string]bool{}
 	for _, ru := range rules {
@@ -528,7 +528,7 @@ func (PeerNames) Run(ctx context.Context, env Env) Result {
 	if len(inRules) == 0 {
 		res.Status = StatusWarn
 		res.Summary = L.msgNamesNone
-		res.Fix = &FixHint{Text: L.fixNames, AutoFix: "tailscale-coexist-override"}
+		res.Fix = &FixHint{Text: L.fixNames, AutoFix: FixCoexist}
 		return res
 	}
 	if len(missing) > 0 || len(stale) > 0 {
@@ -541,7 +541,7 @@ func (PeerNames) Run(ctx context.Context, env Env) Result {
 			parts = append(parts, fmt.Sprintf(L.msgNamesStale, strings.Join(stale, ", ")))
 		}
 		res.Summary = strings.Join(parts, "；")
-		res.Fix = &FixHint{Text: L.fixNames, AutoFix: "tailscale-coexist-override"}
+		res.Fix = &FixHint{Text: L.fixNames, AutoFix: FixCoexist}
 	}
 	return res
 }
@@ -569,7 +569,7 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skip(L.msgMihomoUnavailable, err)
+		return skipErr(L.msgMihomoUnavailable, err)
 	}
 	if !cfg.DNS.Enable {
 		return skipText(L.msgMihomoDNSOff)
@@ -665,11 +665,11 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	case len(bad) > 0:
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgDNSBad, strings.Join(bad, ", "))
-		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: "system-dns"}
+		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: FixSystemDNS}
 	case len(viaHijack) > 0:
 		res.Status = StatusWarn
 		res.Summary = fmt.Sprintf(L.msgDNSHijack, strings.Join(viaHijack, ", "))
-		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: "system-dns"}
+		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: FixSystemDNS}
 	case nActive == 0:
 		res.Status = StatusWarn
 		res.Summary = L.msgDNSNoActive
@@ -720,9 +720,10 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	res := Result{Status: StatusOK, Summary: L.msgVPNOK}
 	var problems []string
-	fail := func(s Status, msg string) {
+	fail := func(s Status, msg, cause string) {
 		res.Status = Worse(res.Status, s)
 		problems = append(problems, msg)
+		res.Causes = append(res.Causes, cause)
 	}
 
 	if vpns, err := env.VPNs(ctx); err != nil {
@@ -734,10 +735,10 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 			isTS := strings.HasPrefix(v.BundleID, "io.tailscale.")
 			switch {
 			case v.Connected() && isTS:
-				fail(StatusWarn, fmt.Sprintf(L.msgVPNTailscaleNE, v.Name))
+				fail(StatusWarn, fmt.Sprintf(L.msgVPNTailscaleNE, v.Name), CauseTSNE)
 				line += "  ← " + L.evTSNE
 			case v.Connected():
-				fail(StatusFail, fmt.Sprintf(L.msgVPNConnected, v.Name))
+				fail(StatusFail, fmt.Sprintf(L.msgVPNConnected, v.Name), CauseOtherVPN)
 				line += "  ← " + L.evConnected
 			}
 			res.Evidence = append(res.Evidence, line)
@@ -751,9 +752,9 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 		if ts.ExitNode != nil {
 			msg := fmt.Sprintf(L.msgExitNode, ts.ExitNode.HostName)
 			if env.Settings().AllowExitNode {
-				fail(StatusWarn, msg)
+				fail(StatusWarn, msg, CauseExitNode)
 			} else {
-				fail(StatusFail, msg)
+				fail(StatusFail, msg, CauseExitNode)
 			}
 		} else {
 			res.Evidence = append(res.Evidence, L.evNoExitNode)
@@ -767,7 +768,7 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 		if env.Platform() == Linux {
 			if st, msg := linuxDefaultRoute(L, rl.Interface, tun, terr == nil); st != StatusOK {
 				line += "  ← " + L.evNotMihomoTUN
-				fail(st, msg)
+				fail(st, msg, CauseOtherTUN)
 			}
 		} else if tun.Device == "utun" {
 			// A bare "utun" (read from the config file when the controller
@@ -775,10 +776,10 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 			// is unknown, so there is nothing to compare.
 		} else if terr == nil && tun.Enable && tun.Device != "" && rl.Interface != tun.Device && strings.HasPrefix(rl.Interface, "utun") {
 			line += "  ← " + L.evNotMihomoTUN
-			fail(StatusFail, fmt.Sprintf(L.msgOtherTUN, rl.Interface))
+			fail(StatusFail, fmt.Sprintf(L.msgOtherTUN, rl.Interface), CauseOtherTUN)
 		} else if terr == nil && tun.Enable && tun.Device != "" && rl.Interface != tun.Device {
 			line += "  ← " + L.evNotMihomoTUN
-			fail(StatusWarn, fmt.Sprintf(L.msgTUNNotDefault, tun.Device, rl.Interface))
+			fail(StatusWarn, fmt.Sprintf(L.msgTUNNotDefault, tun.Device, rl.Interface), CauseRoute)
 		}
 		res.Evidence = append(res.Evidence, line)
 	}
@@ -786,6 +787,9 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 	if len(problems) > 0 {
 		res.Summary = strings.Join(problems, "；")
 		res.Fix = &FixHint{Text: L.fixVPN}
+		if len(res.Causes) == 1 && res.Causes[0] == CauseExitNode {
+			res.Fix.AutoFix = FixExitNodeOff
+		}
 	}
 	return res
 }
@@ -929,7 +933,7 @@ func (LeakGuard) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	rt, err := env.MihomoRuntime(ctx)
 	if err != nil {
-		return skip(L.msgMihomoUnavailable, err)
+		return skipErr(L.msgMihomoUnavailable, err)
 	}
 	groups := env.Settings().SensitiveGroups
 	if len(groups) == 0 {
@@ -973,11 +977,11 @@ func (LeakGuard) Run(ctx context.Context, env Env) Result {
 	case len(fails) > 0:
 		res.Status = StatusFail
 		res.Summary = strings.Join(append(fails, warns...), "；")
-		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: "leak-guard-override"}
+		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: FixLeakGuard}
 	case len(warns) > 0:
 		res.Status = StatusWarn
 		res.Summary = strings.Join(warns, "；")
-		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: "leak-guard-override"}
+		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: FixLeakGuard}
 	}
 	return res
 }
@@ -1032,7 +1036,7 @@ func (Controller) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skip(L.msgMihomoUnavailable, err)
+		return skipErr(L.msgMihomoUnavailable, err)
 	}
 	if cfg.ExternalController == "" {
 		return Result{Status: StatusOK, Summary: L.msgCtlDisabled}
@@ -1056,7 +1060,7 @@ func (Controller) Run(ctx context.Context, env Env) Result {
 	}
 	if len(problems) > 0 {
 		res.Summary = strings.Join(problems, "；")
-		res.Fix = &FixHint{Text: L.fixCtl, AutoFix: "controller-secret"}
+		res.Fix = &FixHint{Text: L.fixCtl, AutoFix: FixController}
 	}
 	return res
 }

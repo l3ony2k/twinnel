@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -226,8 +227,10 @@ func componentVersions(s status.Snapshot, cli string) version.Report {
 func (a *app) aboutBasics(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	card(c, T.AboutBasics, func() {
-		kv(c, T.ConfigFile, a.cfgPath)
-		kv(c, T.AllowWrites, onOff(a.cfg.AllowWrites))
+		pathRow(c, "prefs", T.AppPrefs, a.cfgPath)
+		if st := s.Helper.Status; st != nil && st.Mihomo.ConfigPath != "" {
+			pathRow(c, "mihomo-config", T.MihomoConfigRow, st.Mihomo.ConfigPath)
+		}
 		in := s.Tailscale.Install
 		ts := T.InstallKind(string(in.Kind)) + sourceSuffix(in.Source)
 		if in.Daemon != "" {
@@ -305,9 +308,9 @@ func (a *app) aboutFAQ(c *ui.Context) {
 	}
 	qs := [][2]string{
 		{T.FAQVPNQ, T.FAQVPNA},
-		{T.FAQReadOnlyQ, T.FAQReadOnlyA},
 		{T.FAQRollbackQ, T.FAQRollbackA},
 		{T.FAQQuitQ, T.FAQQuitA},
+		{T.FAQLeaveQ, T.FAQLeaveA},
 	}
 	listCard(c, listHead(c, nil, T.FAQ, nil), func() {
 		for _, qa := range qs {
@@ -325,6 +328,9 @@ func (a *app) aboutFAQ(c *ui.Context) {
 				if open {
 					ui.Text(c, qa[1]).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).
 						MarginStart(22).Selectable()
+					if qa[0] == T.FAQLeaveQ && actionLink(c.Key("leave"), T.LeavePage).MarginStart(22).Clicked() {
+						a.showPage(pageLeave)
+					}
 				}
 			})
 		}
@@ -346,5 +352,17 @@ func aboutLinks(c *ui.Context) {
 				ui.Link(c.Key(l[1]), l[0], l[1]).Tooltip(l[1])
 			}
 		})
+	})
+}
+
+// pathRow is a file row: its name (the path in the tooltip) and 在
+// Finder 中显示.
+func pathRow(c *ui.Context, key, label, path string) {
+	kvWith(c.Key(key), label, func() {
+		ui.Text(c, filepath.Base(path)).SingleLine().Shrink(1).Selectable().Tooltip(path)
+		ui.Spacer(c)
+		if actionLink(c.Key("finder"), i18n.T.ShowInFinder).Clicked() {
+			mygo.Shell.ShowItemInFolder(path)
+		}
 	})
 }

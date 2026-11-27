@@ -13,7 +13,7 @@ import (
 // ⌘[ or a click on 关于 go back.
 
 // subPages maps a page without a sidebar row to the row it belongs to.
-var subPages = map[string]string{pageInstall: pageAbout}
+var subPages = map[string]string{pageInstall: pageAbout, pageLeave: pageSettings}
 
 // navParent is the sidebar row that shows page: its own, or its parent's.
 func navParent(page string) string {

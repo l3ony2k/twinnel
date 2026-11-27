@@ -1,0 +1,272 @@
+{
+ "plan_id": "plan-20261127-101500-5a5a5a5a",
+ "created_at": "2026-11-26T15:30:12+08:00",
+ "state": "ready",
+ "impact": {
+  "disruptive": true,
+  "tun_rebuild": true,
+  "force": true,
+  "restart_needed": [
+   "secret"
+  ],
+  "notes": [
+   "tun section differs: the TUN device is recreated (synthetic)"
+  ]
+ },
+ "confirm_hash": "5f0c1e9a2b7d4c3e8f61a0b9c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1",
+ "live_config": "/Users/example/mihomo/conf/config.yaml",
+ "live_sha256": "9b3d0c27a1e54f6b8c7d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b",
+ "base": "/Users/example/mihomo/conf/profiles/example-sub.yaml",
+ "mihomo_service": "com.example.mihomo",
+ "mihomo_binary": "/Users/example/mihomo/bin/mihomo",
+ "mihomo_version": "v1.19.16",
+ "controller": "127.0.0.1:9090",
+ "secret_set": false,
+ "tailscale_service": "homebrew.mxcl.tailscale",
+ "subscription_url": true,
+ "candidates": [
+  {
+   "path": "/Users/example/mihomo/conf/profiles/example-sub.yaml",
+   "size": 48213,
+   "proxies_same": 42,
+   "proxies_total": 42,
+   "groups_same": 9,
+   "groups_total": 9,
+   "rules": 512,
+   "common_tail": 512,
+   "head_rules": 14,
+   "explains": true,
+   "chosen": true
+  },
+  {
+   "path": "/Users/example/mihomo/conf/profiles/old-sub.yaml",
+   "size": 39002,
+   "proxies_same": 30,
+   "proxies_total": 38,
+   "groups_same": 6,
+   "groups_total": 9,
+   "rules": 480,
+   "common_tail": 301,
+   "head_rules": 225,
+   "explains": false
+  }
+ ],
+ "layers": [
+  {
+   "id": "base",
+   "name": "Base settings",
+   "name_code": "base",
+   "kind": "managed",
+   "stage": "base",
+   "keys": [
+    "dns",
+    "tun",
+    "sniffer",
+    "mixed-port",
+    "external-controller"
+   ]
+  },
+  {
+   "id": "user-1",
+   "name": "Rules from the live config: DOMAIN-SUFFIX,example.com,DIRECT and 13 more",
+   "name_code": "live-rules",
+   "name_args": [
+    "DOMAIN-SUFFIX,example.com,DIRECT",
+    "13"
+   ],
+   "kind": "user",
+   "stage": "user",
+   "rules": 14
+  },
+  {
+   "id": "tailscale-coexist",
+   "name": "Tailscale coexist",
+   "name_code": "tailscale-coexist",
+   "kind": "managed",
+   "stage": "coexist"
+  }
+ ],
+ "changes": [
+  {
+   "area": "dns.nameserver-policy",
+   "what": "3 added",
+   "deliberate": true,
+   "why": "managed tailscale-coexist layer: tailnet names (MagicDNS suffix, single-label names, tailnet reverse zones) resolve via 100.100.100.100 instead of looping through the system resolver",
+   "code": "counts",
+   "args": [
+    "67",
+    "0",
+    "0"
+   ],
+   "why_code": "coexist-nameserver-policy",
+   "why_args": [
+    "100.100.100.100"
+   ],
+   "keys": [
+    "*",
+    "+.tail1234.ts.net",
+    "+.ts.net",
+    "+.64.100.in-addr.arpa",
+    "+.65.100.in-addr.arpa",
+    "+.66.100.in-addr.arpa",
+    "+.67.100.in-addr.arpa",
+    "+.68.100.in-addr.arpa",
+    "+.69.100.in-addr.arpa",
+    "+.70.100.in-addr.arpa",
+    "+.71.100.in-addr.arpa",
+    "+.72.100.in-addr.arpa",
+    "+.73.100.in-addr.arpa",
+    "+.74.100.in-addr.arpa",
+    "+.75.100.in-addr.arpa",
+    "+.76.100.in-addr.arpa",
+    "+.77.100.in-addr.arpa",
+    "+.78.100.in-addr.arpa",
+    "+.79.100.in-addr.arpa",
+    "+.80.100.in-addr.arpa",
+    "+.81.100.in-addr.arpa",
+    "+.82.100.in-addr.arpa",
+    "+.83.100.in-addr.arpa",
+    "+.84.100.in-addr.arpa",
+    "+.85.100.in-addr.arpa",
+    "+.86.100.in-addr.arpa",
+    "+.87.100.in-addr.arpa",
+    "+.88.100.in-addr.arpa",
+    "+.89.100.in-addr.arpa",
+    "+.90.100.in-addr.arpa",
+    "+.91.100.in-addr.arpa",
+    "+.92.100.in-addr.arpa",
+    "+.93.100.in-addr.arpa",
+    "+.94.100.in-addr.arpa",
+    "+.95.100.in-addr.arpa",
+    "+.96.100.in-addr.arpa",
+    "+.97.100.in-addr.arpa",
+    "+.98.100.in-addr.arpa",
+    "+.99.100.in-addr.arpa",
+    "+.100.100.in-addr.arpa",
+    "+.101.100.in-addr.arpa",
+    "+.102.100.in-addr.arpa",
+    "+.103.100.in-addr.arpa",
+    "+.104.100.in-addr.arpa",
+    "+.105.100.in-addr.arpa",
+    "+.106.100.in-addr.arpa",
+    "+.107.100.in-addr.arpa",
+    "+.108.100.in-addr.arpa",
+    "+.109.100.in-addr.arpa",
+    "+.110.100.in-addr.arpa",
+    "+.111.100.in-addr.arpa",
+    "+.112.100.in-addr.arpa",
+    "+.113.100.in-addr.arpa",
+    "+.114.100.in-addr.arpa",
+    "+.115.100.in-addr.arpa",
+    "+.116.100.in-addr.arpa",
+    "+.117.100.in-addr.arpa",
+    "+.118.100.in-addr.arpa",
+    "+.119.100.in-addr.arpa",
+    "+.120.100.in-addr.arpa",
+    "+.121.100.in-addr.arpa",
+    "+.122.100.in-addr.arpa",
+    "+.123.100.in-addr.arpa",
+    "+.124.100.in-addr.arpa",
+    "+.125.100.in-addr.arpa",
+    "+.126.100.in-addr.arpa",
+    "+.127.100.in-addr.arpa"
+   ]
+  },
+  {
+   "area": "dns.fake-ip-filter",
+   "what": "2 added",
+   "deliberate": true,
+   "why": "managed tailscale-coexist layer: tailnet names and single-label names get real answers, not fake-ips",
+   "code": "counts",
+   "args": [
+    "2",
+    "0",
+    "0"
+   ],
+   "why_code": "coexist-fake-ip-filter",
+   "keys": [
+    "*",
+    "+.tail1234.ts.net"
+   ]
+  },
+  {
+   "area": "hosts",
+   "what": "7 added",
+   "deliberate": true,
+   "why": "managed tailscale-coexist layer: peer names answered locally (7 peers)",
+   "code": "counts",
+   "args": [
+    "7",
+    "0",
+    "0"
+   ],
+   "why_code": "coexist-hosts",
+   "why_args": [
+    "7"
+   ],
+   "keys": [
+    "nas",
+    "nas.tail1234.ts.net",
+    "laptop",
+    "laptop.tail1234.ts.net",
+    "phone",
+    "phone.tail1234.ts.net",
+    "tv"
+   ]
+  },
+  {
+   "area": "rules",
+   "what": "1 Tailscale rule edit(s): + IP-CIDR,100.64.0.0/10,DIRECT,no-resolve",
+   "deliberate": true,
+   "why": "managed tailscale-coexist layer",
+   "code": "tailscale-rules",
+   "args": [
+    "7",
+    "+ IP-CIDR,100.64.0.0/10,DIRECT,no-resolve; + IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve; + DOMAIN-SUFFIX,tail1234.ts.net,DIRECT; + DOMAIN-SUFFIX,tailscale.com,DIRECT; + DOMAIN-SUFFIX,tailscale.io,DIRECT; + DOMAIN,controlplane.tailscale.com,DIRECT; + DOMAIN,log.tailscale.io,DIRECT"
+   ],
+   "why_code": "coexist"
+  }
+ ],
+ "equivalent": true,
+ "validated": true,
+ "warnings": [
+  "the controller has no secret; run 加固控制接口 after adopt",
+  "the mihomo binary /Users/example/mihomo/bin/mihomo can be replaced without root (owned by uid 501), and the service runs it as root: anything running as that user can become root. duet runs it only without root for its own checks; to close this after the adopt, move the service to the managed kernel and a root-owned config dir (duet helper harden plan)"
+ ],
+ "summary": "Takeover plan 20261126-153012-a1b2\n  live      /Users/example/mihomo/conf/config.yaml\n  base      profiles/example-sub.yaml (explains all proxies, groups and rules)\n  layers    base, user-1, tailscale-coexist\n  coexist   on (MagicDNS fix)\n  validate  mihomo -t ok\n",
+ "semdiff": "semantic diff live → composed\n  dns.nameserver-policy   + 3 entries (tailnet)\n  rules                   + 1 at head (100.64.0.0/10 DIRECT)\n  dns.fake-ip-filter      + +.ts.net\n  everything else equal\n",
+ "effects": [
+  {
+   "item": "mihomo-service",
+   "action": "keep",
+   "subject": "com.example.mihomo"
+  },
+  {
+   "item": "mihomo-binary",
+   "action": "keep",
+   "subject": "/Users/example/mihomo/bin/mihomo",
+   "warn": "replaceable"
+  },
+  {
+   "item": "config",
+   "action": "rewrite",
+   "subject": "/Users/example/mihomo/conf/config.yaml",
+   "warn": "edits-overwritten"
+  },
+  {
+   "item": "subscription",
+   "action": "store",
+   "subject": "example"
+  },
+  {
+   "item": "secret",
+   "action": "none",
+   "warn": "no-secret"
+  },
+  {
+   "item": "tailscale",
+   "action": "unchanged",
+   "subject": "homebrew.mxcl.tailscale"
+  }
+ ]
+}

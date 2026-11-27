@@ -30,17 +30,16 @@ func init() {
 		Keychain Login Items Option Command Shift Control Return Enter Space
 		Delete Escape arch darwin amd64 arm64 stable alpha latest version
 		with doctor egress verbose root admin systemd hosts whitelist Standalone
-		upgrade DOMAIN SUFFIX KEYWORD example`) {
+		upgrade DOMAIN SUFFIX KEYWORD example LaunchAgent LaunchAgents laptop`) {
 		allowedASCII[strings.ToLower(w)] = true
 	}
 }
 
-// pendingElsewhere are texts other work removes (design review U1, U58:
-// batch B deletes the env-var hints). Drop entries as they go.
+// pendingElsewhere are texts other work still has to change (design
+// review U1: the FAQ answer names the old env gate). Drop entries as they
+// go.
 var pendingElsewhere = map[string]bool{
 	"zh.AboutStrings.FAQReadOnlyA": true,
-	"zh.WritesDisabledHint":        true,
-	"zh.HelperNotRunningHint":      true,
 }
 
 var asciiWord = regexp.MustCompile(`[A-Za-z]{4,}`)

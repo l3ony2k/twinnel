@@ -14,6 +14,7 @@ import (
 func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodStatus, func(ctx context.Context, _ rpc.Empty) (rpc.Status, error) { return e.Status(ctx) })
 	rpc.Typed(s, rpc.MethodHelperInfo, func(ctx context.Context, _ rpc.Empty) (rpc.HelperInfo, error) { return e.HelperInfo(ctx) })
+	rpc.Typed(s, rpc.MethodHelperInventory, func(ctx context.Context, _ rpc.Empty) (rpc.Inventory, error) { return e.HelperInventory(ctx) })
 	rpc.Typed(s, rpc.MethodHelperRestart, func(ctx context.Context, _ rpc.Empty) (rpc.HelperRestartResult, error) {
 		return e.RestartHelper()
 	})
@@ -124,6 +125,9 @@ func (e *Engine) Register(s *rpc.Server) {
 	})
 	rpc.Typed(s, rpc.MethodTakeoverAdopt, func(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult, error) {
 		return e.Adopt(ctx, p)
+	})
+	rpc.Typed(s, rpc.MethodTakeoverUndo, func(ctx context.Context, p rpc.TakeoverUndoParams) (rpc.TakeoverUndoResult, error) {
+		return e.TakeoverUndo(ctx, p)
 	})
 	rpc.Typed(s, rpc.MethodControllerSecure, func(ctx context.Context, _ rpc.Empty) (rpc.ControllerSecureResult, error) {
 		return e.SecureController(ctx)
