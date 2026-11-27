@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -172,6 +173,23 @@ func TestHelperConnStates(t *testing.T) {
 		defer cancel()
 		go hc.Run(ctx)
 		rec.waitFor(t, "not running", func() bool { return len(rec.states) > 0 && rec.last().State == HelperNotRunning })
+	})
+	t.Run("stale socket, nothing installed", func(t *testing.T) {
+		// A socket file nobody listens on answers "connection refused":
+		// still 未安装 when the installed files are missing.
+		sock := helperSock(t)
+		l, err := net.Listen("unix", sock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		l.(*net.UnixListener).SetUnlinkOnClose(false)
+		l.Close()
+		rec := newRecorder()
+		hc := newConn(sock, rec, false)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go hc.Run(ctx)
+		rec.waitFor(t, "not installed", func() bool { return len(rec.states) > 0 && rec.last().State == HelperNotInstalled })
 	})
 	t.Run("denied", func(t *testing.T) {
 		sock := helperSock(t)
