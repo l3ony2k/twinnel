@@ -556,6 +556,7 @@ var en = Strings{
 	HelperMgmtStrings:      enHelperMgmt,
 	SetupStrings:           enSetup,
 	WizardStrings:          enWizard,
+	AutostartStrings:       enAutostart,
 	ConfigUIStrings:        enConfigUI,
 	ProgressStrings:        enProgress,
 	HealthFixStrings:       enHealthFix,

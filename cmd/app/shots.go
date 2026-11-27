@@ -131,6 +131,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"readme":          a.readmeShots,          // shots_readme.go
 		"wizard":          a.wizardShots,          // shots_wizard.go
 		"healthfix":       a.healthFixShots,       // shots_healthfix.go
+		"autostart":       a.autostartFlow,        // takeover_autostart.go
 		"takeover":        a.takeoverE2E,
 	}
 }
@@ -359,6 +360,7 @@ func (a *app) takeoverShots(save func(*mygo.Window, string), wait func(time.Dura
 		wait(500 * time.Millisecond)
 		save(a.win, "takeover-result")
 	}
+	a.autostartShots(save, wait, on)
 	on(func() { a.shotSection = "" })
 }
 

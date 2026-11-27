@@ -46,6 +46,8 @@ type takeoverView struct {
 	keysOpen             map[string]bool // change area → its keys shown
 	rulesOpen            bool
 	impactOpen           bool
+
+	autostart autostartView // takeover_autostart.go
 }
 
 // isTooOld reports whether err means the helper lacks the method.

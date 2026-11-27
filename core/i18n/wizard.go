@@ -74,7 +74,7 @@ type WizardStrings struct {
 	WizTSLoggedIn                              string // %s: the tailnet
 	WizTSLoggedInBare                          string
 	WizTSSkip                                  string
-	WizTSRepair                                string // reinstalls a damaged Tailscale
+	WizTSRepair, WizTSDamaged                  string // reinstalls a damaged Tailscale; its failed row
 
 	// ⑥ 完成
 	// WizDoneHead only when nothing is left; WizDoneIssues: %d things
@@ -178,6 +178,7 @@ var zhWizard = WizardStrings{
 	WizTSLoggedInBare: "已登录",
 	WizTSSkip:         "跳过",
 	WizTSRepair:       "修复 Tailscale",
+	WizTSDamaged:      "Tailscale 需要修复",
 
 	WizDoneHead:         "设置完成",
 	WizDoneIssues:       "还有 %d 项要处理",
@@ -292,6 +293,7 @@ var enWizard = WizardStrings{
 	WizTSLoggedInBare: "Logged in",
 	WizTSSkip:         "Skip",
 	WizTSRepair:       "Repair Tailscale",
+	WizTSDamaged:      "Tailscale needs repair",
 
 	WizDoneHead:         "You're All Set",
 	WizDoneIssues:       "%d Thing{s} Left to Do",
