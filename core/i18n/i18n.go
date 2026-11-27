@@ -268,6 +268,7 @@ type Strings struct {
 	PagesStrings           // pages.go
 	ErrorStrings           // errors.go
 	AgentStrings           // agent.go
+	ImportStrings          // importcfg.go
 }
 
 // zh is the Chinese text.
@@ -831,6 +832,7 @@ var zh = Strings{
 	OverviewStrings:        zhOverview,
 	PagesStrings:           zhPages,
 	AgentStrings:           zhAgent,
+	ImportStrings:          zhImport,
 }
 
 // F formats one of the strings.

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/bundle"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
@@ -164,6 +165,9 @@ func (f fakeCaller) Call(_ context.Context, method string, params, result any) e
 	if p, ok := params.(rpc.IDParams); ok {
 		key += "/" + p.ID
 	}
+	if _, ok := f[key]; !ok && method == rpc.MethodConfigExport {
+		return &rpc.Error{Code: rpc.CodeMethodNotFound, Message: "unknown method"} // a helper from before it
+	}
 	b, _ := json.Marshal(f[key])
 	return json.Unmarshal(b, result)
 }
@@ -188,10 +192,48 @@ func TestWriteExport(t *testing.T) {
 	for _, f := range zr.File {
 		names = append(names, f.Name)
 	}
-	if strings.Join(names, ",") != "config.yaml,overrides/mine.yaml" {
+	if strings.Join(names, ",") != "manifest.json,config.yaml,overrides/mine.yaml" {
 		t.Fatalf("zip has %v", names)
 	}
 	if fi, _ := os.Stat(to); fi.Mode().Perm() != 0o600 {
 		t.Fatalf("mode %v", fi.Mode())
+	}
+	data, _ := os.ReadFile(to)
+	b, err := bundle.Read(data)
+	if err != nil || b.Source != bundle.SourceTwinnel || len(b.Layers) != 1 || b.Layers[0].ID != "mine" || b.Layers[0].Content != "rules: []\n" {
+		t.Fatalf("%v %v", err, b)
+	}
+
+	// A helper with config.export: its zip as is.
+	hc[rpc.MethodConfigExport] = rpc.ConfigExport{Zip: []byte("PK-from-helper"), Layers: 1}
+	if err := writeExport(context.Background(), hc, to); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(to); string(got) != "PK-from-helper" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestImportSheetChoices(t *testing.T) {
+	plan := &rpc.ConfigImportResult{Items: []rpc.ImportItem{
+		{Kind: "layer", ID: "a", Action: rpc.ImportAdd},
+		{Kind: "layer", ID: "b", Action: rpc.ImportConflict},
+		{Kind: "subscription", ID: "s", Action: rpc.ImportConflict},
+		{Kind: "layer", ID: "g", Action: rpc.ImportGenerated},
+		{Kind: "layer", ID: "u", Action: rpc.ImportUnchanged},
+	}}
+	skip, rename := importDefault, 2
+	v := &importView{plan: plan, choice: map[string]*int{"layer:b": &skip, "subscription:s": &rename}}
+	r := importResolve(v)
+	if r["layer:b"] != rpc.ImportSkip || r["subscription:s"] != rpc.ImportRename || len(r) != 2 {
+		t.Fatalf("%v", r)
+	}
+	if n := importWrites(plan, r); n != 2 {
+		t.Fatalf("writes = %d", n)
+	}
+	replace := 0
+	v.choice["layer:b"] = &replace
+	if n := importWrites(plan, importResolve(v)); n != 3 {
+		t.Fatalf("writes = %d", n)
 	}
 }
