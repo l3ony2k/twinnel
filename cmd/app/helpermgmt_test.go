@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"slices"
 	"strings"
 	"testing"
@@ -88,11 +89,23 @@ func TestHelperMatch(t *testing.T) {
 	if helperOutdated(status.Snapshot{Helper: status.Helper{State: status.HelperNotRunning}}) {
 		t.Error("not connected")
 	}
+	// The helper from before the rename needs 更新 (the migration) whatever
+	// its version, connected or not; even a development app says so.
+	version.Version = "0.1.0-dev"
+	legacySnap := snap("0.1.0-dev")
+	legacySnap.Helper.Socket = legacy.Socket
+	if !helperOutdated(legacySnap) {
+		t.Error("legacy helper not outdated")
+	}
+	legacySnap.Helper.State, legacySnap.Helper.Status = status.HelperNotRunning, nil
+	if !helperOutdated(legacySnap) {
+		t.Error("stopped legacy helper not outdated")
+	}
 }
 
 func TestCanUpdateHelper(t *testing.T) {
 	a := &app{}
-	for action, want := range map[string]bool{"upgrade": true, "restart": true, "none": false, "downgrade": false, "not-installed": false, "": false} {
+	for action, want := range map[string]bool{"upgrade": true, "restart": true, "migrate": true, "none": false, "downgrade": false, "not-installed": false, "": false} {
 		a.hm.check = &upgradeCheck{Action: action}
 		if a.canUpdateHelper() != want {
 			t.Errorf("%q: %v", action, !want)
