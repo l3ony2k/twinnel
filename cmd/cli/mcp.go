@@ -31,8 +31,8 @@ const mcpUsage = `usage: twinnel mcp [--list-tools] [--json]
 
 Serves Twinnel's tools to an MCP client over stdin/stdout. Add it to a client:
 
-  claude mcp add Twinnel -- twinnel mcp
-  codex mcp add Twinnel -- twinnel mcp
+  claude mcp add twinnel -- twinnel mcp
+  codex mcp add twinnel -- twinnel mcp
 
 The person turns agent access and its tiers on in Twinnel → 设置 → 本地 Agent.
 --list-tools prints the tools and their tiers and exits.

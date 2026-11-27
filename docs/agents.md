@@ -14,8 +14,8 @@ There are two ways in:
 3. Add Twinnel to your client. The section shows these with the right path and a copy button; Twinnel never edits another app's config:
 
 ```sh
-claude mcp add Twinnel -- /usr/local/bin/twinnel mcp     # Claude Code
-codex mcp add Twinnel -- /usr/local/bin/twinnel mcp      # Codex
+claude mcp add twinnel -- /usr/local/bin/twinnel mcp     # Claude Code
+codex mcp add twinnel -- /usr/local/bin/twinnel mcp      # Codex
 ```
 
 ```json
@@ -54,7 +54,7 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 | `proxies` | groups, current node, members, last delays; `group` for one with its chain |
 | `connections` | open connections summarized: top destinations, rules, chains, processes |
 | `traffic` | throughput over ~3 s and totals |
-| `logs` | `source=Twinnel` (the helper's events) or `source=mihomo` (live log for ~3 s, `level`) |
+| `logs` | `source=twinnel` (the helper's events) or `source=mihomo` (live log for ~3 s, `level`) |
 | `subscriptions` | id, name, active, interval, last fetch/error (never the URL) |
 | `layers` | the overrides; `id` returns one with its content (credentials redacted) |
 | `history` | applied configs; `diff=<id>` (and `against=<id>`) gives a semantic diff |

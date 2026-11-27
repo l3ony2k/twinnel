@@ -146,9 +146,9 @@ func agentSnippet(i int, cmd string) string {
 	q, _ := json.Marshal(cmd)
 	switch i {
 	case 0:
-		return "claude mcp add Twinnel -- " + shellQuote(cmd) + " mcp"
+		return "claude mcp add twinnel -- " + shellQuote(cmd) + " mcp"
 	case 1:
-		return "codex mcp add Twinnel -- " + shellQuote(cmd) + " mcp"
+		return "codex mcp add twinnel -- " + shellQuote(cmd) + " mcp"
 	}
 	// Cursor (~/.cursor/mcp.json) and most others take this JSON.
 	return `{

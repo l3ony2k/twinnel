@@ -12,10 +12,10 @@ import (
 
 func TestAgentSnippets(t *testing.T) {
 	cmd := "/Applications/Twinnel.app/Contents/Resources/bin/twinnel"
-	if got := agentSnippet(0, "/usr/local/bin/twinnel"); got != "claude mcp add Twinnel -- /usr/local/bin/twinnel mcp" {
+	if got := agentSnippet(0, "/usr/local/bin/twinnel"); got != "claude mcp add twinnel -- /usr/local/bin/twinnel mcp" {
 		t.Errorf("claude = %q", got)
 	}
-	if got := agentSnippet(1, "/Users/x y/bin/twinnel"); got != "codex mcp add Twinnel -- '/Users/x y/bin/twinnel' mcp" {
+	if got := agentSnippet(1, "/Users/x y/bin/twinnel"); got != "codex mcp add twinnel -- '/Users/x y/bin/twinnel' mcp" {
 		t.Errorf("codex = %q", got)
 	}
 	var cfg struct {

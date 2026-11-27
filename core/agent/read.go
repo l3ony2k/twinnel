@@ -519,7 +519,7 @@ func (s *Server) traffic(c *call, _ noArgs) (any, error) {
 // ---- logs ----
 
 type logsIn struct {
-	Source string `json:"source,omitempty" jsonschema:"Twinnel (default) or mihomo"`
+	Source string `json:"source,omitempty" jsonschema:"twinnel (default) or mihomo"`
 	Level  string `json:"level,omitempty" jsonschema:"mihomo only: debug, info (default), warning or error"`
 	Lines  int    `json:"lines,omitempty" jsonschema:"at most this many lines, newest (default 50, max 500)"`
 }
@@ -574,7 +574,7 @@ func (s *Server) logs(c *call, in logsIn) (any, error) {
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("source must be Twinnel or mihomo")
+		return nil, fmt.Errorf("source must be twinnel or mihomo")
 	}
 	if len(out) > n {
 		out = out[len(out)-n:]
