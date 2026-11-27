@@ -191,7 +191,6 @@ func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 				case "login":
 					s.Tailscale.Reachable = true
 					s.Tailscale.State.BackendState = "NeedsLogin"
-					s.Tailscale.State.Prefs.LoggedOut = true
 					s.Tailscale.State.Version = "1.90.6"
 				case "running":
 					s.Tailscale.Reachable = true
