@@ -190,7 +190,12 @@ func (h *Helper) register() {
 	typed(h, rpc.MethodHealthEgress, func(rpc.HealthEgressParams) (rpc.HealthReport, error) {
 		return rpc.HealthReport{Report: json.RawMessage(`{"overall":"ok","checks":[{"id":"leak-guard-egress","status":"ok","summary":"egress differs"}]}`), Reason: "egress"}, nil
 	})
-	typed(h, rpc.MethodServiceLog, func(rpc.ServiceLogParams) (rpc.ServiceLog, error) {
+	typed(h, rpc.MethodServiceLog, func(p rpc.ServiceLogParams) (rpc.ServiceLog, error) {
+		if p.Name == rpc.ServiceLogHelper {
+			return rpc.ServiceLog{Name: p.Name, Files: []rpc.ServiceLogFile{{File: "helper.log", Lines: []string{
+				`time=2026-01-02T03:04:05.000Z level=INFO msg=rpc method=compose.apply peer.uid=501 peer.user=alice`,
+				`time=2026-01-02T03:04:06.000Z level=WARN msg="subscription fetch" err="GET ` + SubURL + `: 502"`}}}}, nil
+		}
 		return rpc.ServiceLog{Name: "mihomo", Files: []rpc.ServiceLogFile{{File: "mihomo.out.log", Lines: []string{
 			`time="2026-01-02T03:04:05Z" level=fatal msg="Parse config error: pull ` + SubURL + `"`}}}}, nil
 	})

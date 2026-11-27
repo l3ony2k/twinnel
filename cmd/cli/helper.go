@@ -722,8 +722,12 @@ func runService(args []string) error {
 	fs, cf := newFlagSet("service", `usage: twinnel service status mihomo|tailscaled|helper
        twinnel service start|stop|restart mihomo|tailscaled
        twinnel service install|uninstall mihomo   (LaunchDaemon generated from the helper's settings)
+       twinnel service log mihomo|helper [--lines N] [--since 10m|TIME]   (through the helper, redacted)
 
 `)
+	var lf logFlags
+	fs.IntVar(&lf.lines, "lines", 0, "log: the last `N` lines of each file (default 300, at most 2000)")
+	fs.StringVar(&lf.since, "since", "", "log: only lines from `WHEN` on, a duration back (10m, 2h) or an RFC 3339 time")
 	pos, done, err := parse(fs, args)
 	if done || err != nil {
 		return err
@@ -731,6 +735,9 @@ func runService(args []string) error {
 	if len(pos) != 2 {
 		fs.Usage()
 		return errors.New("service: want `OP NAME`")
+	}
+	if pos[0] == "log" {
+		return serviceLog(cf, pos[1], lf, time.Now())
 	}
 	if pos[0] != "status" {
 		return serviceOp(cf, pos[0], pos[1])
