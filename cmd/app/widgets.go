@@ -753,6 +753,14 @@ func pushButton(c *ui.Context, label string) ui.Element {
 	return pushFace(c, ui.Button(c, label))
 }
 
+// pushMenu is a pull-down button (操作 ▾) with the same push-button face
+// as pushButton, so a menu and a button side by side, or in the headings
+// of neighbouring cards, look alike. Use it for every ui.MenuButton on a
+// page (TestMenuButtonsHavePushFace).
+func pushMenu(c *ui.Context, label string, items func(m *ui.Menu)) ui.Element {
+	return pushFace(c, ui.MenuButton(c, label, items))
+}
+
 // toolIcon is a small faceless icon button for an action repeated on
 // every row (测速 on a group, moving a layer): about 24 × 24, the muted
 // icon, a faint fill on hover and press, its name as tooltip and for

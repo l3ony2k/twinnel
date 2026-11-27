@@ -491,14 +491,14 @@ func (a *app) helperSection(c *ui.Context, s status.Snapshot) {
 			if restarting { // 重启 runs from the menu: its progress shows beside it
 				spinnerIcon(c).Label(T.HelperRestart)
 			}
-			pushFace(c, ui.MenuButton(c.Key("hm-actions"), T.Actions, func(m *ui.Menu) {
+			pushMenu(c.Key("hm-actions"), T.Actions, func(m *ui.Menu) {
 				if m.Item(T.HelperRestart).Disabled(!on || restarting).Chosen() {
 					a.restartHelper()
 				}
 				if m.Item(T.HelperViewLog).Chosen() {
 					a.openHelperLog()
 				}
-			}))
+			})
 		}
 	}
 	cardTipWith(c, T.HelperSection, T.TipHelper, nil, trailing, func() {

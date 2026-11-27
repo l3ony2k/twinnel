@@ -163,7 +163,7 @@ func (a *app) mihomoServiceItems(m *ui.Menu, s status.Snapshot) {
 // Restarting mihomo goes through the helper; the exit node through
 // Tailscale's LocalAPI; the connectivity test reads only.
 func (a *app) recoveryMenu(c *ui.Context, s status.Snapshot) ui.Element {
-	return ui.MenuButton(c.Key("recovery"), i18n.T.Recovery, func(m *ui.Menu) { a.recoveryItems(m, s) })
+	return pushMenu(c.Key("recovery"), i18n.T.Recovery, func(m *ui.Menu) { a.recoveryItems(m, s) })
 }
 
 // recoveryItems are 应急恢复's items (the overview's button, the flyout's
@@ -336,14 +336,14 @@ func (a *app) verdictActions(c *ui.Context, s status.Snapshot) {
 	first, rest := acts[0], acts[1:]
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Margin(4, 0, 0, 0).Children(func() {
 		if first.menu != nil {
-			pushFace(c, ui.MenuButton(c.Key(first.key), first.label, first.menu))
+			pushMenu(c.Key(first.key), first.label, first.menu)
 		} else if pushButton(c.Key(first.key), first.label).Clicked() {
 			first.run()
 		}
 		if len(rest) == 0 {
 			return
 		}
-		pushFace(c, ui.MenuButton(c.Key("banner-more"), i18n.T.SvcMore, func(m *ui.Menu) {
+		pushMenu(c.Key("banner-more"), i18n.T.SvcMore, func(m *ui.Menu) {
 			for _, act := range rest {
 				if act.menu != nil {
 					m.Submenu(act.label, act.menu)
@@ -353,7 +353,7 @@ func (a *app) verdictActions(c *ui.Context, s status.Snapshot) {
 					act.run()
 				}
 			}
-		}))
+		})
 	})
 }
 

@@ -162,7 +162,7 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 			a.helperLock(c, s)
 		})
 		if !a.bannerOffers(s, "recovery") { // never twice on one screen
-			pushFace(c, a.recoveryMenu(c, s))
+			a.recoveryMenu(c, s)
 		}
 	})
 }
@@ -458,14 +458,14 @@ func (a *app) tailscaleCard(c *ui.Context, s status.Snapshot) ui.Element {
 // tailnet's admin console.
 func (a *app) tailscaleMenu(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
-	pushFace(c, ui.MenuButton(c.Key("ts-actions"), T.Actions, func(m *ui.Menu) {
+	pushMenu(c.Key("ts-actions"), T.Actions, func(m *ui.Menu) {
 		if m.Item(T.OvDevices).Chosen() {
 			a.openPage(pageTailscale)
 		}
 		if m.Item(T.OvAdminConsole).Chosen() {
 			_ = mygo.Shell.OpenExternal(tailscaleAdminURL)
 		}
-	}))
+	})
 }
 
 // tailscaleAdminURL is the tailnet's machines page, where a node key is

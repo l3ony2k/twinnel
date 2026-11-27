@@ -1184,7 +1184,7 @@ func (a *app) guardBody(c *ui.Context, s status.Snapshot, w bool) {
 		ui.Text(c, T.GuardGroups).FontSize(plat.calloutSize).TextColor(t.TextMuted).Shrink(0)
 		ui.Spacer(c)
 		cands := guardCandidates(s.Mihomo.Groups, groups)
-		pushFace(c, ui.MenuButton(c.Key("guard-pick"), T.GuardPick, func(m *ui.Menu) {
+		pushMenu(c.Key("guard-pick"), T.GuardPick, func(m *ui.Menu) {
 			if len(cands) == 0 {
 				m.Item(T.GuardNoCandidates).Disabled(true)
 				return
@@ -1199,7 +1199,7 @@ func (a *app) guardBody(c *ui.Context, s status.Snapshot, w bool) {
 					a.setGuardGroups(next)
 				}
 			}
-		})).Disabled(!w)
+		}).Disabled(!w)
 	})
 	if len(groups) == 0 {
 		ui.Text(c, T.GuardNone).TextColor(t.TextMuted)
