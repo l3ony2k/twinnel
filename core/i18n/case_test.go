@@ -25,7 +25,7 @@ var headingKeys = []string{
 // properWords keep their capital inside a sentence.
 var properWords = map[string]bool{
 	"Twinnel": true, "mihomo": true, "Tailscale": true, "TUN": true, "DNS": true, "GEO": true,
-	"MagicDNS": true, "IP": true, "Mac": true, "GitHub": true, "DERP": true, "I": true,
+	"MagicDNS": true, "IP": true, "Mac": true, "PC": true, "GitHub": true, "DERP": true, "I": true,
 }
 
 func TestHeadingsSentenceCase(t *testing.T) {
