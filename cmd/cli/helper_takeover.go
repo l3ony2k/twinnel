@@ -229,7 +229,7 @@ func printAdopt(w io.Writer, r rpc.AdoptResult) {
 }
 
 func runHelperSecure(args []string) error {
-	fs, cf := newFlagSet("helper secure-controller", "usage: twinnel helper secure-controller [--yes]\n\nGenerates a new controller secret, keeps it in the helper's secret store\n(macOS: System keychain) and applies it. Clients of the controller (the web\ndashboard, scripts) then need the new secret.\n\n")
+	fs, cf := newFlagSet("helper secure-controller", "usage: twinnel helper secure-controller [--yes]\n\nGenerates a new controller secret, keeps it in the helper's secret store\nand applies it. Clients of the controller (the web dashboard, scripts) then\nneed the new secret.\n\n")
 	var yes bool
 	fs.BoolVar(&yes, "yes", false, "do not ask for confirmation")
 	if _, done, err := parse(fs, args); done || err != nil {

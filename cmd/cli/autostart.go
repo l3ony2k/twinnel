@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/l3ony2k/twinnel/core/autostart"
+	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/service"
 )
@@ -23,17 +24,29 @@ const autostartUsage = `usage: twinnel autostart [list] [--json]
        twinnel autostart disable [--yes] ID...   turn them off (shows the steps, asks)
        twinnel autostart enable ID...            undo a disable
 
-Lists the scheduled tasks, Run keys, LaunchAgents, login items, systemd
-units and autostart files of other proxy clients (Clash Party, Clash
-Verge, ...): a takeover that only stopped them loses at the next login.
-Entries marked "helper" are turned off by the helper (disabled, never
-deleted); the others say where or how.
+Lists how other proxy clients (Clash Party, Clash Verge, ...) start by
+themselves (%s): a takeover that only stopped them loses at the
+next login. Entries marked "helper" are turned off by the helper
+(disabled, never deleted); the others say where or how.
 
 flags:
 `
 
+// autostartKinds names where other apps start by themselves on the
+// system the help is worded for (core/autostart's sources).
+func autostartKinds() string {
+	if k := byOS(map[string]string{
+		i18n.Darwin:  "LaunchAgents, LaunchDaemons and login items",
+		i18n.Windows: "scheduled tasks and Run keys",
+		i18n.Linux:   "systemd units and autostart files",
+	}); k != "" {
+		return k
+	}
+	return "autostart entries"
+}
+
 func runAutostart(args []string) error {
-	fs, cf := newFlagSet("autostart", autostartUsage)
+	fs, cf := newFlagSet("autostart", fmt.Sprintf(autostartUsage, autostartKinds()))
 	var yes bool
 	fs.BoolVar(&yes, "yes", false, "with disable: do not ask")
 	pos, done, err := parse(fs, args)

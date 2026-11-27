@@ -56,21 +56,32 @@ var (
 
 // ---- uninstall ----
 
-const uninstallUsage = `usage: twinnel helper uninstall [--purge] [--restore-mihomo | --keep-mihomo] [--dry-run] [--yes] [--json]
-
+// uninstallUsage is uninstall's help; the harden options exist where
+// harden does (macOS).
+func uninstallUsage() string {
+	harden := shownOn([]string{"helper", "harden"}, helpOS)
+	u := "usage: twinnel helper uninstall [--purge] [--dry-run] [--yes] [--json]\n"
+	if harden {
+		u = "usage: twinnel helper uninstall [--purge] [--restore-mihomo | --keep-mihomo] [--dry-run] [--yes] [--json]\n"
+	}
+	u += `
 Removes the helper (its service, binary and socket). Lists exactly what goes
 and what stays first.
 
 --purge           also delete Twinnel's data: the state dir (settings,
                   subscriptions, layers, history, logs, backups, kernels)
                   and the stored secrets.
---restore-mihomo  after "twinnel helper harden": move mihomo back to the
+`
+	if harden {
+		u += `--restore-mihomo  after "twinnel helper harden": move mihomo back to the
                   service it ran under before (a few seconds offline),
                   then remove the helper.
 --keep-mihomo     after "twinnel helper harden": leave mihomo running from
                   Twinnel's LaunchDaemon, unmanaged (not with --purge).
-
 `
+	}
+	return u + "\n"
+}
 
 func runHelperUninstall(args []string) error {
 	fs, f := newInstallFlags("helper uninstall", false)
@@ -80,7 +91,7 @@ func runHelperUninstall(args []string) error {
 	fs.BoolVar(&o.RestoreMihomo, "restore-mihomo", false, "after harden: move mihomo back to its original service first")
 	fs.BoolVar(&o.KeepMihomo, "keep-mihomo", false, "after harden: leave mihomo running from Twinnel's LaunchDaemon")
 	fs.BoolVar(&asJSON, "json", false, "with --dry-run: print the plan (or the refusal) as JSON")
-	fs.Usage = func() { fmt.Fprint(fs.Output(), uninstallUsage); fs.PrintDefaults() }
+	setUsage(fs, uninstallUsage())
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
 	}
@@ -465,7 +476,7 @@ func runHelperUpgrade(args []string) error {
 	fs.BoolVar(&check, "check", false, "only compare the versions")
 	fs.BoolVar(&force, "force", false, "install the bundled helper even when it is older")
 	fs.BoolVar(&asJSON, "json", false, "print as JSON: with --check the versions, else the result (OpResult)")
-	fs.Usage = func() { fmt.Fprint(fs.Output(), upgradeUsage); fs.PrintDefaults() }
+	setUsage(fs, upgradeUsage)
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
 	}

@@ -29,11 +29,7 @@ flags:
 `
 
 func runCompose(args []string) error {
-	fs := flag.NewFlagSet("compose", flag.ContinueOnError)
-	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), composeUsage)
-		fs.PrintDefaults()
-	}
+	fs := newFlags("compose", composeUsage)
 	var (
 		sub, base, out, validate, geoDir string
 		tailnetJSON, tsResolver, tsIface string

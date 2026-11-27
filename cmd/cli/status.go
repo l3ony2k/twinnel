@@ -22,7 +22,7 @@ func init() {
 }
 
 func runStatus(args []string) error {
-	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	fs := newFlags("status", "")
 	asJSON := fs.Bool("json", false, "print the snapshot as JSON")
 	controller := fs.String("controller", "", controllerFlagUsage)
 	socket := fs.String("socket", rpc.SocketFromEnv(), "helper socket `PATH` (env TWINNEL_SOCKET)")
