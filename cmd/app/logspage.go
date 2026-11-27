@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -41,6 +42,8 @@ type logsView struct {
 	evCleared uint64
 
 	width float32 // the page's width last frame (the bar's search follows it)
+
+	svc serviceLog // mihomo's service output, shown before the stream (servicelog.go)
 }
 
 func (l *logsView) levelName() string {
@@ -59,9 +62,17 @@ func (a *app) showTwinnelLog() {
 	a.openPage(pageLogs)
 }
 
+// mihomoLogs is 日志 → mihomo's list: the service output, then the stream.
+func (a *app) mihomoLogs() []mihomo.LogEntry {
+	return withServiceLog(a.logs.svc.entries, a.mon.Logs(), a.logs.levelName(), a.logs.svc.cleared)
+}
+
 func (a *app) logsPage(c *ui.Context, barH float32) {
 	a.logs.levelName()
-	entries := a.mon.Logs()
+	if a.logs.source == logsMihomo {
+		a.fetchServiceLog()
+	}
+	entries := a.mihomoLogs()
 	if a.logs.paused {
 		entries = a.logs.frozen
 	}
@@ -166,7 +177,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 				if v.source == logsTwinnel {
 					v.evFrozen = append([]rpc.Event(nil), a.events.evs...)
 				} else {
-					v.frozen = a.mon.Logs()
+					v.frozen = a.mihomoLogs()
 				}
 			}
 			if barIcon(c.Key("clear"), iconClear, T.LogClear).Clicked() {
@@ -178,6 +189,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 				} else {
 					a.mon.ClearLogs()
 					v.frozen = nil
+					v.svc.cleared = time.Now()
 				}
 			}
 		})

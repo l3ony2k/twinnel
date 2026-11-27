@@ -188,6 +188,10 @@ func (h *Helper) register() {
 	typed(h, rpc.MethodHealthEgress, func(rpc.HealthEgressParams) (rpc.HealthReport, error) {
 		return rpc.HealthReport{Report: json.RawMessage(`{"overall":"ok","checks":[{"id":"leak-guard-egress","status":"ok","summary":"egress differs"}]}`), Reason: "egress"}, nil
 	})
+	typed(h, rpc.MethodServiceLog, func(rpc.ServiceLogParams) (rpc.ServiceLog, error) {
+		return rpc.ServiceLog{Name: "mihomo", Files: []rpc.ServiceLogFile{{File: "mihomo.out.log", Lines: []string{
+			`time="2026-01-02T03:04:05Z" level=fatal msg="Parse config error: pull ` + SubURL + `"`}}}}, nil
+	})
 	typed(h, rpc.MethodHealthRun, func(rpc.HealthRunParams) (rpc.HealthReport, error) {
 		return rpc.HealthReport{Report: report, Reason: "agent"}, nil
 	})

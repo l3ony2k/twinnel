@@ -181,6 +181,7 @@ func TestEveryToolRedacts(t *testing.T) {
 	// Errors carry secrets too: a failed sub_put quotes its URL.
 	e.call("sub_put", map[string]any{"id": "x", "url": "https://bad.example.com/" + agenttest.SubToken})
 	e.call("logs", map[string]any{"source": "mihomo"})
+	e.call("logs", map[string]any{"source": "mihomo-output"})
 	for _, uri := range []string{resStatus, resHealth, resConfig} {
 		r, err := e.cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri})
 		if err != nil {

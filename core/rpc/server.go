@@ -25,7 +25,7 @@ var AllMethods = []string{
 	MethodKernelList, MethodKernelCheck, MethodKernelInstall, MethodKernelRollback,
 	MethodTailscaleInfo,
 	MethodServiceStatus, MethodServiceStart, MethodServiceStop, MethodServiceRestart,
-	MethodServiceInstall, MethodServiceUninstall,
+	MethodServiceInstall, MethodServiceUninstall, MethodServiceLog,
 	MethodHealthLast, MethodHealthRun, MethodHealthEgress,
 	MethodConfigGet,
 	MethodConfigExport, MethodConfigImport,
