@@ -132,6 +132,7 @@ A check implements `ID`, `Title`, `Platforms`, `Run(ctx, Env) Result`. `Env` is 
 | `fake-ip-filter-mode` | `'*'` in `fake-ip-filter` is only used with the blacklist mode. |
 | `system-dns` | Every active network service / link resolves through mihomo, or its queries are caught by the TUN's DNS hijack (warn). |
 | `vpn-conflict` | No other VPN is connected, no exit node (unless allowed), and mihomo's TUN holds the default route. |
+| `tun-dataplane` | With mihomo's TUN on, one real TCP handshake to an address routed into the TUN (`1.1.1.1:443`, else a fake-ip), 2.5 s. No answer fails, with ICMP-to-gateway and proxy-port evidence; the fix switches `tun.stack` to gvisor (`docs/tun-dataplane.md`). |
 | `leak-guard` | Sensitive proxy groups (default `Google`, `Meta`) cannot resolve to `DIRECT`. |
 | `leak-guard-egress` | Opt-in. One HTTPS request direct and one through mihomo; the proxied exit IP must differ. Public IPs are masked. With `health_egress` (定期检测) on it runs with every health run; off, it runs only on `health.egress` (检测出口), whose result (with its time, `CheckReport.at`) the helper keeps in `health-egress.json` and puts into later reports for 24 h. |
 | `controller-security` | The mihomo controller listens on loopback only and has a secret. |
