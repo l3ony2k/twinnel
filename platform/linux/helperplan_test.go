@@ -17,7 +17,7 @@ func planText(steps []service.Step) string {
 }
 
 func TestHelperInstallPlan(t *testing.T) {
-	steps, err := HelperInstallPlan("/tmp/build/twinnel-helper", store.DefaultDir, rpc.DefaultSocket, store.DefaultHelperLabel, "sudo", true)
+	steps, err := HelperInstallPlan("/tmp/build/twinnel-helper", store.DefaultDir, rpc.DefaultSocket, store.DefaultHelperLabel, "sudo", true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,8 +41,13 @@ func TestHelperInstallPlan(t *testing.T) {
 		t.Errorf("macOS paths, groupadd or log files in plan:\n%s", out)
 	}
 
-	steps, _ = HelperInstallPlan("/b/twinnel-helper", "/srv/twinnel", rpc.DefaultSocket, "my-helper", "twinnel", false)
+	steps, _ = HelperInstallPlan("/b/twinnel-helper", "/srv/twinnel", rpc.DefaultSocket, "my-helper", "twinnel", false,
+		[]service.Step{AddToGroupStep("alice", "twinnel")})
 	out = planText(steps)
+	// The group first, then the installing user in it.
+	if g, u := strings.Index(out, "groupadd --system twinnel"), strings.Index(out, "usermod -a -G twinnel alice"); g < 0 || u < g {
+		t.Errorf("groupadd then usermod:\n%s", out)
+	}
 	if !strings.Contains(out, "/usr/sbin/groupadd --system twinnel") || !strings.Contains(out, "--state-dir /srv/twinnel") || !strings.Contains(out, "my-helper.service") {
 		t.Errorf("plan:\n%s", out)
 	}

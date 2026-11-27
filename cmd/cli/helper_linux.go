@@ -4,6 +4,8 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/platform/linux"
@@ -16,9 +18,53 @@ var socketGroup = func() (string, bool) { return linux.SocketGroup(nil) }
 // planHelperInstall: the systemd plan from platform/linux (state dir
 // /var/lib/twinnel, binary /usr/local/libexec/twinnel-helper, unit twinnel-helper,
 // socket group sudo, else wheel, else a new "twinnel" group).
+// The plan also puts the person installing (PKEXEC_UID, SUDO_UID, or the
+// user running it) in that group when they are not in it yet: else their
+// app cannot reach the socket (socketAccess).
 func planHelperInstall(helperBin, stateDir, socket, label string) ([]service.Step, error) {
 	group, exists := socketGroup()
-	return linux.HelperInstallPlan(helperBin, stateDir, socket, label, group, exists)
+	access, _ := socketAccess(group)
+	return linux.HelperInstallPlan(helperBin, stateDir, socket, label, group, exists, access)
+}
+
+// Replaceable in tests.
+var (
+	accounts    = linux.SystemAccounts
+	invokingUID = func() (string, bool) { return linux.InvokingUID(os.Getenv, os.Getuid()) }
+)
+
+// socketAccess is the step that adds the invoking user to group, and that
+// user's name; none when they are in it (or there is nobody but root). A
+// failed lookup is printed and adds nothing: the install goes on.
+func socketAccess(group string) ([]service.Step, string) {
+	uid, ok := invokingUID()
+	steps, name, err := linux.SocketAccessSteps(accounts, uid, ok, group)
+	if err != nil {
+		fmt.Fprintf(stdout, "# could not tell whether you are in group %s: %v\n", group, err)
+		return nil, ""
+	}
+	return steps, name
+}
+
+// planSocketAccess is socketAccess for the group the helper uses: what
+// `helper upgrade` runs when the helper itself is current.
+func planSocketAccess() []service.Step {
+	group, _ := socketGroup()
+	steps, _ := socketAccess(group)
+	return steps
+}
+
+// reloginNote tells the person, after steps ran, that they were added to
+// the socket group and must log in again before the app can reach the
+// helper; it reports whether it did.
+func reloginNote(steps []service.Step) bool {
+	for _, st := range steps {
+		if len(st.Argv) == 5 && st.Argv[0] == linux.Usermod {
+			fmt.Fprintf(stdout, "# %s was added to group %s: log out and back in for Twinnel to reach the helper\n", st.Argv[4], st.Argv[3])
+			return true
+		}
+	}
+	return false
 }
 
 func planHelperUninstall(stateDir, socket, label string) ([]service.Step, error) {

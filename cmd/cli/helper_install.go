@@ -141,12 +141,16 @@ func helperInstall(f *installFlags) error {
 	if err != nil {
 		return err
 	}
-	return runPlan("install", f, steps, func() error {
+	err = runPlan("install", f, steps, func() error {
 		if fi, err := os.Stat(f.helperBin); err != nil || fi.IsDir() {
 			return fmt.Errorf("helper binary %s not found (build it with `go build -o %s ./cmd/helper` or pass --helper-bin)", f.helperBin, f.helperBin)
 		}
 		return nil
 	})
+	if err == nil && !f.asRoot && !f.dryRun {
+		reloginNote(steps) // Linux: added to the socket group
+	}
+	return err
 }
 
 // runPlan prints the plan, then runs it as root (directly with --as-root,
