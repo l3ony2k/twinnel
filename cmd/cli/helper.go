@@ -725,7 +725,7 @@ func runTailnet(args []string) error {
 func runService(args []string) error {
 	fs, cf := newFlagSet("service", `usage: twinnel service status mihomo|tailscaled|helper
        twinnel service start|stop|restart mihomo|tailscaled
-       twinnel service install|uninstall mihomo   (LaunchDaemon generated from the helper's settings)
+       twinnel service install|uninstall mihomo   (a system service generated from the helper's settings)
        twinnel service log mihomo|helper [--lines N] [--since 10m|TIME]   (through the helper, redacted)
 
 `)
@@ -847,7 +847,7 @@ func runHelper(args []string) error {
 		return runHelperHarden(args)
 	}
 	fmt.Fprint(os.Stderr, `usage: twinnel helper status [--json]
-       twinnel helper install [--dry-run] [--yes] [flags]   (asks for the administrator password)
+       twinnel helper install [--dry-run] [--yes] [flags]   (asks for administrator approval)
        twinnel helper uninstall [--purge] [--restore-mihomo | --keep-mihomo] [--dry-run] [--yes] [--json]
        twinnel helper upgrade [--check] [--force] [--dry-run] [--yes] [--json]   (the helper next to this Twinnel)
        twinnel helper restart [--yes]

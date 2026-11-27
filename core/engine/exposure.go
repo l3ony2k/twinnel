@@ -34,7 +34,7 @@ func exposureCheck(final []byte, st *store.Settings) (warnings []string, errs []
 			continue
 		}
 		if secret == "" {
-			errs = append(errs, fmt.Sprintf("Twinnel refuses %s: %s listens beyond this Mac and the controller has no secret (anyone on the network could reconfigure the proxy); bind it to 127.0.0.1 or run controller.secure", key, addr))
+			errs = append(errs, fmt.Sprintf("Twinnel refuses %s: %s listens beyond this machine and the controller has no secret (anyone on the network could reconfigure the proxy); bind it to 127.0.0.1 or run controller.secure", key, addr))
 		} else {
 			warnings = append(warnings, fmt.Sprintf("%s: %s is reachable from the network (protected by the secret only)", key, addr))
 		}

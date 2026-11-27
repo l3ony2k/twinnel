@@ -411,7 +411,7 @@ var zhTexts = texts{
 	evSecretSet:    "已设置",
 	evSecretEmpty:  "空",
 	evCtlNoAuth:    "不带密钥的请求被接受",
-	fixCtl:         "external-controller 只绑定 127.0.0.1，并设置随机密钥（由后台助手生成并存入钥匙串）",
+	fixCtl:         "external-controller 只绑定 127.0.0.1，并设置随机密钥（由后台助手生成并保存）",
 }
 
 // textTables maps a language tag (core/i18n's) to its texts.

@@ -68,9 +68,9 @@ func (r *Report) Markdown() string {
 		if c.Controller != "" {
 			fmt.Fprintf(&b, "%s: %s\n\n", otx(L).labelController, c.Controller)
 		}
-		if len(c.Evidence) > 0 {
+		if ev := TidyEvidence(c.Evidence); len(ev) > 0 {
 			fmt.Fprintf(&b, "%s:\n\n```\n", L.labelEvidence)
-			for _, e := range c.Evidence {
+			for _, e := range ev {
 				b.WriteString(e)
 				b.WriteByte('\n')
 			}
@@ -102,7 +102,7 @@ func (r *Report) Text() string {
 		if c.Controller != "" {
 			fmt.Fprintf(&b, "       %s: %s\n", otx(L).labelController, c.Controller)
 		}
-		for _, e := range c.Evidence {
+		for _, e := range TidyEvidence(c.Evidence) {
 			for _, line := range strings.Split(e, "\n") {
 				fmt.Fprintf(&b, "         · %s\n", line)
 			}

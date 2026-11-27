@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/l3ony2k/twinnel/core/foreign"
 	"runtime/debug"
-	"strings"
 	"sync"
 	"time"
 )
@@ -159,7 +158,7 @@ func (r *Runner) Run(ctx context.Context, env Env) *Report {
 					res = notJudged(L, owner, res)
 				}
 			}
-			res.Evidence = dropBlank(res.Evidence)
+			res.Evidence = TidyEvidence(res.Evidence)
 			rep.Checks[i].Result = res
 			rep.Checks[i].Duration = now().Sub(t0)
 		}()
@@ -205,16 +204,4 @@ func runOne(ctx context.Context, c Check, env Env, timeout time.Duration) Result
 	case <-ctx.Done():
 		return Result{Status: StatusWarn, Summary: fmt.Sprintf(L.msgCheckTimeout, timeout), Reasons: []string{ReasonCheckTimeout}}
 	}
-}
-
-// dropBlank leaves out evidence lines with nothing in them: every report
-// (the app, the CLI, the copied text) would print them as a bare "· ".
-func dropBlank(ev []string) []string {
-	var out []string
-	for _, e := range ev {
-		if strings.TrimSpace(e) != "" {
-			out = append(out, e)
-		}
-	}
-	return out
 }

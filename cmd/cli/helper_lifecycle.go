@@ -63,7 +63,7 @@ and what stays first.
 
 --purge           also delete Twinnel's data: the state dir (settings,
                   subscriptions, layers, history, logs, backups, kernels)
-                  and the keychain items.
+                  and the stored secrets.
 --restore-mihomo  after "twinnel helper harden": move mihomo back to the
                   service it ran under before (a few seconds offline),
                   then remove the helper.
@@ -76,7 +76,7 @@ func runHelperUninstall(args []string) error {
 	fs, f := newInstallFlags("helper uninstall", false)
 	var o uninstall.Options
 	var asJSON bool
-	fs.BoolVar(&o.Purge, "purge", false, "also delete Twinnel's data (state dir and keychain items)")
+	fs.BoolVar(&o.Purge, "purge", false, "also delete Twinnel's data (state dir and stored secrets)")
 	fs.BoolVar(&o.RestoreMihomo, "restore-mihomo", false, "after harden: move mihomo back to its original service first")
 	fs.BoolVar(&o.KeepMihomo, "keep-mihomo", false, "after harden: leave mihomo running from Twinnel's LaunchDaemon")
 	fs.BoolVar(&asJSON, "json", false, "with --dry-run: print the plan (or the refusal) as JSON")

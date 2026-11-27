@@ -161,7 +161,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 		}
 		listRow(c).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, T.KernelChannel).TextColor(t.TextMuted).Width(labelWidth).Shrink(0)
+				ui.Text(c, T.KernelChannel).TextColor(t.TextMuted).Width(labelCol()).Shrink(0)
 				if ui.Segmented(c.Key("channel"), &v.channel, T.ChannelStable, T.ChannelAlpha).Changed() {
 					v.release = nil
 				}

@@ -2,51 +2,17 @@ package i18n
 
 import (
 	"reflect"
-	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 )
-
-// macWords are words a Windows user should not meet (root included:
-// Windows says administrator, or SYSTEM for the service account).
-var macWords = regexp.MustCompile(`\bMac\b|macOS|Finder|访达|钥匙串|[Kk]eychain|LaunchDaemon|launchd|程序坞|⌘|⌥|⌃|菜单栏|[Mm]enu bar|管理员密码|administrator password|系统设置|System Settings|废纸篓|Trash|\.app\b|\broot\b`)
-
-// windowsHidden are fields Windows never shows (the Dock and menu bar
-// rows are macOS only, a Mac or Homebrew
-// Tailscale is never detected there, LaunchAgents do not exist).
-var windowsHidden = map[string]bool{
-	".ShowInDock": true, ".DockWhenOpen": true, ".DockAlways": true, ".DockNever": true, ".DockOpen": true,
-	".TraySpeedSwitch": true, ".NotificationsUnsupportedTip": true,
-	".InstallKinds[mac-standalone]": true, ".InstallKinds[mac-appstore]": true,
-	".TSUpdateHints[brew]": true, ".InvLaunchAgent": true, ".ItemLaunchAgent": true,
-	// Unix ownership checks and the launchctl/systemctl step: never on
-	// Windows (its plans are sc.exe steps).
-	".WarningTexts[binary-writable]": true, ".TkEffReplaceableTip": true, ".PlanBootstrap": true,
-}
-
-func TestWindowsWording(t *testing.T) {
-	for _, l := range windowsLangs(t) {
-		walkStrings(reflect.ValueOf(l.S).Elem(), "", func(path, s string) {
-			if macWords.MatchString(s) && !windowsHidden[path[strings.LastIndex(path, "."):]] {
-				t.Errorf("%s %s: %q", l.Tag, path, s)
-			}
-		})
-	}
-}
 
 // windowsLangs are copies of the tables with the Windows wording (the
 // real ones stay this host's).
 func windowsLangs(t *testing.T) []Lang {
 	var out []Lang
 	for _, l := range Langs() {
-		c := *l.S
-		fn := windowsWording[l.Tag]
-		if fn == nil {
-			t.Fatalf("%s: no Windows wording", l.Tag)
-		}
-		fn(&c)
-		out = append(out, Lang{Tag: l.Tag, S: &c})
+		out = append(out, Lang{Tag: l.Tag, S: wordedFor(t, l, Windows)})
 	}
 	return out
 }

@@ -258,7 +258,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 	if reasons {
 		fix = false
 	}
-	expandable := len(cr.Evidence) > 0 || fix || reasons ||
+	expandable := len(health.TidyEvidence(cr.Evidence)) > 0 || fix || reasons ||
 		cr.Summary != "" && cr.Status != health.StatusSkip && cr.Status != health.StatusAccepted ||
 		egress && !off && cr.Summary != ""
 	// A failure keeps its ⊗ shape; before takeover it wears the
@@ -366,10 +366,9 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 				// program's that holds the controller.
 				small(c, i18n.F(T.HealthEvidenceFrom, cr.Controller))
 			}
-			if len(cr.Evidence) > 0 {
-				// Repeated lines fold into one with a count; at most
-				// evidenceShown lines until 显示全部.
-				lines := health.DedupeEvidence(cr.Evidence)
+			// Repeated lines fold into one with a count; at most
+			// evidenceShown lines until 显示全部.
+			if lines := health.DedupeEvidence(cr.Evidence); len(lines) > 0 {
 				all := a.evidenceAll[cr.ID]
 				ui.Column(c).Gap(6).Children(func() {
 					small(c, T.HealthEvidence)

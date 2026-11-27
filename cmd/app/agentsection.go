@@ -373,7 +373,7 @@ func (a *app) agentConnectRow(c *ui.Context) {
 			copyText(c, snip)
 		}
 	})
-	ui.Column(c).PaddingStart(labelWidth + 36).Children(func() {
+	ui.Column(c).PaddingStart(labelCol() + 36).Children(func() {
 		codeBlock(c, agentSnippet(v.client, a.agentCommand()))
 	})
 }

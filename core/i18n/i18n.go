@@ -7,6 +7,8 @@ package i18n
 import (
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Strings is the full set of UI texts. Fields, not map keys, so that a
@@ -862,13 +864,67 @@ var zh = Strings{
 	PlatformStrings:        zhPlatform,
 }
 
-// F formats one of the strings.
+// F formats one of the strings. A Chinese template spaces its slots for
+// Latin values ("%s 被占用"); a value that starts or ends in Chinese
+// ("另一个 mihomo") drops the space on that side, so names read the same
+// whatever language they are in (TestFSpacesNames).
 func F(format string, args ...any) string {
 	if strings.IndexByte(format, '{') >= 0 {
 		format = plurals(format, args)
 	}
-	return fmt.Sprintf(format, args...)
+	wide := false
+	for i, a := range args {
+		if v, ok := a.(string); ok && v != "" && (isWide(firstRune(v)) || isWide(lastRune(v))) {
+			if !wide {
+				args = append([]any(nil), args...)
+				wide = true
+			}
+			args[i] = slotMark + v + slotMark
+		}
+	}
+	out := fmt.Sprintf(format, args...)
+	if wide {
+		out = tidySlots(out)
+	}
+	return out
 }
+
+// slotMark brackets a Chinese value while F formats; tidySlots removes it.
+const slotMark = "\x00"
+
+// tidySlots drops a template's space between a Chinese value and Chinese
+// text (or full-width punctuation) next to it, then the marks.
+func tidySlots(s string) string {
+	r := []rune(s)
+	var b strings.Builder
+	in := false // inside a marked value
+	for i := 0; i < len(r); i++ {
+		if r[i] == 0 {
+			in = !in
+			continue
+		}
+		if r[i] == ' ' {
+			// A space just before an opening mark or just after a closing
+			// one, between two wide runes, goes.
+			if !in && i+1 < len(r) && r[i+1] == 0 && i > 0 && isWide(r[i-1]) && i+2 < len(r) && isWide(r[i+2]) {
+				continue
+			}
+			if !in && i > 0 && r[i-1] == 0 && i > 1 && isWide(r[i-2]) && i+1 < len(r) && isWide(r[i+1]) {
+				continue
+			}
+		}
+		b.WriteRune(r[i])
+	}
+	return b.String()
+}
+
+// isWide: a Han character or full-width punctuation.
+func isWide(r rune) bool {
+	return unicode.Is(unicode.Han, r) || r >= 0x3000 && r <= 0x303F || r >= 0xFF00 && r <= 0xFFEF
+}
+
+func firstRune(s string) rune { r, _ := utf8.DecodeRuneInString(s); return r }
+func lastRune(s string) rune  { r, _ := utf8.DecodeLastRuneInString(s); return r }
 
 // plurals picks the form of each {one|other} group ({s} is {|s}) by the
 // number of the closest %d before it: "%d issue{s} found". English needs
