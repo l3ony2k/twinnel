@@ -28,6 +28,7 @@ type AboutStrings struct {
 	// 入门.
 	GettingStarted                                        string
 	StepHelper, StepSetup, StepHealth, StepDaily          string
+	StepInstall, HelperInstalledTitle, NavBack            string
 	FAQ                                                   string
 	FAQVPNQ, FAQVPNA, FAQReadOnlyQ, FAQReadOnlyA          string
 	FAQRollbackQ, FAQRollbackA, FAQQuitQ, FAQQuitA        string
@@ -55,11 +56,14 @@ var zhAbout = AboutStrings{
 	CompCLI:    "命令行工具",
 	CompHelper: "后台助手",
 
-	GettingStarted: "入门",
-	StepHelper:     "安装后台助手",
-	StepSetup:      "接管现有配置，或添加订阅",
-	StepHealth:     "检查健康状态",
-	StepDaily:      "日常使用：切换节点、查看 Tailscale 设备",
+	GettingStarted:       "入门",
+	StepHelper:           "安装后台助手",
+	StepSetup:            "接管现有配置，或添加订阅",
+	StepHealth:           "检查健康状态",
+	StepDaily:            "日常使用：切换节点、查看 Tailscale 设备",
+	StepInstall:          "安装",
+	HelperInstalledTitle: "后台助手已安装",
+	NavBack:              "返回",
 
 	FAQ:          "常见问题",
 	FAQVPNQ:      "为什么 duet 不占用系统 VPN 通道？",

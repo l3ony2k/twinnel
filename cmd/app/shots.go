@@ -56,6 +56,11 @@ func (a *app) shots(dir string) {
 			mygo.App.Quit()
 			return
 		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "install" { // shots_about.go
+			a.installShots(save)
+			mygo.App.Quit()
+			return
+		}
 		if os.Getenv("DUET_SHOTS_FLOW") == "about" { // shots_about.go
 			a.aboutShots(save)
 			mygo.App.Quit()

@@ -30,6 +30,9 @@ const (
 	pageTakeover  = "takeover"
 	pageSettings  = "settings"
 	pageAbout     = "about"
+	// pageInstall has no sidebar row: 关于 → 入门 opens it, and the
+	// sidebar keeps 关于 selected while it shows (navParent).
+	pageInstall = "install"
 )
 
 func (a *app) mainView(c *ui.Context) {
@@ -40,6 +43,9 @@ func (a *app) mainView(c *ui.Context) {
 		return
 	}
 	a.flushToast(c)
+	if back := pageBack(a.page); back != "" { // ⌘[ as in Finder and System Settings
+		c.OnWindowShortcut(ui.Cmd, ui.KeyBracketLeft, func() { a.showPage(back) })
+	}
 	s := a.mon.Snapshot()
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
@@ -86,6 +92,7 @@ func (a *app) mainView(c *ui.Context) {
 type toolbarSpec struct {
 	title    string
 	trailing func()
+	back     func() // a sub-page's way back: a ‹ button before the title (and ⌘[)
 }
 
 // pageBar is what the current page puts in the toolbar (pageHeader);
@@ -120,6 +127,18 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 			row.MaxWidth(inner)
 		}
 		row.Children(func() {
+			if spec.back != nil {
+				back := spec.back
+				toolbarActions(c, func() {
+					b := pushButton(c.Key("back"), "").Label(i18n.T.NavBack).Tooltip(i18n.T.NavBack)
+					b.Children(func() {
+						ui.Icon(c, iconCollapsed).FontSize(iconInline).Rotate(180)
+					})
+					if b.Clicked() {
+						back()
+					}
+				})
+			}
 			ui.Text(c, spec.title).FontSize(plat.titleBarSize).FontWeight(plat.titleBarWeight).SingleLine().Shrink(1)
 			ui.Spacer(c)
 			if spec.trailing != nil {
@@ -179,6 +198,8 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 		a.takeoverPage(c, s)
 	case pageAbout:
 		a.aboutPage(c, s)
+	case pageInstall:
+		a.installPage(c, s)
 	}
 }
 
@@ -213,7 +234,11 @@ func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 			active = *a.shotNav.active
 		}
 		ui.Scroll(c).Grow(1).Children(func() {
-			if navList(c, &a.page, sections, active, a.shotNav.hover) {
+			// A sub-page keeps its parent's row selected; a click on that
+			// row goes back to it.
+			sel := navParent(a.page)
+			if navList(c, &sel, sections, active, a.shotNav.hover, sel != a.page) {
+				a.page = sel
 				a.pageChanged(old)
 			}
 		})
