@@ -22,6 +22,7 @@ type AgentStrings struct {
 	AgentCLIRemoved   string // toast
 	AgentCLIFailed    string // failedRow: what did not work
 	AgentCLIForeign   string // %s: a path that is not Twinnel's link
+	AgentCLIOnPath    string // %s: the folder put on PATH (toast, Windows)
 
 	// Client snippets.
 	AgentConnect     string // the row label
@@ -58,6 +59,7 @@ var zhAgent = AgentStrings{
 	AgentCLIRemoved:   "已移除命令行工具",
 	AgentCLIFailed:    "没能安装命令行工具",
 	AgentCLIForeign:   "%s 已被其他程序占用",
+	AgentCLIOnPath:    "已把 %s 加入 PATH，新打开的终端可以用 twinnel",
 
 	AgentConnect:     "连接",
 	AgentCopy:        "复制",
@@ -94,6 +96,7 @@ var enAgent = AgentStrings{
 	AgentCLIRemoved:   "Command line tool removed",
 	AgentCLIFailed:    "Couldn't install the command line tool",
 	AgentCLIForeign:   "%s is taken by another program",
+	AgentCLIOnPath:    "Added %s to PATH; new terminals can run twinnel",
 
 	AgentConnect:     "Connect",
 	AgentCopy:        "Copy",

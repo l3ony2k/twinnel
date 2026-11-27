@@ -41,6 +41,11 @@ type agentView struct {
 	cliBusy bool
 	cliErr  string
 
+	// Windows (clipath.go): whether the CLI's folder is on the user's PATH.
+	pathRead bool
+	onPath   bool
+	binDir   string
+
 	shotLinks []string // shot mode: the installed links (no file system reads)
 }
 
@@ -313,7 +318,8 @@ func (a *app) agentSection(c *ui.Context, s status.Snapshot) {
 func (a *app) agentCLIRow(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	v := &a.agent
-	if !plat.cliLink { // Windows: install.ps1 puts bin\ on PATH
+	if !plat.cliLink { // Windows: bin\ on the user's PATH instead of a link
+		a.agentCLIPathRow(c, s)
 		return
 	}
 	links := a.cliLinks()
