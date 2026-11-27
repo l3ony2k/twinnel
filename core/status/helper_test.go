@@ -229,7 +229,9 @@ func TestHelperConnResolveFollowsSocket(t *testing.T) {
 	defer cancel()
 	_, stopOld := fakeHelper(t, oldSock, rpc.AllowAll{})
 	go hc.Run(ctx)
-	rec.waitFor(t, "connected to the old socket", func() bool { return len(rec.states) > 0 && rec.last().State == HelperConnected && rec.last().Socket == oldSock })
+	rec.waitFor(t, "connected to the old socket", func() bool {
+		return len(rec.states) > 0 && rec.last().State == HelperConnected && rec.last().Socket == oldSock
+	})
 
 	stopOld()
 	os.Remove(oldSock)
@@ -238,5 +240,7 @@ func TestHelperConnResolveFollowsSocket(t *testing.T) {
 	cur = newSock
 	mu.Unlock()
 	hc.Retry()
-	rec.waitFor(t, "connected to the new socket", func() bool { return len(rec.states) > 0 && rec.last().State == HelperConnected && rec.last().Socket == newSock })
+	rec.waitFor(t, "connected to the new socket", func() bool {
+		return len(rec.states) > 0 && rec.last().State == HelperConnected && rec.last().Socket == newSock
+	})
 }
