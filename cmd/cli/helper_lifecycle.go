@@ -467,13 +467,65 @@ func runHelperUpgrade(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := runPlan("upgrade", f, steps, nil); err != nil {
+	if err := runVerified("upgrade", f, steps, c.Bundled); err != nil {
 		return err
 	}
 	if f.asRoot || f.dryRun {
-		return nil // the outer copy (the one the person runs) verifies
+		return nil
 	}
+	// The elevated copy verified already; this one sees the same socket
+	// and confirms (quickly) for the person who ran it.
 	return verifyHelper(ctx, f.socket, c.Bundled, 0)
+}
+
+// runVerified is runPlan for the steps that restart the helper: as root,
+// after the steps (or after they fail), it waits for the helper to answer
+// with version want ("" any) and, when it does not, starts its service
+// again (planHelperRestart: kickstart when loaded, bootstrap when not)
+// and waits once more. A helper left unloaded is the one failure the
+// person cannot fix from the app without a password, so root fixes it
+// here.
+func runVerified(op string, f *installFlags, steps []service.Step, want string) error {
+	return runAsRoot(op, f, func(w io.Writer) { service.FormatPlan(w, steps) }, func(ctx context.Context) error {
+		applyErr := applyPlan(ctx, steps)
+		var verifyErr error
+		if applyErr == nil {
+			if verifyErr = verifyHelper(ctx, f.socket, want, 0); verifyErr == nil {
+				return nil
+			}
+			fmt.Fprintf(stdout, "# the helper does not answer (%v); starting its service again\n", verifyErr)
+		} else {
+			fmt.Fprintf(stdout, "# %v; starting the helper's service again\n", applyErr)
+		}
+		recErr := recoverHelper(ctx, f, want)
+		switch {
+		case recErr == nil && applyErr == nil:
+			return nil
+		case recErr == nil:
+			fmt.Fprintln(stdout, "# the helper runs again after the failed step")
+			return nil
+		case applyErr != nil:
+			return fmt.Errorf("%w; starting it again failed too: %v", applyErr, recErr)
+		default:
+			return fmt.Errorf("%v; starting it again failed too: %v", verifyErr, recErr)
+		}
+	}, nil)
+}
+
+// recoverHelper starts the helper's service again (as root) and waits
+// for it to answer.
+func recoverHelper(ctx context.Context, f *installFlags, want string) error {
+	steps, err := planHelperRestart(f.label)
+	if err != nil {
+		return err
+	}
+	for _, s := range steps {
+		fmt.Fprintf(stdout, "#   %s\n", s)
+	}
+	if err := applyPlan(ctx, steps); err != nil {
+		return err
+	}
+	return verifyHelper(ctx, f.socket, want, 0)
 }
 
 // checkUpgrade compares the bundled helper with the installed one and the
@@ -611,7 +663,7 @@ func runHelperRestart(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := runPlan("restart", f, steps, nil); err != nil {
+	if err := runVerified("restart", f, steps, ""); err != nil {
 		return err
 	}
 	if f.asRoot || f.dryRun {

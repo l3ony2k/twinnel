@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/l3ony2k/duet/core/service"
 )
@@ -181,11 +182,14 @@ func (l *Launchd) Plan(op service.Op, s service.Spec) ([]service.Step, error) {
 		steps = dedupeMkdir(steps)
 		return append(steps,
 			run(true, "bootout", target), // replace a loaded older definition
+			// bootout returns before launchd has let go of the label; a
+			// bootstrap right after it fails (5, 37) or is undone.
+			l.waitUnloaded(s.Label),
 			service.Step{Kind: service.StepWrite, Path: path, Mode: 0o644, Content: plist},
 			// enable first: launchd refuses to bootstrap a label that was
 			// disabled earlier (`launchctl disable`, e.g. by harden).
 			run(false, "enable", target),
-			run(false, "bootstrap", "system", path),
+			l.bootstrap(path),
 		), nil
 	case service.OpUninstall:
 		return []service.Step{
@@ -211,6 +215,60 @@ func (l *Launchd) Plan(op service.Op, s service.Spec) ([]service.Step, error) {
 		return []service.Step{run(false, "enable", target)}, nil
 	}
 	return nil, fmt.Errorf("unknown operation %q", op)
+}
+
+// notFound is what `launchctl print` says about a label launchd does not
+// know.
+const notFound = "Could not find service"
+
+// BootstrapRetryOn are the bootstrap errors that mean "launchd is not done
+// with the previous instance yet": 5 (Input/output error) and 37
+// (Operation already in progress).
+var BootstrapRetryOn = []string{"exit status 5", "exit status 37", ": 5: ", ": 37: "}
+
+// bootstrap loads path, again on the transient errors.
+func (l *Launchd) bootstrap(path string) service.Step {
+	return service.Step{Kind: service.StepRun, Argv: []string{l.launchctl(), "bootstrap", "system", path},
+		Retry: 4, RetryOn: BootstrapRetryOn, RetryBackoff: 500 * time.Millisecond}
+}
+
+// waitUnloaded waits (up to 10 s) until launchd no longer knows label. A
+// timeout is not fatal: the bootstrap after it retries and fails loudly.
+func (l *Launchd) waitUnloaded(label string) service.Step {
+	return service.Step{Kind: service.StepWait, Argv: []string{l.launchctl(), "print", "system/" + label},
+		Until: notFound, Timeout: 10 * time.Second, IgnoreError: true}
+}
+
+// PlanReload installs spec over a possibly running instance. When the
+// service is loaded and its installed definition (current) is the one
+// spec renders, only the program changed: launchd restarts it in place
+// (kickstart -k), with no bootout/bootstrap. Otherwise the full install
+// plan runs (unload, wait, write, enable, load).
+func (l *Launchd) PlanReload(s service.Spec, current []byte, loaded bool) ([]service.Step, error) {
+	plist, err := l.Render(s)
+	if err != nil {
+		return nil, err
+	}
+	if loaded && bytes.Equal(plist, current) {
+		return []service.Step{{Kind: service.StepRun, Argv: []string{l.launchctl(), "kickstart", "-k", "system/" + s.Label}}}, nil
+	}
+	return l.Plan(service.OpInstall, s)
+}
+
+// PlanStartOrRestart restarts a loaded service (kickstart -k) and loads
+// one that is installed but not loaded (enable, bootstrap): a stopped
+// LaunchDaemon cannot be kickstarted.
+func (l *Launchd) PlanStartOrRestart(label string, loaded bool) ([]service.Step, error) {
+	if err := checkLabel(label); err != nil {
+		return nil, err
+	}
+	if loaded {
+		return l.Plan(service.OpRestart, service.Spec{Label: label})
+	}
+	return []service.Step{
+		{Kind: service.StepRun, Argv: []string{l.launchctl(), "enable", "system/" + label}},
+		l.bootstrap(l.DefinitionPath(label)),
+	}, nil
 }
 
 func dedupeMkdir(steps []service.Step) []service.Step {
@@ -246,7 +304,7 @@ func (l *Launchd) Status(ctx context.Context, label string) (service.Status, err
 	}
 	out, err := ex.Run(ctx, []string{l.launchctl(), "print", "system/" + label})
 	if err != nil {
-		if bytes.Contains(out, []byte("Could not find service")) {
+		if bytes.Contains(out, []byte(notFound)) {
 			return st, nil
 		}
 		return st, fmt.Errorf("launchctl print: %w: %s", err, strings.TrimSpace(string(out)))

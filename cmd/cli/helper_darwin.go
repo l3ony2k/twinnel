@@ -3,7 +3,10 @@
 package main
 
 import (
+	"context"
+	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/l3ony2k/duet/core/service"
 	"github.com/l3ony2k/duet/platform/darwin/keychain"
@@ -14,7 +17,10 @@ import (
 const helperInstallDir = "/Library/PrivilegedHelperTools"
 
 // planHelperInstall lists what installing the helper does on macOS: copy
-// the binary, create the state dir, write and load the LaunchDaemon.
+// the binary, create the state dir, write and load the LaunchDaemon. Over
+// a loaded helper whose plist does not change (an upgrade that only
+// replaces the binary), launchd restarts it in place instead (kickstart
+// -k): no bootout/bootstrap, so nothing can leave it unloaded.
 func planHelperInstall(helperBin, stateDir, socket, label string) ([]service.Step, error) {
 	l := launchd.New()
 	dst := filepath.Join(helperInstallDir, label)
@@ -26,7 +32,8 @@ func planHelperInstall(helperBin, stateDir, socket, label string) ([]service.Ste
 		{Kind: service.StepMkdir, Path: stateDir, Mode: 0o755},
 		{Kind: service.StepMkdir, Path: filepath.Dir(socket), Mode: 0o755},
 	}
-	svc, err := l.Plan(service.OpInstall, spec)
+	loaded, current, _ := helperServiceState(label) // unknown: the full plan
+	svc, err := l.PlanReload(spec, current, loaded)
 	if err != nil {
 		return nil, err
 	}
@@ -54,9 +61,26 @@ func helperPaths(stateDir, label string) (bin, def string) {
 // serviceDefinition is where a system service's plist lives.
 func serviceDefinition(label string) string { return launchd.New().DefinitionPath(label) }
 
-// planHelperRestart restarts only the helper's LaunchDaemon.
+// planHelperRestart restarts only the helper's LaunchDaemon, and loads it
+// when it is installed but not loaded (kickstart cannot start an unloaded
+// service).
 func planHelperRestart(label string) ([]service.Step, error) {
-	return launchd.New().Plan(service.OpRestart, service.Spec{Label: label})
+	loaded, _, err := helperServiceState(label)
+	if err != nil {
+		loaded = true // launchctl print failed oddly: try the restart
+	}
+	return launchd.New().PlanStartOrRestart(label, loaded)
+}
+
+// readServiceState asks launchd whether label is loaded (launchctl print,
+// a read) and reads its installed plist (nil when missing).
+func readServiceState(label string) (loaded bool, def []byte, err error) {
+	l := launchd.New()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	st, err := l.Status(ctx, label)
+	def, _ = os.ReadFile(l.DefinitionPath(label))
+	return st.Loaded, def, err
 }
 
 // secretStore: the installed helper keeps secrets in the System keychain.

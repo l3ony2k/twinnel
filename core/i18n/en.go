@@ -505,6 +505,8 @@ var en = Strings{
 	PlanBootstrap:     "Load the service: the helper starts as root",
 	PlanEnable:        "Start at boot",
 	PlanDaemonReload:  "Have systemd reread the service definitions",
+	PlanWaitStopped:   "Wait until the old helper has stopped",
+	PlanKickstart:     "Restart the helper",
 	CLINotFound:       "Can't find the duet command line tool (set DUET_CLI to point to it)",
 
 	JustNow:    "just now",

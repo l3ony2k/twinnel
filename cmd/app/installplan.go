@@ -65,9 +65,14 @@ func describeStep(cmd string) string {
 	case planRemove.MatchString(bare):
 		return i18n.F(T.PlanRemove, unquote(planRemove.FindStringSubmatch(bare)[1]))
 	}
+	if strings.HasPrefix(bare, "wait until `") && strings.Contains(bare, "launchctl print") {
+		return T.PlanWaitStopped
+	}
 	f := strings.Fields(bare)
 	if len(f) >= 3 && strings.HasSuffix(f[0], "launchctl") {
 		switch f[1] {
+		case "kickstart":
+			return T.PlanKickstart
 		case "bootout":
 			return T.PlanBootout
 		case "bootstrap":

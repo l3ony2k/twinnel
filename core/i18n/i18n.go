@@ -222,6 +222,7 @@ type Strings struct {
 	OnboardSteps, OnboardShowFile, OnboardHideFile                            string
 	PlanMkdir, PlanCopy, PlanWrite, PlanRemove                                string // %s: path
 	PlanBootout, PlanBootstrap, PlanEnable, PlanDaemonReload                  string
+	PlanWaitStopped, PlanKickstart                                            string
 
 	// Units and time.
 	JustNow, SecondsAgo, MinutesAgo, HoursAgo, DaysAgo string // %d
@@ -759,6 +760,8 @@ var zh = Strings{
 	PlanBootstrap:     "加载服务：后台助手以 root 启动",
 	PlanEnable:        "设为开机自动启动",
 	PlanDaemonReload:  "让 systemd 重新读取服务定义",
+	PlanWaitStopped:   "等旧的后台助手完全停下",
+	PlanKickstart:     "重新启动后台助手",
 	CLINotFound:       "找不到 duet 命令行工具（可用 DUET_CLI 指定）",
 
 	JustNow:    "刚刚",
