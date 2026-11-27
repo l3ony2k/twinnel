@@ -1,0 +1,4 @@
+# Developer services through the proxy (synthetic).
++rules:
+  - DOMAIN-SUFFIX,github.com,PROXY
+  - DOMAIN-SUFFIX,npmjs.org,PROXY

@@ -1,0 +1,34 @@
+# Synthetic subscription for the README screenshots (scripts/readme-shots.sh).
+# Invented node names, documentation addresses (RFC 5737), no real server or credential.
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+proxies:
+  - {name: "香港 01", type: trojan, server: 198.51.100.11, port: 443, password: example, sni: example.com}
+  - {name: "香港 02", type: trojan, server: 198.51.100.12, port: 443, password: example, sni: example.com}
+  - {name: "香港 03 IPLC", type: ss, server: 198.51.100.13, port: 8388, cipher: aes-128-gcm, password: example}
+  - {name: "日本 东京 01", type: vless, server: 198.51.100.14, port: 443, uuid: 00000000-0000-4000-8000-000000000000, tls: true, servername: example.com}
+  - {name: "日本 大阪 02", type: vless, server: 198.51.100.15, port: 443, uuid: 00000000-0000-4000-8000-000000000000, tls: true, servername: example.com}
+  - {name: "新加坡 01", type: trojan, server: 198.51.100.16, port: 443, password: example, sni: example.com}
+  - {name: "新加坡 02", type: trojan, server: 198.51.100.17, port: 443, password: example, sni: example.com}
+  - {name: "美国 洛杉矶 01", type: hysteria2, server: 198.51.100.18, port: 443, password: example, sni: example.com}
+  - {name: "美国 圣何塞 02", type: hysteria2, server: 198.51.100.19, port: 443, password: example, sni: example.com}
+  - {name: "台湾 01", type: ss, server: 198.51.100.20, port: 8388, cipher: aes-128-gcm, password: example}
+  - {name: "英国 伦敦 01", type: vless, server: 198.51.100.21, port: 443, uuid: 00000000-0000-4000-8000-000000000000, tls: true, servername: example.com}
+  - {name: "德国 法兰克福", type: vless, server: 198.51.100.22, port: 443, uuid: 00000000-0000-4000-8000-000000000000, tls: true, servername: example.com}
+proxy-groups:
+  - {name: PROXY, type: select, proxies: ["自动选择", "香港", "香港 01", "香港 02", "香港 03 IPLC", "日本 东京 01", "日本 大阪 02", "新加坡 01", "新加坡 02", "美国 洛杉矶 01", "美国 圣何塞 02", "台湾 01", "英国 伦敦 01", "德国 法兰克福"]}
+  - {name: "自动选择", type: url-test, url: "https://www.gstatic.com/generate_204", interval: 300, proxies: ["香港 01", "香港 02", "香港 03 IPLC", "日本 东京 01", "日本 大阪 02", "新加坡 01", "新加坡 02", "美国 洛杉矶 01", "美国 圣何塞 02", "台湾 01", "英国 伦敦 01", "德国 法兰克福"]}
+  - {name: "香港", type: url-test, url: "https://www.gstatic.com/generate_204", interval: 300, proxies: ["香港 01", "香港 02", "香港 03 IPLC"]}
+  - {name: OpenAI, type: select, proxies: ["美国 洛杉矶 01", "美国 圣何塞 02", "日本 东京 01", "PROXY"]}
+  - {name: Apple, type: select, proxies: ["DIRECT", "PROXY", "香港"]}
+  - {name: Telegram, type: select, proxies: ["新加坡 01", "新加坡 02", "PROXY"]}
+  - {name: "漏网之鱼", type: select, proxies: [PROXY, DIRECT]}
+rules:
+  - DOMAIN-SUFFIX,openai.com,OpenAI
+  - DOMAIN-SUFFIX,apple.com,Apple
+  - DOMAIN-SUFFIX,telegram.org,Telegram
+  - GEOSITE,cn,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,漏网之鱼

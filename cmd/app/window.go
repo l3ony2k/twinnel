@@ -1109,14 +1109,24 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 	// 通用 (login, notifications, language), 菜单栏, mihomo, 后台助手 and
 	// 停止使用 duet. Every row is the label, then its control at the
 	// card's right edge (R-unslop-5).
-	a.generalCard(c)
-	if plat.trayTitle {
+	// Shots can show one card alone (shotSection: general, menubar,
+	// mihomo, agent, helper).
+	if a.section("general") {
+		a.generalCard(c)
+	}
+	if plat.trayTitle && a.section("menubar") {
 		a.menuBarCard(c)
 	}
-	a.mihomoSettingsCard(c, s)
-	a.agentSection(c, s) // agentsection.go
+	if a.section("mihomo") {
+		a.mihomoSettingsCard(c, s)
+	}
+	if a.section("agent") {
+		a.agentSection(c, s) // agentsection.go
+	}
 	a.refreshHelperMgmt(s)
-	a.helperSection(c, s)
+	if a.section("helper") {
+		a.helperSection(c, s)
+	}
 }
 
 // settingsFieldW is the width of a 设置 text field or pop-up: an address

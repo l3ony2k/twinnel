@@ -13,6 +13,26 @@ It is a manager for the cores you already trust. It is **not** another Clash cli
 
 > **Status: early development.** macOS (arm64) is the first platform. On Linux the CLI, the health checks, the takeover planner and the helper (with systemd units) are wired up but have only been tested with fixtures, not on a real Linux host yet. Windows builds but has no platform layer. Interfaces and file formats may change.
 
+## Screenshots
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/en/overview-dark.png">
+  <img src="docs/images/en/overview-light.png" alt="duet's overview: the exit node with its delay and egress IP, connections, memory, online devices and live traffic" width="880">
+</picture>
+
+| | |
+|---|---|
+| <img src="docs/images/en/proxies-light.png" alt="Proxy groups" width="420"><br>Proxy groups, with delays | <img src="docs/images/en/tailscale-light.png" alt="Tailscale devices" width="420"><br>Tailscale devices |
+| <img src="docs/images/en/health-light.png" alt="Health checks, all passing" width="420"><br>Coexistence health checks | <img src="docs/images/en/health-warn-light.png" alt="A health check with a warning" width="420"><br>A warning, with its evidence and fix |
+| <img src="docs/images/en/config-preview-light.png" alt="Subscriptions and overrides: a pending change previewed" width="420"><br>Override layers: a pending change, previewed | <img src="docs/images/en/history-light.png" alt="History: an entry compared with the current config" width="420"><br>History, compared with the current config |
+| <img src="docs/images/en/settings-agent-light.png" alt="Settings: local agents (MCP)" width="420"><br>Local agents over MCP | <img src="docs/images/en/flyout-light.png" alt="The menu bar panel" width="340"><br>The menu bar panel |
+
+The menu bar icon is monochrome; its states differ by shape (all OK, warning, error, unknown, Tailscale down, direct/global mode, no helper):
+
+<img src="docs/images/tray-states.png" alt="Menu bar icon states" width="504">
+
+All screenshots use synthetic data (`scripts/readme-shots.sh`).
+
 ## What works today
 
 | Area | State |
@@ -25,7 +45,7 @@ It is a manager for the cores you already trust. It is **not** another Clash cli
 | Health checks inside the helper: on a timer, after applies and service operations, and on network changes (macOS); `duet helper health` | macOS, Linux (no network-change trigger on Linux yet) |
 | Service control over RPC: start / stop / restart mihomo and tailscaled, install / uninstall the mihomo service | macOS (launchd), Linux (systemd); without root the helper only reports the plan |
 | `duet helper install` / `uninstall` / `upgrade` / `restart`: prints the plan (uninstall: what goes and what stays; `--purge` also deletes duet's data), then runs it as root. Uninstall never leaves mihomo without its service: after `harden` it moves mihomo back first (`--restore-mihomo`) | macOS: one administrator password dialog; Linux: run it with `sudo` (`--dry-run` needs no root). Not yet run on a real machine. |
-| Menu bar app: monochrome status icon whose states differ by shape only (badge, broken ring, glyph), and a panel; main window with overview, proxy groups, Tailscale devices, health, logs, settings, and, through the helper, subscriptions and overrides, history, kernels; a first-run view while the helper is not installed | macOS; a control is enabled when what it acts on can act (mihomo's controller, Tailscale's LocalAPI, the helper); `DUET_READ_ONLY=1` turns every write off for development and test runs |
+| Menu bar app: monochrome status icon whose states differ by shape only (badge, broken ring, glyph), and a panel; main window with overview (the exit node's delay and, on request, the egress IP), proxy groups, Tailscale devices, health, logs, settings (login item, Dock icon, language: English or Chinese, local agents over MCP), and, through the helper, subscriptions and overrides, history, kernels, takeover; a first-run view while the helper is not installed | macOS; a control is enabled when what it acts on can act (mihomo's controller, Tailscale's LocalAPI, the helper); `DUET_READ_ONLY=1` turns every write off for development and test runs |
 | Secrets (controller secret, subscription URLs) | macOS: System keychain when the helper runs as root; Linux and development helpers: a 0600 `secrets.json` in the state dir (Secret Service later) |
 
 ## Install from source

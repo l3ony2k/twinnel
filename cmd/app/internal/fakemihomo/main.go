@@ -58,6 +58,49 @@ var nodes = []struct {
 	{"台湾 01", "Shadowsocks", 63}, {"英国 伦敦 01", "Vless", 231}, {"德国 法兰克福", "Vless", 0},
 }
 
+// enNames renames the synthetic nodes and groups for --lang en (English
+// screenshots, the README's).
+var enNames = map[string]string{
+	"香港 01": "Hong Kong 01", "香港 02": "Hong Kong 02", "香港 03 IPLC": "Hong Kong 03 IPLC",
+	"日本 东京 01": "Tokyo 01", "日本 大阪 02": "Osaka 02", "新加坡 01": "Singapore 01", "新加坡 02": "Singapore 02",
+	"美国 洛杉矶 01": "US West 01", "美国 圣何塞 02": "US West 02", "台湾 01": "Taipei 01",
+	"英国 伦敦 01": "London 01", "德国 法兰克福": "Frankfurt 01",
+	"自动选择": "Auto", "香港": "Hong Kong", "漏网之鱼": "Final",
+}
+
+// useEnglish switches every synthetic name to its English one.
+func useEnglish() {
+	for i := range nodes {
+		nodes[i].name = enName(nodes[i].name)
+	}
+	for i := range logLines {
+		m := logLines[i].msg
+		for zh, en := range enNames {
+			m = strings.ReplaceAll(m, zh+"]", en+"]")
+			m = strings.ReplaceAll(m, "dial "+zh+" ", "dial "+en+" ")
+		}
+		logLines[i].msg = m
+	}
+	english = true
+}
+
+var english bool
+
+func enName(s string) string {
+	if e, ok := enNames[s]; ok {
+		return e
+	}
+	return s
+}
+
+// n is a synthetic name in the run's language.
+func n(s string) string {
+	if english {
+		return enName(s)
+	}
+	return s
+}
+
 func newServer() *server {
 	s := &server{proxies: map[string]*proxy{}, mode: "rule", tun: true, start: time.Now()}
 	now := time.Now()
@@ -73,15 +116,15 @@ func newServer() *server {
 	group := func(name, typ, now string, all []string) {
 		s.proxies[name] = &proxy{Name: name, Type: typ, Alive: true, UDP: true, Now: now, All: all}
 	}
-	hk := []string{"香港 01", "香港 02", "香港 03 IPLC"}
-	group("自动选择", "URLTest", "香港 03 IPLC", names)
-	group("香港", "URLTest", "香港 01", hk)
-	group("PROXY", "Selector", "自动选择", append(append([]string{"自动选择", "香港", "DIRECT"}, names...), "REJECT"))
-	group("OpenAI", "Selector", "美国 洛杉矶 01", []string{"美国 洛杉矶 01", "美国 圣何塞 02", "日本 东京 01", "PROXY"})
-	group("Apple", "Selector", "DIRECT", []string{"DIRECT", "PROXY", "香港"})
-	group("Telegram", "Selector", "新加坡 01", []string{"新加坡 01", "新加坡 02", "PROXY"})
-	group("漏网之鱼", "Selector", "PROXY", []string{"PROXY", "DIRECT"})
-	order := []string{"PROXY", "自动选择", "香港", "OpenAI", "Apple", "Telegram", "漏网之鱼"}
+	hk := []string{n("香港 01"), n("香港 02"), n("香港 03 IPLC")}
+	group(n("自动选择"), "URLTest", n("香港 03 IPLC"), names)
+	group(n("香港"), "URLTest", n("香港 01"), hk)
+	group("PROXY", "Selector", n("自动选择"), append(append([]string{n("自动选择"), n("香港"), "DIRECT"}, names...), "REJECT"))
+	group("OpenAI", "Selector", n("美国 洛杉矶 01"), []string{n("美国 洛杉矶 01"), n("美国 圣何塞 02"), n("日本 东京 01"), "PROXY"})
+	group("Apple", "Selector", "DIRECT", []string{"DIRECT", "PROXY", n("香港")})
+	group("Telegram", "Selector", n("新加坡 01"), []string{n("新加坡 01"), n("新加坡 02"), "PROXY"})
+	group(n("漏网之鱼"), "Selector", "PROXY", []string{"PROXY", "DIRECT"})
+	order := []string{"PROXY", n("自动选择"), n("香港"), "OpenAI", "Apple", "Telegram", n("漏网之鱼")}
 	group("GLOBAL", "Selector", "PROXY", append(order, "DIRECT", "REJECT"))
 	// The groups' own delay is their selection's.
 	for _, g := range order {
@@ -248,7 +291,7 @@ func (s *server) handler() http.Handler {
 		s.mu.Unlock()
 		conns := make([]map[string]any, 37)
 		for i := range conns {
-			conns[i] = map[string]any{"id": fmt.Sprint(i), "chains": []string{"香港 03 IPLC", "PROXY"}, "start": time.Now()}
+			conns[i] = map[string]any{"id": fmt.Sprint(i), "chains": []string{n("香港 03 IPLC"), "PROXY"}, "start": time.Now()}
 		}
 		s.json(w, map[string]any{"downloadTotal": down, "uploadTotal": up, "connections": conns, "memory": 48 << 20})
 	})
@@ -294,8 +337,12 @@ func (s *server) handler() http.Handler {
 
 func main() {
 	listen := flag.String("listen", "127.0.0.1:19290", "controller address")
+	lang := flag.String("lang", "zh", "node and group names: zh or en")
 	noHistory := flag.Bool("no-history", false, "start with no delay history (every node untested)")
 	flag.Parse()
+	if *lang == "en" {
+		useEnglish()
+	}
 	s := newServer()
 	if *noHistory {
 		for _, p := range s.proxies {
