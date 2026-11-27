@@ -189,3 +189,65 @@ func TestValidateRunAs(t *testing.T) {
 		t.Errorf("work dir %s not in /tmp", dir)
 	}
 }
+
+// TestValidateGeoCache: with a cache the geo files are copied once, linked
+// into each run (the same file, no new copy), copied again when the
+// source changes, and the cached copy is read-only; the source dir is
+// never written.
+func TestValidateGeoCache(t *testing.T) {
+	bin, seen := fakeMihomo(t, `configuration file /tmp/x/config.yaml test is successful`, 0)
+	geo := t.TempDir()
+	src := filepath.Join(geo, "GeoSite.dat")
+	os.WriteFile(src, []byte("v1"), 0o644)
+	os.WriteFile(filepath.Join(geo, "other.txt"), []byte("x"), 0o644)
+	cache := filepath.Join(t.TempDir(), "validate", "geo")
+	run := func() {
+		t.Helper()
+		v, err := Validate(context.Background(), bin, []byte("mode: rule\n"), WithGeoDir(geo), WithGeoCache(cache))
+		if err != nil || !v.OK {
+			t.Fatalf("validate: %v %+v", err, v)
+		}
+		b, _ := os.ReadFile(seen)
+		got := strings.Fields(string(b))
+		sort.Strings(got)
+		if !slices.Equal(got, []string{"GeoSite.dat", "config.yaml"}) {
+			t.Fatalf("work dir = %v", got)
+		}
+	}
+	run()
+	cached := filepath.Join(cache, "GeoSite.dat")
+	fi1, err := os.Stat(cached)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" && fi1.Mode().Perm()&0o222 != 0 {
+		t.Errorf("cached copy is writable: %v", fi1.Mode())
+	}
+	run()
+	fi2, _ := os.Stat(cached)
+	if !os.SameFile(fi1, fi2) {
+		t.Error("an unchanged source was copied again")
+	}
+	// The work dirs are made next to the cache and removed.
+	if es, _ := os.ReadDir(filepath.Dir(cache)); len(es) != 1 {
+		t.Errorf("validate dir holds %d entries, want only the cache", len(es))
+	}
+	// A changed source is copied again.
+	later := time.Now().Add(time.Minute)
+	os.WriteFile(src, []byte("v2-longer"), 0o644)
+	os.Chtimes(src, later, later)
+	run()
+	if b, _ := os.ReadFile(cached); string(b) != "v2-longer" {
+		t.Errorf("cache = %q after the source changed", b)
+	}
+	// A cached copy something wrote to is copied again.
+	os.Chmod(cached, 0o644)
+	os.WriteFile(cached, []byte("tampered!"), 0o644)
+	run()
+	if b, _ := os.ReadFile(cached); string(b) != "v2-longer" {
+		t.Errorf("cache = %q after it was written to", b)
+	}
+	if b, _ := os.ReadFile(src); string(b) != "v2-longer" {
+		t.Errorf("source = %q, changed", b)
+	}
+}
