@@ -203,7 +203,8 @@ func TestDetectInstall(t *testing.T) {
 		{"nothing", "darwin", set(), Install{Kind: InstallUnknown}},
 		{"linux pkg", "linux", set("/run/tailscale/tailscaled.sock", "/usr/sbin/tailscaled"),
 			Install{Kind: InstallTailscaled, Source: "package", Daemon: "/usr/sbin/tailscaled"}},
-		{"windows", "windows", set(), Install{Kind: InstallWindows}},
+		{"windows", "windows", set(WindowsDaemon), Install{Kind: InstallWindows, Source: "official", Daemon: WindowsDaemon}},
+		{"windows not installed", "windows", set(), Install{Kind: InstallUnknown}},
 		{"plan9", "plan9", set(), Install{Kind: InstallUnknown}},
 	}
 	for _, tc := range cases {

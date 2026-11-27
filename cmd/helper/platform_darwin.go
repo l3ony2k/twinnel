@@ -21,7 +21,7 @@ import (
 	"github.com/l3ony2k/twinnel/platform/darwin/takeoverprobe"
 )
 
-const hasKeychain = true
+const secureSecrets = "keychain" // --secrets auto when running as root
 
 func newKeychain(path string) (store.Secrets, error) {
 	k := &keychain.Keychain{Path: path}

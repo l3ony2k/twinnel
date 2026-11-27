@@ -1,4 +1,4 @@
-//go:build !darwin && !linux
+//go:build !darwin && !linux && !windows
 
 package main
 
@@ -11,13 +11,13 @@ import (
 	"github.com/l3ony2k/twinnel/core/store"
 )
 
-const hasKeychain = false
+const secureSecrets = "" // --secrets auto when running as root
 
 func newKeychain(string) (store.Secrets, error) {
 	return nil, errors.New("--secrets keychain is only available on macOS")
 }
 
-// Linux (systemd) and Windows service managers come later.
+// No service manager on this platform.
 func platformServices() service.Manager { return nil }
 
 func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {

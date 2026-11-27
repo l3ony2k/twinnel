@@ -10,8 +10,12 @@ const (
 	InstallTailscaled    InstallKind = "tailscaled"     // open-source daemon: brew, static binary, package
 	InstallMacStandalone InstallKind = "mac-standalone" // macOS app from pkgs.tailscale.com (System Extension)
 	InstallMacAppStore   InstallKind = "mac-appstore"   // macOS App Store app (Network Extension)
-	InstallWindows       InstallKind = "windows"
+	InstallWindows       InstallKind = "windows"        // the official Windows client: service "Tailscale", wintun adapter
 )
+
+// WindowsDaemon is where the official Windows client installs tailscaled
+// (under %ProgramFiles%, which is C:\Program Files on every stock system).
+const WindowsDaemon = `C:\Program Files\Tailscale\tailscaled.exe`
 
 // Install is what DetectInstall found.
 type Install struct {
@@ -60,7 +64,12 @@ var knownPaths = map[string]struct {
 // daemon is what the LocalAPI client talks to.
 func DetectInstall(goos string, exists Probe) Install {
 	if goos == "windows" {
-		return Install{Kind: InstallWindows, UsesSystemVPN: false}
+		// No system VPN slot on Windows: Tailscale's wintun adapter and
+		// mihomo's live side by side; only routes and DNS can conflict.
+		if exists(WindowsDaemon) {
+			return Install{Kind: InstallWindows, Source: "official", Daemon: WindowsDaemon}
+		}
+		return Install{Kind: InstallUnknown}
 	}
 	kp, ok := knownPaths[goos]
 	if !ok {

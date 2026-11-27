@@ -185,13 +185,6 @@ const (
 	FormatVerge = "verge"
 )
 
-// Default labels.
-const (
-	DefaultMihomoLabel    = "com.l3ony2k.twinnel.mihomo"
-	DefaultTailscaleLabel = "com.tailscale.tailscaled"
-	DefaultHelperLabel    = "com.l3ony2k.twinnel.helper"
-)
-
 // Defaults fills zero fields.
 func (st *Settings) Defaults(stateDir string) {
 	if st.Version == 0 {
