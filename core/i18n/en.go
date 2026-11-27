@@ -565,6 +565,7 @@ var en = Strings{
 	TakeoverExplainStrings: enTakeoverExplain,
 	InfoTipStrings:         enInfoTips,
 	StatusStrings:          enStatus,
+	DNSWatchStrings:        enDNSWatch,
 	SidebarStrings:         enSidebar,
 	OverviewStrings:        enOverview,
 	TSLoginStrings:         enTSLogin,

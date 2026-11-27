@@ -229,6 +229,9 @@ func (LeakEgress) Platforms() []string   { return AllPlatforms }
 func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	s := env.Settings()
+	if !egressSupported(env) {
+		return unsupported(L, env.Platform())
+	}
 	if !s.Egress {
 		r := skipText(L.msgEgressOff)
 		r.Fix = &FixHint{Text: L.fixEgressProbe, AutoFix: FixEgressProbe}
@@ -236,7 +239,7 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	}
 	ee, ok := env.(EgressEnv)
 	if !ok {
-		return skip(L.msgEgressErr, ErrNotSupported)
+		return unsupported(L, env.Platform())
 	}
 	url := s.EgressURL
 	if url == "" {
@@ -270,10 +273,18 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	// No baseline means the network itself could not reach the echo:
 	// nothing to compare and nothing Twinnel or the config can fix.
 	if len(direct) == 0 {
+		if r, ok := unsupportedErr(ctx, env, derr); ok {
+			r.Evidence = res.Evidence
+			return r
+		}
 		res.Status, res.Summary = StatusSkip, fmt.Sprintf(L.msgEgressErr, derr)
 		return res
 	}
 	prox, chain, err := ee.ProxiedEgress(ctx, url)
+	if r, ok := unsupportedErr(ctx, env, err); ok {
+		r.Evidence = res.Evidence
+		return r
+	}
 	if err != nil {
 		res.Status, res.Summary = StatusWarn, fmt.Sprintf(L.msgEgressErr, err)
 		res.Fix = &FixHint{Text: L.fixEgressProbe, AutoFix: FixEgressProbe}

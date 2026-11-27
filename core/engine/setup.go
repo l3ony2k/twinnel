@@ -71,7 +71,9 @@ func (e *Engine) DNSStatus(ctx context.Context) (rpc.DNSStatus, error) {
 	if err != nil {
 		return rpc.DNSStatus{}, err
 	}
-	return toDNSStatus(st, target), nil
+	out := toDNSStatus(st, target)
+	out.Watch = e.DNSWatch()
+	return out, nil
 }
 
 // probeDNS reports whether a DNS server answers at addr: any answer,
@@ -105,8 +107,17 @@ func (e *Engine) DNSPoint(ctx context.Context) (rpc.DNSStatus, error) {
 	if err := e.probeDNS(ctx, addr); err != nil {
 		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeFailed, "mihomo's DNS does not answer at %s (%v); the system DNS was not changed", addr, err)
 	}
+	e.dnsWatch.mu.Lock()
 	st, err := e.dnsManager().Point(ctx, target)
+	if err == nil {
+		// Pointed on purpose: a watchdog restore is over.
+		if w := e.dnsWatchdog(); w != nil {
+			w.Reset()
+		}
+	}
+	e.dnsWatch.mu.Unlock()
 	out := toDNSStatus(st, target)
+	out.Watch = e.DNSWatch()
 	e.log().Info("system DNS pointed at mihomo", "changed", len(st.Changed), "err", err)
 	if err != nil {
 		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
@@ -120,11 +131,19 @@ func (e *Engine) DNSRestore(ctx context.Context) (rpc.DNSStatus, error) {
 	if e.SystemDNS == nil {
 		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeNotImplemented, "setting the system DNS is not supported on this platform yet")
 	}
+	// Also how a user keeps the earlier DNS after a watchdog restore
+	// (保持原设置): without a backup the watchdog has nothing to watch.
+	e.dnsWatch.mu.Lock()
 	st, err := e.dnsManager().Restore(ctx)
+	if w := e.dnsWatchdog(); w != nil && (err == nil || errors.Is(err, sysdns.ErrNoBackup)) {
+		w.Reset()
+	}
+	e.dnsWatch.mu.Unlock()
 	if errors.Is(err, sysdns.ErrNoBackup) {
 		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeNotFound, "%v", err)
 	}
 	out := toDNSStatus(st, e.dnsTarget())
+	out.Watch = e.DNSWatch()
 	e.log().Info("system DNS restored", "changed", len(st.Changed), "err", err)
 	if err != nil {
 		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
