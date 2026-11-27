@@ -273,3 +273,29 @@ func TestTailscaleLogin(t *testing.T) {
 		t.Fatalf("running: %+v %v", r, err)
 	}
 }
+
+// targetDNS is a platform part with its own target (Windows: ::1 too).
+type targetDNS struct{ fakeDNS }
+
+func (*targetDNS) DNSTarget() []string { return []string{"127.0.0.1", "::1"} }
+
+func TestDNSPointPlatformTarget(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	d := &targetDNS{fakeDNS{svcs: []sysdns.Service{{Name: "Wi-Fi"}}}}
+	h.e.SystemDNS = d
+	h.e.DNSProbe = func(_ context.Context, addr string) error {
+		if addr != "127.0.0.1:53" {
+			t.Errorf("probed %s", addr)
+		}
+		return nil
+	}
+	st, err := h.e.DNSPoint(ctx)
+	want := []string{"127.0.0.1", "::1"}
+	if err != nil || !st.Pointed || !slices.Equal(st.Target, want) || !slices.Equal(d.svcs[0].Servers, want) {
+		t.Fatalf("point: %+v %v %+v", st, err, d.svcs)
+	}
+	if st, err := h.e.DNSStatus(ctx); err != nil || !st.Pointed || !slices.Equal(st.Target, want) {
+		t.Fatalf("status: %+v %v", st, err)
+	}
+}

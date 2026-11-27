@@ -80,3 +80,9 @@ const (
 	// Pipe is the helper's named pipe.
 	Pipe = `\\.\pipe\twinnel-helper`
 )
+
+// SystemRoot is %SystemRoot%.
+func SystemRoot() string { return env("SystemRoot", `C:\Windows`) }
+
+// Netsh is the netsh.exe that sets adapter DNS servers.
+func Netsh() string { return Join(SystemRoot(), "System32", "netsh.exe") }

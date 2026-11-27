@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/l3ony2k/twinnel/core/kernel"
@@ -125,7 +126,20 @@ func (e *Engine) KernelInstall(ctx context.Context, p rpc.KernelInstallParams) (
 		return rpc.KernelList{}, rpc.Errorf(rpc.CodeFailed, "the newest %s release is now %s, not %s; check again", ch, r.Version, p.Version)
 	}
 	if _, err := m.Install(ctx, r); err != nil {
-		return rpc.KernelList{}, err
+		if !errors.Is(err, kernel.ErrDoesNotRun) || !m.CanFallBack() || p.Version != "" {
+			return rpc.KernelList{}, err
+		}
+		// The plain amd64 build needs x86-64-v3; some CPUs (and some VMs)
+		// report it but cannot run it. The "-compatible" build runs on
+		// every amd64 CPU.
+		e.log().Warn("mihomo did not run; trying the compatible build", "asset", r.Asset, "err", err)
+		m.Compatible = true
+		if r, err = m.Check(ctx, ch); err != nil {
+			return rpc.KernelList{}, err
+		}
+		if _, err := m.Install(ctx, r); err != nil {
+			return rpc.KernelList{}, err
+		}
 	}
 	l, err := e.KernelList()
 	e.publish(rpc.EventKernelChanged, l)

@@ -88,6 +88,12 @@ type TailscaleInstaller struct {
 	// Probe runs the new CLI and returns its version (default
 	// ProbeTailscale: `tailscale version`).
 	Probe func(ctx context.Context, cli string) (string, error)
+	// RunMSI runs the Windows installer (default RunMSIExec) and returns
+	// msiexec's exit code.
+	RunMSI func(ctx context.Context, msi, log string) (int, error)
+	// WindowsDir is where the MSI puts tailscale.exe and tailscaled.exe
+	// (default %ProgramFiles%\Tailscale).
+	WindowsDir string
 }
 
 func (t *TailscaleInstaller) goos() string {
@@ -137,6 +143,8 @@ func (t *TailscaleInstaller) Resolve(ctx context.Context) (TailscaleAsset, error
 		return t.resolvePkgs(ctx)
 	case "darwin":
 		return t.resolveBrew(ctx)
+	case "windows":
+		return t.resolveMSI(ctx)
 	}
 	return TailscaleAsset{}, fmt.Errorf("installing Tailscale is not supported on %s", t.goos())
 }
@@ -192,30 +200,39 @@ func (t *TailscaleInstaller) resolvePkgs(ctx context.Context) (TailscaleAsset, e
 		return TailscaleAsset{}, fmt.Errorf("pkgs.tailscale.com has no tarball for linux/%s", t.goarch())
 	}
 	a := TailscaleAsset{Version: m[1], Source: TSSourcePkgs, Name: name, URL: base + name}
-	// The checksum is published next to the file, on the same host.
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.URL+".sha256", nil)
+	sum, err := t.fetchSHA256(ctx, a.URL, name)
 	if err != nil {
 		return a, err
+	}
+	a.SHA256 = sum
+	return a, nil
+}
+
+// fetchSHA256 reads the checksum pkgs.tailscale.com publishes next to a
+// file, on the same host (<url>.sha256).
+func (t *TailscaleInstaller) fetchSHA256(ctx context.Context, fileURL, name string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fileURL+".sha256", nil)
+	if err != nil {
+		return "", err
 	}
 	req.Header.Set("User-Agent", "twinnel-helper")
 	resp, err := t.client().Do(req)
 	if err != nil {
-		return a, err
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return a, fmt.Errorf("%s.sha256: %s", name, resp.Status)
+		return "", fmt.Errorf("%s.sha256: %s", name, resp.Status)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if err != nil {
-		return a, err
+		return "", err
 	}
 	sum := strings.ToLower(strings.TrimSpace(strings.Fields(string(b) + " x")[0]))
 	if !hex64(sum) {
-		return a, fmt.Errorf("%s.sha256: not a sha256", name)
+		return "", fmt.Errorf("%s.sha256: not a sha256", name)
 	}
-	a.SHA256 = sum
-	return a, nil
+	return sum, nil
 }
 
 func hex64(s string) bool {

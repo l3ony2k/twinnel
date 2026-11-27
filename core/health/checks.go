@@ -583,6 +583,12 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	if listen == "0.0.0.0" || listen == "" || listen == "::" {
 		want["127.0.0.1"] = true
 	}
+	if env.Platform() == Windows && want["127.0.0.1"] {
+		// dns.point sets ::1 as the IPv6 server on Windows: nothing
+		// listens there, so IPv6 queries fail on the host instead of
+		// leaving it (platform/windows/sysdns.go).
+		want["::1"] = true
+	}
 	tun, _, _ := tunConfig(ctx, env)
 	hijack := hijacksAll53(tun)
 

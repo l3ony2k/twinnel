@@ -11,8 +11,9 @@ const (
 	// whether Twinnel keeps a backup of them.
 	MethodDNSStatus = "dns.status"
 	// MethodDNSPoint points every active network service at mihomo's DNS
-	// (127.0.0.1), recording the earlier values first. Refused while
-	// mihomo's DNS does not answer.
+	// (127.0.0.1; on Windows also ::1 for IPv6, see
+	// platform/windows/sysdns.go), recording the earlier values first.
+	// Refused while mihomo's DNS does not answer.
 	MethodDNSPoint = "dns.point"
 	// MethodDNSRestore writes the recorded values back.
 	MethodDNSRestore = "dns.restore"
@@ -56,7 +57,8 @@ type DNSStatus struct {
 	BackupAt time.Time    `json:"backup_at,omitzero"`
 	Changed  []string     `json:"changed,omitempty"`
 	// Supported is false where the platform part is missing (Linux for
-	// now): dns.point and dns.restore then fail.
+	// now; macOS and Windows have one): dns.point and dns.restore then
+	// fail.
 	Supported bool `json:"supported"`
 }
 
@@ -76,9 +78,12 @@ type TailscaleInstallResult struct {
 	// that takes the system VPN slot, which conflicts with mihomo's TUN).
 	UsesSystemVPN bool   `json:"uses_system_vpn,omitempty"`
 	Version       string `json:"version,omitempty"`
-	Source        string `json:"source,omitempty"` // pkgs.tailscale.com or homebrew
+	Source        string `json:"source,omitempty"` // pkgs.tailscale.com, homebrew or the Windows MSI
 	Via           string `json:"via,omitempty"`    // the download's route: direct, proxy, subscription, url
 	Daemon        string `json:"daemon,omitempty"`
+	// RestartNeeded: the Windows installer asked for a restart to finish
+	// (msiexec exit code 3010); Tailscale may not work fully until then.
+	RestartNeeded bool `json:"restart_needed,omitempty"`
 	// Service is the tailscaled service install (dry run when the helper
 	// is not root).
 	Service *ServiceOpResult `json:"service,omitempty"`

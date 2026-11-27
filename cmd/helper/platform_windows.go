@@ -142,6 +142,12 @@ func tailnetInterface(ctx context.Context) (string, error) {
 // after applies and service operations.
 func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	windowsSettings(e)
+	if d := systemDNS(o); d != nil {
+		e.SystemDNS = d
+	}
+	// tailscaled gives SYSTEM's logins to no user: the app or the CLI
+	// starts the login in the user's session (tailscale.LoginInSession).
+	e.TSLoginInSession = true
 	switch o.tailnetIface {
 	case "", "auto":
 		e.TailnetInterface = tailnetInterface
@@ -163,6 +169,22 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 		})
 	}
 	return func(context.Context) {}
+}
+
+// systemDNS is dns.*'s platform part: adapters from iphlpapi, hand-set
+// servers from the registry, changes through netsh, and only when the
+// helper runs elevated (a development helper reads only).
+func systemDNS(o *options) *windows.SystemDNS {
+	if o.noSystemDNS {
+		return nil
+	}
+	run := windows.ExecRunner(20 * time.Second)
+	return &windows.SystemDNS{Sys: windows.NewSys(), Static: windows.NewStaticDNS(), Run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if !priv.Elevated() {
+			return nil, errors.New("setting the system DNS needs the installed (elevated) helper")
+		}
+		return run(ctx, name, args...)
+	}}
 }
 
 // windowsSettings fills the Tailscale CLI path once, when the official

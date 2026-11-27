@@ -107,12 +107,21 @@ type Engine struct {
 	// TSControl is tailscaled's LocalAPI for tailscale.login (nil: not
 	// supported).
 	TSControl TailscaleControl
+	// TSLoginInSession: tailscale.login does not start logins, the
+	// signed-in user's process does (Windows: tailscaled never gives a
+	// profile to SYSTEM; see tailscale.Client.LoginInSession). Reading the
+	// login state still works.
+	TSLoginInSession bool
 	// TSInstaller is the template of tailscale.install's installer (nil:
 	// <state>/tailscale with the public sources).
 	TSInstaller *kernel.TailscaleInstaller
 	// TempProxy starts the temporary mihomo of the "subscription" download
 	// proxy and returns its stop function (default: the real binary).
 	TempProxy func(ctx context.Context, bin string, cfg []byte, port int) (stop func(), err error)
+
+	// Sleep waits between polls (tailscale.install's service wait);
+	// replaceable in tests.
+	Sleep func(ctx context.Context, d time.Duration) error
 
 	// EgressProbe runs the egress test (health.LeakEgress with the test
 	// on) once, for health.egress; nil where there is none.
@@ -154,6 +163,20 @@ func (e *Engine) now() time.Time {
 		return e.Now()
 	}
 	return time.Now()
+}
+
+func (e *Engine) sleep(ctx context.Context, d time.Duration) error {
+	if e.Sleep != nil {
+		return e.Sleep(ctx, d)
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 func (e *Engine) log() *slog.Logger {
