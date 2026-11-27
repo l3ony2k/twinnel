@@ -159,7 +159,7 @@ func (a *app) aboutHeader(c *ui.Context) {
 				ui.Image(c, appIconImage).Size(64, 64).Shrink(0).Label("Twinnel")
 			}
 			ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).MinWidth(0).Children(func() {
-				ui.Text(c, T.AppName).FontSize(plat.titleSize).FontWeight(plat.titleWeight).SingleLine()
+				displayFont(ui.Text(c, T.AppName).FontSize(plat.titleSize).FontWeight(plat.titleWeight).SingleLine())
 				num(small(c, version.String())).SingleLine().Selectable()
 				small(c, T.AboutTagline).Wrap()
 			})

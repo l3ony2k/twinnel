@@ -565,6 +565,7 @@ var en = Strings{
 	PagesStrings:           enPages,
 	AgentStrings:           enAgent,
 	ImportStrings:          enImport,
+	PlatformStrings:        enPlatform,
 }
 
 var enControls = ControlStrings{

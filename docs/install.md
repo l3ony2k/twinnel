@@ -4,7 +4,8 @@
 
 Release builds are signed ad hoc, not with an Apple Developer ID, and are not notarized. macOS
 therefore blocks the first launch of a downloaded copy; the steps below open it once, after which
-it starts normally.
+it starts normally. The Windows build has no Authenticode signature either: SmartScreen warns
+before the first run (see Windows below).
 
 ---
 
@@ -22,6 +23,7 @@ it starts normally.
 | `Twinnel_<版本>_linux_<amd64\|arm64>_app.tar.gz` | Linux 版 Twinnel（应用、命令行、后台助手） |
 | `Twinnel_<版本>_linux_<amd64\|arm64>.AppImage` | 同一个应用，单个文件 |
 | `PKGBUILD`、`twinnel-bin.install` | Arch Linux 软件包 |
+| `Twinnel_<版本>_windows_<amd64\|arm64>.zip` | Windows 10 1809 及以上、Windows 11 的 Twinnel（x64 / Arm64），含命令行和后台助手 |
 | `SHA256SUMS` | 校验文件 |
 
 校验下载（可选）：
@@ -124,6 +126,28 @@ twinnel version
 
 卸载：`sudo ./install.sh --uninstall`（加 `--purge` 同时删除 `/var/lib/twinnel` 里的数据）。
 
+### Windows
+
+1. 解压 `Twinnel_<版本>_windows_amd64.zip`（Arm64 电脑用 `_arm64`）。
+2. 在解压出的文件夹里打开 PowerShell，运行：
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\install.ps1
+   ```
+
+   它把 Twinnel 装到 `%LOCALAPPDATA%\Programs\Twinnel`（`Twinnel.exe`，命令行和后台助手在 `bin\`），
+   加开始菜单快捷方式，把 `bin\` 加进当前用户的 PATH，然后启动 Twinnel。不需要管理员权限。
+   加 `-DryRun` 只打印步骤。
+3. Twinnel 的图标在任务栏右侧的通知区域（可能收在 ^ 里）。第一次打开时点「安装后台助手」，Windows
+   会弹一次「用户账户控制」，同意后后台助手作为 Windows 服务 `TwinnelHelper` 运行。
+
+这个版本没有代码签名。直接双击 `Twinnel.exe` 时 SmartScreen 会提示「Windows 已保护你的电脑」：点
+「更多信息」→「仍要运行」。用 `install.ps1` 安装会去掉下载标记，之后不再提示。
+
+卸载：在 Twinnel 的 设置 → 停止使用 Twinnel 里选「完全移除 Twinnel」；或者运行
+`powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\Twinnel\install.ps1" -Uninstall`。
+mihomo 和 Tailscale 不受影响。
+
 ---
 
 ## English
@@ -140,6 +164,7 @@ From the GitHub Releases page:
 | `Twinnel_<version>_linux_<amd64\|arm64>_app.tar.gz` | Twinnel for Linux (app, command line, helper) |
 | `Twinnel_<version>_linux_<amd64\|arm64>.AppImage` | the same app in one file |
 | `PKGBUILD`, `twinnel-bin.install` | Arch Linux package |
+| `Twinnel_<version>_windows_<amd64\|arm64>.zip` | Twinnel for Windows 10 1809+ and Windows 11 (x64 / Arm64), with the command line and the helper |
 | `SHA256SUMS` | checksums |
 
 Check the download (optional):
@@ -251,3 +276,27 @@ same unit, for reading); data lives in `/var/lib/twinnel`. The socket belongs to
 (else `wheel`, else a new `twinnel` group), so members can use `twinnel` without root.
 
 Uninstall: `sudo ./install.sh --uninstall` (`--purge` also deletes the data in `/var/lib/twinnel`).
+
+### Windows
+
+1. Unzip `Twinnel_<version>_windows_amd64.zip` (`_arm64` on an Arm64 PC).
+2. Open PowerShell in the unzipped folder and run:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\install.ps1
+   ```
+
+   It installs Twinnel in `%LOCALAPPDATA%\Programs\Twinnel` (`Twinnel.exe`; the command line and the
+   helper in `bin\`), adds a Start menu shortcut, puts `bin\` on your PATH and starts Twinnel. No
+   administrator rights needed. `-DryRun` only prints the steps.
+3. Twinnel's icon is in the notification area of the taskbar (maybe behind the ^). On first run,
+   click Install Helper: Windows shows one User Account Control prompt, and the helper then runs as
+   the Windows service `TwinnelHelper`.
+
+The build is not code-signed. Double-clicking `Twinnel.exe` directly shows SmartScreen's "Windows
+protected your PC": click More info → Run anyway. `install.ps1` clears the downloaded-file mark on
+what it installs, so the warning does not come back.
+
+Uninstall: Settings → Stop Using Twinnel → Remove Twinnel completely in the app, or
+`powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\Twinnel\install.ps1" -Uninstall`.
+mihomo and Tailscale are left alone.

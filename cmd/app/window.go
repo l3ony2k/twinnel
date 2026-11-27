@@ -45,8 +45,8 @@ func (a *app) mainView(c *ui.Context) {
 		return
 	}
 	a.flushToast(c)
-	if back := pageBack(a.page); back != "" { // ⌘[ as in Finder and System Settings
-		c.OnWindowShortcut(ui.Cmd, ui.KeyBracketLeft, func() { a.showPage(back) })
+	if back := pageBack(a.page); back != "" { // ⌘[ as in Finder and System Settings, Alt+← on Windows
+		c.OnWindowShortcut(plat.backMods, plat.backKey, func() { a.showPage(back) })
 	}
 	s := a.mon.Snapshot()
 	if a.shotSnap != nil { // shot mode: synthetic state over the fake one
@@ -164,7 +164,7 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 			}
 			// The title is the one thing the bar never drops: the page's
 			// actions give way first (a page with many fits them itself).
-			ui.Text(c, spec.title).FontSize(plat.titleBarSize).FontWeight(plat.titleBarWeight).SingleLine().Shrink(0)
+			displayFont(ui.Text(c, spec.title).FontSize(plat.titleBarSize).FontWeight(plat.titleBarWeight).SingleLine().Shrink(0))
 			ui.Spacer(c)
 			if spec.trailing != nil {
 				toolbarActions(c, spec.trailing)

@@ -26,7 +26,7 @@ func init() {
 		Delete Escape arch darwin amd64 arm64 stable alpha latest version
 		with doctor egress verbose root admin systemd hosts whitelist Standalone
 		upgrade DOMAIN SUFFIX KEYWORD example LaunchAgent LaunchAgents laptop
-		GEOIP GEOSITE Agent Claude Code Codex Cursor GNOME AppIndicator`) {
+		GEOIP GEOSITE Agent Claude Code Codex Cursor GNOME AppIndicator SYSTEM Alt`) {
 		allowedASCII[strings.ToLower(w)] = true
 	}
 }

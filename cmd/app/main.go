@@ -132,6 +132,15 @@ func main() {
 	// the display name's case.
 	mygo.App.SetPath(mygo.PathUserData, filepath.Dir(a.cfgPath))
 	a.initDock() // accessory, or regular for 在程序坞中显示 → 始终
+	// Windows starts a second copy where macOS would activate the running
+	// one (the login entry, then the Start menu): one tray icon, and a
+	// second launch opens the window of the first.
+	if runtime.GOOS == "windows" && !a.shotMode {
+		if !mygo.App.RequestSingleInstanceLock() {
+			return
+		}
+		mygo.App.OnSecondInstance(func([]string, string) { mygo.RunOnMain(a.openMain) })
+	}
 	// The flyout and the main window come and go; the tray keeps the app.
 	mygo.App.OnWindowAllClosed(func() {})
 	mygo.App.WhenReady(a.ready)
@@ -441,6 +450,7 @@ func (a *app) togglePanel() {
 		Focusable:  true,
 		Shadow:     true,
 		Popover:    !a.shotMode,
+		Vibrancy:   a.panelMaterial(),
 		Content:    ui.View(a.panelView),
 	})
 	a.panel.OnClosed(func() { a.panel = nil })
@@ -532,6 +542,15 @@ func (a *app) stateKey() string {
 		return ""
 	}
 	return "main"
+}
+
+// panelMaterial is the flyout's material where it is no popover
+// (Acrylic on Windows 11), none in shot mode.
+func (a *app) panelMaterial() mygo.Vibrancy {
+	if a.shotMode {
+		return mygo.VibrancyNone
+	}
+	return plat.panelVibrancy
 }
 
 // sidebarMaterial is the window's material, none in shot mode: a capture

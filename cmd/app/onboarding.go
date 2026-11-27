@@ -51,18 +51,20 @@ func cliPath() (string, error) {
 		return p, nil
 	}
 	if dir, err := resourcesDir(); err == nil && dir != "" {
-		p := filepath.Join(dir, "bin", "twinnel")
+		p := filepath.Join(dir, "bin", exeName("twinnel"))
 		if fi, err := os.Stat(p); err == nil && fi.Mode().IsRegular() {
 			return p, nil
 		}
 	}
 	if exe, err := os.Executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "twinnel")
-		if fi, err := os.Stat(p); err == nil && !fi.IsDir() && p != exe {
+		// Not the app itself: Twinnel.exe is twinnel.exe on a
+		// case-insensitive file system.
+		p := filepath.Join(filepath.Dir(exe), exeName("twinnel"))
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() && !sameFile(p, exe) {
 			return p, nil
 		}
 	}
-	if p, err := exec.LookPath("twinnel"); err == nil {
+	if p, err := exec.LookPath("twinnel"); err == nil && !isOwnExe(p) {
 		return p, nil
 	}
 	return "", errors.New(i18n.T.CLINotFound)
@@ -73,7 +75,7 @@ func cliPath() (string, error) {
 func installArgs(extra ...string) []string {
 	args := []string{"helper", "install"}
 	if cli, err := cliPath(); err == nil {
-		if p := filepath.Join(filepath.Dir(cli), "twinnel-helper"); fileExists(p) {
+		if p := filepath.Join(filepath.Dir(cli), exeName("twinnel-helper")); fileExists(p) {
 			args = append(args, "--helper-bin", p)
 		}
 	}
@@ -99,6 +101,7 @@ func execCLI(ctx context.Context, args ...string) (string, error) {
 	var out bytes.Buffer
 	cmd := exec.CommandContext(ctx, p, args...)
 	cmd.Stdout, cmd.Stderr = &out, &out
+	hideConsole(cmd) // Windows: twinnel.exe is a console program; no window flashes up
 	err = cmd.Run()
 	return out.String(), err
 }
@@ -141,7 +144,7 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 	groupBox(c, t).Gap(12).Padding(20, 20).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, iconTwinnel).FontSize(iconHero).TextColor(t.Accent)
-			ui.Text(c, T.OnboardTitle).FontSize(plat.titleSize - 3).FontWeight(plat.titleWeight)
+			displayFont(ui.Text(c, T.OnboardTitle).FontSize(plat.titleSize - 3).FontWeight(plat.titleWeight))
 		})
 		ui.Text(c, T.OnboardIntro).Wrap().LineHeight(lineText)
 		ui.Column(c).Gap(6).Children(func() {
@@ -284,9 +287,9 @@ func codeBlock(c *ui.Context, s string) ui.Element {
 }
 
 // installHelper runs `twinnel helper install`, which asks for the
-// administrator password (osascript on macOS, polkit's pkexec on Linux)
-// and sets up the LaunchDaemon or the systemd unit. Does
-// nothing with TWINNEL_READ_ONLY=1.
+// administrator password (osascript on macOS, polkit's pkexec on Linux,
+// UAC on Windows) and sets up the LaunchDaemon, the systemd unit or the
+// Windows service. Does nothing with TWINNEL_READ_ONLY=1.
 func (a *app) installHelper() {
 	v := &a.hd.onb
 	if !a.cfg.AllowWrites || v.running {
@@ -309,4 +312,21 @@ func (a *app) installHelper() {
 			a.invalidate()
 		})
 	}()
+}
+
+// sameFile reports whether a and b are one file (by identity, so case and
+// links do not matter), or the same path when either cannot be read.
+func sameFile(a, b string) bool {
+	fa, errA := os.Stat(a)
+	fb, errB := os.Stat(b)
+	if errA != nil || errB != nil {
+		return a == b
+	}
+	return os.SameFile(fa, fb)
+}
+
+// isOwnExe reports whether p is the running app's executable.
+func isOwnExe(p string) bool {
+	exe, err := os.Executable()
+	return err == nil && sameFile(p, exe)
 }

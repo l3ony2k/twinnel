@@ -69,6 +69,9 @@ var (
 // black on transparent; macOS scales it on 1x screens): two interlocked rings whose shape tells the state
 // (status.TrayIconFor picks it; never color, the icon is a template).
 func trayIcon(v status.TrayIcon) []byte {
+	if b := platformTrayIcon(v); b != nil { // Windows: square, by DPI (trayicon_windows.go)
+		return b
+	}
 	b, err := icons.FS.ReadFile("tray/" + string(v) + ".png")
 	if err != nil {
 		panic(err)

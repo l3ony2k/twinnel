@@ -75,14 +75,12 @@ var linuxWording = map[string]func(s *Strings){
 	},
 }
 
-// applyDesktop rewrites every language's table for goos. Only "linux"
-// has texts of its own today.
+// applyDesktop rewrites every language's table for goos: Linux's words
+// (linuxWording) or Windows' (windowsWording, platform.go).
 func applyDesktop(goos string) {
-	if goos != "linux" {
-		return
-	}
+	w := map[string]map[string]func(*Strings){"linux": linuxWording, "windows": windowsWording}[goos]
 	for _, l := range langs {
-		if fn := linuxWording[l.Tag]; fn != nil {
+		if fn := w[l.Tag]; fn != nil {
 			fn(l.S)
 		}
 	}

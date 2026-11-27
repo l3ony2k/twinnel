@@ -516,8 +516,8 @@ func (a *app) overridesCard(c *ui.Context, s status.Snapshot) {
 		}
 	})
 	if i := slices.Index(ids, v.sel); i >= 0 && w && !v.isNew {
-		c.OnWindowShortcut(ui.Alt|ui.Cmd, ui.KeyUp, func() { a.moveLayer(ids, i, -1) })
-		c.OnWindowShortcut(ui.Alt|ui.Cmd, ui.KeyDown, func() { a.moveLayer(ids, i, 1) })
+		c.OnWindowShortcut(plat.reorderMods, ui.KeyUp, func() { a.moveLayer(ids, i, -1) })
+		c.OnWindowShortcut(plat.reorderMods, ui.KeyDown, func() { a.moveLayer(ids, i, 1) })
 	}
 }
 
@@ -837,10 +837,10 @@ func (a *app) layerMenu(c *ui.Context, m *ui.Menu, l rpc.Layer, ids []string, w 
 	}
 	if i := slices.Index(ids, l.ID); i >= 0 {
 		m.Separator()
-		if m.Item(T.MoveUp).Shortcut(ui.Alt|ui.Cmd, ui.KeyUp).Disabled(!w || i == 0).Chosen() {
+		if m.Item(T.MoveUp).Shortcut(plat.reorderMods, ui.KeyUp).Disabled(!w || i == 0).Chosen() {
 			a.moveLayer(ids, i, -1)
 		}
-		if m.Item(T.MoveDown).Shortcut(ui.Alt|ui.Cmd, ui.KeyDown).Disabled(!w || i == len(ids)-1).Chosen() {
+		if m.Item(T.MoveDown).Shortcut(plat.reorderMods, ui.KeyDown).Disabled(!w || i == len(ids)-1).Chosen() {
 			a.moveLayer(ids, i, 1)
 		}
 	}

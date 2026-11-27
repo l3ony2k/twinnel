@@ -8,6 +8,7 @@ import (
 	"github.com/l3ony2k/twinnel/core/legacy"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -98,7 +99,7 @@ func (a *app) refreshHelperMgmt(s status.Snapshot) {
 func upgradeArgs(extra ...string) []string {
 	args := []string{"helper", "upgrade"}
 	if cli, err := cliPath(); err == nil {
-		if p := filepath.Join(filepath.Dir(cli), "twinnel-helper"); fileExists(p) {
+		if p := filepath.Join(filepath.Dir(cli), exeName("twinnel-helper")); fileExists(p) {
 			args = append(args, "--helper-bin", p)
 		}
 	}
@@ -427,17 +428,39 @@ func (a *app) removeAppPieces() {
 	os.Remove(a.cfgPath)
 	removeAppExtras()
 	if b := appBundlePath(); b != "" {
-		mygo.Shell.TrashItem(b)
+		removeAppBundle(b) // macOS: to the Trash; Windows: the folder, once the app has quit
 	}
 	mygo.App.Quit()
 }
 
 // --- 登录时打开 ---
 
-// appBundlePath is the .app the app runs from, "" for a development run.
+// appBundlePath is the .app the app runs from (macOS), the folder of
+// Twinnel.exe (Windows, as install.ps1 lays it out), "" for a development
+// run.
 func appBundlePath() string {
 	exe, err := os.Executable()
 	if err != nil {
+		return ""
+	}
+	dir := bundleFromExe(runtime.GOOS, exe)
+	if runtime.GOOS == "windows" && dir != "" && !fileExists(filepath.Join(dir, installMarker)) {
+		return "" // a development build: not laid out by install.ps1
+	}
+	return dir
+}
+
+// installMarker is the file install.ps1 leaves in a Windows install
+// folder; only a folder with it counts as the app's (and is deleted by
+// 完全移除).
+const installMarker = ".twinnel-install"
+
+func bundleFromExe(goos, exe string) string {
+	if goos == "windows" {
+		i := strings.LastIndexAny(exe, `\/`)
+		if i > 0 && strings.EqualFold(exe[i+1:], "Twinnel.exe") {
+			return exe[:i]
+		}
 		return ""
 	}
 	if i := strings.Index(exe, ".app/Contents/MacOS/"); i >= 0 {

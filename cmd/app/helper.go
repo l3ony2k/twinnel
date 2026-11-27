@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/l3ony2k/twinnel/core/legacy"
 	"os"
 	"regexp"
 	"strings"
@@ -19,17 +18,6 @@ import (
 	"github.com/l3ony2k/twinnel/core/status"
 	"github.com/l3ony2k/twinnel/core/version"
 )
-
-// Paths that tell an installed helper from none (see `twinnel helper install
-// --dry-run`): the binary and its LaunchDaemon plist.
-// A helper from before the rename counts as installed too: it runs until
-// 更新 migrates it.
-var helperInstalledPaths = []string{
-	"/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper",
-	"/Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist",
-	legacy.HelperTools,
-	legacy.HelperPlist,
-}
 
 // startHelper starts the one helper connection of the app: dial (socket
 // from TWINNEL_SOCKET, else the default), one events.wait long-poll, data

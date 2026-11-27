@@ -18,11 +18,14 @@ import (
 //     bar with the traffic lights over it, grouped boxes like System
 //     Settings (radius 10), the user's accent color, the flyout as a
 //     popover over the menu bar's own material.
-//   - Windows 11 (Fluent 2): Segoe UI Variable, 14 px body, Mica behind the
-//     navigation pane and the title bar drawn by the app (TitleBarHidden,
-//     caption buttons by the system), cards of radius 8 and controls of 4,
-//     40 px rows, the accent from the system; the tray flyout opaque with
-//     the Acrylic material when available.
+//   - Windows 11 (Fluent 2): Segoe UI Variable (Text, Display for titles),
+//     Cascadia Mono / Consolas for code (MyGo's monospace), 14 px body,
+//     Mica behind the navigation pane under the system's own title bar,
+//     cards of radius 8 and controls of 4, 40 px rows, WinUI's neutrals
+//     and signal colors with the system's accent; the tray flyout on
+//     Acrylic (Windows 11), opaque on Windows 10. Cross-compiled and
+//     unit-tested here; HANDOFF of feat/windows-gui has the real-machine
+//     plan.
 //   - Linux (GNOME / libadwaita, KDE, Hyprland): the desktop's UI font
 //     (gtk-font-name through fontconfig: Cantarell, Noto Sans, Inter…),
 //     14 px body, no material (opaque sidebar), libadwaita's colors with
@@ -34,32 +37,50 @@ import (
 //     panel as a window at the top right (panel_linux.go).
 type platformStyle struct {
 	// Window chrome.
-	titleBar        mygo.TitleBarStyle
-	sidebarMat      mygo.Vibrancy // material behind the sidebar; "" = opaque
-	sidebarWidth    float32
-	contentMax      float32 // widest a page's content grows
-	pagePadX        float32
-	pagePadTop      float32
-	groupRadius     float32 // grouped boxes (cards)
-	controlRadius   float32
-	innerRadius     float32 // boxes inside a group: tiles, code, editors
-	rowMinHeight    float32
-	bodySize        float32 // body text
-	smallSize       float32 // secondary text, captions
-	calloutSize     float32 // notes, hints, table cells, code: one step under body
-	leadSize        float32 // a verdict or state line that leads a card
-	figureSize      float32 // a large number (the traffic rate)
-	panelTextSize   float32 // the flyout's body text, as the system's menu bar extras
-	titleSize       float32 // page titles
-	headingSize     float32 // group headings
-	titleWeight     int
-	headingWeight   int
-	panelPad        float32 // the flyout's padding
-	panelWindow     bool    // the panel is a window placed by the app, not a flyout of the tray (Linux: AppIndicator tells no icon position)
-	trafficLights   bool    // macOS's traffic lights sit in the title bar (sidebar.go measures from them)
-	titleBarHeight  int     // the title bar the window draws, where the system centers its buttons in it (Linux); 0 = the system's
-	sidebarKey      ui.Key  // the sidebar toggle's key without modifiers (Linux: F9, as GNOME's apps); 0 = none
-	adwaita         bool    // libadwaita's colors (Linux)
+	titleBar       mygo.TitleBarStyle
+	sidebarMat     mygo.Vibrancy // material behind the sidebar; "" = opaque
+	sidebarWidth   float32
+	contentMax     float32 // widest a page's content grows
+	pagePadX       float32
+	pagePadTop     float32
+	groupRadius    float32 // grouped boxes (cards)
+	controlRadius  float32
+	innerRadius    float32 // boxes inside a group: tiles, code, editors
+	rowMinHeight   float32
+	bodySize       float32 // body text
+	smallSize      float32 // secondary text, captions
+	calloutSize    float32 // notes, hints, table cells, code: one step under body
+	leadSize       float32 // a verdict or state line that leads a card
+	figureSize     float32 // a large number (the traffic rate)
+	panelTextSize  float32 // the flyout's body text, as the system's menu bar extras
+	titleSize      float32 // page titles
+	headingSize    float32 // group headings
+	titleWeight    int
+	headingWeight  int
+	panelPad       float32 // the flyout's padding
+	panelWindow    bool    // the panel is a window placed by the app, not a flyout of the tray (Linux: AppIndicator tells no icon position)
+	trafficLights  bool    // macOS's traffic lights sit in the title bar (sidebar.go measures from them)
+	titleBarHeight int     // the title bar the window draws, where the system centers its buttons in it (Linux); 0 = the system's
+	sidebarKey     ui.Key  // the sidebar toggle's key without modifiers (Linux: F9, as GNOME's apps); 0 = none
+	adwaita        bool    // libadwaita's colors (Linux)
+	fluent         bool    // WinUI's colors (Windows)
+	// Type: the UI font ("" is the system's) and the one for large titles
+	// (Segoe UI Variable's Text and Display optical sizes on Windows 11,
+	// Segoe UI before it).
+	uiFont, displayFont string
+	// panelVibrancy is the flyout's material where it is not a popover
+	// (Acrylic on Windows 11; Windows 10 draws the background instead).
+	panelVibrancy mygo.Vibrancy
+	// Shortcuts that differ by platform: moving a layer (⌥⌘↑ on macOS,
+	// Ctrl+Alt+↑ on Linux, Alt+Shift+↑ on Windows, where Ctrl+Alt is
+	// AltGr) and going back (⌘[ on macOS, Ctrl+[ on Linux, Alt+← on
+	// Windows).
+	reorderMods ui.Modifiers
+	backMods    ui.Modifiers
+	backKey     ui.Key
+	// cliLink: 本地 Agent → 命令行工具 links the CLI into a bin folder (not on
+	// Windows: install.ps1 puts the install's bin\ on the user's PATH).
+	cliLink         bool
 	trayTitle       bool    // the menu bar item shows text beside its icon (macOS)
 	dock            bool    // a Dock icon by setting (macOS; elsewhere the taskbar follows the window)
 	panelMaterialOK bool    // the flyout shows the popover material
@@ -103,7 +124,12 @@ func platformFor(goos string) platformStyle {
 			bodySize: 14, smallSize: 12, calloutSize: 13, leadSize: 16, figureSize: 20, panelTextSize: 13, titleSize: 28, headingSize: 14,
 			titleWeight: 600, headingWeight: 600, panelPad: 16,
 			titleBarSize: 28, titleBarWeight: 600, // Windows 11 Settings: the page title stays large
-			navSel: navNeutralPill,
+			navSel: navNeutralPill, fluent: true,
+			uiFont:        "Segoe UI Variable Text, Segoe UI",
+			displayFont:   "Segoe UI Variable Display, Segoe UI",
+			panelVibrancy: mygo.VibrancyAcrylic,
+			reorderMods:   ui.Alt | ui.Shift,
+			backMods:      ui.Alt, backKey: ui.KeyLeft,
 		}
 	case "linux":
 		return platformStyle{
@@ -113,6 +139,7 @@ func platformFor(goos string) platformStyle {
 			bodySize: 14, smallSize: 12, calloutSize: 13, leadSize: 16, figureSize: 20, panelTextSize: 13, titleSize: 20, headingSize: 14,
 			titleWeight: 700, headingWeight: 700, panelPad: 16, panelWindow: true,
 			titleBarSize: 15, titleBarWeight: 700, navSel: navNeutral,
+			reorderMods: ui.Alt | ui.Ctrl, backMods: ui.Ctrl, backKey: ui.KeyBracketLeft, cliLink: true,
 		}
 	}
 	navSel := navAccentFill // macOS 15 and earlier
@@ -130,6 +157,7 @@ func platformFor(goos string) platformStyle {
 		// 15 pt bold, not the 20 pt of an in-content heading.
 		titleBarSize: 15, titleBarWeight: 700,
 		navSel: navSel, menuDrop: menuInsetTop + menuGap,
+		reorderMods: ui.Alt | ui.Super, backMods: ui.Super, backKey: ui.KeyBracketLeft, cliLink: true,
 	}
 }
 
@@ -150,6 +178,8 @@ func systemTheme(dark bool, p ui.Preferences) *ui.Theme {
 	var t *ui.Theme
 	if plat.adwaita {
 		t = adwaitaTheme(dark)
+	} else if plat.fluent {
+		t = fluentTheme(dark)
 	} else if dark {
 		t = ui.DarkTheme()
 		t.Background = ui.Hex("#1e1e1e")
@@ -212,12 +242,54 @@ func adwaitaTheme(dark bool) *ui.Theme {
 	return t.WithAccent(ui.Hex("#3584e4"))
 }
 
+// fluentTheme is WinUI 3's palette (Windows 11): the Mica base, card and
+// control fills, text and signal colors. The system's accent replaces the
+// default blue (WithPreferences).
+func fluentTheme(dark bool) *ui.Theme {
+	if dark {
+		t := ui.DarkTheme()
+		t.Background = ui.Hex("#202020")
+		t.Surface = ui.Hex("#2d2d2d")
+		t.SurfaceHover = ui.Hex("#323232")
+		t.SurfacePressed = ui.Hex("#272727")
+		t.Border = ui.RGBA(255, 255, 255, 0.0837)
+		t.Text = ui.Hex("#ffffff")
+		t.TextMuted = ui.Hex("#c5c5c5")
+		t.Danger = ui.Hex("#ff99a4")
+		t.Warning = ui.Hex("#fce100")
+		t.Success = ui.Hex("#6ccb5f")
+		return t.WithAccent(ui.Hex("#60cdff"))
+	}
+	t := ui.LightTheme()
+	t.Background = ui.Hex("#f3f3f3")
+	t.Surface = ui.Hex("#fbfbfb")
+	t.SurfaceHover = ui.Hex("#f6f6f6")
+	t.SurfacePressed = ui.Hex("#f0f0f0")
+	t.Border = ui.RGBA(0, 0, 0, 0.0803)
+	t.Text = ui.Hex("#1a1a1a")
+	t.TextMuted = ui.Hex("#5d5d5d")
+	t.Danger = ui.Hex("#c42b1c")
+	t.Warning = ui.Hex("#9d5d00")
+	t.Success = ui.Hex("#0f7b0f")
+	return t.WithAccent(ui.Hex("#005fb8"))
+}
+
 // finishTheme sets what every platform's theme shares.
 func finishTheme(t *ui.Theme, p ui.Preferences) *ui.Theme {
 	t.Radius = plat.controlRadius
 	t.FontSize = plat.bodySize
+	t.Font = plat.uiFont
 	// Tooltips (labels) open after half a second, as AppKit's; once one
 	// shows, its neighbours open at once (MyGo's warm-up).
 	t.TooltipDelay = 500 * time.Millisecond
 	return t.WithPreferences(p)
+}
+
+// displayFont sets the platform's font for large titles on e, where it
+// has one (Segoe UI Variable Display on Windows 11).
+func displayFont(e ui.Element) ui.Element {
+	if plat.displayFont != "" {
+		e.Font(plat.displayFont)
+	}
+	return e
 }
