@@ -77,6 +77,8 @@ type Engine struct {
 	// Restart ends the helper process so its service manager starts it
 	// again (helper.restart). nil: helper.restart is refused.
 	Restart func()
+	// Socket is where the helper listens (helper.inventory lists it).
+	Socket string
 	// VerifyTimeout bounds the wait for /version after a reload.
 	VerifyTimeout time.Duration
 	Now           func() time.Time

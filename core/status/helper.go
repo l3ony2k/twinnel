@@ -256,11 +256,12 @@ func (h *HelperConn) classify(err error) HelperState {
 		return HelperDenied
 	case errors.Is(err, fs.ErrPermission), errors.Is(err, syscall.EACCES):
 		return HelperDenied
-	case errors.Is(err, fs.ErrNotExist), errors.Is(err, syscall.ENOENT):
-		if h.Installed != nil && !h.Installed() {
-			return HelperNotInstalled
-		}
-		return HelperNotRunning
+	}
+	// Not installed and installed-but-down are told apart by the files
+	// install puts down, not by the socket (a stale socket answers
+	// "connection refused", a missing one "no such file").
+	if h.Installed != nil && !h.Installed() {
+		return HelperNotInstalled
 	}
 	return HelperNotRunning
 }

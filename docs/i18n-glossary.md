@@ -100,6 +100,20 @@ terms. Keep them when adding strings, and add new terms here.
 | 登录时打开 | Open at login |
 | 通用 | General |
 | 需打包版 | Packaged app only |
+| 订阅原文 | Subscription source |
+| 现在 / 接管后 | Now / After takeover |
+| 目标（运行中） | Target (running) |
+| 换一个文件… | Choose Another File… |
+| 下一步 | Next |
+| 撤销接管 | Undo Takeover |
+| 停止使用 duet | Stop Using duet |
+| duet 在本机安装的内容 | What duet Installed on This Mac |
+| 导出配置 | Export Config |
+| 复制详情 / 复制诊断信息 | Copy Details / Copy Diagnostics |
+| 待重启 | Restart pending |
+| 外部程序（接管） / duet 管理 | External binary (adopted) / Managed by duet |
+| duet 偏好设置 | duet preferences |
+| 在 Finder 中显示 | Show in Finder |
 
 ## Language names
 

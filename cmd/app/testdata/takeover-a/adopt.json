@@ -1,0 +1,94 @@
+{
+ "plan_id": "plan-20261127-101500-5a5a5a5a",
+ "ok": true,
+ "rolled_back": false,
+ "steps": [
+  {
+   "name": "verify",
+   "code": "verify",
+   "status": "ok",
+   "detail": "live config /Users/example/mihomo/conf/config.yaml unchanged since the plan (sha256 0000aaaa)"
+  },
+  {
+   "name": "backup",
+   "code": "backup",
+   "status": "ok",
+   "detail": "/Library/Application Support/duet/takeover/plan-x/live-backup.yaml"
+  },
+  {
+   "name": "import",
+   "code": "import",
+   "status": "ok",
+   "detail": "subscription adopted (url=true), layers base, user; settings point at /Users/example/mihomo/conf/config.yaml"
+  },
+  {
+   "name": "health before",
+   "code": "health-before",
+   "status": "ok",
+   "detail": "magicdns fail, system-dns ok"
+  },
+  {
+   "name": "apply",
+   "code": "apply",
+   "status": "ok",
+   "detail": "written=true reloaded=true history 20261127-101600"
+  },
+  {
+   "name": "health after",
+   "code": "health-after",
+   "status": "ok",
+   "detail": "magicdns ok, tailnet-route fail"
+  }
+ ],
+ "history_id": "7c41d2e0",
+ "backup_history_id": "6a90b1f3",
+ "backup": "/Library/Application Support/duet/takeover/20261126-153012-a1b2/live-config.yaml",
+ "health_before": [
+  {
+   "id": "magicdns",
+   "status": "fail"
+  },
+  {
+   "id": "tailnet-resolver-binding",
+   "status": "skip"
+  },
+  {
+   "id": "tailscale-direct-rules",
+   "status": "fail"
+  },
+  {
+   "id": "tailnet-route",
+   "status": "fail"
+  },
+  {
+   "id": "system-dns",
+   "status": "ok"
+  }
+ ],
+ "health_after": [
+  {
+   "id": "magicdns",
+   "status": "ok"
+  },
+  {
+   "id": "tailnet-resolver-binding",
+   "status": "ok"
+  },
+  {
+   "id": "tailscale-direct-rules",
+   "status": "ok"
+  },
+  {
+   "id": "tailnet-route",
+   "status": "fail"
+  },
+  {
+   "id": "system-dns",
+   "status": "ok"
+  }
+ ],
+ "worse": [],
+ "warnings": [
+  "the mihomo binary /Users/example/mihomo/bin/mihomo can be replaced without root (owned by uid 501), and the service runs it as root: anything running as that user can become root. duet runs it only without root for its own checks; to close this after the adopt, move the service to the managed kernel and a root-owned config dir (duet helper harden plan)"
+ ]
+}

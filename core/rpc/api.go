@@ -570,6 +570,8 @@ type TakeoverChange struct {
 	Args    []string `json:"args,omitempty"`
 	WhyCode string   `json:"why_code,omitempty"`
 	WhyArgs []string `json:"why_args,omitempty"`
+	// Keys are the entries a counts change touched (samples for the UI).
+	Keys []string `json:"keys,omitempty"`
 }
 
 // Plan states.
@@ -617,6 +619,9 @@ type TakeoverPlan struct {
 	// Impact of the adopt's reload on the running mihomo (live config →
 	// composed config).
 	Impact *ReloadImpact `json:"impact,omitempty"`
+	// Effects say what adopt does to each existing piece (service,
+	// binary, config file, subscription, secret, Tailscale).
+	Effects []TakeoverEffect `json:"effects,omitempty"`
 
 	AdoptedAt time.Time `json:"adopted_at,omitzero"`
 	// Backup is the exact copy of the live config taken before adopt.
@@ -649,7 +654,11 @@ type AdoptParams struct {
 
 // AdoptStep is one step of takeover.adopt.
 type AdoptStep struct {
-	Name   string `json:"name"`
+	Name string `json:"name"`
+	// Code is Name as a stable code (verify, backup, import,
+	// health-before, apply, health-after, rollback, restore, undo-import)
+	// for a client to word; Detail stays English.
+	Code   string `json:"code,omitempty"`
 	Status string `json:"status"` // ok, failed, skipped, warn
 	Detail string `json:"detail,omitempty"`
 }

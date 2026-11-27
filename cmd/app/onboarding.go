@@ -20,14 +20,17 @@ import (
 // The first-run view, shown in place of the helper pages while no helper
 // is installed: what the helper is for, what installing it does (the
 // output of `duet helper install --dry-run`) and a button that runs the
-// real install (one administrator prompt, through the CLI). The button is
-// disabled with DUET_READ_ONLY=1.
+// real install (one administrator prompt, through the CLI). The preview
+// loads, then shows its steps, or a failed / timed-out state with 重试;
+// the button never waits on it (the administrator prompt is the real
+// confirmation). Only a development run's read-only switch locks it.
 
 type onboardingView struct {
 	loaded  bool
 	loading bool
 	plan    string
 	planErr string
+	timeout bool // the preview took longer than installPlanTimeout
 	running bool
 	out     string
 	outErr  bool
@@ -95,21 +98,28 @@ func runCLI(ctx context.Context, args ...string) (string, error) {
 	return out.String(), err
 }
 
+// installPlanTimeout bounds the dry run; a slower one shows as timed out.
+var installPlanTimeout = 5 * time.Second
+
 func (a *app) loadInstallPlan() {
 	v := &a.hd.onb
 	if v.loading {
 		return
 	}
-	v.loading = true
+	v.loading, v.timeout = true, false
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), installPlanTimeout)
 		defer cancel()
 		out, err := runCLI(ctx, installArgs("--dry-run")...)
+		timedOut := errors.Is(ctx.Err(), context.DeadlineExceeded)
 		mygo.RunOnMain(func() {
 			v.loading, v.loaded = false, true
-			v.plan, v.planErr = out, ""
+			v.plan, v.planErr, v.timeout = out, "", timedOut
 			if err != nil {
-				v.planErr = i18n.Cur().ErrorPrefix + err.Error()
+				v.planErr = strings.TrimSpace(out)
+				if v.planErr == "" {
+					v.planErr = err.Error()
+				}
 			}
 			a.invalidate()
 		})
@@ -139,7 +149,7 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 		})
 		hintText(c, T.OnboardReadOnly)
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
-			canInstall := s.WritesAllowed && !v.running && v.planErr == "" && v.plan != ""
+			canInstall := s.WritesAllowed && !v.running
 			label := T.OnboardInstall
 			if v.running {
 				label = T.OnboardInstalling
@@ -150,17 +160,17 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 			if v.running {
 				ui.Spinner(c)
 			}
+			if !s.WritesAllowed {
+				// A development run's read-only switch: a lock, its
+				// reason in the tooltip.
+				ui.Icon(c, iconSecure).FontSize(iconInline).TextColor(t.TextMuted).Tooltip(T.InstallNeedsWrites)
+			}
+			ui.Spacer(c)
 			if pushButton(c.Key("recheck"), T.HelperRetry).Clicked() {
 				v.loaded = false
 				a.hc.Retry()
 			}
 		})
-		if !s.WritesAllowed {
-			ui.Row(c).Gap(6).AlignItems(ui.Start).Children(func() {
-				ui.Icon(c, iconSecure).FontSize(iconInline).TextColor(t.TextMuted).MarginY(1).Shrink(0)
-				hintText(c, T.WritesDisabledHint).Grow(1)
-			})
-		}
 		if v.out != "" {
 			if v.outErr {
 				errorNote(c, strings.TrimSpace(v.out))
@@ -193,8 +203,23 @@ func (a *app) installPlanCard(c *ui.Context) {
 						small(c, T.Loading)
 					})
 				})
-			case v.planErr != "":
-				listRow(c).Children(func() { errorNote(c, v.planErr) })
+			case v.planErr != "" || v.timeout:
+				listRow(c).Children(func() {
+					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+						ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText)
+						head := T.InstallPlanFailed
+						if v.timeout {
+							head = T.InstallPlanTimeout
+						}
+						ui.Text(c, head).Grow(1).Shrink(1)
+						if v.planErr != "" && actionLink(c.Key("plan-copy"), T.TkCopyDetails).Clicked() {
+							copyText(c, v.planErr)
+						}
+						if pushButton(c.Key("plan-retry"), T.InstallRetry).Disabled(v.loading).Clicked() {
+							a.loadInstallPlan()
+						}
+					})
+				})
 			case !parsed && v.plan != "":
 				listRow(c).Children(func() { codeBlock(c, v.plan) })
 			case parsed:
