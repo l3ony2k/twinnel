@@ -233,6 +233,7 @@ func toRPCSettings(st *store.Settings) rpc.Settings {
 		LeakGuardGroups: g, TailscaleCoexist: st.Tailscale.Coexist, TailscaleResolver: st.Tailscale.Resolver,
 		HistoryKeep: st.HistoryKeep, KernelChannel: st.KernelChannel, AutoApply: *st.AutoApply,
 		Drift: toRPCDrift(st.Drift),
+		Agent: rpc.AgentSettings{MCP: st.Agent.MCP, Operate: st.Agent.OperateOn(), Configure: st.Agent.Configure},
 	}
 }
 
@@ -280,6 +281,18 @@ func (e *Engine) UpdateSettings(u rpc.SettingsUpdate) (rpc.Settings, error) {
 		if u.AutoApply != nil {
 			v := *u.AutoApply
 			st.AutoApply = &v
+		}
+		if a := u.Agent; a != nil {
+			if a.MCP != nil {
+				st.Agent.MCP = *a.MCP
+			}
+			if a.Operate != nil {
+				v := *a.Operate
+				st.Agent.Operate = &v
+			}
+			if a.Configure != nil {
+				st.Agent.Configure = *a.Configure
+			}
 		}
 		return nil
 	})

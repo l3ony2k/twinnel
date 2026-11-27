@@ -561,6 +561,7 @@ var en = Strings{
 	SidebarStrings:         enSidebar,
 	OverviewStrings:        enOverview,
 	PagesStrings:           enPages,
+	AgentStrings:           enAgent,
 }
 
 var enControls = ControlStrings{

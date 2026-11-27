@@ -31,6 +31,7 @@ var AllMethods = []string{
 	MethodGeoCheck, MethodGeoUpdate, MethodUICheck, MethodUIUpdate,
 	MethodTakeoverPlan, MethodTakeoverPlans, MethodTakeoverDiscard, MethodTakeoverAdopt, MethodTakeoverUndo,
 	MethodControllerSecure, MethodControllerCredentials,
+	MethodAgentRecord, MethodAgentActivity,
 	MethodHardenPlan, MethodHardenPlans, MethodHardenApply,
 	MethodHelperInfo, MethodHelperInventory, MethodHelperRestart, MethodEventsWait,
 }

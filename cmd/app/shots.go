@@ -120,6 +120,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"flyout":          a.flyoutShots,          // shots_flyout.go
 		"foundations":     a.foundationsShots,     // shots_foundations.go
 		"surfaces":        a.surfacesShots,        // shots_surfaces.go
+		"agent":           a.agentShots,           // shots_agent.go
 		"takeover":        a.takeoverE2E,
 	}
 }

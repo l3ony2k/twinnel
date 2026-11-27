@@ -110,6 +110,8 @@ duet helper harden apply         # mihomo 重启一次，断网几秒
 
 会问 `Proceed? [y/N]` 的命令，在标准输入不是终端时要加 `--yes`。
 
+本机的 AI Agent（Claude Code、Codex、Cursor 等）可以通过 MCP（`duet mcp`）查看 duet，并在你设定的范围内操作它：见 [docs/agents.md](docs/agents.md)（英文，附中文摘要）。
+
 ## 健康检查
 
 `tailnet-route`、`tun-route-exclude`、`tailscale-direct-rules`、`magicdns`、`peer-short-names`、`tailnet-resolver-binding`、`fake-ip-filter-mode`、`system-dns`、`vpn-conflict`、`leak-guard`、`leak-guard-egress`（需手动开启）、`controller-security`。每一项都给出状态、读到的证据和修复建议。各项具体查什么，见 [docs/architecture.md](docs/architecture.md#health-checks)。

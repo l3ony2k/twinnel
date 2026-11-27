@@ -1,0 +1,181 @@
+{
+ "Version": "1.90.0",
+ "TUN": true,
+ "BackendState": "Running",
+ "HaveNodeKey": true,
+ "TailscaleIPs": [
+  "100.64.0.1",
+  "fd7a:115c:a1e0::1"
+ ],
+ "Self": {
+  "ID": "nSYNTH01CNTRL",
+  "PublicKey": "nodekey:06c604b332b386b6cce8355ccf27fffd3a98b7a7a5b9b3a550c039c6ebae38e4",
+  "HostName": "laptop",
+  "DNSName": "laptop.example-tailnet.ts.net.",
+  "OS": "macOS",
+  "UserID": 1001,
+  "TailscaleIPs": [
+   "100.64.0.1",
+   "fd7a:115c:a1e0::1"
+  ],
+  "Online": true,
+  "Relay": "hkg",
+  "KeyExpiry": "2027-05-01T00:00:00Z"
+ },
+ "Health": [],
+ "MagicDNSSuffix": "example-tailnet.ts.net",
+ "CurrentTailnet": {
+  "Name": "example.test",
+  "MagicDNSSuffix": "example-tailnet.ts.net",
+  "MagicDNSEnabled": true
+ },
+ "Peer": {
+  "nodekey:047de0f543c7e3596bb6dbd0e65f2c30357720a63eca423f08c52fae314f6806": {
+   "ID": "nSYNTH02CNTRL",
+   "PublicKey": "nodekey:047de0f543c7e3596bb6dbd0e65f2c30357720a63eca423f08c52fae314f6806",
+   "HostName": "nas",
+   "DNSName": "nas.example-tailnet.ts.net.",
+   "OS": "linux",
+   "UserID": 1001,
+   "TailscaleIPs": [
+    "100.64.0.2",
+    "fd7a:115c:a1e0::3"
+   ],
+   "Online": true,
+   "Active": true,
+   "Relay": "hkg",
+   "CurAddr": "192.168.1.20:41641",
+   "ExitNodeOption": false,
+   "ExitNode": false,
+   "LastSeen": "2026-11-25T08:00:00Z"
+  },
+  "nodekey:ae9f5b24d0a736308c3a9b187e9faac47f9d77824a850728b2e334535c59ff99": {
+   "ID": "nSYNTH03CNTRL",
+   "PublicKey": "nodekey:ae9f5b24d0a736308c3a9b187e9faac47f9d77824a850728b2e334535c59ff99",
+   "HostName": "exit-sg",
+   "DNSName": "exit-sg.example-tailnet.ts.net.",
+   "OS": "linux",
+   "UserID": 1001,
+   "TailscaleIPs": [
+    "100.64.0.3",
+    "fd7a:115c:a1e0::4"
+   ],
+   "Online": true,
+   "Active": false,
+   "Relay": "sin",
+   "CurAddr": "",
+   "ExitNodeOption": true,
+   "ExitNode": true,
+   "LastSeen": "2026-11-25T08:00:00Z"
+  },
+  "nodekey:3761c47230447aaab1f3b57a64f94a6d0a8f7a97665e397eb01d4ee2bf48787d": {
+   "ID": "nSYNTH04CNTRL",
+   "PublicKey": "nodekey:3761c47230447aaab1f3b57a64f94a6d0a8f7a97665e397eb01d4ee2bf48787d",
+   "HostName": "exit-jp",
+   "DNSName": "exit-jp.example-tailnet.ts.net.",
+   "OS": "linux",
+   "UserID": 1001,
+   "TailscaleIPs": [
+    "100.64.0.4",
+    "fd7a:115c:a1e0::5"
+   ],
+   "Online": true,
+   "Active": false,
+   "Relay": "tok",
+   "CurAddr": "",
+   "ExitNodeOption": true,
+   "ExitNode": false,
+   "LastSeen": "2026-11-25T08:00:00Z"
+  },
+  "nodekey:45569da57f4b7bf472d7a864ef4781451cae6383fee9fb0ae40c59aa1ce475b7": {
+   "ID": "nSYNTH05CNTRL",
+   "PublicKey": "nodekey:45569da57f4b7bf472d7a864ef4781451cae6383fee9fb0ae40c59aa1ce475b7",
+   "HostName": "phone",
+   "DNSName": "phone.example-tailnet.ts.net.",
+   "OS": "iOS",
+   "UserID": 1001,
+   "TailscaleIPs": [
+    "100.64.0.5",
+    "fd7a:115c:a1e0::6"
+   ],
+   "Online": false,
+   "Active": false,
+   "Relay": "hkg",
+   "CurAddr": "",
+   "ExitNodeOption": false,
+   "ExitNode": false,
+   "LastSeen": "2026-11-25T08:00:00Z"
+  },
+  "nodekey:5bed85bd69a5502a8f645a58a05e979f94bdeb77b957199ce8429e0ffbc01257": {
+   "ID": "nSYNTH06CNTRL",
+   "PublicKey": "nodekey:5bed85bd69a5502a8f645a58a05e979f94bdeb77b957199ce8429e0ffbc01257",
+   "HostName": "tablet",
+   "DNSName": "tablet.example-tailnet.ts.net.",
+   "OS": "iOS",
+   "UserID": 1001,
+   "TailscaleIPs": [
+    "100.64.0.6",
+    "fd7a:115c:a1e0::7"
+   ],
+   "Online": true,
+   "Active": false,
+   "Relay": "hkg",
+   "CurAddr": "",
+   "ExitNodeOption": false,
+   "ExitNode": false,
+   "LastSeen": "2026-11-25T08:00:00Z"
+  },
+  "nodekey:68693d02ab4fbb2331b8cc39915322e48e61f06d4d1b31e7d19913202857bc8a": {
+   "ID": "nSYNTH07CNTRL",
+   "PublicKey": "nodekey:68693d02ab4fbb2331b8cc39915322e48e61f06d4d1b31e7d19913202857bc8a",
+   "HostName": "desktop",
+   "DNSName": "desktop.example-tailnet.ts.net.",
+   "OS": "windows",
+   "UserID": 1001,
+   "TailscaleIPs": [
+    "100.64.0.7",
+    "fd7a:115c:a1e0::8"
+   ],
+   "Online": false,
+   "Active": false,
+   "Relay": "hkg",
+   "CurAddr": "",
+   "ExitNodeOption": false,
+   "ExitNode": false,
+   "LastSeen": "2026-11-25T08:00:00Z"
+  },
+  "nodekey:e97407735e49029c96e5708c724fc9ce57b6335dba804a893320fcb7c0a07953": {
+   "ID": "nSYNTH08CNTRL",
+   "PublicKey": "nodekey:e97407735e49029c96e5708c724fc9ce57b6335dba804a893320fcb7c0a07953",
+   "HostName": "raspberry",
+   "DNSName": "raspberry.example-tailnet.ts.net.",
+   "OS": "linux",
+   "UserID": 1001,
+   "TailscaleIPs": [
+    "100.64.0.8",
+    "fd7a:115c:a1e0::9"
+   ],
+   "Online": true,
+   "Active": true,
+   "Relay": "hkg",
+   "CurAddr": "10.0.0.8:41641",
+   "ExitNodeOption": false,
+   "ExitNode": false,
+   "LastSeen": "2026-11-25T08:00:00Z"
+  }
+ },
+ "User": {
+  "1001": {
+   "ID": 1001,
+   "LoginName": "user@example.test",
+   "DisplayName": "Example User"
+  }
+ },
+ "ExitNodeStatus": {
+  "ID": "nSYNTH03CNTRL",
+  "Online": true,
+  "TailscaleIPs": [
+   "100.64.0.3/32"
+  ]
+ }
+}

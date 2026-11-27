@@ -1052,6 +1052,7 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 		a.menuBarCard(c)
 	}
 	a.mihomoSettingsCard(c, s)
+	a.agentSection(c, s) // agentsection.go
 	a.refreshHelperMgmt(s)
 	a.helperSection(c, s)
 }
@@ -1064,12 +1065,7 @@ const settingsFieldW = 260
 // is set) taking the room, the control at the right edge.
 func settingsRow(c *ui.Context, label, tip string, more func(), control func()) {
 	ui.Row(c).Gap(12).AlignItems(ui.Center).MinHeight(28).Children(func() {
-		ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Shrink(1).Children(func() {
-			ui.Text(c, label).Shrink(1)
-			if tip != "" { // an ⓘ only where there is something to explain
-				infoTipAbout(c, label, tip, more)
-			}
-		})
+		switchLabel(c, label, tip, more) // an ⓘ only where there is something to explain
 		control()
 	})
 }
@@ -1245,4 +1241,28 @@ func levelHeadline(s status.Snapshot) (string, []status.Reason) {
 		return s.Reasons[0].Text, nil
 	}
 	return s.Level.Text(), s.Reasons
+}
+
+// settingsLabel is the label column of a 设置 field row (the agent
+// card's), with an ⓘ after the label when tip is not empty.
+func settingsLabel(c *ui.Context, label, tip string) ui.Element {
+	t := c.Theme()
+	if tip == "" {
+		return ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth + 24).Shrink(0)
+	}
+	return ui.Row(c).Gap(4).AlignItems(ui.Center).Width(labelWidth + 24).Shrink(0).Children(func() {
+		ui.Text(c, label).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		infoTipAbout(c, label, tip, nil)
+	})
+}
+
+// switchLabel is the label of a 设置 switch row, taking the room before
+// the switch, with an ⓘ after it when tip is not empty.
+func switchLabel(c *ui.Context, label, tip string, more func()) {
+	ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Shrink(1).Children(func() {
+		ui.Text(c, label).Shrink(1)
+		if tip != "" {
+			infoTipAbout(c, label, tip, more)
+		}
+	})
 }
