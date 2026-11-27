@@ -31,7 +31,7 @@ CI runs the same on macOS and Ubuntu, plus cross-builds.
 
 ### Screenshots (development)
 
-`DUET_SHOTS=<dir> duet-app` renders every page and the flyout into PNGs, without showing a window or taking the focus, then quits (`cmd/app/shots*.go`; `DUET_SHOTS_FLOW`, `DUET_SHOTS_QUICK`, `DUET_SHOTS_WIDTH` pick other passes). Run it against synthetic data only, so no real account, tailnet, device or node name ends up in a picture:
+`DUET_SHOTS=<dir> duet-app` renders every page and the flyout into PNGs, without showing a window or taking the focus, then quits (`cmd/app/shots*.go`; `DUET_SHOTS_FLOW`, `DUET_SHOTS_QUICK`, `DUET_SHOTS_WIDTH` pick other passes; `DUET_SHOTS_FLOW=toolbar` saves each page's toolbar idle, hovered and pressed). Run it against synthetic data only, so no real account, tailnet, device or node name ends up in a picture:
 
 - mihomo: a fake controller (`DUET_CONTROLLER`, `DUET_MIHOMO_SECRET`) with invented groups and nodes;
 - the helper: a development helper on a temp socket (`DUET_SOCKET`), started with `--tailnet-status-file cmd/app/testdata/shots-tailscale-status.json`;

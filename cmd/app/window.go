@@ -128,25 +128,31 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 	})
 }
 
-// inToolbar is true while the toolbar's actions are built: buttons there
-// keep the toolbar's look, not a push button's (pushFace). Main thread
-// only.
-var inToolbar bool
+// inToolbar is true while the toolbar's actions are built: buttons and
+// segmented controls there take the toolbar's capsule (toolbarFace), not
+// a push button's face. toolbarGlass is the glass they are panes of.
+// Main thread only.
+var (
+	inToolbar    bool
+	toolbarGlass *glass.Group
+)
 
 // toolbarActions builds a page's toolbar actions. Under Liquid Glass
-// (macOS 26+) they are faceless toolbar items on one glass capsule, as
-// Finder's and System Settings'; elsewhere, the controls as built.
+// (macOS 26+) each button and segmented control is its own glass capsule
+// (toolbarFace), and labels and switches sit bare between them, all on
+// one line; elsewhere, the controls as built.
 func toolbarActions(c *ui.Context, trailing func()) {
 	if !liquidGlass {
 		trailing()
 		return
 	}
-	inToolbar = true
-	defer func() { inToolbar = false }()
 	g := glass.NewGroup(c)
-	g.Radius = 16
-	g.Shrink(0).Children(func() {
-		g.Pane(ui.Toolbar(c, trailing).Height(32).Padding(0, 6).Gap(4).Shrink(0))
+	g.Radius = toolbarItemH / 2
+	g.Merge = 0 // separate capsules, each exactly its control's box
+	inToolbar, toolbarGlass = true, g
+	defer func() { inToolbar, toolbarGlass = false, nil }()
+	g.Shrink(0).AlignItems(ui.Center).Children(func() {
+		ui.Toolbar(c, trailing).Height(toolbarItemH).Padding(0).Gap(toolbarGap).AlignItems(ui.Center).Shrink(0)
 	})
 }
 
