@@ -22,7 +22,6 @@ import (
 	"time"
 	"unsafe"
 
-	winio "github.com/tailscale/go-winio"
 	"golang.org/x/sys/windows"
 
 	"github.com/l3ony2k/twinnel/core/priv"
@@ -80,7 +79,9 @@ func elevate(op string, f *installFlags, exe string, rargs []string) error {
 	// LocalSystem, Administrators (the elevated copy, whichever admin
 	// account approved the prompt) and this user.
 	sddl := "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;" + self + ")"
-	l, err := winio.ListenPipe(pipe, &winio.PipeConfig{SecurityDescriptor: sddl})
+	// The pipe's instance exists before the elevated copy starts, so the
+	// copy can connect at once (outpipe_windows.go).
+	out, err := listenOutput(pipe, sddl)
 	if err != nil {
 		return fmt.Errorf("output pipe: %w", err)
 	}
@@ -89,15 +90,10 @@ func elevate(op string, f *installFlags, exe string, rargs []string) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		c, err := l.Accept()
-		if err != nil {
-			return
-		}
-		defer c.Close()
-		io.Copy(io.MultiWriter(stdout, &tail), c)
+		out.copyTo(io.MultiWriter(stdout, &tail))
 	}()
 	code, err := shellExecuteRunas(exe, params)
-	l.Close()
+	out.release()
 	waitTimeout(&wg, 5*time.Second)
 	switch {
 	case errors.Is(err, windows.ERROR_CANCELLED):
@@ -165,7 +161,7 @@ func attachOutput(path string) error {
 	if !strings.HasPrefix(path, outputPipePrefix) || strings.ContainsAny(path[len(outputPipePrefix):], `\/:`) {
 		return fmt.Errorf("--output %q is not an output pipe", path)
 	}
-	w, err := os.OpenFile(path, os.O_WRONLY, 0)
+	w, err := openOutputPipe(path, 5*time.Second)
 	if err != nil {
 		// The run itself does not depend on it: its output then stays in
 		// its hidden console, and the exit code still reaches the caller.
