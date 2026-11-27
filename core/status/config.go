@@ -21,6 +21,11 @@ type Config struct {
 	MihomoConfigDir string `json:"mihomoConfigDir,omitempty"`
 	// NotificationsOff turns desktop notifications off (on by default).
 	NotificationsOff bool `json:"notificationsOff,omitempty"`
+	// TraySpeedOff hides the traffic rate next to the menu bar icon (shown
+	// by default); TraySpeedLayout is how it shows: "" one line ("↓ 512K
+	// ↑ 3M"), TraySpeedTwoLines upload over download in a small font.
+	TraySpeedOff    bool   `json:"traySpeedOff,omitempty"`
+	TraySpeedLayout string `json:"traySpeedLayout,omitempty"`
 	// Language is the UI language (a core/i18n tag such as "en"); ""
 	// follows the system's preferred languages.
 	Language string `json:"language,omitempty"`
@@ -49,6 +54,9 @@ const (
 	// EnvReadOnly=1 keeps every write off (development and test runs).
 	EnvReadOnly = "DUET_READ_ONLY"
 )
+
+// TraySpeedTwoLines is Config.TraySpeedLayout for two stacked lines.
+const TraySpeedTwoLines = "two"
 
 // DefaultPrimaryGroup is the group shown in the panel when none is set.
 const DefaultPrimaryGroup = "PROXY"
