@@ -12,11 +12,11 @@ import (
 var macWords = regexp.MustCompile(`\bMac\b|macOS|Finder|访达|钥匙串|[Kk]eychain|LaunchDaemon|launchd|程序坞|⌘|⌥|⌃|菜单栏|[Mm]enu bar|管理员密码|administrator password|系统设置|System Settings|废纸篓|Trash|\.app\b`)
 
 // windowsHidden are fields Windows never shows (the Dock and menu bar
-// rows are macOS only, the CLI link row is hidden, a Mac or Homebrew
+// rows are macOS only, a Mac or Homebrew
 // Tailscale is never detected there, LaunchAgents do not exist).
 var windowsHidden = map[string]bool{
 	".ShowInDock": true, ".DockWhenOpen": true, ".DockAlways": true, ".DockNever": true, ".DockOpen": true,
-	".TraySpeedSwitch": true, ".NotificationsUnsupportedTip": true, ".TipAgentCLI": true,
+	".TraySpeedSwitch": true, ".NotificationsUnsupportedTip": true,
 	".InstallKinds[mac-standalone]": true, ".InstallKinds[mac-appstore]": true,
 	".TSUpdateHints[brew]": true, ".InvLaunchAgent": true, ".ItemLaunchAgent": true,
 }

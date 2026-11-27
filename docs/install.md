@@ -137,9 +137,25 @@ twinnel version
 
    它把 Twinnel 装到 `%LOCALAPPDATA%\Programs\Twinnel`（`Twinnel.exe`，命令行和后台助手在 `bin\`），
    加开始菜单快捷方式，把 `bin\` 加进当前用户的 PATH，然后启动 Twinnel。不需要管理员权限。
-   加 `-DryRun` 只打印步骤。
+   加 `-DryRun` 只打印步骤。`twinnel` 命令在这个窗口和之后新打开的终端里可用；已经开着的终端
+   （以及 VS Code 这类编辑器）要重开才找得到它。Twinnel 的 设置 → 本地 Agent → 命令行工具 也能把
+   `bin\` 加进或移出 PATH。
 3. Twinnel 的图标在任务栏右侧的通知区域（可能收在 ^ 里）。第一次打开时点「安装后台助手」，Windows
    会弹一次「用户账户控制」，同意后后台助手作为 Windows 服务 `TwinnelHelper` 运行。
+
+#### 两份后台助手
+
+Windows 上有两份 `twinnel-helper.exe`：
+
+| 位置 | 作用 |
+|---|---|
+| `%LOCALAPPDATA%\Programs\Twinnel\bin\twinnel-helper.exe` | 随安装包一起来的，`install.ps1` 每次安装或更新都会覆盖它 |
+| `C:\Program Files\Twinnel\twinnel-helper.exe` | `TwinnelHelper` 服务实际运行的那份，普通用户改不了 |
+
+安装后台助手时（第一次打开 Twinnel 的那一步，或 `twinnel helper install`），第一份被复制成第二份。
+之后用 `install.ps1` 更新 Twinnel 只换了第一份；Twinnel 发现运行中的后台助手比自己旧时会提示
+更新，在 设置 → 后台助手 → 更新（或 `twinnel helper upgrade`）同意一次「用户账户控制」，第一份就会
+再复制过去并重启服务。`twinnel version` 会列出两份各自的版本，不一致时打印一行 warning。
 
 这个版本没有代码签名。直接双击 `Twinnel.exe` 时 SmartScreen 会提示「Windows 已保护你的电脑」：点
 「更多信息」→「仍要运行」。用 `install.ps1` 安装会去掉下载标记，之后不再提示。
@@ -288,10 +304,28 @@ Uninstall: `sudo ./install.sh --uninstall` (`--purge` also deletes the data in `
 
    It installs Twinnel in `%LOCALAPPDATA%\Programs\Twinnel` (`Twinnel.exe`; the command line and the
    helper in `bin\`), adds a Start menu shortcut, puts `bin\` on your PATH and starts Twinnel. No
-   administrator rights needed. `-DryRun` only prints the steps.
+   administrator rights needed. `-DryRun` only prints the steps. The `twinnel` command works in that
+   window and in terminals you open afterwards; terminals (and editors such as VS Code) that were
+   already open must be restarted to find it. Settings → Local agents → Command line tool in Twinnel
+   also adds `bin\` to PATH or removes it.
 3. Twinnel's icon is in the notification area of the taskbar (maybe behind the ^). On first run,
    click Install Helper: Windows shows one User Account Control prompt, and the helper then runs as
    the Windows service `TwinnelHelper`.
+
+#### The two helper binaries
+
+Windows has two copies of `twinnel-helper.exe`:
+
+| Where | What it is |
+|---|---|
+| `%LOCALAPPDATA%\Programs\Twinnel\bin\twinnel-helper.exe` | shipped with the app; `install.ps1` replaces it on every install or update |
+| `C:\Program Files\Twinnel\twinnel-helper.exe` | the one the `TwinnelHelper` service runs; users can't change it |
+
+Installing the helper (the first screen of Twinnel, or `twinnel helper install`) copies the first to
+the second. Updating Twinnel with `install.ps1` replaces only the first; when Twinnel sees that the
+running helper is older than itself, it offers the update: Settings → Helper → Update (or
+`twinnel helper upgrade`) asks for one User Account Control approval, copies the first over the second
+and restarts the service. `twinnel version` lists both versions and prints a warning when they differ.
 
 The build is not code-signed. Double-clicking `Twinnel.exe` directly shows SmartScreen's "Windows
 protected your PC": click More info → Run anyway. `install.ps1` clears the downloaded-file mark on

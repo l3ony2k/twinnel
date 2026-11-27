@@ -11,8 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-
 	"github.com/l3ony2k/twinnel/core/agent"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/rpc"
@@ -61,7 +59,7 @@ func runMCP(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return srv.Run(ctx, &mcp.StdioTransport{})
+	return srv.Run(ctx, agent.NewStdioTransport(os.Stdin, os.Stdout, os.Stderr))
 }
 
 // mcpDeps wires the server to the helper on socket, the controller
@@ -83,6 +81,9 @@ func mcpDeps(socket string) agent.Deps {
 		Tailscale:  tailscale.DefaultAPI(),
 		ReadOnly:   os.Getenv(status.EnvReadOnly) == "1",
 		Version:    coreversion.Version,
+	}
+	d.HelperBinaries = func(ctx context.Context, running string) *coreversion.HelperBinaries {
+		return collectHelperBinaries(ctx, 5*time.Second, running)
 	}
 	d.Doctor = func(ctx context.Context) (json.RawMessage, error) {
 		settings := health.DefaultSettings()

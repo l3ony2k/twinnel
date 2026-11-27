@@ -40,6 +40,7 @@ import (
 	"github.com/l3ony2k/twinnel/core/mihomo"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/version"
 )
 
 // Caller is a connection to the helper (*rpc.Client).
@@ -62,6 +63,10 @@ type Deps struct {
 	// Doctor runs the local health checks (`twinnel doctor --json`); nil: the
 	// doctor tool is not offered.
 	Doctor func(ctx context.Context) (json.RawMessage, error)
+	// HelperBinaries compares the helper binary shipped with Twinnel with
+	// the installed one, given the running helper's version ("" unknown);
+	// nil: the version tool leaves it out.
+	HelperBinaries func(ctx context.Context, running string) *version.HelperBinaries
 	// ReadOnly refuses every operate and configure tool (TWINNEL_READ_ONLY).
 	ReadOnly bool
 	// Version is Twinnel's version.
@@ -217,6 +222,9 @@ type toolOpts struct {
 	destructive bool
 	idempotent  bool
 	openWorld   bool
+	// enums are the allowed values of string arguments, by name; they go
+	// into the input schema and into the error for a wrong value.
+	enums map[string][]string
 }
 
 // handler is a typed tool body.
@@ -238,9 +246,22 @@ func addTool[In any](s *Server, tier, name, title, desc string, o toolOpts, h ha
 		desc += fmt.Sprintf("\nTier: %s (Twinnel → 设置 → 本地 Agent).", tier)
 	}
 	s.tools = append(s.tools, ToolInfo{Name: name, Tier: tier, Title: title})
-	mcp.AddTool(s.MCP, &mcp.Tool{Name: name, Title: title, Description: desc, Annotations: ann},
-		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
-			return s.run(ctx, req, tier, name, o, in, func(c *call) (any, error) { return h(c, in) }), nil, nil
+	// The arguments are checked here (args.go), not by mcp.AddTool, so that
+	// a mistake gets an answer an agent can act on.
+	ts := newToolSchema[In](o.enums)
+	s.MCP.AddTool(&mcp.Tool{Name: name, Title: title, Description: desc, Annotations: ann, InputSchema: ts.s},
+		func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			raw, err := ts.check(name, req.Params.Arguments)
+			var in In
+			if err == nil {
+				if err = json.Unmarshal(raw, &in); err != nil {
+					err = fmt.Errorf("%s: %v", name, err)
+				}
+			}
+			if err != nil {
+				return s.errorResult(err), nil
+			}
+			return s.run(ctx, req, tier, name, o, in, func(c *call) (any, error) { return h(c, in) }), nil
 		})
 }
 

@@ -4,6 +4,7 @@ go 1.27.4
 
 require (
 	github.com/egoist/mygo v0.10.0
+	github.com/google/jsonschema-go v0.4.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/tailscale/go-winio v0.0.0-20231025203758-c4f33415bf55
 	golang.org/x/sys v0.50.0
@@ -21,7 +22,6 @@ require (
 	github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/hdevalence/ed25519consensus v0.2.0 // indirect
 	github.com/jsimonetti/rtnetlink v1.4.2 // indirect
 	github.com/mdlayher/netlink v1.11.2 // indirect

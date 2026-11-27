@@ -40,6 +40,7 @@ var windowsWording = map[string]func(*Strings){"zh-Hans": windowsZh, "en": windo
 
 // windowsZh: Windows words in Chinese.
 func windowsZh(s *Strings) {
+	s.TipAgentCLI = "在终端里用 twinnel 命令，Agent 的 MCP 配置也指向它。安装是把 Twinnel 的 bin 文件夹加入你的 PATH，之后新打开的终端才能找到它；随时可以移除。"
 	s.InfoExitNode = "让这台电脑的流量从 Tailscale 里的另一台设备出去。mihomo 的 TUN 开着时，两者都要接管默认路由，会互相冲突。"
 	s.ServiceInstallTitle = "为「%s」安装 Windows 服务？"
 	s.OnboardPlanHint = "点击安装后 Windows 会请求一次管理员授权"
@@ -66,6 +67,7 @@ func windowsZh(s *Strings) {
 
 // windowsEn: Windows words in English.
 func windowsEn(s *Strings) {
+	s.TipAgentCLI = "Use twinnel in a terminal; the agents' MCP settings point to it too. Installing adds Twinnel's bin folder to your PATH, so terminals you open afterwards find it. You can remove it at any time."
 	s.SelfIP = "This PC's IP"
 	s.SelfName = "This PC's name"
 	s.InfoTun = "TUN lets mihomo carry all of this PC's traffic, including apps that ignore the system proxy. Off, only apps that use the system proxy go through mihomo."
