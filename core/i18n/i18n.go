@@ -251,6 +251,7 @@ type Strings struct {
 	ConfigUIStrings        // configui.go
 	LifecycleStrings       // lifecycle.go
 	TakeoverExplainStrings // takeoverexplain.go
+	InfoTipStrings         // infotips.go
 	StatusStrings          // status.go
 	SidebarStrings         // sidebar.go
 }
@@ -798,6 +799,7 @@ var zh = Strings{
 	ConfigUIStrings:        zhConfigUI,
 	LifecycleStrings:       zhLifecycle,
 	TakeoverExplainStrings: zhTakeoverExplain,
+	InfoTipStrings:         zhInfoTips,
 	StatusStrings:          zhStatus,
 	SidebarStrings:         zhSidebar,
 }

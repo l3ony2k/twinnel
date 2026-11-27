@@ -111,6 +111,11 @@ func (a *app) shots(dir string) {
 			mygo.App.Quit()
 			return
 		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "infotips" { // shots_infotips.go
+			a.infoTipShots(save)
+			mygo.App.Quit()
+			return
+		}
 		if os.Getenv("DUET_SHOTS_FLOW") == "flyout" { // shots_flyout.go
 			a.flyoutShots(save)
 			mygo.App.Quit()

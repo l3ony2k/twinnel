@@ -195,6 +195,7 @@ func (a *app) installPlanCard(c *ui.Context) {
 	ui.Column(c).Gap(8).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(28).Children(func() {
 			ui.Text(c, T.OnboardPlan).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
+			infoTipAbout(c, T.OnboardPlan, T.TipInstallPlan, nil)
 		})
 		hintText(c, T.OnboardPlanHint).PaddingX(groupPadX)
 		listBox(c, t).Children(func() {

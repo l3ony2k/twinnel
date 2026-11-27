@@ -93,6 +93,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 	ui.Column(c).Grow(1).Gap(16).Children(func() {
 		pageHeader(c, T.PageLogs, func() {
 			segmented(c.Key("source"), &v.source, T.LogsSourceMihomo, T.LogsSourceDuet).Label(T.PageLogs)
+			infoTipAbout(c, T.PageLogs, T.TipLogs, nil)
 			ui.TextInput(c.Key("search"), &v.query).Label(T.LogSearch).Placeholder(T.LogSearch).Width(160)
 			small(c, T.LogLevel)
 			if segmented(c.Key("level"), &v.level, i18n.T.LogLevelNames...).Label(T.LogLevel).Changed() && v.source == logsMihomo {

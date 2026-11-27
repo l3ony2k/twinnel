@@ -268,9 +268,29 @@ func kv(c *ui.Context, label, value string) {
 
 // kvWith draws a label and custom content on one row.
 func kvWith(c *ui.Context, label string, body func()) {
+	kvTipWith(c, label, "", nil, body)
+}
+
+// kvTip is kv with an ⓘ after the label (infoTip): what the row means.
+func kvTip(c *ui.Context, label, tip, value string) {
+	kvTipWith(c, label, tip, nil, func() {
+		num(ui.Text(c, value).Grow(1).SingleLine().Selectable())
+	})
+}
+
+// kvTipWith is kvWith with an ⓘ after the label when tip is not empty;
+// more is its 了解更多.
+func kvTipWith(c *ui.Context, label, tip string, more func(), body func()) {
 	t := c.Theme()
 	ui.Row(c).Gap(12).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Children(func() {
-		ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth).Shrink(0).SingleLine()
+		if tip == "" {
+			ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth).Shrink(0).SingleLine()
+		} else {
+			ui.Row(c).Gap(4).AlignItems(ui.Center).Width(labelWidth).Shrink(0).Children(func() {
+				ui.Text(c, label).TextColor(t.TextMuted).SingleLine().Shrink(1)
+				infoTipAbout(c, label, tip, more)
+			})
+		}
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Grow(1).Children(body)
 	})
 }
@@ -304,11 +324,25 @@ func card(c *ui.Context, title string, body func()) ui.Element {
 // cardWith is card with something at the right of the heading (a button,
 // a count).
 func cardWith(c *ui.Context, title string, trailing func(), body func()) ui.Element {
+	return cardTipWith(c, title, "", nil, trailing, body)
+}
+
+// cardTip is card with an ⓘ after the title (infoTip): what the group is
+// for; more is its 了解更多.
+func cardTip(c *ui.Context, title, tip string, more func(), body func()) ui.Element {
+	return cardTipWith(c, title, tip, more, nil, body)
+}
+
+// cardTipWith is cardWith with an ⓘ after the title when tip is not empty.
+func cardTipWith(c *ui.Context, title, tip string, more func(), trailing func(), body func()) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Gap(8).Children(func() {
 		if title != "" || trailing != nil {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).Height(28).Children(func() {
 				ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine()
+				if tip != "" {
+					infoTipAbout(c, title, tip, more)
+				}
 				ui.Spacer(c)
 				if trailing != nil {
 					trailing()
@@ -357,12 +391,21 @@ func listCard(c *ui.Context, head func(), body func()) ui.Element {
 // listHead is the usual heading of a listCard: an optional line icon,
 // the title, then trailing (buttons) at the right.
 func listHead(c *ui.Context, icon *ui.SVG, title string, trailing func()) func() {
+	return listHeadTip(c, icon, title, "", trailing)
+}
+
+// listHeadTip is listHead with an ⓘ after the title when tip is not
+// empty.
+func listHeadTip(c *ui.Context, icon *ui.SVG, title, tip string, trailing func()) func() {
 	return func() {
 		t := c.Theme()
 		if icon != nil {
 			ui.Icon(c, icon).FontSize(iconInline).TextColor(t.TextMuted)
 		}
 		ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine()
+		if tip != "" {
+			infoTipAbout(c, title, tip, nil)
+		}
 		ui.Spacer(c)
 		if trailing != nil {
 			trailing()

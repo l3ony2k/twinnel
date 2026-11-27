@@ -47,6 +47,9 @@ func (a *app) mainView(c *ui.Context) {
 		c.OnWindowShortcut(ui.Cmd, ui.KeyBracketLeft, func() { a.showPage(back) })
 	}
 	s := a.mon.Snapshot()
+	if a.shotSnap != nil { // shot mode: synthetic state over the fake one
+		a.shotSnap(&s)
+	}
 	helperOutdatedNow = helperOutdated(s)
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
@@ -427,7 +430,7 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	if m.Config.Tun.Enable {
 		tun = m.Config.Tun.Device + sourceSuffix(m.Config.Tun.Stack) // the switch says it is on
 	}
-	kvWith(c, T.Tun, func() {
+	kvTipWith(c, T.Tun, T.InfoTun, nil, func() {
 		a.tunSwitch(c, s)
 		ui.Text(c, tun).TextColor(t.TextMuted).SingleLine().Shrink(1)
 	})
@@ -475,7 +478,7 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 		kv(c, T.SelfIP, ip.String())
 	}
 	kv(c, T.OnlinePeers, fmt.Sprintf("%d / %d", st.OnlinePeers(), len(st.Peers)))
-	kvWith(c, T.ExitNode, func() { kvControl(a.exitNodePicker(c, s)) })
+	kvTipWith(c, T.ExitNode, T.InfoExitNode, nil, func() { kvControl(a.exitNodePicker(c, s)) })
 	a.controlError(c, pendExit)
 	kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
 	if st.KeyExpiry != nil {
@@ -942,9 +945,9 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 				kv(c, T.Install, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source))
 			})
 			ui.Column(c).Gap(gapRow).Basis(0).Grow(1).Children(func() {
-				kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
+				kvTip(c, T.MagicDNS, T.TipMagicDNS, onOff(st.Prefs.MagicDNS))
 				kv(c, T.ShieldsUp, onOff(st.Prefs.ShieldsUp))
-				kvWith(c, T.ExitNode, func() { kvControl(a.exitNodePicker(c, s)) })
+				kvTipWith(c, T.ExitNode, T.InfoExitNode, nil, func() { kvControl(a.exitNodePicker(c, s)) })
 			})
 		})
 		a.controlError(c, pendExit)
@@ -960,7 +963,7 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 		}
 	}
 	title := fmt.Sprintf("%s · %d / %d", T.Devices, online, len(peers))
-	card(c, title, func() {
+	cardTip(c, title, T.TipPeerPath, nil, func() {
 		if len(peers) == 0 {
 			// In a card under the account's: the card size of an empty
 			// state (one row, the title alone), not a page's.
@@ -1062,7 +1065,6 @@ func (f *settingsForm) load(c status.Config) {
 }
 
 func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
-	t := c.Theme()
 	T := i18n.T
 	f := &a.settings
 	pageTitle(c, T.PageSettings)
@@ -1072,7 +1074,7 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 	fromHelper := a.creds.cur != nil
 	field := func(key, label, hint string, v *string, password, locked bool) {
 		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
-			ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth + 24).Shrink(0).MarginY(5)
+			settingsLabel(c, label, "").MarginY(5)
 			ui.Column(c).Gap(gapSub).Grow(1).Children(func() {
 				in := ui.TextInput(c.Key(key), v).Label(label).Disabled(locked)
 				if password {
@@ -1100,11 +1102,14 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 				names = append([]string{f.primary}, names...)
 			}
 			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, T.PrimaryGroup).TextColor(t.TextMuted).Width(labelWidth + 24).Shrink(0)
+				settingsLabel(c, T.PrimaryGroup, T.TipPrimaryGroup)
 				ui.Select(c.Key("primary"), &f.primary, names).Label(T.PrimaryGroup).Grow(1).MaxWidth(320)
 			})
 		} else {
-			field("primary", T.PrimaryGroup, "", &f.primary, false, false)
+			ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
+				settingsLabel(c, T.PrimaryGroup, T.TipPrimaryGroup).MarginY(5)
+				ui.TextInput(c.Key("primary"), &f.primary).Label(T.PrimaryGroup).Grow(1)
+			})
 		}
 		field("binary", T.MihomoBinary, "", &f.mihomoBinary, false, false)
 		field("confdir", T.MihomoConfigDir, "", &f.mihomoConfigDir, false, false)
@@ -1121,7 +1126,7 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 		on := !a.cfg.NotificationsOff
 		ok := notificationsSupported()
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, T.NotificationsSwitch).Grow(1)
+			switchLabel(c, T.NotificationsSwitch, T.TipNotifications, nil)
 			if !ok {
 				// Dev runs cannot post notifications: the switch is off
 				// limits, and the tag says why (the tooltip, how).
@@ -1138,6 +1143,28 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 	a.languageCard(c)
 	a.refreshHelperMgmt(s)
 	a.helperSection(c, s)
+}
+
+// settingsLabel is the label column of a 设置 field row, with an ⓘ after
+// the label when tip is not empty.
+func settingsLabel(c *ui.Context, label, tip string) ui.Element {
+	t := c.Theme()
+	if tip == "" {
+		return ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth + 24).Shrink(0)
+	}
+	return ui.Row(c).Gap(4).AlignItems(ui.Center).Width(labelWidth + 24).Shrink(0).Children(func() {
+		ui.Text(c, label).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		infoTipAbout(c, label, tip, nil)
+	})
+}
+
+// switchLabel is the label of a 设置 switch row, taking the room before
+// the switch, with an ⓘ after it.
+func switchLabel(c *ui.Context, label, tip string, more func()) {
+	ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Shrink(1).Children(func() {
+		ui.Text(c, label).Shrink(1)
+		infoTipAbout(c, label, tip, more)
+	})
 }
 
 // selectorGroups are mihomo's groups a node can be chosen in, by name.

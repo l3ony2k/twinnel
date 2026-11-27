@@ -30,7 +30,8 @@ func init() {
 		Keychain Login Items Option Command Shift Control Return Enter Space
 		Delete Escape arch darwin amd64 arm64 stable alpha latest version
 		with doctor egress verbose root admin systemd hosts whitelist Standalone
-		upgrade DOMAIN SUFFIX KEYWORD example LaunchAgent LaunchAgents laptop`) {
+		upgrade DOMAIN SUFFIX KEYWORD example LaunchAgent LaunchAgents laptop
+		GEOIP GEOSITE`) {
 		allowedASCII[strings.ToLower(w)] = true
 	}
 }

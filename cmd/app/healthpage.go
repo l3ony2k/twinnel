@@ -159,13 +159,13 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			rest = append(rest, cr)
 		}
 	}
-	list := func(title string, crs []health.CheckReport, extra func()) {
+	list := func(title, tip string, crs []health.CheckReport, extra func()) {
 		if len(crs) == 0 {
 			return
 		}
 		// The same heading as every other group: lined up with the
 		// labels in its box (groupPadX).
-		listCard(c, listHead(c, nil, title, func() {
+		listCard(c, listHeadTip(c, nil, title, tip, func() {
 			num(small(c, fmt.Sprint(len(crs))))
 		}), func() {
 			for _, cr := range crs {
@@ -176,10 +176,10 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			}
 		})
 	}
-	list(T.HealthProblems, problems, nil)
+	list(T.HealthProblems, "", problems, nil)
 	// An accepted exit node: its check, and the checks it breaks grouped
 	// under it, folded; none of them counts.
-	list(T.HealthAccepted, accepted, func() {
+	list(T.HealthAccepted, T.TipHealthAccepted, accepted, func() {
 		if len(caused) == 0 {
 			return
 		}
@@ -198,7 +198,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			}
 		})
 	})
-	list(T.HealthPassed, rest, nil)
+	list(T.HealthPassed, "", rest, nil)
 }
 
 func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snapshot) {
