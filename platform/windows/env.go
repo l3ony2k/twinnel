@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/consoletext"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/health/dnswire"
 	"github.com/l3ony2k/twinnel/platform/common"
@@ -35,7 +36,8 @@ type CommandRunner func(ctx context.Context, name string, args ...string) ([]byt
 
 // ExecRunner runs commands for real with a per-command timeout, without a
 // console window (the app is a GUI program; a console flashing up would
-// steal focus).
+// steal focus). Output and error text come back as UTF-8, converted from
+// the OEM code page Windows' own tools print in (consoletext).
 func ExecRunner(timeout time.Duration) CommandRunner {
 	return func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -45,8 +47,9 @@ func ExecRunner(timeout time.Duration) CommandRunner {
 		var stderr strings.Builder
 		cmd.Stderr = &stderr
 		out, err := cmd.Output()
+		out = consoletext.Decode(out)
 		if err != nil {
-			if s := strings.TrimSpace(stderr.String()); s != "" {
+			if s := strings.TrimSpace(string(consoletext.Decode([]byte(stderr.String())))); s != "" {
 				return out, fmt.Errorf("%s: %w: %s", filepath.Base(name), err, s)
 			}
 			return out, fmt.Errorf("%s: %w", filepath.Base(name), err)
