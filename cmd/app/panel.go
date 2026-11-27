@@ -64,8 +64,7 @@ func (a *app) panelView(c *ui.Context) {
 			ui.Box(c).Height(1).Background(pal(t).separator).MarginX(rowInset + moduleInset).MarginY(2)
 			if h := s.Helper.State; h != status.HelperNotInstalled && h != status.HelperUnknown {
 				// 应急恢复: works while things are broken (statusui.go).
-				r := panelRow(c.Key("recovery"), T.Recovery).MarginX(0)
-				r.Menu(func(m *ui.Menu) { a.recoveryItems(m, s) })
+				r := panelMenuRow(c.Key("recovery"), T.Recovery, false, func(m *ui.Menu) { a.recoveryItems(m, s) })
 				r.Children(func() {
 					ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Children(func() {
 						ui.Text(c, T.Recovery).SingleLine()
@@ -113,6 +112,23 @@ func panelRow(c *ui.Context, label string) ui.Element {
 	if (row.Hovered() || row.Focused()) && !row.IsDisabled() {
 		row.Background(t.Text.Alpha(0.08))
 	}
+	return row
+}
+
+// panelMenuRow is a panelRow that opens a native menu just below it: a
+// host carries the menu (menuBelow) and the row, which the caller fills,
+// shows the host's hover and focus. disabled turns the menu off.
+func panelMenuRow(c *ui.Context, label string, disabled bool, items func(m *ui.Menu)) ui.Element {
+	t := c.Theme()
+	host := menuBelow(ui.Column(c).Label(label).Disabled(disabled).FocusRing(false).Menu(items))
+	var row ui.Element
+	host.Children(func() {
+		row = ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).MinHeight(panelRowH).
+			Radius(moduleRad - moduleInset)
+		if (host.Hovered() || host.Focused()) && !host.IsDisabled() {
+			row.Background(t.Text.Alpha(0.08))
+		}
+	})
 	return row
 }
 
@@ -390,8 +406,7 @@ func (a *app) nodeRow(c *ui.Context, s status.Snapshot, p *status.Group) {
 	delay := func() {
 		num(ui.Text(c, p.DelayText()).FontSize(plat.calloutSize).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
 	}
-	row := panelRow(c.Key("node"), T.Node).Disabled(!can)
-	row.Menu(func(m *ui.Menu) {
+	row := panelMenuRow(c.Key("node"), T.Node, !can, func(m *ui.Menu) {
 		for _, mem := range p.Members {
 			if m.Item(mem.Name).Checked(mem.Name == sel).Trailing(mem.DelayText()).Chosen() && mem.Name != sel {
 				a.selectNode(p.Name, mem.Name)
@@ -472,8 +487,7 @@ func (a *app) exitNodeRow(c *ui.Context, s status.Snapshot) {
 	sel = pendingValue(a, pendExit, sel)
 	opts := exitNodeOptions(st)
 	can := s.Can().Tailscale && len(opts) > 1
-	row := panelRow(c.Key("exit-node"), T.ExitNode).Disabled(!can)
-	row.Menu(func(m *ui.Menu) {
+	row := panelMenuRow(c.Key("exit-node"), T.ExitNode, !can, func(m *ui.Menu) {
 		for i, name := range opts {
 			if i == 1 {
 				m.Separator()
