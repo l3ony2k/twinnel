@@ -105,7 +105,7 @@ func (e *Engine) DNSWatch() *rpc.DNSWatch {
 	if st.Phase == dnswatch.PhaseWatching || st.Phase == dnswatch.PhaseOff {
 		// The phase follows the backup, also before the first tick.
 		st.Phase = dnswatch.PhaseOff
-		if fileExists(e.Store.Path("dns-backup.json")) {
+		if fileExists(e.Store.Path(dnsBackupFile)) {
 			st.Phase = dnswatch.PhaseWatching
 		}
 	}

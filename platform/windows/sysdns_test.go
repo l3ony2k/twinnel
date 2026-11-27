@@ -88,10 +88,10 @@ func TestDNSManaged(t *testing.T) {
 func TestSystemDNSPointRestore(t *testing.T) {
 	s, n := dnsSys()
 	p := SystemDNS{Sys: s, Static: n, Run: n.run}
-	m := &sysdns.Manager{P: p, Path: filepath.Join(t.TempDir(), "dns-backup.json")}
+	m := &sysdns.Manager{P: p, Path: filepath.Join(t.TempDir(), "dns-backup.json"), Target: p.DNSTarget()}
 	ctx := context.Background()
 
-	st, err := m.Point(ctx, p.DNSTarget())
+	st, err := m.Point(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestSystemDNSPointRestore(t *testing.T) {
 
 	// Pointing again changes nothing.
 	n.calls = nil
-	if st, err := m.Point(ctx, p.DNSTarget()); err != nil || len(st.Changed) != 0 || len(n.calls) != 0 {
+	if st, err := m.Point(ctx); err != nil || len(st.Changed) != 0 || len(n.calls) != 0 {
 		t.Fatalf("second point: %+v %v calls %v", st, err, n.calls)
 	}
 

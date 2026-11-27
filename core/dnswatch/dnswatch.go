@@ -8,8 +8,8 @@
 // writes the backed-up DNS servers back; once mihomo has answered again
 // for a while it points the system DNS at mihomo again.
 //
-// It never fights the user: it only restores services that still use
-// exactly what Twinnel set (the target), and it only points back services
+// It never fights the user: it only restores services that still point
+// at mihomo (sysdns.PointsAt the target), and it only points back services
 // that still hold exactly the values it restored. A service the user
 // changed by hand in between is left as the user set it.
 //
@@ -415,15 +415,16 @@ func (w *Watchdog) whileWatching(ctx context.Context, cfg Config, now time.Time,
 	var failed error
 	for _, b := range bk.Services {
 		i := slices.IndexFunc(svcs, func(s sysdns.Service) bool { return s.Name == b.Name })
-		if i < 0 || !slices.Equal(svcs[i].Servers, target) {
-			continue // gone, or not Twinnel's any more: the user's
+		if i < 0 || !sysdns.PointsAt(svcs[i].Servers, target) {
+			continue // gone, or not on mihomo any more: the user's
 		}
-		if err := w.DNS.Set(ctx, b.Name, b.Servers); err != nil {
+		val, _ := bk.RestoreValue(b.Name, target)
+		if err := w.DNS.Set(ctx, b.Name, val); err != nil {
 			failed = err
 			w.log().Warn("dns watchdog: restore", "service", b.Name, "err", err)
 			continue
 		}
-		restored = append(restored, sysdns.Service{Name: b.Name, Servers: slices.Clone(b.Servers)})
+		restored = append(restored, sysdns.Service{Name: b.Name, Servers: val})
 	}
 	if len(restored) == 0 {
 		if !w.noted {
