@@ -134,6 +134,7 @@ var en = Strings{
 	HealthRerun:        "Check Again",
 	HealthCopyReport:   "Copy Report",
 	Copied:             "Copied",
+	LearnMore:          "Learn more",
 	HealthEvidence:     "Evidence",
 	HealthFix:          "How to fix",
 	CopyCmd:            "Copy Command",
