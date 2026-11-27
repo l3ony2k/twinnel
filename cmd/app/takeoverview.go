@@ -563,7 +563,7 @@ func (a *app) takeoverLayersCard(c *ui.Context, p *rpc.TakeoverPlan) {
 					if what != "" {
 						what += " · "
 					}
-					what += fmt.Sprintf(T.TakeoverRules, l.Rules)
+					what += i18n.F(T.TakeoverRules, l.Rules)
 				}
 				ui.Text(c, what).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(what)
 			})

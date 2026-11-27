@@ -52,6 +52,9 @@ func (s *Strings) Msg(m rpc.Msg) (string, bool) {
 	for i, v := range m.Args {
 		args[i] = strings.ReplaceAll(v, "\n", s.ListSep)
 	}
+	if subj, ok := msgSubjects[m.Code]; ok && subj.arg < len(args) {
+		args[subj.arg] = nameOf(subj.kind, m.Args[subj.arg])
+	}
 	if loc := tailVerb.FindStringIndex(tmpl); isErr && loc != nil && len(m.Args) > 0 {
 		// An error's tail is the system's error (Go's English): its
 		// reason in words, or nothing.
@@ -63,6 +66,31 @@ func (s *Strings) Msg(m rpc.Msg) (string, bool) {
 		}
 	}
 	return F(tmpl, args...), true
+}
+
+// Namer names a subscription ("subscription") or an override ("layer")
+// by its ID, for messages that carry the ID (R-unslop-21). The app sets
+// it and calls it on its main thread; nil, or an unknown ID, leaves the
+// ID as it is.
+var Namer func(kind, id string) string
+
+func nameOf(kind, id string) string {
+	if Namer == nil || id == "" {
+		return id
+	}
+	if n := Namer(kind, id); n != "" {
+		return n
+	}
+	return id
+}
+
+// msgSubjects are the coded messages whose argument is an ID to name.
+var msgSubjects = map[string]struct {
+	arg  int
+	kind string
+}{
+	"subscription-empty": {0, "subscription"},
+	"sub-no-url":         {0, "subscription"},
 }
 
 // reasonOf is why a system call or a connection failed, in words; "" when
@@ -165,7 +193,7 @@ func (s *Strings) HistoryReasonText(code string, args []string, reason string) s
 		fa = []any{ref}
 	case "subscription-updated":
 		if len(args) > 0 {
-			fa = []any{args[0]}
+			fa = []any{nameOf("subscription", args[0])}
 		} else {
 			fa = []any{""}
 		}

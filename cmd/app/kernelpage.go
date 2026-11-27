@@ -192,7 +192,11 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 				if !r.Published.IsZero() {
 					pub = " · " + r.Published.Local().Format("2006-01-02")
 				}
-				kvMono(c, T.KernelLatest, r.Version+" ("+r.Tag+")"+pub)
+				tag := r.Tag // the tag names the release once (R-unslop-26)
+				if tag == "" {
+					tag = r.Version
+				}
+				kvMono(c, T.KernelLatest, tag+pub)
 				kvMono(c, T.KernelAsset, fmt.Sprintf("%s · %s", r.Asset, status.Bytes(r.Size)))
 				if r.Digest == "" {
 					kv(c, T.KernelDigest, T.KernelNoDigest)

@@ -287,7 +287,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 						evidenceLines(c, evidenceTexts(shown))
 					})
 					if len(lines) > evidenceShown {
-						if linkDisclosure(c.Key("ev-all"), all, fmt.Sprintf(T.EvidenceAll, len(lines))).Clicked() {
+						if linkDisclosure(c.Key("ev-all"), all, i18n.F(T.EvidenceAll, len(lines))).Clicked() {
 							if a.evidenceAll == nil {
 								a.evidenceAll = map[string]bool{}
 							}
@@ -365,7 +365,7 @@ func healthHeadline(label string, cnt map[health.Status]int) string {
 	case cnt[health.StatusFail] > 0:
 		return fmt.Sprintf(T.ReasonHealthFail, cnt[health.StatusFail])
 	case cnt[health.StatusWarn] > 0:
-		return fmt.Sprintf(T.ReasonHealthWarn, cnt[health.StatusWarn])
+		return i18n.F(T.ReasonHealthWarn, cnt[health.StatusWarn])
 	case cnt[health.StatusOK] > 0:
 		return T.PanelHealthOK
 	}

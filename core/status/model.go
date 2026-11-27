@@ -367,11 +367,11 @@ func Evaluate(s *Snapshot) {
 	}
 	switch {
 	case fail > 0 && (!s.TakenOver() || exitOnly):
-		rs = append(rs, Reason{Level: LevelWarn, Text: fmt.Sprintf(t.ReasonHealthFound, fail), Health: true, Code: ReasonHealth, Count: fail})
+		rs = append(rs, Reason{Level: LevelWarn, Text: i18n.F(t.ReasonHealthFound, fail), Health: true, Code: ReasonHealth, Count: fail})
 	case fail > 0:
 		rs = append(rs, Reason{Level: LevelError, Text: fmt.Sprintf(t.ReasonHealthFail, fail), Health: true, Code: ReasonHealth, Count: fail})
 	case warn > 0:
-		rs = append(rs, Reason{Level: LevelWarn, Text: fmt.Sprintf(t.ReasonHealthWarn, warn), Health: true, Code: ReasonHealth, Count: warn})
+		rs = append(rs, Reason{Level: LevelWarn, Text: i18n.F(t.ReasonHealthWarn, warn), Health: true, Code: ReasonHealth, Count: warn})
 	}
 	s.Reasons = rs
 	switch {

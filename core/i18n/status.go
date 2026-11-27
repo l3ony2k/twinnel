@@ -102,7 +102,7 @@ var zhStatus = StatusStrings{
 var enStatus = StatusStrings{
 	NeedsHelper: "Needs the helper",
 
-	ReasonHealthFound: "%d coexistence issues found",
+	ReasonHealthFound: "%d coexistence issue{s} found",
 	FindingsView:      "View",
 	FindingsTakeover:  "Fix by Taking Over",
 
@@ -118,7 +118,7 @@ var enStatus = StatusStrings{
 
 	HealthAge:     "Updated %s",
 	EvidenceTimes: "×%d",
-	EvidenceAll:   "Show All (%d lines)",
+	EvidenceAll:   "Show All (%d line{s})",
 
 	FixRegenCoexist:  "Regenerate Tailscale Coexistence",
 	FixOpenOverrides: "Open Subscriptions & Overrides",

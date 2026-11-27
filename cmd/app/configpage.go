@@ -1361,7 +1361,7 @@ func (a *app) previewBody(c *ui.Context) {
 	}
 	if v.diff != nil {
 		add, del := v.diff.Stats()
-		num(ui.Text(c, fmt.Sprintf(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted))
+		num(ui.Text(c, i18n.F(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted))
 		if add+del > 0 {
 			codeFrame(c, 380, func() { editor.DiffView(c.Key("preview-diff"), v.diff).Grow(1) })
 		}

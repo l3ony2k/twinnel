@@ -263,7 +263,7 @@ func planText(p *uninstall.Plan, all bool) string {
 			*list = append(*list, T.ItemHelper)
 		case uninstall.StateDir:
 			if it.Subscriptions > 0 || it.Layers > 0 {
-				*list = append(*list, fmt.Sprintf(T.ItemDataCounts, it.Subscriptions, it.Layers))
+				*list = append(*list, i18n.F(T.ItemDataCounts, it.Subscriptions, it.Layers))
 			} else {
 				*list = append(*list, T.ItemData)
 			}
