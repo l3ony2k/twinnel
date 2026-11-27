@@ -203,8 +203,8 @@ func (a *app) flushUndoToast(c *ui.Context) {
 		return
 	}
 	v.toastUndo = nil
-	if time.Since(ut.at) > time.Second {
-		return
+	if time.Since(ut.at) > undoFor/2 {
+		return // the page came back too late for 撤销 to be useful
 	}
 	T := i18n.T
 	c.AddToast(ui.Toast{
