@@ -422,6 +422,7 @@ func (a *app) togglePanel() {
 		Focusable:  true,
 		Shadow:     true,
 		Popover:    !a.shotMode,
+		Vibrancy:   a.panelMaterial(),
 		Content:    ui.View(a.panelView),
 	})
 	a.panel.OnClosed(func() { a.panel = nil })
@@ -512,6 +513,15 @@ func (a *app) stateKey() string {
 		return ""
 	}
 	return "main"
+}
+
+// panelMaterial is the flyout's material where it is no popover
+// (Acrylic on Windows 11), none in shot mode.
+func (a *app) panelMaterial() mygo.Vibrancy {
+	if a.shotMode {
+		return mygo.VibrancyNone
+	}
+	return plat.panelVibrancy
 }
 
 // sidebarMaterial is the window's material, none in shot mode: a capture

@@ -195,8 +195,8 @@ func (a *app) sidebarFrame(c *ui.Context, body func()) {
 	if key := i18n.T.PageOverview + i18n.T.Helper; key != s.needKey {
 		s.need, s.needKey = sidebarNeed(c), key
 	}
-	if ui.Cmd != ui.Ctrl { // macOS: ⌃⌘S, as Finder's and Mail's Show Sidebar
-		c.OnWindowShortcut(ui.Ctrl|ui.Cmd, ui.KeyS, a.toggleSidebar)
+	if plat.sidebarKey != 0 { // macOS: ⌃⌘S, as Finder's and Mail's Show Sidebar
+		c.OnWindowShortcut(plat.sidebarMods, plat.sidebarKey, a.toggleSidebar)
 	}
 	frame := ui.Row(c.Key("side-frame")).Width(s.widthOf(s.mode)).Shrink(0).Clip().AlignItems(ui.Stretch)
 	if !s.dragging {

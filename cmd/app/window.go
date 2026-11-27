@@ -45,8 +45,8 @@ func (a *app) mainView(c *ui.Context) {
 		return
 	}
 	a.flushToast(c)
-	if back := pageBack(a.page); back != "" { // ⌘[ as in Finder and System Settings
-		c.OnWindowShortcut(ui.Cmd, ui.KeyBracketLeft, func() { a.showPage(back) })
+	if back := pageBack(a.page); back != "" { // ⌘[ as in Finder and System Settings, Alt+← on Windows
+		c.OnWindowShortcut(plat.backMods, plat.backKey, func() { a.showPage(back) })
 	}
 	s := a.mon.Snapshot()
 	if a.shotSnap != nil { // shot mode: synthetic state over the fake one
@@ -142,7 +142,9 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 	if inner > 0 {
 		inset = columnInset(a.paneW, inner)
 	}
-	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).Padding(0, inset, 0, max(inset, a.toolbarLead(c))).
+	// A hidden title bar's caption buttons (Windows, Linux) sit at the
+	// right: the actions stay clear of them.
+	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).Padding(0, max(inset, c.TitleBar().Right+8), 0, max(inset, a.toolbarLead(c))).
 		AlignItems(ui.Start).Justify(ui.Center).DragWindow().Role(ui.RoleToolbar).Label(spec.title).Children(func() {
 		row := ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center)
 		if inner > 0 {
@@ -163,7 +165,7 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 			}
 			// The title is the one thing the bar never drops: the page's
 			// actions give way first (a page with many fits them itself).
-			ui.Text(c, spec.title).FontSize(plat.titleBarSize).FontWeight(plat.titleBarWeight).SingleLine().Shrink(0)
+			displayFont(ui.Text(c, spec.title).FontSize(plat.titleBarSize).FontWeight(plat.titleBarWeight).SingleLine().Shrink(0))
 			ui.Spacer(c)
 			if spec.trailing != nil {
 				toolbarActions(c, spec.trailing)

@@ -141,7 +141,7 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 	groupBox(c, t).Gap(12).Padding(20, 20).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, iconTwinnel).FontSize(iconHero).TextColor(t.Accent)
-			ui.Text(c, T.OnboardTitle).FontSize(plat.titleSize - 3).FontWeight(plat.titleWeight)
+			displayFont(ui.Text(c, T.OnboardTitle).FontSize(plat.titleSize - 3).FontWeight(plat.titleWeight))
 		})
 		ui.Text(c, T.OnboardIntro).Wrap().LineHeight(lineText)
 		ui.Column(c).Gap(6).Children(func() {

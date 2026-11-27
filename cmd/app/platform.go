@@ -64,6 +64,24 @@ type platformStyle struct {
 	// as NSPopUpButton's pull-down keeps. 0 where the menu opens at the
 	// point given.
 	menuDrop float32
+
+	// Type: the UI font ("" is the system's) and the one for large titles
+	// (Segoe UI Variable's Text and Display optical sizes on Windows 11,
+	// Segoe UI before it).
+	uiFont, displayFont string
+	// panelVibrancy is the flyout's material where it is not a popover
+	// (Acrylic on Windows 11; Windows 10 draws the background instead).
+	panelVibrancy mygo.Vibrancy
+	// Shortcuts that differ by platform: moving a layer (⌥⌘↑ on macOS,
+	// Alt+Shift+↑ on Windows, where Ctrl+Alt is AltGr), going back (⌘[ on
+	// macOS, Alt+← on Windows) and toggling the sidebar (⌃⌘S on macOS;
+	// sidebarKey 0 is none).
+	reorderMods ui.Modifiers
+	backMods    ui.Modifiers
+	backKey     ui.Key
+	sidebarMods ui.Modifiers
+	sidebarKey  ui.Key
+	cliLink     bool // 本地 Agent → 命令行工具 links the CLI into a bin folder (not on Windows: install.ps1 puts bin\ on PATH)
 }
 
 // navSelection is how a platform's sidebar marks the selected row.
@@ -94,7 +112,12 @@ func platformFor(goos string) platformStyle {
 			bodySize: 14, smallSize: 12, calloutSize: 13, leadSize: 16, figureSize: 20, panelTextSize: 13, titleSize: 28, headingSize: 14,
 			titleWeight: 600, headingWeight: 600, panelPad: 16,
 			titleBarSize: 28, titleBarWeight: 600, // Windows 11 Settings: the page title stays large
-			navSel: navNeutralPill,
+			navSel:        navNeutralPill,
+			uiFont:        "Segoe UI Variable Text, Segoe UI",
+			displayFont:   "Segoe UI Variable Display, Segoe UI",
+			panelVibrancy: mygo.VibrancyAcrylic,
+			reorderMods:   ui.Alt | ui.Shift,
+			backMods:      ui.Alt, backKey: ui.KeyLeft,
 		}
 	case "linux":
 		return platformStyle{
@@ -104,6 +127,8 @@ func platformFor(goos string) platformStyle {
 			bodySize: 14, smallSize: 12, calloutSize: 13, leadSize: 16, figureSize: 20, panelTextSize: 13, titleSize: 20, headingSize: 14,
 			titleWeight: 700, headingWeight: 700, panelPad: 16, trayMenuOnly: true,
 			titleBarSize: 15, titleBarWeight: 700, navSel: navNeutral,
+			reorderMods: ui.Alt | ui.Ctrl, backMods: ui.Ctrl, backKey: ui.KeyBracketLeft,
+			cliLink: true,
 		}
 	}
 	navSel := navAccentFill // macOS 15 and earlier
@@ -121,6 +146,8 @@ func platformFor(goos string) platformStyle {
 		// 15 pt bold, not the 20 pt of an in-content heading.
 		titleBarSize: 15, titleBarWeight: 700,
 		navSel: navSel, menuDrop: menuInsetTop + menuGap,
+		reorderMods: ui.Alt | ui.Super, backMods: ui.Super, backKey: ui.KeyBracketLeft,
+		sidebarMods: ui.Ctrl | ui.Super, sidebarKey: ui.KeyS, cliLink: true,
 	}
 }
 
@@ -135,11 +162,43 @@ const (
 )
 
 // systemTheme returns the app's theme for the appearance: the platform's
-// own grays and status colors (macOS system colors on darwin), the user's
-// accent and contrast settings on top (WithPreferences).
+// own grays and status colors (macOS system colors on darwin, Fluent's on
+// Windows), the user's accent and contrast settings on top
+// (WithPreferences).
 func systemTheme(dark bool, p ui.Preferences) *ui.Theme {
+	return systemThemeFor(runtime.GOOS, plat, dark, p)
+}
+
+func systemThemeFor(goos string, ps platformStyle, dark bool, p ui.Preferences) *ui.Theme {
 	var t *ui.Theme
-	if dark {
+	switch {
+	case goos == "windows" && dark: // WinUI 3 dark: Mica base, card and control fills, text and signal colors
+		t = ui.DarkTheme()
+		t.Background = ui.Hex("#202020")
+		t.Surface = ui.Hex("#2d2d2d")
+		t.SurfaceHover = ui.Hex("#323232")
+		t.SurfacePressed = ui.Hex("#272727")
+		t.Border = ui.RGBA(255, 255, 255, 0.0837)
+		t.Text = ui.Hex("#ffffff")
+		t.TextMuted = ui.Hex("#c5c5c5")
+		t.Danger = ui.Hex("#ff99a4")
+		t.Warning = ui.Hex("#fce100")
+		t.Success = ui.Hex("#6ccb5f")
+		t = t.WithAccent(ui.Hex("#60cdff"))
+	case goos == "windows":
+		t = ui.LightTheme()
+		t.Background = ui.Hex("#f3f3f3")
+		t.Surface = ui.Hex("#fbfbfb")
+		t.SurfaceHover = ui.Hex("#f6f6f6")
+		t.SurfacePressed = ui.Hex("#f0f0f0")
+		t.Border = ui.RGBA(0, 0, 0, 0.0803)
+		t.Text = ui.Hex("#1a1a1a")
+		t.TextMuted = ui.Hex("#5d5d5d")
+		t.Danger = ui.Hex("#c42b1c")
+		t.Warning = ui.Hex("#9d5d00")
+		t.Success = ui.Hex("#0f7b0f")
+		t = t.WithAccent(ui.Hex("#005fb8"))
+	case dark:
 		t = ui.DarkTheme()
 		t.Background = ui.Hex("#1e1e1e")
 		t.Surface = ui.Hex("#3a3a3c")
@@ -152,7 +211,7 @@ func systemTheme(dark bool, p ui.Preferences) *ui.Theme {
 		t.Warning = ui.Hex("#ff9f0a")
 		t.Success = ui.Hex("#30d158")
 		t = t.WithAccent(ui.Hex("#0a84ff"))
-	} else {
+	default:
 		t = ui.LightTheme()
 		t.Background = ui.Hex("#f5f5f5")
 		t.Surface = ui.Hex("#ffffff")
@@ -166,10 +225,20 @@ func systemTheme(dark bool, p ui.Preferences) *ui.Theme {
 		t.Success = ui.Hex("#34c759")
 		t = t.WithAccent(ui.Hex("#007aff"))
 	}
-	t.Radius = plat.controlRadius
-	t.FontSize = plat.bodySize
+	t.Radius = ps.controlRadius
+	t.FontSize = ps.bodySize
+	t.Font = ps.uiFont
 	// Tooltips (labels) open after half a second, as AppKit's; once one
 	// shows, its neighbours open at once (MyGo's warm-up).
 	t.TooltipDelay = 500 * time.Millisecond
 	return t.WithPreferences(p)
+}
+
+// displayFont sets the platform's font for large titles on e, where it
+// has one (Segoe UI Variable Display on Windows 11).
+func displayFont(e ui.Element) ui.Element {
+	if plat.displayFont != "" {
+		e.Font(plat.displayFont)
+	}
+	return e
 }
