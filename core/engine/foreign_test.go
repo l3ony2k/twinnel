@@ -92,6 +92,36 @@ func TestApplyRefusesForeignController(t *testing.T) {
 	}
 }
 
+// An apply with nothing to send while another program's mihomo holds the
+// controller succeeds, but says so (round-2 QA: "ok" hid it).
+func TestApplyNoChangeWarnsForeignController(t *testing.T) {
+	h := newHarness(t)
+	owners := &portOwners{}
+	h.e.PortOwner = owners.lookup
+	owners.set(h.ctlPort(), h.managedProc())
+	h.apply("first")
+	idle := func(r *rpc.ApplyResult) *rpc.Msg {
+		for i, m := range r.Messages {
+			if strings.HasPrefix(m.Code, "controller-foreign-idle") {
+				return &r.Messages[i]
+			}
+		}
+		return nil
+	}
+	if r, err := h.e.Apply(context.Background(), rpc.ApplyParams{Reason: "same, managed"}); err != nil || r.Foreign != nil || idle(r) != nil {
+		t.Fatalf("managed, no change: %v %+v", err, r)
+	}
+	owners.set(h.ctlPort(), clashPartyProc())
+	h.e.ControllerOwner(context.Background()) // the preflight saw it (status.get, health)
+	r, err := h.e.Apply(context.Background(), rpc.ApplyParams{Reason: "same, foreign"})
+	if err != nil || r.Changed || r.Written || r.Reloaded {
+		t.Fatalf("foreign, no change: %v %+v", err, r)
+	}
+	if m := idle(r); !r.Foreign.IsForeign() || m == nil || m.Code != "controller-foreign-idle-app" || m.Args[1] != "Clash Party" {
+		t.Errorf("result: %+v / %+v", r.Foreign, r.Messages)
+	}
+}
+
 // safePathsServer is a foreign mihomo: /version answers, PUT /configs is
 // refused like Clash Party's mihomo refused Twinnel's path (synthetic).
 func safePathsServer(t *testing.T, puts *int) *httptest.Server {
