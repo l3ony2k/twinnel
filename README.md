@@ -24,7 +24,7 @@ It is a manager for the cores you already trust. It is **not** another Clash cli
 | Root helper (`duet-helper`): compose → validate → back up → write → hot reload → verify, with automatic rollback; subscriptions, layers, history, mihomo kernel download / switch / rollback; geo databases and the external dashboard, verified against published digests | macOS, Linux |
 | Health checks inside the helper: on a timer, after applies and service operations, and on network changes (macOS); `duet helper health` | macOS, Linux (no network-change trigger on Linux yet) |
 | Service control over RPC: start / stop / restart mihomo and tailscaled, install / uninstall the mihomo service | macOS (launchd), Linux (systemd); without root the helper only reports the plan |
-| `duet helper install` / `uninstall`: prints the plan, then installs the helper as a system service | macOS: one administrator password dialog; Linux: run it with `sudo` (`--dry-run` needs no root). Not yet run on a real machine. |
+| `duet helper install` / `uninstall` / `upgrade` / `restart`: prints the plan (uninstall: what goes and what stays; `--purge` also deletes duet's data), then runs it as root. Uninstall never leaves mihomo without its service: after `harden` it moves mihomo back first (`--restore-mihomo`) | macOS: one administrator password dialog; Linux: run it with `sudo` (`--dry-run` needs no root). Not yet run on a real machine. |
 | Menu bar app: monochrome status icon whose states differ by shape only (badge, broken ring, glyph), and a panel; main window with overview, proxy groups, Tailscale devices, health, logs, settings, and, through the helper, subscriptions and overrides, history, kernels; a first-run view while the helper is not installed | macOS; controls that change anything are disabled unless `DUET_ALLOW_WRITES=1` |
 | Secrets (controller secret, subscription URLs) | macOS: System keychain when the helper runs as root; Linux and development helpers: a 0600 `secrets.json` in the state dir (Secret Service later) |
 
@@ -46,7 +46,12 @@ scripts/build-release.sh            # into dist/, with SHA256SUMS
 scripts/build-release.sh --no-app   # CLI and helper only (any host)
 ```
 
-The `.app` is signed ad hoc, not notarized. On first launch, right-click it and choose Open.
+The `.app` and the CLI and helper inside it are signed ad hoc (`SIGN_IDENTITY` and `NOTARY_PROFILE` switch to a Developer ID signature and notarization), not notarized. A copy you build yourself is not quarantined, so it opens directly; a downloaded one needs right-click → Open the first time.
+
+### Daily use and development side by side
+
+- **Daily:** `scripts/install-local.sh` builds the release, quits the running `/Applications/duet.app`, keeps a backup of it (`~/Library/Application Support/duet/backups`, newest 3), installs the new one, and runs `duet helper upgrade` only when the bundled helper differs from the installed one (one password prompt). This copy and the installed helper are the only ones with write access to the live system. 设置 → 后台助手 in the app shows the helper's version, updates, restarts or uninstalls it; 设置 → 通用 → 登录时打开 starts the app at login (packaged app only).
+- **Development:** `go run ./cmd/app` against a development helper on a temp socket and a fake controller (`DUET_SOCKET`, `DUET_CONTROLLER`, see CONTRIBUTING), or read-only against the live setup (the default: writes stay off unless `DUET_ALLOW_WRITES=1`). A development build never asks for a helper update.
 
 ## CLI tour
 
@@ -75,6 +80,9 @@ The helper commands talk to `duet-helper` over its Unix socket (`$DUET_SOCKET`, 
 duet helper status
 duet helper install --dry-run    # print the service definition and every step; changes nothing
 duet helper install              # macOS: asks for an administrator password; Linux: sudo duet helper install
+duet helper upgrade [--check]    # replace the installed helper with the one next to duet when it differs (no downgrade without --force)
+duet helper restart              # restart only the helper
+duet helper uninstall [--purge]  # lists what goes and what stays first; --purge also deletes settings, subscriptions, layers, history, keychain items
 duet helper health [--run]       # the helper's last health report, or run the checks now
 duet sub put main --url ...      # subscriptions: list | put | refresh | activate | rm
 duet layer put rules rules.yaml  # override layers: list | get | put | rm | enable | disable | order

@@ -94,6 +94,12 @@ terms. Keep them when adding strings, and add new terms here.
 | 设备短名 | device short names |
 | 解析器 | resolver |
 | 打洞质量 | Direct connections |
+| 更新 / 重启 / 卸载 / 查看日志（后台助手） | Update / Restart / Uninstall / View Log |
+| 完全移除 duet | Remove duet Completely |
+| 同时删除数据 | Also delete data |
+| 登录时打开 | Open at login |
+| 通用 | General |
+| 需打包版 | Packaged app only |
 
 ## Language names
 

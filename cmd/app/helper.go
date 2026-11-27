@@ -303,6 +303,9 @@ func helperError(err error) string {
 	var re *rpc.Error
 	if errors.As(err, &re) {
 		if re.Code == rpc.CodeMethodNotFound || re.Code == rpc.CodeNotImplemented {
+			if helperOutdatedNow {
+				return i18n.T.HelperNeedsUpdate
+			}
 			return i18n.T.HelperTooOld
 		}
 		return re.Message
@@ -359,7 +362,9 @@ func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 			ui.Text(c, d.msg).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
 		}
 	}
-	if d.loadErr != "" {
+	if d.loadErr != "" && !helperOutdated(s) {
+		// An outdated helper lacks newer methods: its version row says
+		// so (helperUpdateRow), not an error on every page.
 		errorNote(c, i18n.T.ErrorPrefix+d.loadErr)
 	}
 }

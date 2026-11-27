@@ -28,7 +28,7 @@ func init() {
 	register("tailnet", "tailnet: refresh (re-read peers, re-apply if they changed)", runTailnet)
 	register("service", "services: status | start | stop | restart | install | uninstall NAME", runService)
 	register("events", "print helper events (--follow to keep waiting)", runEvents)
-	register("helper", "helper status | install | uninstall | health | plans | adopt | discard | secure-controller | harden", runHelper)
+	register("helper", "helper status | install | uninstall | upgrade | restart | health | plans | adopt | discard | secure-controller | harden", runHelper)
 
 	// `duet compose` composes locally; with --apply/--preview it asks the
 	// helper to compose from its own state instead.
@@ -757,6 +757,10 @@ func runHelper(args []string) error {
 		return runHelperInstall(args)
 	case "uninstall":
 		return runHelperUninstall(args)
+	case "upgrade":
+		return runHelperUpgrade(args)
+	case "restart":
+		return runHelperRestart(args)
 	case "health":
 		return runHelperHealth(args)
 	case "adopt":
@@ -772,7 +776,9 @@ func runHelper(args []string) error {
 	}
 	fmt.Fprint(os.Stderr, `usage: duet helper status [--json]
        duet helper install [--dry-run] [--yes] [flags]   (asks for the administrator password)
-       duet helper uninstall [--dry-run] [--yes] [flags]
+       duet helper uninstall [--purge] [--restore-mihomo | --keep-mihomo] [--dry-run] [--yes] [--json]
+       duet helper upgrade [--check] [--force] [--dry-run] [--yes] [--json]   (the helper next to this duet)
+       duet helper restart [--yes]
        duet helper health [--run] [--json]
        duet helper plans [PLAN_ID] [--json]
        duet helper adopt PLAN_ID [--yes] [--skip-health]
@@ -781,5 +787,5 @@ func runHelper(args []string) error {
        duet helper harden plan [--kernel VERSION] [--new-secret] [--json]
        duet helper harden apply [PLAN_ID] [--yes] [--skip-health]
 `)
-	return errors.New("helper: want status, install, uninstall, health, plans, adopt, discard, secure-controller or harden")
+	return errors.New("helper: want status, install, uninstall, upgrade, restart, health, plans, adopt, discard, secure-controller or harden")
 }

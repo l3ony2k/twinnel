@@ -74,6 +74,9 @@ type Engine struct {
 	// UserAgent for subscription downloads (default "clash.meta", which
 	// makes providers return the mihomo format).
 	UserAgent string
+	// Restart ends the helper process so its service manager starts it
+	// again (helper.restart). nil: helper.restart is refused.
+	Restart func()
 	// VerifyTimeout bounds the wait for /version after a reload.
 	VerifyTimeout time.Duration
 	Now           func() time.Time

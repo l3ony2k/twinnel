@@ -543,10 +543,11 @@ var en = Strings{
 	HealthProblems:      "Needs attention",
 	HealthPassed:        "Other checks",
 
-	ConfigStrings:   enConfig,
-	WindowStrings:   enWindow,
-	AboutStrings:    enAbout,
-	TakeoverStrings: enTakeover,
+	ConfigStrings:     enConfig,
+	WindowStrings:     enWindow,
+	AboutStrings:      enAbout,
+	TakeoverStrings:   enTakeover,
+	HelperMgmtStrings: enHelperMgmt,
 }
 
 var enControls = ControlStrings{

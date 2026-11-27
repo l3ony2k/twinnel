@@ -165,6 +165,12 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 		"state_dir", st.Dir, "socket", o.socket, "group", o.group, "config", settings.Mihomo.ConfigFile)
 	e.Bus.Publish(rpc.EventHelperStarted, map[string]any{"version": engine.HelperVersion, "pid": os.Getpid()})
 
+	// helper.restart: end like on SIGTERM; launchd (KeepAlive) or systemd
+	// starts the helper again.
+	ctx, restart := context.WithCancel(ctx)
+	defer restart()
+	e.Restart = restart
+
 	loopCtx, cancelLoops := context.WithCancel(ctx)
 	loopsDone := make(chan struct{})
 	go func() { e.Run(loopCtx); close(loopsDone) }()
