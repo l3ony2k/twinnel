@@ -1118,6 +1118,7 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 			}
 		})
 	})
+	a.languageCard(c)
 }
 
 func (a *app) setNotifications(on bool) {

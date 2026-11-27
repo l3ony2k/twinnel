@@ -949,7 +949,7 @@ func impactRow(c *ui.Context, im *rpc.ReloadImpact) {
 				ui.Text(c, text).TextColor(map[bool]ui.Color{true: col, false: t.Text}[im.Disruptive]).Wrap().LineHeight(lineText)
 			})
 			if len(im.RestartNeeded) > 0 {
-				small(c, T.ImpactRestart+"："+strings.Join(im.RestartNeeded, "、")).Wrap().LineHeight(lineText)
+				small(c, T.ImpactRestart+T.LabelSep+strings.Join(im.RestartNeeded, T.ListSep)).Wrap().LineHeight(lineText)
 			}
 			if im.Disruptive {
 				for _, n := range im.Notes {
@@ -1094,7 +1094,7 @@ func diffSeparator(c *ui.Context, sep ui.Element, s *editor.DiffSeparator) {
 				chevron(-1, T.DiffExpandUp, s.ExpandUp)
 			}
 			label := i18n.F(T.DiffUnchanged, s.Lines)
-			b := ui.ButtonBase(c).Key("all").Padding(2, 4).Radius(4).Label(T.DiffExpandAll + "：" + label)
+			b := ui.ButtonBase(c).Key("all").Padding(2, 4).Radius(4).Label(T.DiffExpandAll + T.LabelSep + label)
 			b.Children(func() { ui.Text(c, label).FontSize(plat.smallSize).TextColor(t.TextMuted) })
 			if b.Clicked() {
 				s.ExpandAll()

@@ -85,6 +85,7 @@ type app struct {
 	pend        pendingState               // optimistic control values and their errors (pending.go)
 	retry       busySpan                   // the unreachable states' 重试 press (states.go)
 	loadingSeen map[string][2]time.Time    // loadingBox: first and last frame per key
+	langShown   bool                       // applyLang ran once
 	shotNav     struct {                   // shot mode: force the sidebar's key/hover looks
 		active *bool
 		hover  string
@@ -118,6 +119,7 @@ func main() {
 	// renders native content itself; it needs no pixels on screen).
 	a.shotMode = os.Getenv("DUET_SHOTS") != ""
 
+	initLang()
 	mygo.App.SetName(i18n.T.AppName)
 	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
 	// The flyout and the main window come and go; the tray keeps the app.
@@ -129,6 +131,8 @@ func main() {
 }
 
 func (a *app) ready() {
+	a.applyLang()
+	mygo.App.OnLocaleChanged(func(string) { a.applyLang() }) // the system's languages changed
 	if a.shotMode {
 		a.startHelper()
 		a.start()
@@ -147,23 +151,18 @@ func (a *app) ready() {
 	if err != nil {
 		log.Fatal("tray: ", err)
 	}
-	menu := mygo.NewMenu([]*mygo.MenuItem{
-		{Label: i18n.T.OpenMainWindow, Click: func(*mygo.MenuItem, *mygo.Window) { a.openMain() }},
-		mygo.Separator(),
-		{Label: i18n.T.Quit, Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
-	})
 	if runtime.GOOS == "darwin" {
 		mygo.App.SetMenu(a.appMenu())
 	}
 	if runtime.GOOS == "linux" {
-		a.tray.SetMenu(menu)
+		a.tray.SetMenu(a.trayMenu())
 	} else {
 		a.tray.OnClick(a.togglePanel)
 		a.tray.OnRightClick(func() {
 			if a.panel != nil {
 				a.panel.Close()
 			}
-			a.tray.SetMenu(menu)
+			a.tray.SetMenu(a.trayMenu())
 			defer a.tray.SetMenu(nil)
 			a.tray.PopUpMenu()
 		})

@@ -628,6 +628,12 @@ var enWindow = WindowStrings{
 	DiffExpandDown: "Expand Down",
 	DiffExpandAll:  "Expand All",
 	DiffUnchanged:  "%d unchanged lines",
+
+	Language:       "Language",
+	LanguageLabel:  "App language",
+	LanguageSystem: "System",
+
+	LabelSep: ": ",
 }
 
 var enAbout = AboutStrings{

@@ -18,6 +18,14 @@ type WindowStrings struct {
 	// A diff's folded unchanged lines (cmd/app diffSeparator).
 	DiffExpandUp, DiffExpandDown, DiffExpandAll string
 	DiffUnchanged                               string // %d: lines
+
+	// 设置 → 语言: the card, its row, and the choice that follows the
+	// system (the languages are named in themselves, Lang.Name).
+	Language, LanguageLabel, LanguageSystem string
+
+	// LabelSep joins a label and what it labels in running text
+	// ("失败：tailnet 路由").
+	LabelSep string
 }
 
 var zhWindow = WindowStrings{
@@ -31,4 +39,10 @@ var zhWindow = WindowStrings{
 	DiffExpandDown: "向下展开",
 	DiffExpandAll:  "全部展开",
 	DiffUnchanged:  "%d 行未改动",
+
+	Language:       "语言",
+	LanguageLabel:  "界面语言",
+	LanguageSystem: "跟随系统",
+
+	LabelSep: "：",
 }
