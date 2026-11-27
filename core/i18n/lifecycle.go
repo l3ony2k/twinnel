@@ -35,7 +35,7 @@ type LifecycleStrings struct {
 	TkCandDetail                                     string // disclosure
 	TkPickFile                                       string
 	TkSubURL                                         string // row label
-	TkSubURLFound                                    string
+	TkSubURLFoundNow                                 string
 	TkSubURLNone                                     string
 	TkOtherCandidates                                string // %d
 	TkCopyPlanID                                     string
@@ -121,6 +121,7 @@ type LifecycleStrings struct {
 	LeaveRemoveAll, LeaveRemoveAllRun      string
 	LeaveExport, LeaveExportRun            string
 	LeaveExportDone                        string // %s: file
+	LeaveExportWhat                        string // %d: overrides
 	ItemAppBackups, ItemLaunchAgent        string
 }
 
@@ -135,7 +136,7 @@ var zhLifecycle = LifecycleStrings{
 	TkEffReplaceable:    "保留 · 普通用户可替换",
 	TkEffReplaceableTip: "%s 不归 root 所有",
 	TkEffRewrite:        "原位置改写 · 先备份",
-	TkEffStoreSub:       "存入钥匙串 · 手动更新",
+	TkEffStoreSub:       "存入钥匙串 · 首次手动更新时下载",
 	TkEffSkipSub:        "找到 %d 个 · 不导入",
 	TkEffNoSub:          "未找到 · 以订阅原文为准",
 	TkEffKeepSecret:     "保留 · 可稍后加固",
@@ -152,7 +153,7 @@ var zhLifecycle = LifecycleStrings{
 	TkCandDetail:        "对比明细",
 	TkPickFile:          "换一个文件…",
 	TkSubURL:            "订阅地址",
-	TkSubURLFound:       "已找到 · 首次手动更新时下载",
+	TkSubURLFoundNow:    "已找到",
 	TkSubURLNone:        "未找到",
 	TkOtherCandidates:   "其他候选 %d 个",
 	TkCopyPlanID:        "复制计划 ID",
@@ -286,6 +287,7 @@ var zhLifecycle = LifecycleStrings{
 	LeaveExport:       "导出配置",
 	LeaveExportRun:    "导出…",
 	LeaveExportDone:   "已导出到 %s",
+	LeaveExportWhat:   "config.yaml 和 %d 个覆写",
 	ItemAppBackups:    "旧版本备份",
 	ItemLaunchAgent:   "duet 的 LaunchAgent",
 }
@@ -301,7 +303,7 @@ var enLifecycle = LifecycleStrings{
 	TkEffReplaceable:    "Kept · replaceable without admin rights",
 	TkEffReplaceableTip: "%s isn't owned by root",
 	TkEffRewrite:        "Rewritten in place · backed up first",
-	TkEffStoreSub:       "Saved to Keychain · updated by hand",
+	TkEffStoreSub:       "Saved to Keychain · downloaded on the first manual update",
 	TkEffSkipSub:        "%d found · not imported",
 	TkEffNoSub:          "None found · the source file is used",
 	TkEffKeepSecret:     "Kept · can be hardened later",
@@ -318,7 +320,7 @@ var enLifecycle = LifecycleStrings{
 	TkCandDetail:        "Details",
 	TkPickFile:          "Choose Another File…",
 	TkSubURL:            "Subscription URL",
-	TkSubURLFound:       "Found · downloaded on the first manual update",
+	TkSubURLFoundNow:    "Found",
 	TkSubURLNone:        "Not found",
 	TkOtherCandidates:   "%d other candidates",
 	TkCopyPlanID:        "Copy Plan ID",
@@ -452,6 +454,7 @@ var enLifecycle = LifecycleStrings{
 	LeaveExport:       "Export Config",
 	LeaveExportRun:    "Export…",
 	LeaveExportDone:   "Exported to %s",
+	LeaveExportWhat:   "config.yaml and %d overrides",
 	ItemAppBackups:    "old version backups",
 	ItemLaunchAgent:   "duet's LaunchAgent",
 }

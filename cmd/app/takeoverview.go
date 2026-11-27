@@ -236,9 +236,9 @@ func effectRows(p *rpc.TakeoverPlan) []effectRow {
 			r.item = T.TkSubURL
 			switch e.Action {
 			case rpc.ActStore:
-				r.now, r.after = T.TkSubURLFound, T.TkEffStoreSub
+				r.now, r.after = T.TkSubURLFoundNow, T.TkEffStoreSub
 				if e.Subject != "" {
-					r.now = e.Subject
+					r.now += " · " + e.Subject
 				}
 			case rpc.ActSkip:
 				r.now, r.after = i18n.F(T.TkEffSkipSub, e.Count), T.TkEffNoSub
@@ -402,16 +402,6 @@ func (a *app) takeoverBaseCard(c *ui.Context, p *rpc.TakeoverPlan) {
 						chosen.GroupsSame, chosen.GroupsTotal, chosen.CommonTail, chosen.Rules, chosen.HeadRules))).Wrap().LineHeight(lineText).PaddingStart(effectItemWidth + 10)
 				}
 			}
-		})
-		listRow(c).Children(func() {
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, T.TkSubURL).TextColor(t.TextMuted).Width(effectItemWidth).Shrink(0)
-				val := T.TkSubURLNone
-				if p.SubscriptionURL {
-					val = T.TkSubURLFound
-				}
-				ui.Text(c, val).SingleLine().Shrink(1)
-			})
 		})
 		if len(others) == 0 {
 			return

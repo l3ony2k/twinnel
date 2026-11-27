@@ -81,6 +81,11 @@ func (a *app) shots(dir string) {
 			mygo.App.Quit()
 			return
 		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "lifecycle" { // shots_lifecycle.go
+			a.lifecycleShots(save)
+			mygo.App.Quit()
+			return
+		}
 		if os.Getenv("DUET_SHOTS_FLOW") == "takeover" {
 			a.takeoverE2E(save)
 			mygo.App.Quit()

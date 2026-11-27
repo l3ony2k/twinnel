@@ -392,35 +392,33 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 	}
 	t := c.Theme()
 	T := i18n.T
-	groupBox(c, t).Padding(14, groupPadX).Children(func() {
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+	groupBox(c, t).Padding(12, groupPadX).Gap(8).Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(32).Children(func() {
 			switch h.State {
 			case status.HelperUnknown:
 				ui.Spinner(c)
-				ui.Text(c, T.Helper+" · "+h.State.Text()).FontWeight(600).Grow(1)
+				ui.Text(c, T.Helper+" · "+h.State.Text()).FontWeight(600)
 			case status.HelperDenied:
 				stateDot(c, markAttention, t.Warning, 10)
-				ui.Text(c, T.Helper+" · "+h.State.Text()).FontWeight(600).Grow(1)
+				ui.Text(c, T.Helper+" · "+h.State.Text()).FontWeight(600)
 			default:
 				stateDot(c, markAttention, t.Warning, 10)
-				ui.Text(c, T.HelperStateNotRunning).FontWeight(600).Grow(1)
+				ui.Text(c, T.HelperStateNotRunning).FontWeight(600)
 			}
+			ui.Spacer(c)
 			if actionLink(c.Key("diag"), T.HelperCopyDiag).Clicked() {
 				copyText(c, a.helperDiagnostics(s))
 			}
-		})
-		if h.State == status.HelperDenied {
-			small(c, T.HelperDeniedHint).Wrap().LineHeight(lineText)
-		}
-		if h.State == status.HelperUnknown {
-			return
-		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Spacer(c)
+			if h.State == status.HelperUnknown {
+				return
+			}
 			if fileExists(a.helperLogFile()) && pushButton(c.Key("log"), T.HelperViewLog).Clicked() {
 				a.openHelperLog()
 			}
 			if h.State == status.HelperNotRunning {
+				if !s.WritesAllowed {
+					ui.Icon(c, iconSecure).FontSize(iconInline).TextColor(t.TextMuted).Tooltip(T.InstallNeedsWrites)
+				}
 				if busyButton(c.Key("restart"), T.HelperRestartAdmin, true, a.hm.running == T.HelperRestart, !a.helperOpsEnabled(s)).Clicked() {
 					a.restartHelper()
 				}
@@ -428,6 +426,9 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 				a.hc.Retry()
 			}
 		})
+		if h.State == status.HelperDenied {
+			small(c, T.HelperDeniedHint).Wrap().LineHeight(lineText)
+		}
 		if a.hm.errMsg != "" {
 			errorNote(c, a.hm.errMsg)
 		}

@@ -288,7 +288,7 @@ func (a *app) inventoryCard(c *ui.Context, s status.Snapshot) {
 					} else if it.Label != "" && it.Kind != invLaunchAgent {
 						detail = it.Label
 					}
-					ui.Text(c, detail).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Grow(1).Shrink(1).Selectable().Tooltip(it.Path)
+					ui.Text(c, tildePath(detail)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Grow(1).Shrink(1).Selectable().Tooltip(it.Path)
 					switch {
 					case it.Count > 0 && it.Size > 0:
 						num(meta(c, i18n.F(T.InvCount, it.Count)+" · "+status.Bytes(it.Size)))
@@ -482,9 +482,15 @@ func (a *app) removeAllCard(c *ui.Context, s status.Snapshot) {
 
 func (a *app) exportCard(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
+	n := 0
+	for _, l := range a.hd.layers {
+		if !l.Managed {
+			n++
+		}
+	}
 	card(c, T.LeaveExport, func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Spacer(c)
+			ui.Text(c, i18n.F(T.LeaveExportWhat, n)).Grow(1).Shrink(1)
 			if pushButton(c.Key("export"), T.LeaveExportRun).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {
 				a.exportConfig()
 			}
@@ -602,4 +608,12 @@ func appExtraItems() []string {
 		out = append(out, T.ItemLaunchAgent)
 	}
 	return out
+}
+
+// tildePath shows a path under the home dir as ~/….
+func tildePath(p string) string {
+	if home, err := os.UserHomeDir(); err == nil && home != "" && strings.HasPrefix(p, home+"/") {
+		return "~" + strings.TrimPrefix(p, home)
+	}
+	return p
 }
