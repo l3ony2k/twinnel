@@ -366,6 +366,7 @@ try {
 	}
 	if ($DryRun) {
 		foreach ($f in $files) {
+			if ($restart -and $f.Dst -ieq $AppExe) { continue } # stopped first
 			if (Test-InUse $f.Dst) { Write-Host "  $(Split-Path -Leaf $f.Dst) is in use: it would be renamed aside and keep running" }
 		}
 	}
