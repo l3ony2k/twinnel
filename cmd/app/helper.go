@@ -122,6 +122,7 @@ type helperData struct {
 	span         busySpan
 	spanOp       string
 	busyOnButton bool
+	planTick     bool // planNote has a redraw scheduled
 
 	// unapplied: the composed config differs from the file mihomo runs
 	// (compose.preview's Changed), so 应用 has something to do.
