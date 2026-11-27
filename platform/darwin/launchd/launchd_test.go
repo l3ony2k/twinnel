@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/l3ony2k/duet/core/service"
 )
@@ -104,6 +105,7 @@ func TestPlans(t *testing.T) {
 	want := []string{
 		"install -d -m 0755 /x/state/logs",
 		"/bin/launchctl bootout system/com.example.helper  # errors ignored",
+		"wait until `/bin/launchctl print system/com.example.helper` says \"Could not find service\"",
 		"write " + dir + "/com.example.helper.plist (mode 0644, ",
 		"/bin/launchctl enable system/com.example.helper",
 		"/bin/launchctl bootstrap system " + dir + "/com.example.helper.plist",
@@ -117,9 +119,11 @@ func TestPlans(t *testing.T) {
 		}
 	}
 
+	noSleep(t)
 	// Apply with fakes: the plist lands in the temp dir, launchctl is never run.
 	ex := &fakeExec{}
 	ex.answer("/bin/launchctl bootout system/com.example.helper", []byte("Boot-out failed: 3: No such process"), errors.New("exit status 3"))
+	ex.answer("/bin/launchctl print system/com.example.helper", []byte(`Could not find service "com.example.helper" in domain for system`), errors.New("exit status 113"))
 	files := &memFiles{m: map[string][]byte{}}
 	if err := service.Apply(context.Background(), steps, ex, files); err != nil {
 		t.Fatal(err)
@@ -127,19 +131,28 @@ func TestPlans(t *testing.T) {
 	if _, ok := files.m[dir+"/com.example.helper.plist"]; !ok {
 		t.Error("plist not written")
 	}
-	if len(ex.calls) != 3 {
+	if len(ex.calls) != 4 {
 		t.Errorf("calls = %v", ex.calls)
 	}
 
-	// A failing bootstrap stops the plan.
+	// A bootstrap that keeps failing stops the plan, loudly, after the
+	// retries.
 	ex = &fakeExec{}
+	ex.answer("/bin/launchctl print system/com.example.helper", []byte(`Could not find service "com.example.helper"`), errors.New("exit status 113"))
 	ex.answer("/bin/launchctl bootstrap system "+dir+"/com.example.helper.plist", []byte("Bootstrap failed: 5: Input/output error"), errors.New("exit status 5"))
 	err = service.Apply(context.Background(), steps, ex, files)
-	if err == nil || !strings.Contains(err.Error(), "Input/output error") {
+	if err == nil || !strings.Contains(err.Error(), "Input/output error") || !strings.Contains(err.Error(), "after 5 attempts") {
 		t.Errorf("bootstrap failure: %v", err)
 	}
-	if len(ex.calls) != 3 {
-		t.Errorf("ran past the failure: %v", ex.calls)
+	if n := countCalls(ex, "bootstrap"); n != 5 {
+		t.Errorf("bootstrap ran %d times", n)
+	}
+	// Any other bootstrap error is not retried.
+	ex = &fakeExec{}
+	ex.answer("/bin/launchctl print system/com.example.helper", []byte(`Could not find service "com.example.helper"`), errors.New("exit status 113"))
+	ex.answer("/bin/launchctl bootstrap system "+dir+"/com.example.helper.plist", []byte("Bootstrap failed: 22: Invalid argument"), errors.New("exit status 22"))
+	if err := service.Apply(context.Background(), steps, ex, files); err == nil || countCalls(ex, "bootstrap") != 1 {
+		t.Errorf("error 22: %v, %v", err, ex.calls)
 	}
 
 	// A label disabled earlier: launchd refuses bootstrap until it is
@@ -175,6 +188,184 @@ func TestPlans(t *testing.T) {
 	}
 	if _, err := l.Plan("explode", spec); err == nil {
 		t.Error("unknown op accepted")
+	}
+}
+
+func noSleep(t *testing.T) {
+	old := service.Sleep
+	service.Sleep = func(context.Context, time.Duration) error { return nil }
+	t.Cleanup(func() { service.Sleep = old })
+}
+
+func countCalls(ex *fakeExec, verb string) int {
+	n := 0
+	for _, c := range ex.calls {
+		if len(c) > 1 && c[1] == verb {
+			n++
+		}
+	}
+	return n
+}
+
+// fakeLaunchd models the system domain for one label: bootout is
+// asynchronous (the label stays known for goneAfter more prints), and a
+// bootstrap while it is still known fails with 37, as launchd does.
+type fakeLaunchd struct {
+	label, plist string
+	loaded       bool
+	going        int // prints left before a booted-out label is gone
+	goneAfter    int
+	failBoot     []string // errors the next bootstraps return, in turn
+	pid          int
+}
+
+func (f *fakeLaunchd) exec() *fakeExec {
+	return &fakeExec{hook: func(argv string) ([]byte, error, bool) {
+		target := "system/" + f.label
+		switch argv {
+		case "/bin/launchctl print " + target:
+			if f.going > 0 {
+				f.going--
+				if f.going == 0 {
+					f.loaded = false
+				}
+				return []byte(target + " = {\n\tstate = exiting\n}\n"), nil, true
+			}
+			if !f.loaded {
+				return []byte(`Could not find service "` + f.label + `" in domain for system`), errors.New("exit status 113"), true
+			}
+			return []byte(target + " = {\n\tstate = running\n}\n"), nil, true
+		case "/bin/launchctl bootout " + target:
+			if !f.loaded {
+				return []byte("Boot-out failed: 3: No such process"), errors.New("exit status 3"), true
+			}
+			f.going = f.goneAfter
+			if f.going == 0 {
+				f.loaded = false
+			}
+			return nil, nil, true
+		case "/bin/launchctl bootstrap system " + f.plist:
+			if len(f.failBoot) > 0 {
+				e := f.failBoot[0]
+				f.failBoot = f.failBoot[1:]
+				return []byte("Bootstrap failed: " + e), errors.New("exit status " + strings.SplitN(e, ":", 2)[0]), true
+			}
+			if f.loaded {
+				return []byte("Bootstrap failed: 37: Operation already in progress"), errors.New("exit status 37"), true
+			}
+			f.loaded, f.pid = true, f.pid+1
+			return nil, nil, true
+		case "/bin/launchctl kickstart -k " + target:
+			if !f.loaded {
+				return []byte(`Could not find service "` + f.label + `" in domain for system`), errors.New("exit status 113"), true
+			}
+			f.pid++
+			return nil, nil, true
+		case "/bin/launchctl enable " + target:
+			return nil, nil, true
+		}
+		return []byte("unexpected " + argv), errors.New("exit status 1"), true
+	}}
+}
+
+func TestInstallWaitsForAsyncBootout(t *testing.T) {
+	noSleep(t)
+	dir := t.TempDir()
+	l := &Launchd{Dir: dir}
+	spec := service.HelperSpec("com.example.helper", "/x/helper", "/x/state", "/x/s.sock", "/x/state/logs")
+	steps, err := l.Plan(service.OpInstall, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fl := &fakeLaunchd{label: spec.Label, plist: dir + "/com.example.helper.plist", loaded: true, goneAfter: 3}
+	ex := fl.exec()
+	if err := service.Apply(context.Background(), steps, ex, &memFiles{m: map[string][]byte{}}); err != nil {
+		t.Fatalf("%v\n%v", err, ex.calls)
+	}
+	if !fl.loaded || countCalls(ex, "bootstrap") != 1 || countCalls(ex, "print") != 4 {
+		t.Errorf("loaded %v, calls %v", fl.loaded, ex.calls)
+	}
+
+	// Without the wait the same plan fails as on the owner's Mac: the
+	// bootstrap lands while launchd still knows the label.
+	var noWait []service.Step
+	for _, s := range steps {
+		if s.Kind != service.StepWait {
+			noWait = append(noWait, s)
+		}
+	}
+	fl = &fakeLaunchd{label: spec.Label, plist: dir + "/com.example.helper.plist", loaded: true, goneAfter: 100}
+	noWait[len(noWait)-1].Retry = 0
+	if err := service.Apply(context.Background(), noWait, fl.exec(), &memFiles{m: map[string][]byte{}}); err == nil {
+		t.Error("the race does not show without the wait")
+	}
+}
+
+func TestInstallRetriesBootstrap(t *testing.T) {
+	noSleep(t)
+	dir := t.TempDir()
+	l := &Launchd{Dir: dir}
+	spec := service.HelperSpec("com.example.helper", "/x/helper", "/x/state", "/x/s.sock", "/x/state/logs")
+	steps, _ := l.Plan(service.OpInstall, spec)
+	fl := &fakeLaunchd{label: spec.Label, plist: dir + "/com.example.helper.plist", loaded: true,
+		failBoot: []string{"5: Input/output error", "37: Operation already in progress"}}
+	ex := fl.exec()
+	if err := service.Apply(context.Background(), steps, ex, &memFiles{m: map[string][]byte{}}); err != nil {
+		t.Fatal(err)
+	}
+	if !fl.loaded || countCalls(ex, "bootstrap") != 3 {
+		t.Errorf("loaded %v, calls %v", fl.loaded, ex.calls)
+	}
+}
+
+func TestPlanReload(t *testing.T) {
+	noSleep(t)
+	dir := t.TempDir()
+	l := &Launchd{Dir: dir}
+	spec := service.HelperSpec("com.example.helper", "/x/helper", "/x/state", "/x/s.sock", "/x/state/logs")
+	current, _ := l.Render(spec)
+
+	// Same plist, loaded: kickstart only.
+	steps, err := l.PlanReload(spec, current, true)
+	if err != nil || len(steps) != 1 || steps[0].String() != "/bin/launchctl kickstart -k system/com.example.helper" {
+		t.Fatalf("%v %v", steps, err)
+	}
+	fl := &fakeLaunchd{label: spec.Label, plist: dir + "/com.example.helper.plist", loaded: true, pid: 5}
+	ex := fl.exec()
+	if err := service.Apply(context.Background(), steps, ex, &memFiles{m: map[string][]byte{}}); err != nil || fl.pid != 6 || len(ex.calls) != 1 {
+		t.Errorf("%v pid %d calls %v", err, fl.pid, ex.calls)
+	}
+
+	// Another plist, or not loaded: the full plan.
+	for _, c := range []struct {
+		cur    []byte
+		loaded bool
+	}{{[]byte("<old/>"), true}, {current, false}, {nil, false}} {
+		steps, _ := l.PlanReload(spec, c.cur, c.loaded)
+		if len(steps) < 5 || steps[len(steps)-1].Argv[1] != "bootstrap" {
+			t.Errorf("%s/%v: %v", c.cur, c.loaded, steps)
+		}
+	}
+}
+
+func TestPlanStartOrRestart(t *testing.T) {
+	noSleep(t)
+	dir := t.TempDir()
+	l := &Launchd{Dir: dir}
+	steps, _ := l.PlanStartOrRestart("com.example.helper", true)
+	if len(steps) != 1 || steps[0].Argv[1] != "kickstart" {
+		t.Errorf("loaded: %v", steps)
+	}
+	// Not loaded (an upgrade that unloaded it): kickstart cannot work;
+	// enable and bootstrap do.
+	steps, _ = l.PlanStartOrRestart("com.example.helper", false)
+	fl := &fakeLaunchd{label: "com.example.helper", plist: dir + "/com.example.helper.plist", failBoot: []string{"5: Input/output error"}}
+	ex := fl.exec()
+	if err := service.Apply(context.Background(), steps, ex, &memFiles{m: map[string][]byte{}}); err != nil || !fl.loaded {
+		t.Errorf("not loaded: %v %v", err, ex.calls)
+	}
+	if _, err := l.PlanStartOrRestart("../x", false); err == nil {
+		t.Error("bad label accepted")
 	}
 }
 

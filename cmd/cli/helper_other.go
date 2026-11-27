@@ -31,3 +31,6 @@ func planSecretsDelete([]string) []service.Step { return nil }
 func planMihomoRestore(from, to, toPlist string) (stop, start, undo []service.Step) {
 	return nil, nil, nil
 }
+
+// readServiceState is used by the macOS plans only.
+func readServiceState(string) (bool, []byte, error) { return false, nil, nil }

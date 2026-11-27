@@ -74,6 +74,11 @@ const (
 	StepWrite  StepKind = "write"
 	StepRemove StepKind = "remove"
 	StepRun    StepKind = "run"
+	// StepWait runs Argv every WaitEvery until its output contains Until
+	// (whatever the exit status), for at most Timeout. Used to wait for an
+	// asynchronous change (launchd finishing a bootout) before the next
+	// step.
+	StepWait StepKind = "wait"
 )
 
 // Step is one action of a Plan.
@@ -87,6 +92,32 @@ type Step struct {
 	// IgnoreError marks steps whose failure is expected in some states
 	// (e.g. unloading a service that is not loaded).
 	IgnoreError bool
+
+	// Retry (run) is how many more times a failing command is run when
+	// its error or output contains one of RetryOn, waiting RetryBackoff,
+	// then twice as long each time.
+	Retry        int
+	RetryOn      []string
+	RetryBackoff time.Duration
+
+	// Until and Timeout (wait): see StepWait.
+	Until   string
+	Timeout time.Duration
+}
+
+// WaitEvery is how often a StepWait runs its command.
+const WaitEvery = 200 * time.Millisecond
+
+// Sleep waits d or until ctx ends. Replaceable in tests.
+var Sleep = func(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 // String renders the step as the shell command it is equivalent to.
@@ -107,6 +138,15 @@ func (s Step) String() string {
 			q[i] = shellQuote(a)
 		}
 		out = strings.Join(q, " ")
+		if s.Retry > 0 {
+			out += fmt.Sprintf("  # retried up to %d times while busy", s.Retry)
+		}
+	case StepWait:
+		q := make([]string, len(s.Argv))
+		for i, a := range s.Argv {
+			q[i] = shellQuote(a)
+		}
+		out = fmt.Sprintf("wait until `%s` says %q (up to %s)", strings.Join(q, " "), s.Until, s.Timeout)
 	default:
 		out = string(s.Kind)
 	}
@@ -166,11 +206,9 @@ func Apply(ctx context.Context, steps []Step, ex Executor, files Files) error {
 		case StepRemove:
 			err = files.Remove(s.Path)
 		case StepRun:
-			var out []byte
-			out, err = ex.Run(ctx, s.Argv)
-			if err != nil {
-				err = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
-			}
+			err = runRetrying(ctx, s, ex)
+		case StepWait:
+			err = waitUntil(ctx, s, ex)
 		default:
 			err = fmt.Errorf("unknown step kind %q", s.Kind)
 		}
@@ -179,6 +217,65 @@ func Apply(ctx context.Context, steps []Step, ex Executor, files Files) error {
 		}
 	}
 	return nil
+}
+
+// runRetrying runs a StepRun, again on the errors it names.
+func runRetrying(ctx context.Context, s Step, ex Executor) error {
+	backoff := s.RetryBackoff
+	if backoff <= 0 {
+		backoff = 500 * time.Millisecond
+	}
+	for attempt := 0; ; attempt++ {
+		out, err := ex.Run(ctx, s.Argv)
+		if err == nil {
+			return nil
+		}
+		err = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+		if attempt >= s.Retry || !matchesAny(err.Error(), s.RetryOn) {
+			if attempt > 0 {
+				err = fmt.Errorf("%w (after %d attempts)", err, attempt+1)
+			}
+			return err
+		}
+		if serr := Sleep(ctx, backoff); serr != nil {
+			return err
+		}
+		backoff *= 2
+	}
+}
+
+func matchesAny(s string, subs []string) bool {
+	for _, sub := range subs {
+		if sub != "" && strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+// waitUntil runs a StepWait.
+func waitUntil(ctx context.Context, s Step, ex Executor) error {
+	timeout := s.Timeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	var last string
+	for waited := time.Duration(0); ; waited += WaitEvery {
+		out, _ := ex.Run(ctx, s.Argv)
+		if strings.Contains(string(out), s.Until) {
+			return nil
+		}
+		last = strings.TrimSpace(string(out))
+		if i := strings.IndexByte(last, '\n'); i >= 0 {
+			last = last[:i]
+		}
+		if waited >= timeout {
+			return fmt.Errorf("still not %q after %s (last: %s)", s.Until, timeout, last)
+		}
+		if err := Sleep(ctx, WaitEvery); err != nil {
+			return err
+		}
+	}
 }
 
 // FormatPlan renders a plan for a dry run: each step on a line, file

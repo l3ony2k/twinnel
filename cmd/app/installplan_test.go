@@ -17,9 +17,11 @@ func TestParsePlan(t *testing.T) {
 		{Kind: service.StepWrite, Path: "/Library/LaunchDaemons/h.plist", Mode: 0o644, Content: []byte("<plist>\n</plist>\n")},
 		{Kind: service.StepRun, Argv: []string{"/bin/launchctl", "bootstrap", "system", "/Library/LaunchDaemons/h.plist"}},
 		{Kind: service.StepRun, Argv: []string{"/usr/sbin/groupadd", "--system", "duet"}},
+		{Kind: service.StepWait, Argv: []string{"/bin/launchctl", "print", "system/h"}, Until: "Could not find service", Timeout: 10e9, IgnoreError: true},
+		{Kind: service.StepRun, Argv: []string{"/bin/launchctl", "kickstart", "-k", "system/h"}},
 	})
 	steps, ok := parsePlan(b.String())
-	if !ok || len(steps) != 6 {
+	if !ok || len(steps) != 8 {
 		t.Fatalf("steps = %+v", steps)
 	}
 	want := []string{
@@ -29,6 +31,8 @@ func TestParsePlan(t *testing.T) {
 		"写入服务定义 /Library/LaunchDaemons/h.plist",
 		"加载服务：后台助手以 root 启动",
 		"/usr/sbin/groupadd --system duet", // not known: the command itself
+		"等旧的后台助手完全停下",
+		"重新启动后台助手",
 	}
 	for i, w := range want {
 		if steps[i].what != w {

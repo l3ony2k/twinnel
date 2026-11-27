@@ -11,6 +11,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -19,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -42,6 +44,9 @@ var (
 	}
 	stdin  io.Reader = os.Stdin
 	stdout io.Writer = os.Stdout
+	// helperServiceState reads whether the helper's service is loaded and
+	// its installed definition (nil when missing). Read-only.
+	helperServiceState = readServiceState
 )
 
 type installFlags struct {
@@ -187,16 +192,46 @@ func runAsRoot(op string, f *installFlags, show func(io.Writer), run func(contex
 	if !f.yes && !confirm() {
 		return errors.New("cancelled; nothing was changed")
 	}
-	if err := runElevated(context.Background(), argv, stdout, os.Stderr); err != nil {
+	var errOut bytes.Buffer
+	if err := runElevated(context.Background(), argv, stdout, io.MultiWriter(os.Stderr, &errOut)); err != nil {
 		var ee *exec.ExitError
 		if errors.As(err, &ee) && ee.ExitCode() == 1 {
-			// osascript exits 1 also when the user cancels the dialog
-			// ("User canceled. (-128)" on stderr).
+			// osascript exits 1 when the elevated run fails and when the
+			// user cancels the dialog; its stderr says which.
+			if msg, cancelled := elevatedFailure(errOut.String()); cancelled {
+				return errors.New("cancelled; nothing was changed")
+			} else if msg != "" {
+				return errors.New(msg)
+			}
 			return fmt.Errorf("helper %s did not complete (cancelled, or the elevated run failed; see above)", op)
 		}
 		return fmt.Errorf("helper %s: %w", op, err)
 	}
 	return nil
+}
+
+var osascriptErrRE = regexp.MustCompile(`(?s)execution error: (.*) \((-?\d+)\)\s*$`)
+
+// elevatedFailure reads osascript's stderr after a failed `do shell
+// script`: "execution error: <the script's stderr> (<code>)". It returns
+// the elevated duet's own error (its last "duet: " line, without the
+// prefix), or cancelled when the person dismissed the dialog (-128).
+func elevatedFailure(stderr string) (msg string, cancelled bool) {
+	m := osascriptErrRE.FindStringSubmatch(strings.TrimSpace(stderr))
+	if m == nil {
+		return "", false
+	}
+	if m[2] == "-128" {
+		return "", true
+	}
+	text := strings.ReplaceAll(m[1], "\r", "\n")
+	if i := strings.LastIndex(text, "duet: "); i >= 0 {
+		text = text[i+len("duet: "):]
+	}
+	if i := strings.IndexByte(text, '\n'); i >= 0 {
+		text = text[:i]
+	}
+	return strings.TrimSpace(text), false
 }
 
 func confirm() bool {

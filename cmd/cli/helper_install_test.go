@@ -20,11 +20,16 @@ type fakeSystem struct {
 	elevated [][]string
 	applied  [][]service.Step
 	out      bytes.Buffer
+	// loaded and def are what launchd says about the helper's service
+	// (helperServiceState): loaded, no plist on disk, by default.
+	loaded bool
+	def    []byte
 }
 
 func installFakes(t *testing.T, euid int) *fakeSystem {
-	f := &fakeSystem{euid: euid}
-	oldE, oldX, oldR, oldA, oldIn, oldOut := geteuid, executable, runElevated, applyPlan, stdin, stdout
+	f := &fakeSystem{euid: euid, loaded: true}
+	oldE, oldX, oldR, oldA, oldIn, oldOut, oldS := geteuid, executable, runElevated, applyPlan, stdin, stdout, helperServiceState
+	helperServiceState = func(string) (bool, []byte, error) { return f.loaded, f.def, nil }
 	geteuid = func() int { return f.euid }
 	executable = func() (string, error) { return "/Applications/duet app/duet", nil }
 	runElevated = func(_ context.Context, argv []string, _, _ io.Writer) error {
@@ -37,7 +42,7 @@ func installFakes(t *testing.T, euid int) *fakeSystem {
 	}
 	stdin, stdout = strings.NewReader(""), &f.out
 	t.Cleanup(func() {
-		geteuid, executable, runElevated, applyPlan, stdin, stdout = oldE, oldX, oldR, oldA, oldIn, oldOut
+		geteuid, executable, runElevated, applyPlan, stdin, stdout, helperServiceState = oldE, oldX, oldR, oldA, oldIn, oldOut, oldS
 	})
 	return f
 }
@@ -118,7 +123,7 @@ func TestHelperInstallAsRoot(t *testing.T) {
 	for _, s := range f.applied[0] {
 		kinds = append(kinds, string(s.Kind))
 	}
-	if got := strings.Join(kinds, ","); got != "mkdir,copy,mkdir,mkdir,mkdir,run,write,run,run" {
+	if got := strings.Join(kinds, ","); got != "mkdir,copy,mkdir,mkdir,mkdir,run,wait,write,run,run" {
 		t.Errorf("steps %s", got)
 	}
 
