@@ -149,7 +149,7 @@ func linkDisclosure(c *ui.Context, open bool, label string) ui.Element {
 	if open {
 		turn = 90
 	}
-	d := ui.Row(c).Gap(4).AlignItems(ui.Center).Cursor(ui.CursorPointer).
+	d := ui.Row(c).Gap(4).AlignItems(ui.Center).
 		Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(label)
 	d.Children(func() {
 		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.Accent).Rotate(turn).Transition(turnMotion)

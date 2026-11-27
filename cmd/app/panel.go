@@ -95,7 +95,7 @@ func (a *app) panelView(c *ui.Context) {
 func panelRow(c *ui.Context, label string, fn func()) {
 	t := c.Theme()
 	row := ui.Row(c).AlignItems(ui.Center).Padding(5, 8).MarginX(-8).Radius(plat.controlRadius).
-		Role(ui.RoleButton).Label(label).Focusable().Cursor(ui.CursorPointer)
+		Role(ui.RoleButton).Label(label).Focusable()
 	row.Children(func() {
 		ui.Text(c, label).Grow(1).SingleLine()
 	})
@@ -220,7 +220,7 @@ func (a *app) helperLine(c *ui.Context, s status.Snapshot) {
 		return
 	}
 	t := c.Theme()
-	row := ui.Row(c.Key("helper-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).Cursor(ui.CursorPointer)
+	row := ui.Row(c.Key("helper-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius)
 	row.Children(func() {
 		ui.Icon(c, iconSkip).FontSize(iconInline).TextColor(t.TextMuted)
 		ui.Text(c, i18n.T.Helper+"："+h.State.Text()).Grow(1).SingleLine()

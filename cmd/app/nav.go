@@ -139,7 +139,7 @@ func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 	rowH, _, iconSize := navMetrics()
 	iconCol, textCol := t.Accent, t.Text
 	row := ui.Row(c.Key("nav:" + it.id)).Height(rowH).Gap(8).AlignItems(ui.Center).
-		Cursor(ui.CursorPointer).Role(ui.RoleTreeItem).Label(it.label).AccessSelected(chosen)
+		Role(ui.RoleTreeItem).Label(it.label).AccessSelected(chosen)
 	if it.digit > 0 { // VoiceOver reads the row's ⌘ digit
 		row.KeyShortcuts(ui.Cmd, it.key)
 	}

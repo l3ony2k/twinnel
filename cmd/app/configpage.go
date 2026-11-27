@@ -413,7 +413,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 	title := layerTitle(l)
 	col.Children(func() {
 		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).Padding(8).MarginY(4).Radius(plat.controlRadius).
-			Cursor(ui.CursorPointer).Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(title)
+			Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(title)
 		switch {
 		case open:
 			head.Background(pal(t).accentSoft)
@@ -1030,5 +1030,75 @@ func newDiff(old, new string) *editor.DiffState {
 		New:    yamlBuffer(new),
 		Layout: editor.DiffUnified,
 		Wrap:   true,
+		// MyGo's own separator gives its expand buttons the pointing
+		// hand; ours keep the arrow, as every button (AGENTS.md).
+		RenderSeparator: diffSeparator,
 	}
+}
+
+// diffSeparator draws a diff's folded unchanged lines as MyGo's
+// DefaultSeparator does (a bar with chevrons expanding up and down, or
+// all of them when few, and "N 行未改动" expanding all; Shift expands all
+// from any button), with the arrow cursor and the app's own texts.
+func diffSeparator(c *ui.Context, sep ui.Element, s *editor.DiffSeparator) {
+	t := c.Theme()
+	T := i18n.T
+	ct := s.Theme()
+	sep.Padding(4)
+	sep.Children(func() {
+		bar := ui.Row(c).Grow(1).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(2).Padding(0, 6).
+			Radius(6).Background(ct.Background.Mix(ct.Text, 0.06))
+		bar.Children(func() {
+			if s.Lines == 0 { // a patch hunk's header
+				ui.Text(c, s.Header).Font(s.Font().Family).FontSize(s.Font().Size - 1).TextColor(t.TextMuted).SingleLine().Shrink(1)
+				return
+			}
+			expand := func(fn func()) {
+				if c.Modifiers()&ui.Shift != 0 {
+					fn = s.ExpandAll
+				}
+				fn()
+			}
+			chevron := func(dir int, label string, fn func()) {
+				b := ui.ButtonBase(c).Key(label).Size(20, 20).Radius(4).Label(label).Tooltip(label)
+				if b.Hovered() {
+					b.Background(ct.Text.Alpha(0.08))
+				}
+				b.Draw(func(p *ui.Painter, r ui.Rect) {
+					cx, cy, d := r.X+r.W/2, r.Y+r.H/2, float32(3.5)
+					var path ui.Path
+					switch dir {
+					case 1:
+						path.MoveTo(cx-d, cy-d/2).LineTo(cx, cy+d/2).LineTo(cx+d, cy-d/2)
+					case -1:
+						path.MoveTo(cx-d, cy+d/2).LineTo(cx, cy-d/2).LineTo(cx+d, cy+d/2)
+					default:
+						path.MoveTo(cx-d, cy-2).LineTo(cx, cy-2-d).LineTo(cx+d, cy-2)
+						path.MoveTo(cx-d, cy+2).LineTo(cx, cy+2+d).LineTo(cx+d, cy+2)
+					}
+					p.StrokePath(&path, 1.5, t.TextMuted)
+				})
+				if b.Clicked() {
+					expand(fn)
+				}
+			}
+			switch {
+			case s.First:
+				chevron(-1, T.DiffExpandUp, s.ExpandUp)
+			case s.Last:
+				chevron(1, T.DiffExpandDown, s.ExpandDown)
+			case s.Lines <= s.Step:
+				chevron(0, T.DiffExpandAll, s.ExpandAll)
+			default:
+				chevron(1, T.DiffExpandDown, s.ExpandDown)
+				chevron(-1, T.DiffExpandUp, s.ExpandUp)
+			}
+			label := i18n.F(T.DiffUnchanged, s.Lines)
+			b := ui.ButtonBase(c).Key("all").Padding(2, 4).Radius(4).Label(T.DiffExpandAll + "：" + label)
+			b.Children(func() { ui.Text(c, label).FontSize(plat.smallSize).TextColor(t.TextMuted) })
+			if b.Clicked() {
+				s.ExpandAll()
+			}
+		})
+	})
 }
