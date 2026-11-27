@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/status"
@@ -272,8 +273,8 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 // page on that fix's preview.
 func (a *app) healthFixLine(c *ui.Context, s status.Snapshot) {
 	cr, rf, ok := a.firstAutoFix(s)
-	if !ok {
-		return
+	if !ok || (cr.ID == (health.ControllerOwnerCheck{}).ID() && s.MihomoView().Foreign()) {
+		return // the mihomo module offers the controller-owner fixes
 	}
 	t := c.Theme()
 	T := i18n.T
@@ -339,9 +340,17 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	if v.Foreign() {
 		// Another program's mihomo holds the controller: its state, the
 		// process on hover, and the two ways out; none of its values.
+		// The state wraps under the name: it is the module's message,
+		// too long to sit cut beside it.
 		mk, col, text := mihomoMark(t, v)
-		moduleHeader(c, mk, col, T.Mihomo, text, v.Detail(), nil)
-		ui.Row(c).PaddingX(rowInset).PaddingY(4).Children(func() { a.foreignActions(c, s, 22) })
+		moduleHeader(c, mk, col, T.Mihomo, "", "", nil)
+		ui.Column(c).Gap(6).PaddingX(rowInset).PaddingY(2).Children(func() {
+			e := ui.Text(c, text).Wrap().LineHeight(lineText)
+			if d := v.Detail(); d != "" {
+				e.Tooltip(d)
+			}
+			a.foreignActions(c, s, 22)
+		})
 		return
 	}
 	if !v.Live() {

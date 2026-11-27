@@ -134,6 +134,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"healthfix":       a.healthFixShots,       // shots_healthfix.go
 		"autostart":       a.autostartFlow,        // takeover_autostart.go
 		"dnswatch":        a.dnsWatchShots,        // shots_dnswatch.go
+		"foreign":         a.foreignShots,         // shots_foreign.go
 		"takeover":        a.takeoverE2E,
 	}
 }

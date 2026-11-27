@@ -278,8 +278,9 @@ func (a *app) glanceTiles(c *ui.Context, s status.Snapshot, cols int) {
 			mem.tip = fmt.Sprintf(T.OvMemoryTip, status.Bytes(m.Memory), status.Bytes(m.Process.RSS))
 		}
 	} else {
-		conns.sub, mem.sub = mv.Text(), mv.Text()
-		conns.tip, mem.tip = mv.Text(), mv.Text()
+		if !mv.Foreign() { // foreign: the exit tile and the card say it once
+			conns.sub, mem.sub = mv.Text(), mv.Text()
+		}
 	}
 	if ts.Reachable && ts.State.Running() {
 		peers.figure = fmt.Sprintf("%d / %d", ts.State.OnlinePeers(), len(ts.State.Peers))

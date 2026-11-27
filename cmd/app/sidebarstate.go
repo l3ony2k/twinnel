@@ -12,8 +12,9 @@ import (
 // VoiceOver. State is told by shape as well as color (Differentiate
 // Without Color, and the owner's rule for the tray icon): a filled dot is
 // running, a ring with a dot in it needs attention, an empty ring is down
-// or unknown. A second row shows only when something asks for an action
-// (install the helper, start it, update it).
+// or unknown, a neutral ring with a bar (⊖) is another program's mihomo
+// on the controller (mihomoMark). A second row shows only when something
+// asks for an action (install the helper, start it, update it).
 func (a *app) twinnelPair(c *ui.Context, s status.Snapshot, padX float32) {
 	t := c.Theme()
 	T := i18n.T
