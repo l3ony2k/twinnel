@@ -52,7 +52,7 @@ var enTexts = texts{
 	msgWildcardOK:     "'*' in fake-ip-filter with blacklist mode: single-label names get real addresses",
 	msgWildcardBad:    "fake-ip-filter has '*', but fake-ip-filter-mode is %s: '*' means “no fake-ip for single-label names” only in blacklist mode",
 	evFakeIPMode:      "fake-ip-filter-mode: %s",
-	fixWildcard:       "Set fake-ip-filter-mode back to blacklist (the default), or exclude single-label names the way the current mode expects, then regenerate the Tailscale coexistence override.",
+	fixWildcard:       "Set fake-ip-filter-mode back to blacklist (the default), or exclude single-label names the way the current mode expects, then regenerate the Tailscale coexistence override",
 	labelDefaultBlack: "blacklist (default)",
 
 	// leak-guard-egress
@@ -68,8 +68,8 @@ var enTexts = texts{
 	evEgressProxied:      "Exit through mihomo: %s (chain: %s)",
 	evEgressGroup:        "%s uses: %s",
 	evEgressURL:          "Test URL: %s (one GET, no personal data)",
-	fixEgressProbe:       "Test the egress once: one request to an IP-echo address directly and one through mihomo.",
-	fixEgress:            "Check the node of the sensitive groups: an exit the same as this computer's means it doesn't really proxy (for example a local forward or a DIRECT-type node).",
+	fixEgressProbe:       "Test the egress once: one request to an IP-echo address directly and one through mihomo",
+	fixEgress:            "Check the node of the sensitive groups: an exit the same as this computer's means it doesn't really proxy (for example a local forward or a DIRECT-type node)",
 
 	// Labels and evidence fragments.
 	srcRuntime:  "running mihomo",
@@ -105,7 +105,7 @@ var enTexts = texts{
 	msgExcludeMissing: "route-exclude-address is missing: %s",
 	evExcludeList:     "route-exclude-address (%s): %s",
 	evCoveredBy:       "%s covered by %s",
-	fixExclude:        "Add the missing ranges to tun.route-exclude-address (turning on the built-in Tailscale coexistence override does it).",
+	fixExclude:        "Add the missing ranges to tun.route-exclude-address (turning on the built-in Tailscale coexistence override does it)",
 
 	// tailscale-direct-rules
 	msgRulesOK:     "tailscaled, the control plane, DERP and tailnet ranges all hit DIRECT first",
@@ -114,11 +114,11 @@ var enTexts = texts{
 	evRuleCount:    "Rules from %s, %d in all",
 	msgRulesGlobal: "mihomo is in global mode (GLOBAL → %s): rules don't apply, and tailscaled and tailnet traffic go through the proxy",
 	msgRulesDirect: "mihomo is in direct mode: all traffic goes direct and rules don't apply",
-	fixRulesGlobal: "Switch mihomo back to rule mode (mode: rule), or select DIRECT for GLOBAL.",
+	fixRulesGlobal: "Switch mihomo back to rule mode (mode: rule), or select DIRECT for GLOBAL",
 	evNoMatch:      "no rule matches",
 	evNotDirect:    "not DIRECT",
 	evShadowed:     "earlier %s may match first",
-	fixRules:       "Put PROCESS-NAME,tailscaled,DIRECT, DOMAIN-SUFFIX,tailscale.com,DIRECT, IP-CIDR,100.64.0.0/10,DIRECT,no-resolve and IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve at the top of the rules (turn on the Tailscale coexistence override).",
+	fixRules:       "Put PROCESS-NAME,tailscaled,DIRECT, DOMAIN-SUFFIX,tailscale.com,DIRECT, IP-CIDR,100.64.0.0/10,DIRECT,no-resolve and IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve at the top of the rules (turn on the Tailscale coexistence override)",
 
 	// magicdns
 	msgMagicDNSOff:     "MagicDNS is off",
@@ -133,8 +133,8 @@ var enTexts = texts{
 	evDNSTimeout:       "timed out, no answer in 2 seconds (mihomo may be waiting on an upstream that loops back to itself)",
 	evResolverCfg:      "System resolver: %s → 100.100.100.100: %s; 100.x reverse zones: %d",
 	evPolicy:           "mihomo nameserver-policy %s: %s",
-	fixMagicSys:        "Make sure Tailscale's MagicDNS is on and tailscaled is running, then regenerate the Tailscale coexistence override (it keeps tailnet names off fake-ip).",
-	fixMagicSystemLoop: "nameserver-policy sends tailnet domains to system, but the system DNS points at mihomo itself, so the query loops back and fails.",
+	fixMagicSys:        "Make sure Tailscale's MagicDNS is on and tailscaled is running, then regenerate the Tailscale coexistence override (it keeps tailnet names off fake-ip)",
+	fixMagicSystemLoop: "nameserver-policy sends tailnet domains to system, but the system DNS points at mihomo itself, so the query loops back and fails",
 	fixMagicMihomo:     "Regenerate the Tailscale coexistence override: it sends tailnet domains, single-label short names and tailnet reverse lookups to 100.100.100.100 (100.100.100.100#<Tailscale interface> with auto-detect-interface / interface-name on), keeps short names off fake-ip and writes hosts for devices. Only programs that query 127.0.0.1:53 directly or are caught by dns-hijack are affected; programs using the system resolver are not.",
 
 	// peer-short-names
@@ -144,7 +144,7 @@ var enTexts = texts{
 	msgNamesStale:   "The rules name devices that no longer exist: %s",
 	evNamesPeers:    "Tailnet devices: %s",
 	evNamesRules:    "Short names in the rules (%s): %s",
-	fixNames:        "Regenerate the Tailscale coexistence override so the short names match the current tailnet.",
+	fixNames:        "Regenerate the Tailscale coexistence override so the short names match the current tailnet",
 
 	// system-dns
 	msgMihomoDNSOff:   "mihomo DNS is off",
@@ -158,7 +158,7 @@ var enTexts = texts{
 	evHijackCovers:    "caught by dns-hijack",
 	evExcludedDNS:     "this DNS is in route-exclude-address, out of dns-hijack's reach",
 	evDefaultResolver: "System default resolver: %s",
-	fixDNS:            "Set the DNS of these network services to %s (networksetup -setdnsservers <service> <address>).",
+	fixDNS:            "Set the DNS of these network services to %s (networksetup -setdnsservers <service> <address>)",
 	fixDNSLinux:       "Set the DNS of these connections to %s. NetworkManager: nmcli connection modify <connection> ipv4.dns %s ipv4.ignore-auto-dns yes, then nmcli connection up <connection>. With systemd-resolved only: write DNS=%s and Domains=~. in /etc/systemd/resolved.conf, then systemctl restart systemd-resolved (resolvectl dns <interface> <address> lasts only until a restart).",
 
 	// vpn-conflict
@@ -188,7 +188,7 @@ var enTexts = texts{
 	evLeakDirect:    "exits from your real IP",
 	evLeakAuto:      "Fallback path: %s",
 	evLeakManual:    "Selectable path: %s",
-	fixLeak:         "Remove DIRECT from sensitive groups and use REJECT when no node is available (turn on the leak guard override).",
+	fixLeak:         "Remove DIRECT from sensitive groups and use REJECT when no node is available (turn on the leak guard override)",
 
 	// controller-security
 	msgCtlOK:       "external-controller listens on this computer only and has a secret",
@@ -198,5 +198,5 @@ var enTexts = texts{
 	evSecretSet:    "set",
 	evSecretEmpty:  "empty",
 	evCtlNoAuth:    "a request without the secret was accepted",
-	fixCtl:         "Bind external-controller to 127.0.0.1 only and set a random secret (the helper makes one and keeps it in the keychain).",
+	fixCtl:         "Bind external-controller to 127.0.0.1 only and set a random secret (the helper makes one and keeps it in the keychain)",
 }

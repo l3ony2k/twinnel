@@ -490,7 +490,7 @@ func (a *app) helperSection(c *ui.Context, s status.Snapshot) {
 		})
 		if h.State == status.HelperNotInstalled {
 			kvWith(c, "", func() {
-				if pushButton(c.Key("hm-install"), T.StepHelper).Disabled(!s.WritesAllowed).Clicked() {
+				if pushButton(c.Key("hm-install"), T.OnboardInstall).Disabled(!s.WritesAllowed).Clicked() {
 					a.showPage(pageInstall)
 				}
 			})

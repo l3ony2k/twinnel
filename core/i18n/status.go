@@ -106,9 +106,9 @@ var enStatus = StatusStrings{
 	FindingsView:      "View",
 	FindingsTakeover:  "Fix by Taking Over",
 
-	GetStarted:       "Get Started",
-	StepCheckCoexist: "Check Coexistence",
-	StepTakeOver:     "Take Over Your Setup",
+	GetStarted:       "Get started",
+	StepCheckCoexist: "Check coexistence",
+	StepTakeOver:     "Take over your setup",
 
 	ExitNodeAcceptedRow: "Exit node %s · proxy conflict accepted",
 	ExitNodeAccept:      "Accept",
