@@ -184,7 +184,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			return
 		}
 		open := a.healthOpen["caused-by"]
-		ui.Column(c.Key("caused")).PaddingY(8).Gap(4).Clip().Transition(expandFor(open)).Children(func() {
+		ui.Column(c.Key("caused")).PaddingY(listRowPadY).Gap(4).Clip().Transition(expandFor(open)).Children(func() {
 			l := linkDisclosure(c.Key("caused-head"), open, fmt.Sprintf(T.CountF, T.CausedByExitNode, len(caused)))
 			if l.Clicked() {
 				a.healthOpen["caused-by"] = !open
@@ -212,7 +212,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 	expandable := len(cr.Evidence) > 0 || cr.Fix != nil
 	icon, col, _ := healthStatusLook(t, cr.Status)
 	_, _, stateText := healthStatusLook(t, cr.Status)
-	ui.Column(c).PaddingY(10).Gap(8).Clip().Transition(expandFor(open)).Children(func() {
+	ui.Column(c).PaddingY(listRowPadY).Gap(8).Clip().Transition(expandFor(open)).Children(func() {
 		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).MinHeight(20).Label(stateText + T.LabelSep + cr.Title)
 		head.ContextMenu(func(m *ui.Menu) {
 			if m.Item(T.HealthCopySummary).Chosen() {

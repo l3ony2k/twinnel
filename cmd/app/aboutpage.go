@@ -222,13 +222,18 @@ func (a *app) aboutComponents(c *ui.Context, s status.Snapshot) {
 	card(c, T.Components, func() {
 		row := func(label, val string) {
 			if val == "" {
-				val = status.NoDelay // —
+				kv(c, label, status.NoDelay) // —
+				return
 			}
-			kv(c, label, val)
+			kvMono(c, label, val)
 		}
 		row(T.CompApp, version.String())
 		row(T.CompCLI, rep.CLI.Version)
-		row(T.CompHelper, helper)
+		if rep.Helper.Version == "" && helper != "" {
+			kv(c, T.CompHelper, helper) // a state, not a version
+		} else {
+			row(T.CompHelper, helper)
+		}
 		row("mihomo", rep.Mihomo.Version)
 		row("Tailscale", rep.Tailscale.Version)
 	})
@@ -313,7 +318,7 @@ func (a *app) aboutSteps(c *ui.Context, s status.Snapshot) {
 	steps, names := a.aboutStepList(s)
 	listCard(c, listHead(c, nil, T.GettingStarted, nil), func() {
 		for i, st := range steps {
-			ui.Row(c.Key(fmt.Sprint("step", i))).Gap(10).AlignItems(ui.Center).PaddingY(8).Children(func() {
+			ui.Row(c.Key(fmt.Sprint("step", i))).Gap(10).AlignItems(ui.Center).PaddingY(listRowPadY).Children(func() {
 				// The step's number, or a check once it is done.
 				ui.Box(c).Size(20, 20).Radius(10).Border(1, t.Border).Shrink(0).
 					AlignItems(ui.Center).Justify(ui.Center).Children(func() {
@@ -350,7 +355,7 @@ func (a *app) aboutFAQ(c *ui.Context) {
 	listCard(c, listHead(c, nil, T.FAQ, nil), func() {
 		for _, qa := range qs {
 			open := a.about.faqOpen[qa[0]]
-			item := ui.Column(c.Key("faq:" + qa[0])).Gap(4).PaddingY(8).Clip().Transition(expandFor(open)).Children(func() {
+			item := ui.Column(c.Key("faq:" + qa[0])).Gap(4).PaddingY(listRowPadY).Clip().Transition(expandFor(open)).Children(func() {
 				head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(22).
 					Role(ui.RoleDisclosure).Label(qa[0]).Expanded(open).Focusable().FocusRingOffset(2)
 				head.Children(func() {
@@ -470,7 +475,7 @@ func aboutLinks(c *ui.Context) {
 // Finder 中显示.
 func pathRow(c *ui.Context, key, label, path string) {
 	kvWith(c.Key(key), label, func() {
-		ui.Text(c, filepath.Base(path)).SingleLine().Shrink(1).Selectable().Tooltip(path)
+		monoText(c, filepath.Base(path)).SingleLine().Shrink(1).Selectable().Tooltip(path)
 		ui.Spacer(c)
 		if actionLink(c.Key("finder"), i18n.T.ShowInFinder).Clicked() {
 			mygo.Shell.ShowItemInFolder(path)

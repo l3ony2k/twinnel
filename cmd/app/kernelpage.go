@@ -101,16 +101,16 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 				a.liveFileRow(c, "active", T.KernelActive, a.live.Binary)
 			} else {
 				kvWith(c, T.KernelActive, func() {
-					ui.Text(c, filepath.Base(orDash(k.Active))).SingleLine().Shrink(1).Selectable().Tooltip(k.Active)
+					monoText(c, filepath.Base(orDash(k.Active))).SingleLine().Shrink(1).Selectable().Tooltip(k.Active)
 				})
 			}
 			if running != "" {
-				kv(c, T.KernelRunning, running)
+				kvMono(c, T.KernelRunning, running)
 			}
 			if !own && !k.External { // 当前/上一个 only mean something for duet's kernels
-				kv(c, T.KernelCurrent, orDash(k.Current))
+				kvMono(c, T.KernelCurrent, orDash(k.Current))
 				if k.Previous != "" {
-					kv(c, T.KernelPrevious, k.Previous)
+					kvMono(c, T.KernelPrevious, k.Previous)
 				}
 			}
 		})
@@ -118,7 +118,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 		for _, kv := range k.Installed {
 			listRow(c.Key(kv.Version)).Children(func() {
 				ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Children(func() {
-					num(ui.Text(c, kv.Version).Font("monospace").FontSize(plat.calloutSize).SingleLine().Shrink(0))
+					monoText(c, kv.Version).SingleLine().Shrink(0)
 					if kv.Current && !own {
 						tag(c, T.KernelCurrent)
 					}
@@ -130,7 +130,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 						num(small(c, kv.Time.Local().Format("2006-01-02")).SingleLine().Shrink(0))
 					}
 				})
-				ui.Text(c, kv.Path).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Selectable().Tooltip(kv.Path)
+				mono(ui.Text(c, kv.Path)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Selectable().Tooltip(kv.Path)
 			})
 		}
 		listRow(c).Children(func() {
@@ -192,13 +192,13 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 				if !r.Published.IsZero() {
 					pub = " · " + r.Published.Local().Format("2006-01-02")
 				}
-				kv(c, T.KernelLatest, r.Version+" ("+r.Tag+")"+pub)
-				kv(c, T.KernelAsset, fmt.Sprintf("%s · %s", r.Asset, status.Bytes(r.Size)))
-				digest := r.Digest
-				if digest == "" {
-					digest = T.KernelNoDigest
+				kvMono(c, T.KernelLatest, r.Version+" ("+r.Tag+")"+pub)
+				kvMono(c, T.KernelAsset, fmt.Sprintf("%s · %s", r.Asset, status.Bytes(r.Size)))
+				if r.Digest == "" {
+					kv(c, T.KernelDigest, T.KernelNoDigest)
+				} else {
+					kvMono(c, T.KernelDigest, r.Digest)
 				}
-				kv(c, T.KernelDigest, digest)
 			})
 		}
 	})
@@ -272,21 +272,20 @@ func (a *app) tailscaleVersionCard(c *ui.Context, s status.Snapshot) {
 			if !info.Installed {
 				kv(c, T.State, T.TSNotInstalled)
 			} else {
-				kv(c, T.Version, info.Version)
+				kvMono(c, T.Version, info.Version)
 				kv(c, T.Install, T.TSInstallKind(info.InstallKind))
-				kv(c, T.BinaryPath, info.Path)
+				kvMono(c, T.BinaryPath, info.Path)
 			}
 			if info.Latest != "" {
-				latest := info.Latest
-				if info.UpdateAvailable {
-					latest += " · " + T.UpdateAvailable
-				}
 				kvWith(c, T.KernelLatest, func() {
 					col := t.Text
 					if info.UpdateAvailable {
 						col = t.Accent
 					}
-					ui.Text(c, latest).TextColor(col).SingleLine().Shrink(1).Tooltip(latest)
+					monoText(c, info.Latest).TextColor(col).SingleLine().Shrink(0)
+					if info.UpdateAvailable {
+						ui.Text(c, T.UpdateAvailable).TextColor(col).SingleLine().Shrink(1)
+					}
 				})
 				if info.UpdateAvailable {
 					hintText(c, T.TSUpdateHint(info.InstallKind))

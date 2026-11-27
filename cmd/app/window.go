@@ -668,7 +668,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	open := a.groupsOpen[g.Name]
 	sel := pendingValue(a, nodeKey(g.Name), g.Now) // the pick shows at once
 	chain := strings.Join(g.Chain, " → ")
-	ui.Column(c).Gap(8).PaddingY(8).Clip().Transition(expandFor(open)).Children(func() {
+	ui.Column(c).Gap(8).PaddingY(listRowPadY).Clip().Transition(expandFor(open)).Children(func() {
 		// The head is a disclosure the keyboard reaches: Tab stops on it,
 		// Return or Space opens and closes the group.
 		head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).
@@ -857,7 +857,7 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 		ui.Row(c).Gap(24).Children(func() {
 			ui.Column(c).Gap(gapRow).Basis(0).Grow(1).Children(func() {
 				kv(c, T.Account, st.User)
-				kv(c, T.Version, st.Version)
+				kvMono(c, T.Version, st.Version)
 				kv(c, T.Install, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source))
 			})
 			ui.Column(c).Gap(gapRow).Basis(0).Grow(1).Children(func() {
@@ -928,7 +928,7 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 				if v4 := p.IPv4(); v4.IsValid() {
 					ip = v4.String()
 				}
-				num(ui.Text(c, ip).SingleLine().Selectable())
+				monoText(c, ip).SingleLine().Selectable()
 			case 2:
 				ui.Text(c, p.OS).TextColor(t.TextMuted).SingleLine()
 			case 3:
