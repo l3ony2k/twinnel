@@ -122,7 +122,9 @@ func TestTailscaleInstallWindowsMSI(t *testing.T) {
 	h.e.TSProbe = &kernel.TailscaleProbe{
 		Stat:         func(string) (os.FileInfo, error) { return os.Stat(".") },
 		EvalSymlinks: func(p string) (string, error) { return `C:\Program Files\Tailscale\tailscale.exe`, nil },
-		Run:          func(context.Context, string, ...string) ([]byte, error) { return []byte(`{"majorMinorPatch":"1.104.5"}`), nil },
+		Run: func(context.Context, string, ...string) ([]byte, error) {
+			return []byte(`{"majorMinorPatch":"1.104.5"}`), nil
+		},
 	}
 	r, err = h.e.TailscaleInstall(ctx, rpc.TailscaleInstallParams{})
 	if err != nil || !r.Kept || r.Kind != kernel.TSWindows || r.Version != "1.104.5" || r.UsesSystemVPN {
