@@ -355,7 +355,8 @@ func Evaluate(s *Snapshot) {
 		if _, ok := s.ExitNodeAccepted(); st.ExitNode != nil && !ok {
 			add(LevelWarn, ReasonTSExitNode, fmt.Sprintf(t.ReasonTSExitNode, st.ExitNode.Name))
 		}
-		if st.KeyExpiry != nil && st.KeyExpiresWithin(s.Time, KeyExpiryWarning) {
+		// Expired, the node needs a login: that reason says it.
+		if st.Running() && st.KeyExpiry != nil && st.KeyExpiresWithin(s.Time, KeyExpiryWarning) {
 			add(LevelWarn, ReasonTSKeyExpiry, fmt.Sprintf(t.ReasonTSKeyExpiry, Until(s.Time, *st.KeyExpiry)))
 		}
 		for _, h := range st.Health {
