@@ -1296,6 +1296,7 @@ func (a *app) previewBody(c *ui.Context) {
 				ui.Icon(c, iconError).FontSize(iconInline).TextColor(t.Danger)
 				ui.Text(c, T.ValidFail).TextColor(pal(t).badText)
 			})
+			a.culpritNotes(c, p.Culprits)
 			validateErrors(c, p.ValidateErrors)
 		}
 		for i, m := range resultMessages(*p, nil) {
@@ -1316,6 +1317,38 @@ func (a *app) previewBody(c *ui.Context) {
 		ui.Column(c).Gap(4).Children(func() {
 			ui.Text(c, T.ApplyReason).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 			ui.TextInput(c.Key("reason"), &v.reason).Label(T.ApplyReason).Placeholder(T.ReasonOptional)
+		})
+	}
+}
+
+// culpritNotes say which override (or the subscription) holds the name
+// mihomo -t complained about, with a way to it (walkthrough 2, N5).
+func (a *app) culpritNotes(c *ui.Context, cs []rpc.Culprit) {
+	t := c.Theme()
+	T := i18n.T
+	for i, cu := range cs {
+		text := i18n.F(T.CulpritSub, cu.Name)
+		var layer *rpc.Layer
+		if cu.Layer != "" {
+			title := cu.Title
+			for j := range a.hd.layers {
+				if a.hd.layers[j].ID == cu.Layer {
+					layer = &a.hd.layers[j]
+					title = layerTitle(*layer)
+				}
+			}
+			text = i18n.F(T.CulpritLayer, title, cu.Name)
+		}
+		ui.Row(c.Key(fmt.Sprint("culprit", i))).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText).Shrink(0)
+			ui.Text(c, text).FontSize(plat.calloutSize).Wrap().LineHeight(lineText).Grow(1).Shrink(1)
+			if layer != nil {
+				l := *layer
+				if actionLink(c.Key("open"), T.CulpritOpen).Clicked() {
+					a.showPage(pageConfig)
+					a.selectLayer(l)
+				}
+			}
 		})
 	}
 }
@@ -1369,6 +1402,7 @@ func (a *app) applySummary(c *ui.Context, r rpc.ApplyResult) {
 			small(c, T.ApplyFailedRestore)
 		}
 		msgNote(c.Key("aerr"), m, false)
+		a.culpritNotes(c, r.Culprits)
 		validateErrors(c, r.ValidateErrors)
 	}
 }

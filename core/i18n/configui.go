@@ -117,14 +117,17 @@ type ConfigUIStrings struct {
 	MsgCopyRaw     string
 
 	// Reload impact (rpc.ReloadImpact fields).
-	ImpactTUN          string // %s: what changed
-	ImpactTUNWhy       map[string]string
-	ImpactDNS          string
-	ImpactListeners    string // %s: keys
-	ImpactProviders    string // %s: names
-	ImpactSelection    string
-	ImpactUnknown      string
-	ApplyFailedRestore string // the new config failed after writing; the old one runs
+	ImpactTUN       string // %s: what changed
+	ImpactTUNWhy    map[string]string
+	ImpactDNS       string
+	ImpactListeners string // %s: keys
+	ImpactProviders string // %s: names
+	ImpactSelection string
+	ImpactUnknown   string
+	// An apply that mihomo -t rejected: where the name it quotes comes
+	// from. %s: the override, the name / the name.
+	CulpritLayer, CulpritSub, CulpritOpen string
+	ApplyFailedRestore                    string // the new config failed after writing; the old one runs
 
 	// Logs: the duet tab (U29, H7).
 	LogsSourceMihomo, LogsSourceDuet string
@@ -280,6 +283,9 @@ var zhConfigUI = ConfigUIStrings{
 	ImpactProviders:    "经过这些节点集合的连接会断开：%s",
 	ImpactSelection:    "策略组会回到第一个节点",
 	ImpactUnknown:      "无法比较新旧配置，按最坏情况处理",
+	CulpritLayer:       "覆写「%s」用到了 %s",
+	CulpritSub:         "订阅原文用到了 %s",
+	CulpritOpen:        "打开",
 	ApplyFailedRestore: "新配置出错，已恢复旧配置",
 
 	LogsSourceMihomo: "mihomo",
@@ -457,6 +463,9 @@ var enConfigUI = ConfigUIStrings{
 	ImpactProviders:    "Connections through these providers close: %s",
 	ImpactSelection:    "Proxy groups go back to their first node",
 	ImpactUnknown:      "Couldn't compare the configs; assuming the worst",
+	CulpritLayer:       "Override “%s” uses %s",
+	CulpritSub:         "The subscription uses %s",
+	CulpritOpen:        "Open",
 	ApplyFailedRestore: "The new config failed; the old one was restored",
 
 	LogsSourceMihomo: "mihomo",
