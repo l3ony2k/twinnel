@@ -467,13 +467,11 @@ func (a *app) undoResult(c *ui.Context, r *rpc.TakeoverUndoResult) {
 // --- 卸载后台助手 and 完全移除 ---
 
 func (a *app) uninstallCard(c *ui.Context, s status.Snapshot) {
-	t := c.Theme()
 	T := i18n.T
 	hm := &a.hm
 	cardTip(c, T.LeaveUninstall, T.TipLeaveUninstall, nil, func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Success)
-			ui.Text(c, T.LeaveKeepsRunning).Grow(1).Shrink(1)
+			ui.Spacer(c) // that mihomo and Tailscale keep running is in the ⓘ (R-unslop-29)
 			installed := s.Helper.State != status.HelperNotInstalled
 			if busyButton(c.Key("uninstall"), T.LeaveUninstallRun, false, hm.running == T.HelperUninstall, !installed || !a.helperOpsEnabled(s)).Clicked() {
 				a.askUninstall()
@@ -491,8 +489,7 @@ func (a *app) removeAllCard(c *ui.Context, s status.Snapshot) {
 	hm := &a.hm
 	cardTip(c, T.LeaveRemoveAll, T.TipLeaveRemoveAll, nil, func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Success)
-			ui.Text(c, T.LeaveKeepsRunning).Grow(1).Shrink(1)
+			ui.Spacer(c) // that mihomo and Tailscale keep running is in the ⓘ (R-unslop-29)
 			b := busyButton(c.Key("remove-all"), T.LeaveRemoveAllRun, false, hm.running == T.HelperRemoveAll, !a.helperOpsEnabled(s))
 			b.TextColor(t.Danger)
 			if b.Clicked() {

@@ -123,7 +123,7 @@ var en = Strings{
 	PathDirect:    "Direct",
 	PathDERP:      "DERP relay",
 	PathPeerRelay: "Peer relay",
-	PathIdle:      "Not connected",
+	PathIdle:      "Idle",
 	Online:        "Online",
 	Offline:       "Offline",
 	NoPeers:       "No other devices",
@@ -131,6 +131,9 @@ var en = Strings{
 
 	HealthSummary:      "%d passed · %d warning{s} · %d failed · %d skipped",
 	HealthLastRun:      "Checked %s · took %s",
+	HealthLastRunAt:    "Checked %s",
+	HealthFailN:        "%d failed",
+	HealthWarnN:        "%d warning{s}",
 	HealthRunning:      "Checking…",
 	HealthRerun:        "Check Again",
 	HealthCopyReport:   "Copy Report",

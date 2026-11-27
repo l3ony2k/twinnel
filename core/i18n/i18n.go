@@ -79,6 +79,8 @@ type Strings struct {
 	// Health page.
 	HealthSummary                       string // %d ok, warn, fail, skip
 	HealthLastRun                       string // %s: time, %s: duration
+	HealthLastRunAt                     string // %s: time (a run under 0.1 s)
+	HealthFailN, HealthWarnN            string // %d: count (健康检查 page headline: the title says 健康检查)
 	HealthRunning, HealthRerun          string
 	HealthCopyReport, Copied            string
 	LearnMore                           string // the link in an ⓘ popover (infoTip)
@@ -383,7 +385,7 @@ var zh = Strings{
 	PathDirect:    "直连",
 	PathDERP:      "DERP 中继",
 	PathPeerRelay: "节点中继",
-	PathIdle:      "未连接",
+	PathIdle:      "空闲",
 	Online:        "在线",
 	Offline:       "离线",
 	NoPeers:       "没有其他设备",
@@ -391,6 +393,9 @@ var zh = Strings{
 
 	HealthSummary:      "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
 	HealthLastRun:      "上次检查 %s · 用时 %s",
+	HealthLastRunAt:    "上次检查 %s",
+	HealthFailN:        "%d 项失败",
+	HealthWarnN:        "%d 项警告",
 	HealthRunning:      "正在检查…",
 	HealthRerun:        "重新检查",
 	HealthCopyReport:   "复制报告",

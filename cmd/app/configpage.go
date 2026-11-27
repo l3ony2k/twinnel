@@ -285,7 +285,7 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 		}
 		num(small(c, fetched).SingleLine().Shrink(1).Tooltip(fetched))
 		if sub.LastError != "" {
-			errorNote(c, T.ErrorPrefix+sub.LastError)
+			errorNote(c, T.ErrorText(sub.LastError))
 		}
 	})
 }

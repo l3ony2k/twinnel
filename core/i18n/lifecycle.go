@@ -122,7 +122,6 @@ type LifecycleStrings struct {
 	UndoSteps                              map[string]string // code → line (%s path / %d count where used)
 	UndoDone, UndoFailed                   string
 	LeaveUninstall, LeaveUninstallRun      string
-	LeaveKeepsRunning                      string
 	LeaveRemoveAll, LeaveRemoveAllRun      string
 	LeaveExport, LeaveExportRun            string
 	LeaveExportDone                        string // %s: file
@@ -293,7 +292,6 @@ var zhLifecycle = LifecycleStrings{
 	UndoFailed:        "撤销接管失败",
 	LeaveUninstall:    "卸载后台助手",
 	LeaveUninstallRun: "卸载…",
-	LeaveKeepsRunning: "mihomo 和 Tailscale 继续运行",
 	LeaveRemoveAll:    "完全移除 duet",
 	LeaveRemoveAllRun: "完全移除…",
 	LeaveExport:       "导出配置",
@@ -467,7 +465,6 @@ var enLifecycle = LifecycleStrings{
 	UndoFailed:        "Undoing the takeover failed",
 	LeaveUninstall:    "Uninstall the helper",
 	LeaveUninstallRun: "Uninstall…",
-	LeaveKeepsRunning: "mihomo and Tailscale keep running",
 	LeaveRemoveAll:    "Remove duet completely",
 	LeaveRemoveAllRun: "Remove…",
 	LeaveExport:       "Export config",

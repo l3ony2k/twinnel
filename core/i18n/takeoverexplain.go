@@ -10,8 +10,7 @@ type TakeoverExplainStrings struct {
 	TkIntroLead                             string
 	TkIntroManage, TkIntroKeep, TkIntroUndo string
 	TkLearnMore                             string
-	TkPlanNote                              string // under 生成接管计划
-	TkPlanRunning                           string // replaces TkPlanNote while the plan is made
+	TkPlanRunning                           string // next to 生成接管计划 while the plan is made
 	TkPlanElapsed                           string // seconds since it started (%d)
 
 	// 现有安装 before takeover: what the running mihomo uses.
@@ -40,7 +39,6 @@ var zhTakeoverExplain = TakeoverExplainStrings{
 	TkIntroKeep:   "不重启：mihomo 的服务和程序照旧，只重载一次配置；对网络的影响写在计划里",
 	TkIntroUndo:   "随时可以撤销接管，换回原来的配置",
 	TkLearnMore:   "了解接管",
-	TkPlanNote:    "只生成计划，不会改动任何东西",
 	TkPlanRunning: "正在比对现有配置和订阅…",
 	TkPlanElapsed: "%d 秒",
 
@@ -49,7 +47,7 @@ var zhTakeoverExplain = TakeoverExplainStrings{
 	TkFoundBinary:  "程序",
 	KernelStateOwn: "你自己的程序（未接管）",
 
-	TipFound:   "mihomo 的系统服务正在用的程序和配置文件。接管只改写这个配置文件。",
+	TipFound:   "mihomo 的系统服务正在用的程序和配置文件。接管只改写这个配置文件；生成接管计划不会改动任何东西。",
 	TipEffects: "每一项现在是什么、接管后会怎样。标「保留」的不会被改动。",
 	TipBase:    "你的配置最初来自的订阅文件。duet 用它加上覆写，重新合成出和现在一样的配置。",
 	TipLayers:  "订阅原文之外、你自己加的改动，接管后照样生效。标「托管」的由 duet 生成和维护，例如 Tailscale 共存。",
@@ -82,7 +80,6 @@ var enTakeoverExplain = TakeoverExplainStrings{
 	TkIntroKeep:   "No restart: your mihomo service and binary stay and the config reloads once; the plan shows any effect on the network",
 	TkIntroUndo:   "Undo the takeover any time to get your original config back",
 	TkLearnMore:   "About Takeover",
-	TkPlanNote:    "Only makes a plan; nothing is changed",
 	TkPlanRunning: "Comparing your config with the subscription…",
 	TkPlanElapsed: "%ds",
 
@@ -91,7 +88,7 @@ var enTakeoverExplain = TakeoverExplainStrings{
 	TkFoundBinary:  "Binary",
 	KernelStateOwn: "Your own binary (not taken over)",
 
-	TipFound:   "The binary and config file your mihomo service runs. Takeover rewrites only this config file.",
+	TipFound:   "The binary and config file your mihomo service runs. Takeover rewrites only this config file; making a plan changes nothing.",
 	TipEffects: "What each piece is now and what happens to it after takeover. Items marked Kept are not changed.",
 	TipBase:    "The subscription file your config was built from. duet composes it with the overrides to rebuild the config you run now.",
 	TipLayers:  "Your own changes on top of the original subscription; they keep working after takeover. Managed ones are generated and kept up by duet, such as Tailscale coexistence.",

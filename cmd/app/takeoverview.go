@@ -1324,7 +1324,7 @@ func (a *app) planNote() string {
 	T := i18n.T
 	d := &a.hd
 	if d.busy != T.TakeoverPlan || d.spanOp != T.TakeoverPlan || d.span.start.IsZero() {
-		return T.TkPlanNote
+		return "" // what planning does is in the ⓘ (copy rule: no reassurance line)
 	}
 	if !d.planTick {
 		d.planTick = true

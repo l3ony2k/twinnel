@@ -130,7 +130,10 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			ui.Column(c).Gap(4).Grow(1).Children(func() {
 				ui.Text(c, healthHeadline(label, cnt)).FontSize(plat.leadSize).FontWeight(600)
 				num(small(c, healthCountsText(cnt)))
-				last := fmt.Sprintf(T.HealthLastRun, rep.Started.Format("15:04:05"), fmt.Sprintf(T.Seconds, rep.Duration.Seconds()))
+				last := fmt.Sprintf(T.HealthLastRunAt, rep.Started.Format("15:04:05"))
+				if rep.Duration >= 100*time.Millisecond { // "用时 0.0 秒" says nothing
+					last = fmt.Sprintf(T.HealthLastRun, rep.Started.Format("15:04:05"), fmt.Sprintf(T.Seconds, rep.Duration.Seconds()))
+				}
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 					num(small(c, last))
 					if h.Running {
@@ -363,9 +366,9 @@ func healthHeadline(label string, cnt map[health.Status]int) string {
 	T := i18n.T
 	switch {
 	case cnt[health.StatusFail] > 0:
-		return fmt.Sprintf(T.ReasonHealthFail, cnt[health.StatusFail])
+		return i18n.F(T.HealthFailN, cnt[health.StatusFail])
 	case cnt[health.StatusWarn] > 0:
-		return i18n.F(T.ReasonHealthWarn, cnt[health.StatusWarn])
+		return i18n.F(T.HealthWarnN, cnt[health.StatusWarn])
 	case cnt[health.StatusOK] > 0:
 		return T.PanelHealthOK
 	}
