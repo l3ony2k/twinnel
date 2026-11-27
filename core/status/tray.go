@@ -3,24 +3,24 @@ package status
 import (
 	"strings"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // TrayIcon names a menu bar icon variant (assets/icons/tray/<name>.png).
 // The icon is a monochrome template: states differ by shape only, never by
-// color (see assets/icons/src/duet.mjs).
+// color (see assets/icons/src/twinnel.mjs).
 type TrayIcon string
 
 const (
-	TrayOK       TrayIcon = "duet"          // both rings whole
-	TrayWarn     TrayIcon = "duet-warn"     // "!" in the notch
-	TrayError    TrayIcon = "duet-error"    // "x" in the notch
-	TrayUnknown  TrayIcon = "duet-unknown"  // both rings dashed: connecting / not known yet
-	TrayTSDown   TrayIcon = "duet-tsdown"   // Tailscale's ring broken: Tailscale down, mihomo fine
-	TrayMode     TrayIcon = "duet-mode"     // "→" in the notch: mihomo is in direct or global mode
-	TrayNoHelper TrayIcon = "duet-nohelper" // hollow ring in the notch: no helper connection
+	TrayOK       TrayIcon = "twinnel"          // both rings whole
+	TrayWarn     TrayIcon = "twinnel-warn"     // "!" in the notch
+	TrayError    TrayIcon = "twinnel-error"    // "x" in the notch
+	TrayUnknown  TrayIcon = "twinnel-unknown"  // both rings dashed: connecting / not known yet
+	TrayTSDown   TrayIcon = "twinnel-tsdown"   // Tailscale's ring broken: Tailscale down, mihomo fine
+	TrayMode     TrayIcon = "twinnel-mode"     // "→" in the notch: mihomo is in direct or global mode
+	TrayNoHelper TrayIcon = "twinnel-nohelper" // hollow ring in the notch: no helper connection
 )
 
 // TrayIconFor picks the menu bar icon for a snapshot. One icon at a time,

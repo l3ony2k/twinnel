@@ -11,18 +11,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/health/fixture"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/tailscale"
-	"github.com/l3ony2k/duet/core/version"
-	"github.com/l3ony2k/duet/platform/common"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/health/fixture"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/version"
+	"github.com/l3ony2k/twinnel/platform/common"
 )
 
 // machineProbes are every read the app makes of the computer it runs on
 // (outside the helper and the mihomo controller, which are addressed by
-// DUET_SOCKET and DUET_CONTROLLER): the health checks' facts, the live
+// TWINNEL_SOCKET and TWINNEL_CONTROLLER): the health checks' facts, the live
 // mihomo's launchd setup, Tailscale's LocalAPI and its install. A normal
 // run uses hostProbes; a shot run uses shotProbes, which answer from
 // fixtures only, so a screenshot never shows the owner's machine.
@@ -30,11 +30,11 @@ type machineProbes interface {
 	// healthEnv is the Env the in-process checks read; nil on platforms
 	// without checks.
 	healthEnv(cfg status.Config, settings health.Settings) health.Env
-	// liveSetup finds the mihomo that runs before duet takes it over.
+	// liveSetup finds the mihomo that runs before Twinnel takes it over.
 	liveSetup() liveSetup
 	tailscaleAPI() tailscale.API
 	tailscaleInstall() tailscale.Install
-	// runCLI runs the duet command line tool (version, the helper install
+	// runCLI runs the Twinnel command line tool (version, the helper install
 	// plan, the upgrade check, and the helper operations the user starts).
 	runCLI(ctx context.Context, args ...string) (string, error)
 	// processes lists the running processes (ps), for the overview's
@@ -73,8 +73,8 @@ func (realProbes) tailscaleInstall() tailscale.Install {
 }
 
 // shotProbes answers from fixtures: the health Env is a fixture.Machine
-// (DUET_HEALTH_FIXTURE, else fixture.Synthetic) whose tailnet is the
-// status file's, Tailscale is the status file (DUET_TAILSCALE_STATUS_FILE),
+// (TWINNEL_HEALTH_FIXTURE, else fixture.Synthetic) whose tailnet is the
+// status file's, Tailscale is the status file (TWINNEL_TAILSCALE_STATUS_FILE),
 // and nothing is detected as a live setup (shot flows set a.live).
 type shotProbes struct {
 	machine    fixture.Machine
@@ -97,7 +97,7 @@ func newShotProbes(getenv func(string) string) (*shotProbes, error) {
 
 // envHealthFixture names a fixture.Machine JSON file for a shot run's
 // health checks (default: fixture.Synthetic).
-const envHealthFixture = "DUET_HEALTH_FIXTURE"
+const envHealthFixture = "TWINNEL_HEALTH_FIXTURE"
 
 func (p *shotProbes) healthEnv(_ status.Config, settings health.Settings) health.Env {
 	f := p.statusFile
@@ -126,7 +126,7 @@ func (p *shotProbes) tailscaleInstall() tailscale.Install {
 }
 
 // runCLI answers the read-only CLI calls a page makes with synthetic
-// output and refuses the rest: a shot run never runs duet, whose plan and
+// output and refuses the rest: a shot run never runs Twinnel, whose plan and
 // checks read this machine and the installed helper.
 func (p *shotProbes) runCLI(_ context.Context, args ...string) (string, error) {
 	cmd := strings.Join(args, " ")
@@ -138,17 +138,17 @@ func (p *shotProbes) runCLI(_ context.Context, args ...string) (string, error) {
 	case strings.HasPrefix(cmd, "helper upgrade ") && slices.Contains(args, "--check"):
 		return `{"action":"none"}`, nil
 	}
-	return "", errors.New("shot run: duet " + cmd + " is not run")
+	return "", errors.New("shot run: Twinnel " + cmd + " is not run")
 }
 
-// shotInstallPlan is the synthetic `duet helper install --dry-run`.
+// shotInstallPlan is the synthetic `twinnel helper install --dry-run`.
 //
 //go:embed testdata/shots-install-plan.txt
 var shotInstallPlan string
 
 // probesFor picks the run's probes: fixtures in shot mode, else the host.
 func probesFor(getenv func(string) string) (machineProbes, error) {
-	if getenv("DUET_SHOTS") == "" {
+	if getenv("TWINNEL_SHOTS") == "" {
 		return hostProbes, nil
 	}
 	return newShotProbes(getenv)

@@ -5,7 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
 // The ⓘ in real use: VoiceOver reads its name (关于 <subject>) and the

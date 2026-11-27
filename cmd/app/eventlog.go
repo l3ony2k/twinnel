@@ -9,14 +9,14 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
-// What duet did (U29, H7): the helper's events (events.wait), kept for
-// 日志 → duet. The connection skips what happened before it; the tab
+// What Twinnel did (U29, H7): the helper's events (events.wait), kept for
+// 日志 → Twinnel. The connection skips what happened before it; the tab
 // fetches the helper's buffer once (backfill) so it starts with the recent
 // past, then follows OnEvents.
 

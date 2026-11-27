@@ -8,8 +8,8 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // notifier shows the status.Alerter's alerts as desktop notifications.
@@ -34,8 +34,8 @@ func (n *notifier) check(s status.Snapshot, open func(key string)) {
 	}
 	for _, al := range alerts {
 		note := mygo.NewNotification(mygo.NotificationOptions{
-			ID:    "duet/" + al.Key,
-			Group: "duet",
+			ID:    "twinnel/" + al.Key,
+			Group: "twinnel",
 			Title: al.Title,
 			Body:  al.Body,
 		})
@@ -78,8 +78,8 @@ func (a *app) notifyOpEnd(label string, err error, took time.Duration, page stri
 		title, body = fmt.Sprintf(T.OpFailedTitle, label), helperError(err)
 	}
 	note := mygo.NewNotification(mygo.NotificationOptions{
-		ID:    "duet/op",
-		Group: "duet",
+		ID:    "twinnel/op",
+		Group: "twinnel",
 		Title: title,
 		Body:  body,
 	})

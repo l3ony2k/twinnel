@@ -1,5 +1,5 @@
-// Package agent is duet's MCP server (`duet mcp`): it lets a local AI agent
-// (Claude Code, Codex, Cursor, ...) read duet's state and, within the tiers
+// Package agent is Twinnel's MCP server (`twinnel mcp`): it lets a local AI agent
+// (Claude Code, Codex, Cursor, ...) read Twinnel's state and, within the tiers
 // the person turned on in 设置 → 本地 Agent, operate and configure it.
 //
 // It reimplements nothing: every tool is a call to the helper (core/rpc),
@@ -16,12 +16,12 @@
 //     takeover, kernel install, service stop, removal): AdminOnly answers
 //     where to do them in the app.
 //   - Every operate/configure call is recorded in the helper's agent log
-//     (agent.record) with the client's name; it shows in 日志 → duet.
+//     (agent.record) with the client's name; it shows in 日志 → Twinnel.
 //   - Every output passes through redact: no controller secret,
 //     subscription URL, node password or uuid leaves this package.
 //
 // The tiers are a guardrail for well-behaved agents, not a security
-// boundary: an agent that runs as the person can run the duet CLI itself.
+// boundary: an agent that runs as the person can run the Twinnel CLI itself.
 package agent
 
 import (
@@ -37,9 +37,9 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // Caller is a connection to the helper (*rpc.Client).
@@ -53,18 +53,18 @@ type Deps struct {
 	// tool call (close may be nil).
 	Dial func(ctx context.Context) (c Caller, close func(), err error)
 	// Controller and Secret pin the mihomo controller (development:
-	// DUET_CONTROLLER). Empty: the helper's controller.credentials.
+	// TWINNEL_CONTROLLER). Empty: the helper's controller.credentials.
 	Controller, Secret string
 	// HTTPTransport is used for the controller (nil: the default).
 	HTTPTransport http.RoundTripper
 	// Tailscale is the LocalAPI (nil: Tailscale tools report it missing).
 	Tailscale tailscale.API
-	// Doctor runs the local health checks (`duet doctor --json`); nil: the
+	// Doctor runs the local health checks (`twinnel doctor --json`); nil: the
 	// doctor tool is not offered.
 	Doctor func(ctx context.Context) (json.RawMessage, error)
-	// ReadOnly refuses every operate and configure tool (DUET_READ_ONLY).
+	// ReadOnly refuses every operate and configure tool (TWINNEL_READ_ONLY).
 	ReadOnly bool
-	// Version is duet's version.
+	// Version is Twinnel's version.
 	Version string
 	// Secrets are extra strings never to return (tests; the controller
 	// secret is added when it is fetched).
@@ -74,7 +74,7 @@ type Deps struct {
 	LogWindow time.Duration
 }
 
-// Server is the MCP server with duet's tools, resources and prompts.
+// Server is the MCP server with Twinnel's tools, resources and prompts.
 type Server struct {
 	d   Deps
 	MCP *mcp.Server
@@ -93,7 +93,7 @@ type ToolInfo struct {
 }
 
 // ServerName is the MCP implementation name.
-const ServerName = "duet"
+const ServerName = "twinnel"
 
 // New builds the server.
 func New(d Deps) *Server {
@@ -104,7 +104,7 @@ func New(d Deps) *Server {
 	for _, x := range d.Secrets {
 		s.addSecret(x)
 	}
-	s.MCP = mcp.NewServer(&mcp.Implementation{Name: ServerName, Title: "duet", Version: d.Version}, &mcp.ServerOptions{
+	s.MCP = mcp.NewServer(&mcp.Implementation{Name: ServerName, Title: "twinnel", Version: d.Version}, &mcp.ServerOptions{
 		Instructions: instructions,
 	})
 	s.registerRead()
@@ -119,12 +119,12 @@ func New(d Deps) *Server {
 // Tools lists the registered tools in registration order.
 func (s *Server) Tools() []ToolInfo { return append([]ToolInfo(nil), s.tools...) }
 
-// Run serves on t (mcp.StdioTransport for `duet mcp`) until the client
+// Run serves on t (mcp.StdioTransport for `twinnel mcp`) until the client
 // goes away.
 func (s *Server) Run(ctx context.Context, t mcp.Transport) error { return s.MCP.Run(ctx, t) }
 
-const instructions = `duet manages mihomo (a rule-based proxy) and Tailscale on this computer.
-Start with the status tool. Tools are grouped in tiers the person controls in duet → 设置 → 本地 Agent:
+const instructions = `Twinnel manages mihomo (a rule-based proxy) and Tailscale on this computer.
+Start with the status tool. Tools are grouped in tiers the person controls in Twinnel → 设置 → 本地 Agent:
 read (always on), operate (reversible switches such as mode, node, TUN, exit node) and configure
 (stored overrides, subscriptions, apply, rollback; off by default). A refused tool says which switch
 is off: ask the person, do not look for another way. Changing the network can cut this computer's
@@ -176,7 +176,7 @@ func (c *call) helper() (Caller, error) {
 }
 
 func helperDown(err error) error {
-	return fmt.Errorf("the duet helper is not reachable (%v). Open the duet app: it shows how to start or install the helper", err)
+	return fmt.Errorf("the twinnel helper is not reachable (%v). Open the Twinnel app: it shows how to start or install the helper", err)
 }
 
 // rpc calls the helper.
@@ -234,7 +234,7 @@ func addTool[In any](s *Server, tier, name, title, desc string, o toolOpts, h ha
 	ann.OpenWorldHint = &ow
 	desc = strings.TrimSpace(desc)
 	if tier != rpc.TierRead {
-		desc += fmt.Sprintf("\nTier: %s (duet → 设置 → 本地 Agent).", tier)
+		desc += fmt.Sprintf("\nTier: %s (Twinnel → 设置 → 本地 Agent).", tier)
 	}
 	s.tools = append(s.tools, ToolInfo{Name: name, Tier: tier, Title: title})
 	mcp.AddTool(s.MCP, &mcp.Tool{Name: name, Title: title, Description: desc, Annotations: ann},
@@ -246,7 +246,7 @@ func addTool[In any](s *Server, tier, name, title, desc string, o toolOpts, h ha
 func (s *Server) run(ctx context.Context, req *mcp.CallToolRequest, tier, name string, o toolOpts, in any, body func(*call) (any, error)) *mcp.CallToolResult {
 	c := &call{s: s, ctx: ctx, client: clientName(req)}
 	if tier != rpc.TierRead && s.d.ReadOnly {
-		return s.errorResult(fmt.Errorf("%s changes the system, and this duet runs read-only (DUET_READ_ONLY is set)", name))
+		return s.errorResult(fmt.Errorf("%s changes the system, and this Twinnel runs read-only (TWINNEL_READ_ONLY is set)", name))
 	}
 	if s.d.Dial != nil {
 		h, closeFn, err := s.d.Dial(ctx)
@@ -290,13 +290,13 @@ func (s *Server) run(ctx context.Context, req *mcp.CallToolRequest, tier, name s
 // refusal explains which switch keeps a tool off.
 func refusal(tier, name string, a rpc.AgentSettings) error {
 	if !a.MCP {
-		return errors.New("agent access is turned off in duet. The person can turn it on in duet → 设置 → 本地 Agent → 允许 MCP")
+		return errors.New("agent access is turned off in Twinnel. The person can turn it on in Twinnel → 设置 → 本地 Agent → 允许 MCP")
 	}
 	switch tier {
 	case rpc.TierOperate:
-		return fmt.Errorf("%s is an operate tool, and operate tools are turned off in duet → 设置 → 本地 Agent. Ask the person to do it in the app, or to turn 操作 on", name)
+		return fmt.Errorf("%s is an operate tool, and operate tools are turned off in Twinnel → 设置 → 本地 Agent. Ask the person to do it in the app, or to turn 操作 on", name)
 	case rpc.TierConfigure:
-		return fmt.Errorf("%s is a configure tool, and configure tools are turned off in duet → 设置 → 本地 Agent (off by default). Ask the person to do it in the app, or to turn 修改配置 on", name)
+		return fmt.Errorf("%s is a configure tool, and configure tools are turned off in Twinnel → 设置 → 本地 Agent (off by default). Ask the person to do it in the app, or to turn 修改配置 on", name)
 	}
 	return fmt.Errorf("%s is not available", name)
 }

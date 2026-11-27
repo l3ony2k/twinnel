@@ -1,4 +1,4 @@
-// Package agenttest has fakes for testing duet's MCP server: a helper
+// Package agenttest has fakes for testing Twinnel's MCP server: a helper
 // (an rpc.Server on a temp socket with canned state) and a mihomo
 // controller (httptest). Everything is synthetic; the fixture secrets are
 // exported so tests can check that no output contains them.
@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // Fixture secrets: none of them may appear in any MCP output.
@@ -104,7 +104,7 @@ type Helper struct {
 // address controller.credentials hands out.
 func NewHelper(t testing.TB, ctrl string) *Helper {
 	t.Helper()
-	d, err := os.MkdirTemp("", "duetmcp")
+	d, err := os.MkdirTemp("", "twinnelmcp")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func (h *Helper) register() {
 		return &rpc.ApplyResult{Written: true, Reloaded: true, HistoryID: "h-4"}, nil
 	})
 	typed(h, rpc.MethodKernelList, func(rpc.Empty) (rpc.KernelList, error) {
-		return rpc.KernelList{Active: "/opt/duet/kernels/mihomo/current/mihomo", Current: "v1.19.34"}, nil
+		return rpc.KernelList{Active: "/opt/twinnel/kernels/mihomo/current/mihomo", Current: "v1.19.34"}, nil
 	})
 	typed(h, rpc.MethodTailscaleInfo, func(rpc.Empty) (rpc.TailscaleInfo, error) {
 		return rpc.TailscaleInfo{Installed: true, Version: "1.90.0"}, nil

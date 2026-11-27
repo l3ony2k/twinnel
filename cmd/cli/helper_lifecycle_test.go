@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/core/uninstall"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/core/uninstall"
 )
 
 // lifecycleFakes adds the helper, mihomo's controller and the binaries to
@@ -29,7 +29,7 @@ type lifecycleFakes struct {
 	versions map[string]string // binary → --version
 	exists   map[string]bool
 	same     bool
-	// ctl answers controllerUp: up until "bootout system/<duet mihomo>",
+	// ctl answers controllerUp: up until "bootout system/<Twinnel mihomo>",
 	// then down until "bootstrap" of the original (if startOK).
 	ctlUp   bool
 	startOK bool
@@ -95,11 +95,11 @@ func lifecycle(t *testing.T, euid int) *lifecycleFakes {
 				continue
 			}
 			switch {
-			case s.Argv[1] == "bootout" && strings.Contains(s.Argv[2], "duet.mihomo"):
+			case s.Argv[1] == "bootout" && strings.Contains(s.Argv[2], "twinnel.mihomo"):
 				l.ctlUp = false
 			case s.Argv[1] == "bootstrap" && strings.Contains(s.Argv[3], "com.mihomo.proxy"):
 				l.ctlUp = l.startOK
-			case s.Argv[1] == "bootstrap" && strings.Contains(s.Argv[3], "duet.mihomo"):
+			case s.Argv[1] == "bootstrap" && strings.Contains(s.Argv[3], "twinnel.mihomo"):
 				l.ctlUp = true
 			}
 		}
@@ -131,9 +131,9 @@ func hardenedInfo(stateDir string) *rpc.HelperInfo {
 }
 
 // writeSettings writes a synthetic settings.json into a state dir named
-// duet (purge refuses other names).
+// Twinnel (purge refuses other names).
 func writeSettings(t *testing.T, st *store.Settings) string {
-	dir := filepath.Join(t.TempDir(), "duet")
+	dir := filepath.Join(t.TempDir(), "twinnel")
 	os.MkdirAll(dir, 0o700)
 	b, _ := json.Marshal(st)
 	if err := os.WriteFile(filepath.Join(dir, "settings.json"), b, 0o600); err != nil {
@@ -195,7 +195,7 @@ func TestUninstallHardenedElevatesWithFlags(t *testing.T) {
 		}
 	}
 	out := l.out.String()
-	for _, want := range []string{"duet's mihomo service com.l3ony2k.duet.mihomo", "mihomo's original service com.mihomo.proxy", "keychain items duet.controller-secret", "wait until 127.0.0.1:9090 answers"} {
+	for _, want := range []string{"Twinnel's mihomo service com.l3ony2k.twinnel.mihomo", "mihomo's original service com.mihomo.proxy", "keychain items twinnel.controller-secret", "wait until 127.0.0.1:9090 answers"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
@@ -211,17 +211,17 @@ func TestUninstallAsRootRestoresMihomo(t *testing.T) {
 	}
 	got := l.steps()
 	want := []string{
-		"/bin/launchctl bootout system/com.l3ony2k.duet.mihomo  # errors ignored",
+		"/bin/launchctl bootout system/com.l3ony2k.twinnel.mihomo  # errors ignored",
 		"/bin/launchctl enable system/com.mihomo.proxy",
 		"/bin/launchctl bootstrap system /Library/LaunchDaemons/com.mihomo.proxy.plist",
-		"install -m 0644 /Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist " + filepath.Join(dir, "harden", "com.l3ony2k.duet.mihomo.plist"),
-		"rm -f /Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist",
+		"install -m 0644 /Library/LaunchDaemons/com.l3ony2k.twinnel.mihomo.plist " + filepath.Join(dir, "harden", "com.l3ony2k.twinnel.mihomo.plist"),
+		"rm -f /Library/LaunchDaemons/com.l3ony2k.twinnel.mihomo.plist",
 	}
 	if len(got) < len(want)+1 || !slices.Equal(got[:len(want)], want) {
 		t.Fatalf("steps:\n%s", strings.Join(got, "\n"))
 	}
 	rest := strings.Join(got[len(want):], "\n")
-	if !strings.Contains(rest, "bootout system/com.l3ony2k.duet.helper") || strings.Contains(rest, "rm -rf") {
+	if !strings.Contains(rest, "bootout system/com.l3ony2k.twinnel.helper") || strings.Contains(rest, "rm -rf") {
 		t.Fatalf("helper steps:\n%s", rest)
 	}
 	assertNoNetworkServices(t, got[len(want):])
@@ -237,10 +237,10 @@ func TestUninstallAsRootRestoreFailsKeepsHelper(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 	got := strings.Join(l.steps(), "\n")
-	if !strings.Contains(got, "bootstrap system /Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist") {
-		t.Errorf("duet's mihomo not started again:\n%s", got)
+	if !strings.Contains(got, "bootstrap system /Library/LaunchDaemons/com.l3ony2k.twinnel.mihomo.plist") {
+		t.Errorf("Twinnel's mihomo not started again:\n%s", got)
 	}
-	if strings.Contains(got, "duet.helper") || strings.Contains(got, "rm -rf") || strings.Contains(got, "rm -f /Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist") {
+	if strings.Contains(got, "twinnel.helper") || strings.Contains(got, "rm -rf") || strings.Contains(got, "rm -f /Library/LaunchDaemons/com.l3ony2k.twinnel.mihomo.plist") {
 		t.Errorf("removed something after a failed restore:\n%s", got)
 	}
 	if !l.ctlUp {
@@ -270,9 +270,9 @@ func TestUninstallAsRootRestoreNeedsOldPlist(t *testing.T) {
 func TestUninstallAsRootPurgeOwnMihomoRefused(t *testing.T) {
 	l := lifecycle(t, 0)
 	dir := writeSettings(t, &store.Settings{})
-	l.exists["/Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist"] = true
+	l.exists["/Library/LaunchDaemons/com.l3ony2k.twinnel.mihomo.plist"] = true
 	err := runHelperUninstall([]string{"--as-root", "--yes", "--purge", "--state-dir", dir})
-	if err == nil || !strings.Contains(err.Error(), "duet service uninstall mihomo") || len(l.applied) != 0 {
+	if err == nil || !strings.Contains(err.Error(), "twinnel service uninstall mihomo") || len(l.applied) != 0 {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -289,9 +289,9 @@ func TestUninstallAsRootPurgeAdopted(t *testing.T) {
 	got := l.steps()
 	joined := strings.Join(got, "\n")
 	for _, want := range []string{
-		"bootout system/com.l3ony2k.duet.helper",
-		"/usr/bin/security delete-generic-password -a duet -s duet.controller-secret /Library/Keychains/System.keychain  # errors ignored",
-		"-s duet.subscription-url/adopted",
+		"bootout system/com.l3ony2k.twinnel.helper",
+		"/usr/bin/security delete-generic-password -a twinnel -s twinnel.controller-secret /Library/Keychains/System.keychain  # errors ignored",
+		"-s twinnel.subscription-url/adopted",
 		"/bin/rm -rf -- " + dir,
 	} {
 		if !strings.Contains(joined, want) {
@@ -299,14 +299,14 @@ func TestUninstallAsRootPurgeAdopted(t *testing.T) {
 		}
 	}
 	// The purge comes after the helper is gone.
-	if strings.Index(joined, "rm -rf") < strings.Index(joined, "duet.helper") {
+	if strings.Index(joined, "rm -rf") < strings.Index(joined, "twinnel.helper") {
 		t.Error("purge before the helper's removal")
 	}
 	assertNoNetworkServices(t, got)
 }
 
 func TestPurgeRefusesOddStateDir(t *testing.T) {
-	for _, dir := range []string{"/", "/Library", "relative/duet", "/tmp/x/other"} {
+	for _, dir := range []string{"/", "/Library", "relative/twinnel", "/tmp/x/other"} {
 		p := planWithStateDir(dir)
 		if _, err := purgeSteps(p, dir); err == nil {
 			t.Errorf("%q: no error", dir)
@@ -329,8 +329,8 @@ func TestUpgradeInstallsNewerAndVerifies(t *testing.T) {
 	l := lifecycle(t, 501)
 	bin := helperBinary(t)
 	l.versions[bin] = "0.3.0"
-	l.versions["/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper"] = "0.2.0"
-	l.exists["/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper"] = true
+	l.versions["/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"] = "0.2.0"
+	l.exists["/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"] = true
 	l.statuses = []rpc.Status{{HelperVersion: "0.2.0", PID: 5}, {HelperVersion: "0.3.0", PID: 6}}
 	if err := runHelperUpgrade([]string{"--helper-bin", bin, "--yes"}); err != nil {
 		t.Fatal(err)
@@ -343,7 +343,7 @@ func TestUpgradeInstallsNewerAndVerifies(t *testing.T) {
 		t.Errorf("script: %s", script)
 	}
 	out := l.out.String()
-	for _, want := range []string{"install -m 0755 " + bin + " /Library/PrivilegedHelperTools/com.l3ony2k.duet.helper", "bootstrap system /Library/LaunchDaemons/com.l3ony2k.duet.helper.plist", "helper 0.3.0 answers"} {
+	for _, want := range []string{"install -m 0755 " + bin + " /Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper", "bootstrap system /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist", "helper 0.3.0 answers"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("lacks %q:\n%s", want, out)
 		}
@@ -357,8 +357,8 @@ func TestUpgradeRefusesDowngrade(t *testing.T) {
 	l := lifecycle(t, 501)
 	bin := helperBinary(t)
 	l.versions[bin] = "0.1.0"
-	l.versions["/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper"] = "0.2.0"
-	l.exists["/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper"] = true
+	l.versions["/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"] = "0.2.0"
+	l.exists["/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"] = true
 	err := runHelperUpgrade([]string{"--helper-bin", bin, "--yes"})
 	if err == nil || !strings.Contains(err.Error(), "--force") || len(l.elevated) != 0 {
 		t.Fatalf("err = %v", err)
@@ -376,8 +376,8 @@ func TestUpgradeCheck(t *testing.T) {
 	l := lifecycle(t, 501)
 	bin := helperBinary(t)
 	l.versions[bin] = "0.2.0"
-	l.versions["/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper"] = "0.2.0"
-	l.exists["/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper"] = true
+	l.versions["/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"] = "0.2.0"
+	l.exists["/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"] = true
 	l.same = true
 	l.statuses = []rpc.Status{{HelperVersion: "0.1.0", PID: 5}}
 	if err := runHelperUpgrade([]string{"--helper-bin", bin, "--check", "--json"}); err != nil {
@@ -405,9 +405,9 @@ func TestUpgradeNotInstalled(t *testing.T) {
 	l := lifecycle(t, 501)
 	bin := helperBinary(t)
 	l.versions[bin] = "0.2.0"
-	l.exists["/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper"] = false
+	l.exists["/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"] = false
 	err := runHelperUpgrade([]string{"--helper-bin", bin, "--yes"})
-	if err == nil || !strings.Contains(err.Error(), "duet helper install") || len(l.elevated) != 0 {
+	if err == nil || !strings.Contains(err.Error(), "twinnel helper install") || len(l.elevated) != 0 {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -430,7 +430,7 @@ func TestRestartFallsBackToLaunchctl(t *testing.T) {
 	if err := runHelperRestart([]string{"--yes"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(l.elevated) != 1 || !strings.Contains(l.out.String(), "kickstart -k system/com.l3ony2k.duet.helper") {
+	if len(l.elevated) != 1 || !strings.Contains(l.out.String(), "kickstart -k system/com.l3ony2k.twinnel.helper") {
 		t.Fatalf("elevated %v:\n%s", l.elevated, l.out.String())
 	}
 	assertNoNetworkServices(t, strings.Split(l.out.String(), "\n"))

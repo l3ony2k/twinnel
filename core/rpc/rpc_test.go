@@ -19,7 +19,7 @@ import (
 // macOS; t.TempDir() is often longer).
 func shortSock(t *testing.T) string {
 	t.Helper()
-	d, err := os.MkdirTemp("", "duetrpc")
+	d, err := os.MkdirTemp("", "twinnelrpc")
 	if err != nil {
 		t.Fatal(err)
 	}

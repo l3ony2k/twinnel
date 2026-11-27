@@ -3,13 +3,13 @@ package main
 import (
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// liveSetup is the mihomo that runs on this machine before duet takes it
+// liveSetup is the mihomo that runs on this machine before Twinnel takes it
 // over: its service, binary and config file, read the way a takeover plan
 // reads them (the launchd job's -d/-f). Before the takeover the helper's
-// own settings point at duet's defaults, which nothing runs; the pages
+// own settings point at Twinnel's defaults, which nothing runs; the pages
 // show this instead (接管 → 现有安装, 关于, 内核).
 type liveSetup struct {
 	loaded  bool // a detection finished (found or not)
@@ -42,7 +42,7 @@ func (a *app) detectLiveSetup() {
 }
 
 // liveConfigPath is the config file the running mihomo uses: the helper's
-// once duet took over, else the detected one; "" when unknown.
+// once Twinnel took over, else the detected one; "" when unknown.
 func (a *app) liveConfigPath(s status.Snapshot) string {
 	if s.TakenOver() {
 		if st := s.Helper.Status; st != nil && st.Mihomo.ConfigPath != "" {

@@ -13,7 +13,7 @@ import (
 var toolbarForce string
 
 // toolbarShots saves each page that has toolbar actions with its
-// capsules idle, hovered and pressed (DUET_SHOTS_FLOW=toolbar).
+// capsules idle, hovered and pressed (TWINNEL_SHOTS_FLOW=toolbar).
 func (a *app) toolbarShots(save func(*mygo.Window, string)) {
 	for _, p := range []string{pageProxies, pageTailscale, pageHealth, pageLogs} {
 		for _, state := range []string{"", "hover", "pressed"} {

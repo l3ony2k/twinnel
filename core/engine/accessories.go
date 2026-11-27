@@ -9,10 +9,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/kernel"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 	"gopkg.in/yaml.v3"
 )
 
@@ -279,7 +279,7 @@ func (e *Engine) UICheck(ctx context.Context) (rpc.AccessoryCheck, error) {
 }
 
 // UIUpdate downloads and verifies the UI bundle, extracts it next to the
-// UI dir and swaps the dirs (the old one stays as <dir>.duet-bak). The
+// UI dir and swaps the dirs (the old one stays as <dir>.twinnel-bak). The
 // controller serves the new files right away.
 func (e *Engine) UIUpdate(ctx context.Context, p rpc.AccessoryUpdateParams) (rpc.AccessoryUpdateResult, error) {
 	accessoryMu.Lock()

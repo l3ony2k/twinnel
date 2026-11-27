@@ -5,7 +5,7 @@ package main
 import (
 	"errors"
 
-	"github.com/l3ony2k/duet/core/service"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
 func planHelperInstall(helperBin, stateDir, socket, label string) ([]service.Step, error) {

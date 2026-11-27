@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // What local agents changed (agent.record / agent.activity): a short log

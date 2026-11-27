@@ -13,7 +13,7 @@
   ],
   "history_id": "7c41d2e0",
   "backup_history_id": "6a90b1f3",
-  "backup": "/Library/Application Support/duet/takeover/20261126-153012-a1b2/live-config.yaml",
+  "backup": "/Library/Application Support/twinnel/takeover/20261126-153012-a1b2/live-config.yaml",
   "health_before": [
     {"id": "magicdns", "status": "ok"},
     {"id": "tailnet-resolver-binding", "status": "warn"},

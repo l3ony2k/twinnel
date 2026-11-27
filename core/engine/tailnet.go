@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 const tailnetCache = "tailnet.json"
@@ -67,7 +67,7 @@ func isTunnelIface(name string) bool {
 // RefreshTailnet reads `tailscale status --json`. When the peers or the
 // MagicDNS suffix changed, the cache is updated and, with coexist and
 // auto-apply on, the config is composed and applied again. Auto-apply only
-// re-applies: before duet has applied anything (no history) a change is
+// re-applies: before Twinnel has applied anything (no history) a change is
 // recorded but nothing is applied, so the first poll of a new helper, which
 // always reports a change (there is no cache yet), never applies a config
 // on its own, possibly half-way through the user's setup.
@@ -119,7 +119,7 @@ func (e *Engine) RefreshTailnet(ctx context.Context) (rpc.TailnetRefreshResult, 
 	return out, nil
 }
 
-// appliedBefore: duet has written a config before (any history entry).
+// appliedBefore: Twinnel has written a config before (any history entry).
 func (e *Engine) appliedBefore() bool {
 	_, ok, err := e.Store.LatestHistory()
 	return ok && err == nil

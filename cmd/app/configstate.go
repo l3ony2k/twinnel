@@ -8,9 +8,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // What the 订阅与覆写 page knows about the running config, beyond the

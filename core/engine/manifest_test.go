@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // U41: an applied entry records its overrides; a rollback to an entry the
@@ -80,7 +80,7 @@ func TestRollbackDriftAndRestore(t *testing.T) {
 }
 
 // A rollback to the overrides' own entry is no drift; the first backup is
-// marked as the config before duet.
+// marked as the config before Twinnel.
 func TestRollbackSameLayersNoDrift(t *testing.T) {
 	h := newHarness(t)
 	os.WriteFile(h.cfgPath, []byte("mixed-port: 7890\n"), 0o600)
@@ -93,7 +93,7 @@ func TestRollbackSameLayersNoDrift(t *testing.T) {
 			backup = &hist[i]
 		}
 	}
-	if backup == nil || !backup.BeforeDuet || backup.ReasonCode != store.ReasonBackup {
+	if backup == nil || !backup.BeforeTwinnel || backup.ReasonCode != store.ReasonBackup {
 		t.Fatalf("backup: %+v", backup)
 	}
 	if _, err := h.e.Rollback(context.Background(), first.HistoryID); err != nil {

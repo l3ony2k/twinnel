@@ -11,9 +11,9 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // The 服务 card (service.status / start / stop / restart, install and
@@ -116,9 +116,9 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 	}
 	state, col := serviceState(t, st)
 	adopted := a.serviceAdopted(name)
-	// mihomo runs, but not from a service duet knows (the person's own
+	// mihomo runs, but not from a service Twinnel knows (the person's own
 	// LaunchDaemon before takeover, or a terminal): it is running, and
-	// duet offers no service of its own over it (walkthrough 2, N11).
+	// Twinnel offers no service of its own over it (walkthrough 2, N11).
 	own := name == "mihomo" && !st.Installed && !adopted && s.Mihomo.Reachable
 	if own {
 		state, col = T.SvcOwnRunning, t.Success
@@ -132,7 +132,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		}
 		ui.Spacer(c)
 		if !st.Installed {
-			// Never offer duet's own service while the person's adopted
+			// Never offer Twinnel's own service while the person's adopted
 			// one (or their own running mihomo) fills the role.
 			if name == "mihomo" && !adopted && !own && a.opButton(c.Key("install"), iconOK, T.ServiceInstall, false, T.ServiceInstall+" "+name).Disabled(!w).Clicked() {
 				a.confirm(fmt.Sprintf(T.ServiceInstallTitle, name), "", T.ServiceInstall, func() {
@@ -154,9 +154,9 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 				a.serviceOp(rpc.MethodServiceStop, name, T.ServiceStop)
 			})
 		}
-		// 卸载服务 is legitimate but not the way out of duet (停止使用
-		// duet is): it sits in ⋯, styled as destructive. Not for an
-		// adopted service, whose definition duet never changes.
+		// 卸载服务 is legitimate but not the way out of Twinnel (停止使用
+		// Twinnel is): it sits in ⋯, styled as destructive. Not for an
+		// adopted service, whose definition Twinnel never changes.
 		if name == "mihomo" && !adopted {
 			pushMenu(c.Key("more"), T.SvcMore, func(m *ui.Menu) {
 				if m.Item(T.ServiceUninstall + "…").Danger().Disabled(!w).Chosen() {

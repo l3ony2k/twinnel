@@ -1,4 +1,4 @@
-// Package health defines the coexistence health checks of duet and runs them.
+// Package health defines the coexistence health checks of Twinnel and runs them.
 //
 // A Check reads facts through an Env (implemented per platform, faked in
 // tests) and returns a Result. Checks never change the system.

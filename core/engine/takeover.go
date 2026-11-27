@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/kernel"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/core/takeover"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/core/takeover"
 )
 
 // AdoptChecks are the health checks compared before and after an adopt.
@@ -181,7 +181,7 @@ func (e *Engine) TakeoverPlan(ctx context.Context, p rpc.TakeoverPlanParams) (rp
 		pr := m.Profiles[0]
 		ps.Profile = &pr
 	case n > 1:
-		plan.Warnings = append(plan.Warnings, fmt.Sprintf("%d subscription profiles found; adopt does not import a subscription URL (set one later with `duet sub put`)", n))
+		plan.Warnings = append(plan.Warnings, fmt.Sprintf("%d subscription profiles found; adopt does not import a subscription URL (set one later with `twinnel sub put`)", n))
 	}
 	if live, err := os.ReadFile(plan.Live); err == nil && len(plan.Composed()) > 0 {
 		im := ReloadImpact(live, plan.Composed())
@@ -831,6 +831,6 @@ func (e *Engine) SecureController(ctx context.Context) (rpc.ControllerSecureResu
 		}
 		return out, aerr
 	}
-	out.Warnings = append(out.Warnings, "clients of the controller (the web dashboard, the app, scripts) need the new secret; it is in the helper's secret store (macOS: sudo security find-generic-password -s duet."+store.SecretController+" -w)")
+	out.Warnings = append(out.Warnings, "clients of the controller (the web dashboard, the app, scripts) need the new secret; it is in the helper's secret store (macOS: sudo security find-generic-password -s Twinnel."+store.SecretController+" -w)")
 	return out, nil
 }

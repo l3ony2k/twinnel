@@ -19,7 +19,7 @@ func TestString(t *testing.T) {
 	if got := String(); got != "dev" {
 		t.Errorf("empty: %q", got)
 	}
-	if Owner() != "l3ony2k" || Repo() != "duet" || RepoURL() != "https://github.com/l3ony2k/duet" {
+	if Owner() != "l3ony2k" || Repo() != "twinnel" || RepoURL() != "https://github.com/l3ony2k/twinnel" {
 		t.Errorf("repo %s %s %s", Owner(), Repo(), RepoURL())
 	}
 }

@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 func TestSideSnap(t *testing.T) {

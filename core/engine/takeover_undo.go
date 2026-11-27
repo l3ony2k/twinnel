@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // TakeoverUndo answers takeover.undo: put the setup back as it was
@@ -24,7 +24,7 @@ import (
 //
 // The service definition was never changed by adopt and stays; history
 // and plan backups stay, so the person can take over again later. A
-// hardened setup (mihomo moved to duet's own service) is refused: moving
+// hardened setup (mihomo moved to Twinnel's own service) is refused: moving
 // it back is part of uninstalling the helper.
 func (e *Engine) TakeoverUndo(ctx context.Context, p rpc.TakeoverUndoParams) (rpc.TakeoverUndoResult, error) {
 	res := rpc.TakeoverUndoResult{DryRun: p.DryRun, Steps: []rpc.TakeoverUndoStep{}}
@@ -38,10 +38,10 @@ func (e *Engine) TakeoverUndo(ctx context.Context, p rpc.TakeoverUndoParams) (rp
 	}
 	ad := st.Adopted
 	if ad == nil {
-		return res, rpc.ErrInvalid("%s: duet has not taken over this setup", rpc.UndoNotAdopted)
+		return res, rpc.ErrInvalid("%s: Twinnel has not taken over this setup", rpc.UndoNotAdopted)
 	}
 	if st.Hardened != nil {
-		return res, rpc.ErrInvalid("%s: mihomo runs from duet's own service (since harden); uninstall the helper with the move back instead", rpc.UndoHardened)
+		return res, rpc.ErrInvalid("%s: mihomo runs from Twinnel's own service (since harden); uninstall the helper with the move back instead", rpc.UndoHardened)
 	}
 	res.PlanID = ad.PlanID
 	backup, err := os.ReadFile(ad.Backup)
@@ -198,7 +198,7 @@ func (e *Engine) TakeoverUndo(ctx context.Context, p rpc.TakeoverUndoParams) (rp
 		}
 	}
 	if err := errors.Join(errs...); err != nil {
-		res.Error = fmt.Sprintf("the config is back, but cleaning up duet's copy failed: %v", err)
+		res.Error = fmt.Sprintf("the config is back, but cleaning up Twinnel's copy failed: %v", err)
 	} else {
 		res.OK = true
 	}

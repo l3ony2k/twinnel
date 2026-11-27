@@ -7,12 +7,12 @@ import (
 	"github.com/egoist/mygo"
 )
 
-// statusShots (DUET_SHOTS_FLOW=status) captures the status surfaces: the
+// statusShots (TWINNEL_SHOTS_FLOW=status) captures the status surfaces: the
 // overview, the health page (the accepted group open), Tailscale, 设置 and
-// the flyout. DUET_SHOTS_ACCEPT=1 first accepts the exit node in use, in
+// the flyout. TWINNEL_SHOTS_ACCEPT=1 first accepts the exit node in use, in
 // memory only (shot mode saves no config). Nothing is written.
 func (a *app) statusShots(save func(*mygo.Window, string)) {
-	if os.Getenv("DUET_SHOTS_ACCEPT") == "1" {
+	if os.Getenv("TWINNEL_SHOTS_ACCEPT") == "1" {
 		mygo.RunOnMain(func() {
 			if s := a.mon.Snapshot(); s.Tailscale.State.ExitNode != nil {
 				a.acceptExitNode(s.Tailscale.State.ExitNode.Name)

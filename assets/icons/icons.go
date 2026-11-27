@@ -1,4 +1,4 @@
-// Package icons embeds duet's icon files (see README.md).
+// Package icons embeds Twinnel's icon files (see README.md).
 package icons
 
 import "embed"

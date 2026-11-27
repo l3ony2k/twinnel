@@ -8,19 +8,19 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// takeoverExplainShots (DUET_SHOTS_FLOW=takeoverexplain) captures the
+// takeoverExplainShots (TWINNEL_SHOTS_FLOW=takeoverexplain) captures the
 // takeover explanation from synthetic state: the 接管 page before any plan
 // (intro, the detected setup, 生成接管计划 with its note), the same with
 // nothing detected, a plan's cards with their ⓘ, 关于 at the top (mihomo
 // 配置 row) and scrolled to 接管是什么 as 了解接管 does, and 内核 before
 // takeover. The helper is set, not connected: nothing is sent or written.
 func (a *app) takeoverExplainShots(save func(*mygo.Window, string)) {
-	helperDefault := "/Library/Application Support/duet/mihomo/config.yaml"
-	connected := status.Helper{State: status.HelperConnected, Socket: "/tmp/duet-shots.sock",
+	helperDefault := "/Library/Application Support/twinnel/mihomo/config.yaml"
+	connected := status.Helper{State: status.HelperConnected, Socket: "/tmp/twinnel-shots.sock",
 		Status: &rpc.Status{HelperVersion: "0.2.0", PID: 4242, Mihomo: rpc.MihomoStatus{
 			ConfigPath: helperDefault, Version: "v1.19.34", Reachable: true}}}
 	detected := liveSetup{loaded: true, Label: "com.example.mihomo",
@@ -52,7 +52,7 @@ func (a *app) takeoverExplainShots(save func(*mygo.Window, string)) {
 	shot("takeover-intro", pageTakeover, "", 820, func() { empty(); a.live = detected })
 	shot("takeover-notdetected", pageTakeover, "", 820, func() { empty(); a.live = liveSetup{loaded: true} })
 
-	fix := os.Getenv("DUET_TAKEOVER_FIXTURE")
+	fix := os.Getenv("TWINNEL_TAKEOVER_FIXTURE")
 	if fix == "" {
 		fix = filepath.Join("cmd", "app", "testdata", "takeover-a")
 	}
@@ -86,7 +86,7 @@ func (a *app) takeoverExplainShots(save func(*mygo.Window, string)) {
 	})
 	shot("kernel-own", pageKernel, "", 900, func() {
 		a.live = detected
-		a.hd.kernels = &rpc.KernelList{Active: "/Library/Application Support/duet/kernels/v1.19.34/mihomo", Current: "v1.19.34",
-			Installed: []rpc.KernelVersion{{Version: "v1.19.34", Path: "/Library/Application Support/duet/kernels/v1.19.34/mihomo", Current: true}}}
+		a.hd.kernels = &rpc.KernelList{Active: "/Library/Application Support/twinnel/kernels/v1.19.34/mihomo", Current: "v1.19.34",
+			Installed: []rpc.KernelVersion{{Version: "v1.19.34", Path: "/Library/Application Support/twinnel/kernels/v1.19.34/mihomo", Current: true}}}
 	})
 }

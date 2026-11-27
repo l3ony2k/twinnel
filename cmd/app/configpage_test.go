@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 func TestReorderIDs(t *testing.T) {
@@ -110,7 +110,7 @@ func TestGuardCandidates(t *testing.T) {
 }
 
 func TestGeneratedText(t *testing.T) {
-	in := "# Managed by duet: Tailscale coexistence. Regenerated…\n\ntun:\n  route-exclude-address+:\n    - 100.64.0.0/10\n"
+	in := "# Managed by twinnel: Tailscale coexistence. Regenerated…\n\ntun:\n  route-exclude-address+:\n    - 100.64.0.0/10\n"
 	got := generatedText(in)
 	if strings.Contains(got, "#") || !strings.HasPrefix(got, "tun:") {
 		t.Fatalf("generatedText kept the header: %q", got)

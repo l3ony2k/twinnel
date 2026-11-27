@@ -464,7 +464,7 @@ func (linuxOnly) Title() string                   { return "linux" }
 func (linuxOnly) Platforms() []string             { return []string{Linux} }
 func (linuxOnly) Run(context.Context, Env) Result { return Result{Status: StatusFail} }
 
-// Relayed peers are a fact of the network (NAT, ISP), not something duet or
+// Relayed peers are a fact of the network (NAT, ISP), not something Twinnel or
 // the config can fix: no built-in check may warn about them.
 func TestRelayedPeersNeverWarn(t *testing.T) {
 	if _, ok := DefaultRegistry().Get("peer-direct"); ok {
@@ -485,9 +485,9 @@ func TestRelayedPeersNeverWarn(t *testing.T) {
 			t.Errorf("%s: %s with relayed peers, %s healthy", c.ID, c.Status, base.Checks[i].Status)
 		}
 	}
-	// DUET_RELAYED_REPORT=<dir>: save this synthetic report (zh, en) for
+	// TWINNEL_RELAYED_REPORT=<dir>: save this synthetic report (zh, en) for
 	// the app's derpinfo shots.
-	if dir := os.Getenv("DUET_RELAYED_REPORT"); dir != "" {
+	if dir := os.Getenv("TWINNEL_RELAYED_REPORT"); dir != "" {
 		for _, lang := range []string{"zh-Hans", "en"} {
 			r := (&Runner{Registry: DefaultRegistry()}).Run(WithLang(context.Background(), lang), e)
 			b, err := r.JSON()

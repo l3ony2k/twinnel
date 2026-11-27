@@ -24,7 +24,7 @@ var headingKeys = []string{
 
 // properWords keep their capital inside a sentence.
 var properWords = map[string]bool{
-	"duet": true, "mihomo": true, "Tailscale": true, "TUN": true, "DNS": true, "GEO": true,
+	"Twinnel": true, "mihomo": true, "Tailscale": true, "TUN": true, "DNS": true, "GEO": true,
 	"MagicDNS": true, "IP": true, "Mac": true, "GitHub": true, "DERP": true, "I": true,
 }
 

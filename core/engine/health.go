@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/rpc/healthsrc"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc/healthsrc"
 )
 
 // healthState is what the engine remembers about the health scheduler.

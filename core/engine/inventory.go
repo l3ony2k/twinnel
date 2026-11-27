@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // HelperInventory answers helper.inventory (read-only): what the helper

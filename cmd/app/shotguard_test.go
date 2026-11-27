@@ -11,11 +11,11 @@ func scratchShotEnv(t *testing.T) map[string]string {
 	t.Helper()
 	dir := t.TempDir()
 	return map[string]string{
-		"DUET_SHOTS":                 filepath.Join(dir, "shots"),
-		"DUET_SOCKET":                filepath.Join(dir, "duet.sock"),
-		"DUET_CONTROLLER":            "127.0.0.1:19894",
-		"DUET_TAILSCALE_STATUS_FILE": "testdata/shots-tailscale-status.json",
-		"HOME":                       filepath.Join(dir, "home"),
+		"TWINNEL_SHOTS":                 filepath.Join(dir, "shots"),
+		"TWINNEL_SOCKET":                filepath.Join(dir, "twinnel.sock"),
+		"TWINNEL_CONTROLLER":            "127.0.0.1:19894",
+		"TWINNEL_TAILSCALE_STATUS_FILE": "testdata/shots-tailscale-status.json",
+		"HOME":                          filepath.Join(dir, "home"),
 	}
 }
 
@@ -34,15 +34,15 @@ func TestShotGuard(t *testing.T) {
 	}
 	missing := filepath.Join(t.TempDir(), "missing.json")
 	for name, change := range map[string]map[string]string{
-		"no socket":      {"DUET_SOCKET": ""},
-		"live socket":    {"DUET_SOCKET": "/var/run/duet/helper.sock"},
-		"live socket 2":  {"DUET_SOCKET": "/var/run/duet//helper.sock"},
-		"no controller":  {"DUET_CONTROLLER": ""},
-		"live ctl":       {"DUET_CONTROLLER": "127.0.0.1:9090"},
-		"bad ctl":        {"DUET_CONTROLLER": "9090"},
-		"no tailnet":     {"DUET_TAILSCALE_STATUS_FILE": ""},
-		"missing tailnt": {"DUET_TAILSCALE_STATUS_FILE": missing},
-		"missing fixtr":  {"DUET_HEALTH_FIXTURE": missing},
+		"no socket":      {"TWINNEL_SOCKET": ""},
+		"live socket":    {"TWINNEL_SOCKET": "/var/run/twinnel/helper.sock"},
+		"live socket 2":  {"TWINNEL_SOCKET": "/var/run/twinnel//helper.sock"},
+		"no controller":  {"TWINNEL_CONTROLLER": ""},
+		"live ctl":       {"TWINNEL_CONTROLLER": "127.0.0.1:9090"},
+		"bad ctl":        {"TWINNEL_CONTROLLER": "9090"},
+		"no tailnet":     {"TWINNEL_TAILSCALE_STATUS_FILE": ""},
+		"missing tailnt": {"TWINNEL_TAILSCALE_STATUS_FILE": missing},
+		"missing fixtr":  {"TWINNEL_HEALTH_FIXTURE": missing},
 		"no home":        {"HOME": ""},
 		"relative home":  {"HOME": "scratch"},
 		"real home":      {"HOME": "/Users/owner/"},

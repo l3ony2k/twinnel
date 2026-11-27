@@ -72,7 +72,7 @@ terms. Keep them when adding strings, and add new terms here.
 | 用户覆写 | user overrides |
 | 未应用的改动 / 放弃改动 | unapplied changes / Discard Changes |
 | 还原为已应用版本 | Revert to Applied Version |
-| 接管前 | Before duet (history chip) |
+| 接管前 | Before Twinnel (history chip) |
 | 托管（覆写） | managed (override) |
 | 阶段 | stage |
 | 基础 / 用户 | Base / User |
@@ -114,11 +114,11 @@ terms. Keep them when adding strings, and add new terms here.
 | 设备短名 | device short names |
 | 解析器 | resolver |
 | 更新 / 重启 / 卸载 / 查看日志（后台助手） | Update / Restart / Uninstall / View Log |
-| 完全移除 duet | Remove duet Completely |
+| 完全移除 Twinnel | Remove Twinnel Completely |
 | 同时删除数据 | Also delete data |
 | 登录时打开 | Open at login |
 | 在程序坞中显示：打开窗口时 / 始终 / 从不 | Show in Dock: While the window is open / Always / Never |
-| 打开 duet（程序坞菜单） | Open duet |
+| 打开 Twinnel（程序坞菜单） | Open Twinnel |
 | 通用 | General |
 | 需打包版 | Packaged app only |
 | 订阅原文 | Subscription source |
@@ -127,13 +127,13 @@ terms. Keep them when adding strings, and add new terms here.
 | 换一个文件… | Choose Another File… |
 | 下一步 | Next |
 | 撤销接管 | Undo Takeover |
-| 停止使用 duet | Stop Using duet |
-| duet 在本机安装的内容 | What duet Installed on This Mac |
+| 停止使用 Twinnel | Stop Using Twinnel |
+| Twinnel 在本机安装的内容 | What Twinnel Installed on This Mac |
 | 导出配置 | Export Config |
 | 复制详情 / 复制诊断信息 | Copy Details / Copy Diagnostics |
 | 待重启 | Restart pending |
-| 外部程序（接管） / duet 管理 | External binary (adopted) / Managed by duet |
-| duet 偏好设置 | duet preferences |
+| 外部程序（接管） / Twinnel 管理 | External binary (adopted) / Managed by Twinnel |
+| Twinnel 偏好设置 | Twinnel preferences |
 | 在 Finder 中显示 | Show in Finder |
 
 ## Language names

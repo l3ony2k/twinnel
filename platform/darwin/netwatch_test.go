@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health/healthtest"
+	"github.com/l3ony2k/twinnel/core/health/healthtest"
 )
 
 // fakeNet answers the fingerprint commands from testdata, with overrides.
@@ -174,10 +174,10 @@ func TestNetWatcher(t *testing.T) {
 	}
 }
 
-// DUET_REAL=1 go test -run Real ./platform/darwin/ (read-only commands).
+// TWINNEL_REAL=1 go test -run Real ./platform/darwin/ (read-only commands).
 func TestTakeFingerprintReal(t *testing.T) {
-	if os.Getenv("DUET_REAL") == "" {
-		t.Skip("set DUET_REAL=1")
+	if os.Getenv("TWINNEL_REAL") == "" {
+		t.Skip("set TWINNEL_REAL=1")
 	}
 	run := ExecRunner(5 * time.Second)
 	t0 := time.Now()

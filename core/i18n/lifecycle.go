@@ -3,7 +3,7 @@ package i18n
 // Texts of batch A (trust and lifecycle): the takeover plan's 接管后
 // table, the base file, the adopt result and its 下一步, the helper
 // states, the install page's load states, the service and kernel cards,
-// and the 停止使用 duet page (what duet installed, 撤销接管, 卸载, 完全移除,
+// and the 停止使用 Twinnel page (what Twinnel installed, 撤销接管, 卸载, 完全移除,
 // 导出配置). Embedded in Strings; fields are promoted (T.LeavePage).
 
 // LifecycleStrings holds them.
@@ -25,7 +25,7 @@ type LifecycleStrings struct {
 	TkEffUnchanged                                   string
 	TkEditsLost                                      string // %s: the config file name
 	TkNewOverride                                    string
-	TkRewriteCount                                   string // %d: rows duet rewrites (the 接管 button row)
+	TkRewriteCount                                   string // %d: rows Twinnel rewrites (the 接管 button row)
 	TkAdoptConfirmBody                               string // %s: the rewrite rows, one per line
 	TkLiveRunning                                    string // the target row: %s file name
 	TkTarget                                         string
@@ -86,9 +86,9 @@ type LifecycleStrings struct {
 	// --- Services (U44, U55). ---
 	SvcAdopted    string // chip
 	SvcMore       string // ⋯ menu label
-	SvcOwnRunning string // mihomo runs, not from a service duet knows
+	SvcOwnRunning string // mihomo runs, not from a service Twinnel knows
 
-	// Keychain items in words (停止使用 duet). %s: subscription ID.
+	// Keychain items in words (停止使用 Twinnel). %s: subscription ID.
 	SecretController, SecretSubURL, SecretSubAdopted string
 	SvcAdoptedTip                                    string
 
@@ -103,7 +103,7 @@ type LifecycleStrings struct {
 	FAQLeaveQ, FAQLeaveA                    string
 	AppPrefs, MihomoConfigRow, ShowInFinder string
 
-	// --- 停止使用 duet (U54, U55, U56). ---
+	// --- 停止使用 Twinnel (U54, U55, U56). ---
 	LeavePage                              string
 	LeaveInstalled                         string
 	LeaveInventoryLoading                  string
@@ -112,7 +112,7 @@ type LifecycleStrings struct {
 	InvSubscriptions, InvLayers            string
 	InvHistory, InvTakeoverBackups         string
 	InvKernels, InvLogs, InvSecrets        string
-	InvDuetMihomo, InvAdoptedMihomo        string
+	InvTwinnelMihomo, InvAdoptedMihomo     string
 	InvApp, InvAppPrefs, InvAppBackups     string
 	InvLaunchAgent, InvLoginItem           string
 	InvCount                               string // %d items
@@ -134,7 +134,7 @@ var zhLifecycle = LifecycleStrings{
 	TkNow:               "现在",
 	TkAfter:             "接管后",
 	TkSecretItem:        "控制接口密钥",
-	TkEffKeepService:    "保留 · 不改 plist，由 duet 启停",
+	TkEffKeepService:    "保留 · 不改 plist，由 Twinnel 启停",
 	TkEffNoService:      "没有服务",
 	TkEffKeep:           "保留",
 	TkEffReplaceable:    "保留 · 普通用户可替换",
@@ -212,7 +212,7 @@ var zhLifecycle = LifecycleStrings{
 	TkNext:          "下一步",
 	TkNextChecks:    "处理剩余检查（%d）",
 	TkNextSecure:    "加固控制接口",
-	TkNextKernel:    "改用 duet 管理的内核",
+	TkNextKernel:    "改用 Twinnel 管理的内核",
 	TkNextUndo:      "撤销接管…",
 	TkSecretState:   "当前密钥",
 	TkSecretSetWeak: "已设",
@@ -237,28 +237,28 @@ var zhLifecycle = LifecycleStrings{
 	SecretController: "控制接口密钥",
 	SecretSubURL:     "订阅「%s」的地址",
 	SecretSubAdopted: "接管时导入的订阅地址",
-	SvcAdoptedTip:    "接管来的服务：duet 只启停，不改它的定义",
+	SvcAdoptedTip:    "接管来的服务：Twinnel 只启停，不改它的定义",
 
 	KernelStateExternal:  "外部程序（接管）",
-	KernelStateManaged:   "duet 管理",
+	KernelStateManaged:   "Twinnel 管理",
 	KernelPendingRestart: "待重启",
 	KernelCheckFailed:    "检查失败",
 	KernelUpdateBody:     "%s → %s · 需重启 mihomo（断网约 1 秒）\n上一个版本保留，可以回滚。",
 	KernelFirstBody:      "外部程序 → %s · 需重启 mihomo（断网约 1 秒）\n外部程序保留，可以改回。",
 
-	FAQLeaveQ:       "怎么彻底停用 duet？",
-	FAQLeaveA:       "设置 → 停止使用 duet：撤销接管、卸载后台助手，或完全移除。",
-	AppPrefs:        "duet 偏好设置",
+	FAQLeaveQ:       "怎么彻底停用 Twinnel？",
+	FAQLeaveA:       "设置 → 停止使用 Twinnel：撤销接管、卸载后台助手，或完全移除。",
+	AppPrefs:        "Twinnel 偏好设置",
 	MihomoConfigRow: "mihomo 配置",
 	ShowInFinder:    "在 Finder 中显示",
 
-	LeavePage:             "停止使用 duet",
-	LeaveInstalled:        "duet 在本机安装的内容",
+	LeavePage:             "停止使用 Twinnel",
+	LeaveInstalled:        "Twinnel 在本机安装的内容",
 	LeaveInventoryLoading: "读取中…",
 	InvHelperBinary:       "后台助手程序",
 	InvHelperService:      "后台助手服务（LaunchDaemon）",
 	InvHelperSocket:       "后台助手接口",
-	InvStateDir:           "duet 数据",
+	InvStateDir:           "Twinnel 数据",
 	InvSubscriptions:      "订阅",
 	InvLayers:             "覆写",
 	InvHistory:            "历史",
@@ -266,10 +266,10 @@ var zhLifecycle = LifecycleStrings{
 	InvKernels:            "内核",
 	InvLogs:               "日志",
 	InvSecrets:            "钥匙串项目",
-	InvDuetMihomo:         "duet 的 mihomo 服务",
+	InvTwinnelMihomo:      "Twinnel 的 mihomo 服务",
 	InvAdoptedMihomo:      "你的 mihomo 服务（保留）",
-	InvApp:                "duet App",
-	InvAppPrefs:           "duet 偏好设置",
+	InvApp:                "Twinnel App",
+	InvAppPrefs:           "Twinnel 偏好设置",
 	InvAppBackups:         "旧版本备份",
 	InvLaunchAgent:        "登录项（LaunchAgent）",
 	InvLoginItem:          "登录时打开",
@@ -278,7 +278,7 @@ var zhLifecycle = LifecycleStrings{
 	LeaveUndoTitle:        "撤销接管？",
 	LeaveUndoRun:          "撤销接管",
 	LeaveUndoNotAdopted:   "没有接管",
-	LeaveUndoHardened:     "mihomo 已改用 duet 的服务：卸载后台助手时一并改回",
+	LeaveUndoHardened:     "mihomo 已改用 Twinnel 的服务：卸载后台助手时一并改回",
 	UndoSteps: map[string]string{
 		"restore-config":      "写回接管前的 %s",
 		"reload":              "mihomo 重载，继续运行",
@@ -292,24 +292,24 @@ var zhLifecycle = LifecycleStrings{
 	UndoDone:           "已撤销接管",
 	UndoFailed:         "撤销接管失败",
 	LeaveUninstall:     "卸载后台助手",
-	LeaveUninstallWhat: "订阅不再自动更新，duet 不能再改配置",
-	LeaveRemoveAllWhat: "删除 duet 的数据和钥匙串项目",
+	LeaveUninstallWhat: "订阅不再自动更新，Twinnel 不能再改配置",
+	LeaveRemoveAllWhat: "删除 Twinnel 的数据和钥匙串项目",
 	LeaveUninstallRun:  "卸载…",
-	LeaveRemoveAll:     "完全移除 duet",
+	LeaveRemoveAll:     "完全移除 Twinnel",
 	LeaveRemoveAllRun:  "完全移除…",
 	LeaveExport:        "导出配置",
 	LeaveExportRun:     "导出…",
 	LeaveExportDone:    "已导出到 %s",
 	LeaveExportWhat:    "config.yaml · 覆写 %d 个",
 	ItemAppBackups:     "旧版本备份",
-	ItemLaunchAgent:    "duet 的 LaunchAgent",
+	ItemLaunchAgent:    "Twinnel 的 LaunchAgent",
 }
 
 var enLifecycle = LifecycleStrings{
 	TkNow:               "Now",
 	TkAfter:             "After takeover",
 	TkSecretItem:        "Controller secret",
-	TkEffKeepService:    "Kept · plist unchanged, started and stopped by duet",
+	TkEffKeepService:    "Kept · plist unchanged, started and stopped by Twinnel",
 	TkEffNoService:      "No service",
 	TkEffKeep:           "Kept",
 	TkEffReplaceable:    "Kept · any user can replace it",
@@ -324,7 +324,7 @@ var enLifecycle = LifecycleStrings{
 	TkEditsLost:         "After takeover, direct edits to %s are overwritten on the next apply",
 	TkNewOverride:       "New Override",
 	TkRewriteCount:      "Rewrites %d",
-	TkAdoptConfirmBody:  "%s\nIf health checks get worse, duet restores the old config.",
+	TkAdoptConfirmBody:  "%s\nIf health checks get worse, Twinnel restores the old config.",
 	TkLiveRunning:       "%s (running)",
 	TkTarget:            "Target",
 	TkExplains:          "Rebuilds the running config",
@@ -387,7 +387,7 @@ var enLifecycle = LifecycleStrings{
 	TkNext:          "Next",
 	TkNextChecks:    "Fix Remaining Checks (%d)",
 	TkNextSecure:    "Harden Controller",
-	TkNextKernel:    "Use duet's Core",
+	TkNextKernel:    "Use Twinnel's Core",
 	TkNextUndo:      "Undo Takeover…",
 	TkSecretState:   "Current secret",
 	TkSecretSetWeak: "Set",
@@ -412,28 +412,28 @@ var enLifecycle = LifecycleStrings{
 	SecretController: "Controller secret",
 	SecretSubURL:     "URL of subscription “%s”",
 	SecretSubAdopted: "Subscription URL from takeover",
-	SvcAdoptedTip:    "Adopted service: duet starts and stops it but never changes its definition",
+	SvcAdoptedTip:    "Adopted service: Twinnel starts and stops it but never changes its definition",
 
 	KernelStateExternal:  "External binary (adopted)",
-	KernelStateManaged:   "Managed by duet",
+	KernelStateManaged:   "Managed by Twinnel",
 	KernelPendingRestart: "Restart pending",
 	KernelCheckFailed:    "Check failed",
 	KernelUpdateBody:     "%s → %s · mihomo restarts (about 1 s offline)\nThe previous version is kept for rollback.",
 	KernelFirstBody:      "External binary → %s · mihomo restarts (about 1 s offline)\nThe external binary is kept; you can switch back.",
 
-	FAQLeaveQ:       "How do I stop using duet completely?",
-	FAQLeaveA:       "Settings → Stop Using duet: undo the takeover, uninstall the helper, or remove everything.",
-	AppPrefs:        "duet preferences",
+	FAQLeaveQ:       "How do I stop using Twinnel completely?",
+	FAQLeaveA:       "Settings → Stop Using twinnel: undo the takeover, uninstall the helper, or remove everything.",
+	AppPrefs:        "Twinnel preferences",
 	MihomoConfigRow: "mihomo config",
 	ShowInFinder:    "Show in Finder",
 
-	LeavePage:             "Stop Using duet",
-	LeaveInstalled:        "What duet Installed on This Mac",
+	LeavePage:             "Stop Using Twinnel",
+	LeaveInstalled:        "What Twinnel Installed on This Mac",
 	LeaveInventoryLoading: "Reading…",
 	InvHelperBinary:       "Helper binary",
 	InvHelperService:      "Helper service (LaunchDaemon)",
 	InvHelperSocket:       "Helper socket",
-	InvStateDir:           "duet data",
+	InvStateDir:           "Twinnel data",
 	InvSubscriptions:      "Subscriptions",
 	InvLayers:             "Overrides",
 	InvHistory:            "History",
@@ -441,10 +441,10 @@ var enLifecycle = LifecycleStrings{
 	InvKernels:            "Cores",
 	InvLogs:               "Logs",
 	InvSecrets:            "Keychain items",
-	InvDuetMihomo:         "duet's mihomo service",
+	InvTwinnelMihomo:      "Twinnel's mihomo service",
 	InvAdoptedMihomo:      "Your mihomo service (kept)",
-	InvApp:                "duet app",
-	InvAppPrefs:           "duet preferences",
+	InvApp:                "Twinnel app",
+	InvAppPrefs:           "Twinnel preferences",
 	InvAppBackups:         "Old version backups",
 	InvLaunchAgent:        "Login item (LaunchAgent)",
 	InvLoginItem:          "Open at login",
@@ -453,7 +453,7 @@ var enLifecycle = LifecycleStrings{
 	LeaveUndoTitle:        "Undo the takeover?",
 	LeaveUndoRun:          "Undo Takeover",
 	LeaveUndoNotAdopted:   "Not taken over",
-	LeaveUndoHardened:     "mihomo runs from duet's service: uninstalling the helper moves it back",
+	LeaveUndoHardened:     "mihomo runs from Twinnel's service: uninstalling the helper moves it back",
 	UndoSteps: map[string]string{
 		"restore-config":      "Write back %s as it was before takeover",
 		"reload":              "mihomo reloads and keeps running",
@@ -467,15 +467,15 @@ var enLifecycle = LifecycleStrings{
 	UndoDone:           "Takeover undone",
 	UndoFailed:         "Undoing the takeover failed",
 	LeaveUninstall:     "Uninstall the helper",
-	LeaveUninstallWhat: "Subscriptions stop updating and duet can't change the config",
-	LeaveRemoveAllWhat: "Deletes duet's data and keychain items",
+	LeaveUninstallWhat: "Subscriptions stop updating and Twinnel can't change the config",
+	LeaveRemoveAllWhat: "Deletes Twinnel's data and keychain items",
 	LeaveUninstallRun:  "Uninstall…",
-	LeaveRemoveAll:     "Remove duet completely",
+	LeaveRemoveAll:     "Remove Twinnel completely",
 	LeaveRemoveAllRun:  "Remove…",
 	LeaveExport:        "Export config",
 	LeaveExportRun:     "Export…",
 	LeaveExportDone:    "Exported to %s",
 	LeaveExportWhat:    "config.yaml · overrides: %d",
 	ItemAppBackups:     "old version backups",
-	ItemLaunchAgent:    "duet's LaunchAgent",
+	ItemLaunchAgent:    "Twinnel's LaunchAgent",
 }

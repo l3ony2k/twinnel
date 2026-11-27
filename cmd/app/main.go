@@ -1,12 +1,12 @@
-// Command app is duet's menu bar app: a tray icon with the live speed, a
+// Command app is Twinnel's menu bar app: a tray icon with the live speed, a
 // flyout panel and a main window, all in MyGo's native UI. It only renders
 // and wires; the logic lives in core/....
 //
-// Environment: DUET_CONTROLLER (default 127.0.0.1:9090), DUET_MIHOMO_SECRET,
-// DUET_READ_ONLY=1 to keep every control that changes things off,
-// DUET_SOCKET (the helper's socket, default /var/run/duet/helper.sock),
-// DUET_CLI (the duet command line tool, for the helper install plan),
-// DUET_LANG=en|zh-Hans to show one UI language for this run without saving
+// Environment: TWINNEL_CONTROLLER (default 127.0.0.1:9090), TWINNEL_MIHOMO_SECRET,
+// TWINNEL_READ_ONLY=1 to keep every control that changes things off,
+// TWINNEL_SOCKET (the helper's socket, default /var/run/twinnel/helper.sock),
+// TWINNEL_CLI (the Twinnel command line tool, for the helper install plan),
+// TWINNEL_LANG=en|zh-Hans to show one UI language for this run without saving
 // it (screenshots; it overrides 设置 → 语言).
 package main
 
@@ -24,11 +24,11 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // app holds everything. Fields below "main thread" are read and written
@@ -67,9 +67,9 @@ type app struct {
 	actionErr string
 	settings  settingsForm
 	logs      logsView
-	events    eventLog      // the helper's events, for 日志 → duet (eventlog.go)
+	events    eventLog      // the helper's events, for 日志 → Twinnel (eventlog.go)
 	probes    machineProbes // reads of this computer (probes.go); fixtures in shot mode
-	shotMode  bool          // DUET_SHOTS: the panel draws its own background
+	shotMode  bool          // TWINNEL_SHOTS: the panel draws its own background
 	// panelShotH is the content height shot mode's panel was last sized
 	// to (fitShotPanel).
 	panelShotH int
@@ -79,7 +79,7 @@ type app struct {
 	// shotSection limits a long page to one section in shot mode (MyGo
 	// captures only the top of a page); "" draws everything.
 	shotSection string
-	theme       string // DUET_THEME=light|dark forces a theme (development, shots)
+	theme       string // TWINNEL_THEME=light|dark forces a theme (development, shots)
 	peers       ui.ListState
 	groupsOpen  map[string]bool
 	tileCols    map[string]int             // node tile columns per group, from the last layout
@@ -95,7 +95,7 @@ type app struct {
 	agent       agentView                  // 设置 → 本地 Agent (agentsection.go)
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
-	toastOp     bool                       // toast is an operation's outcome: it links to 日志 → duet (H7)
+	toastOp     bool                       // toast is an operation's outcome: it links to 日志 → Twinnel (H7)
 	toastErr    string                     // a failed operation's outcome, shown until dismissed (H7)
 	pend        pendingState               // optimistic control values and their errors (pending.go)
 	retry       busySpan                   // the unreachable states' 重试 press (states.go)
@@ -120,7 +120,7 @@ func main() {
 		log.Fatal(err)
 	}
 	a.notes = newNotifier()
-	a.theme = os.Getenv("DUET_THEME")
+	a.theme = os.Getenv("TWINNEL_THEME")
 	initLang()
 	mygo.App.SetName(i18n.T.AppName)
 	a.initDock() // accessory, or regular for 在程序坞中显示 → 始终
@@ -134,7 +134,7 @@ func main() {
 
 // newApp builds the app's state from the environment, before any window:
 // the shot guard, the machine probes, the config and the Tailscale client.
-// A shot run (DUET_SHOTS) that could reach the owner's machine stops here.
+// A shot run (TWINNEL_SHOTS) that could reach the owner's machine stops here.
 func newApp(getenv func(string) string) (*app, error) {
 	if err := shotGuard(getenv); err != nil {
 		return nil, err
@@ -149,19 +149,19 @@ func newApp(getenv func(string) string) (*app, error) {
 	// Shot mode never takes the owner's focus: no tray, no notifications,
 	// windows created hidden and captured from memory (Window.CapturePage
 	// renders native content itself; it needs no pixels on screen).
-	a.shotMode = getenv("DUET_SHOTS") != ""
+	a.shotMode = getenv("TWINNEL_SHOTS") != ""
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return nil, err
 	}
-	a.cfgPath = filepath.Join(dir, "duet", "app.json")
+	a.cfgPath = filepath.Join(dir, "twinnel", "app.json")
 	a.cfg, err = status.LoadConfig(a.cfgPath, getenv)
 	if err != nil {
 		log.Printf("config %s: %v (using defaults)", a.cfgPath, err)
 		a.cfg, _ = status.LoadConfig("", getenv)
 	}
 	// Shots are read-only unless a run asks for writes against fakes
-	// (DUET_READ_ONLY=0): an agent's screenshot run never changes the
+	// (TWINNEL_READ_ONLY=0): an agent's screenshot run never changes the
 	// owner's network.
 	if a.shotMode && getenv(status.EnvReadOnly) != "0" {
 		a.cfg.AllowWrites = false
@@ -184,12 +184,12 @@ func (a *app) ready() {
 		a.startHelper()
 		a.start()
 		a.openMain()
-		a.shots(os.Getenv("DUET_SHOTS"))
+		a.shots(os.Getenv("TWINNEL_SHOTS"))
 		return
 	}
 	var err error
 	a.tray, err = mygo.NewTray(mygo.TrayOptions{
-		ID:              "duet",
+		ID:              "twinnel",
 		Icon:            trayIcon(status.TrayUnknown),
 		IconIsTemplate:  true,
 		MonospacedTitle: true,
@@ -225,14 +225,14 @@ func (a *app) ready() {
 	})
 	a.startHelper()
 	a.start()
-	if dir := os.Getenv("DUET_TAKEOVER_FIXTURE"); dir != "" && os.Getenv("DUET_SHOTS") == "" { // development: a recorded plan (shots load it later)
+	if dir := os.Getenv("TWINNEL_TAKEOVER_FIXTURE"); dir != "" && os.Getenv("TWINNEL_SHOTS") == "" { // development: a recorded plan (shots load it later)
 		if err := a.loadTakeoverFixture(dir); err != nil {
 			log.Printf("takeover fixture: %v", err)
 		}
 	}
-	if os.Getenv("DUET_OPEN") != "" { // for development
+	if os.Getenv("TWINNEL_OPEN") != "" { // for development
 		a.openMain()
-		if os.Getenv("DUET_OPEN") == "panel" {
+		if os.Getenv("TWINNEL_OPEN") == "panel" {
 			a.togglePanel()
 		}
 	}
@@ -460,10 +460,10 @@ func (a *app) openMain() {
 	}
 }
 
-// winWidth is 980, or DUET_SHOTS_WIDTH in shot mode (narrow/wide passes).
+// winWidth is 980, or TWINNEL_SHOTS_WIDTH in shot mode (narrow/wide passes).
 func (a *app) winWidth() int {
 	if a.shotMode {
-		if w, err := strconv.Atoi(os.Getenv("DUET_SHOTS_WIDTH")); err == nil && w >= 760 {
+		if w, err := strconv.Atoi(os.Getenv("TWINNEL_SHOTS_WIDTH")); err == nil && w >= 760 {
 			return w
 		}
 	}
@@ -478,7 +478,7 @@ func (a *app) winHeight() int {
 }
 
 // applyTheme sets the app's theme (platform.go) for the system's
-// appearance, or DUET_THEME's when set. Main thread.
+// appearance, or TWINNEL_THEME's when set. Main thread.
 func (a *app) applyTheme(c *ui.Context) {
 	dark := c.Theme().Dark
 	switch a.theme {
@@ -511,7 +511,7 @@ func (a *app) sidebarMaterial() mygo.Vibrancy {
 
 // appMenu is the macOS menu bar's menus: the standard ones, and 显示
 // (View) listing the pages with their ⌘1…⌘9 (the window takes the same
-// keys itself, pageKeys, on every platform). As an accessory app duet
+// keys itself, pageKeys, on every platform). As an accessory app Twinnel
 // shows no menu bar of its own, but the menu's key equivalents work while
 // it is active, and the menus show while it runs as a regular app (a Dock
 // icon, dock.go).
@@ -540,7 +540,7 @@ func (a *app) appMenu() *mygo.Menu {
 	pages = append(pages, mygo.Separator(), &mygo.MenuItem{Label: i18n.T.SidebarToggle, Accelerator: "Ctrl+Cmd+S",
 		Click: func(*mygo.MenuItem, *mygo.Window) { a.openMain(); a.toggleSidebar() }})
 	pages = append(pages, &mygo.MenuItem{Role: mygo.RoleToggleFullScreen})
-	// The app menu as the default one, but 关于 duet opens the 关于 page,
+	// The app menu as the default one, but 关于 Twinnel opens the 关于 page,
 	// not the standard about panel.
 	about := &mygo.MenuItem{Label: i18n.T.AboutApp, Click: func(*mygo.MenuItem, *mygo.Window) {
 		a.openMain()

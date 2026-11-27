@@ -13,7 +13,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/twinnel/core/health"
 )
 
 // ---- Tailscale ------------------------------------------------------------

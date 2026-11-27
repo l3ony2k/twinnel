@@ -5,21 +5,21 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // --- logs ---
 
 // The 日志 page has two sources (U29): mihomo's log stream, and what
-// duet did (the helper's events). Both search and filter by level.
+// Twinnel did (the helper's events). Both search and filter by level.
 
 var logLevels = []string{"debug", "info", "warning", "error"}
 
 const (
-	logsMihomo = 0
-	logsDuet   = 1
+	logsMihomo  = 0
+	logsTwinnel = 1
 )
 
 type logsView struct {
@@ -29,12 +29,12 @@ type logsView struct {
 	frozen []mihomo.LogEntry
 	list   ui.ListState
 
-	source int    // logsMihomo or logsDuet
+	source int    // logsMihomo or logsTwinnel
 	query  string // search text, both sources
 	evList ui.ListState
 	mark   uint64 // the event a toast pointed at (H7), highlighted
 
-	// The duet tab's own 暂停 / 清空: a frozen copy of the events, and the
+	// The Twinnel tab's own 暂停 / 清空: a frozen copy of the events, and the
 	// last event 清空 hid (the helper's buffer is not touched).
 	evPaused  bool
 	evFrozen  []rpc.Event
@@ -50,9 +50,9 @@ func (l *logsView) levelName() string {
 	return logLevels[l.level]
 }
 
-// showDuetLog opens 日志 → duet at its newest event (a toast's 查看).
-func (a *app) showDuetLog() {
-	a.logs.source = logsDuet
+// showTwinnelLog opens 日志 → Twinnel at its newest event (a toast's 查看).
+func (a *app) showTwinnelLog() {
+	a.logs.source = logsTwinnel
 	if n := len(a.events.evs); n > 0 {
 		a.logs.mark = a.events.evs[n-1].Seq
 	}
@@ -65,7 +65,7 @@ func (a *app) logsPage(c *ui.Context, barH float32) {
 	if a.logs.paused {
 		entries = a.logs.frozen
 	}
-	if a.logs.source == logsDuet {
+	if a.logs.source == logsTwinnel {
 		a.backfillEvents()
 	}
 	// Logs fill the pane, and so does their toolbar (window.go): long
@@ -135,7 +135,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 			// its ⓘ, the search, the level as a pop-up (its value names
 			// it), then 暂停 and 清空 as icons. It fits a 900 pt window in
 			// every language; the title never drops (R-kubai-1).
-			segmented(c.Key("source"), &v.source, T.LogsSourceMihomo, T.LogsSourceDuet).Label(T.PageLogs)
+			segmented(c.Key("source"), &v.source, T.LogsSourceMihomo, T.LogsSourceTwinnel).Label(T.PageLogs)
 			infoTipAbout(c, T.PageLogs, T.TipLogs, nil)
 			searchW := float32(200)
 			if v.width > 0 && v.width < 760 {
@@ -150,7 +150,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 			// shift as it flips; the state is also spoken (selected). Both
 			// tabs have both buttons, each with its own state.
 			paused := &v.paused
-			if v.source == logsDuet {
+			if v.source == logsTwinnel {
 				paused = &v.evPaused
 			}
 			icon, pause := iconPause, T.LogPause
@@ -163,14 +163,14 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 			}
 			if b.Clicked() {
 				*paused = !*paused
-				if v.source == logsDuet {
+				if v.source == logsTwinnel {
 					v.evFrozen = append([]rpc.Event(nil), a.events.evs...)
 				} else {
 					v.frozen = a.mon.Logs()
 				}
 			}
 			if barIcon(c.Key("clear"), iconClear, T.LogClear).Clicked() {
-				if v.source == logsDuet {
+				if v.source == logsTwinnel {
 					if n := len(a.events.evs); n > 0 {
 						v.evCleared = a.events.evs[n-1].Seq
 					}
@@ -183,7 +183,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 		})
 		box := ui.Column(c).Grow(1).Radius(plat.groupRadius).Background(p.group).Border(1, p.groupLine).Clip()
 		box.Children(func() {
-			if v.source == logsDuet {
+			if v.source == logsTwinnel {
 				a.eventsList(c)
 				return
 			}
@@ -239,7 +239,7 @@ func (a *app) logsEmpty(c *ui.Context, title, hint string) {
 	})
 }
 
-// eventsList is 日志 → duet: newest first, one row each: time · kind ·
+// eventsList is 日志 → twinnel: newest first, one row each: time · kind ·
 // what happened; a click goes where it happened (a history entry, a page).
 func (a *app) eventsList(c *ui.Context) {
 	t := c.Theme()

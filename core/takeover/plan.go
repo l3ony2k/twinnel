@@ -17,7 +17,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/l3ony2k/duet/core/config"
+	"github.com/l3ony2k/twinnel/core/config"
 )
 
 // PlanVersion is the schema version of Plan.
@@ -93,7 +93,7 @@ const (
 	WhyCoexistPrepended  = "coexist-prepended"
 )
 
-// Plan is a TakeoverPlan: how duet would manage the existing setup. It holds
+// Plan is a TakeoverPlan: how Twinnel would manage the existing setup. It holds
 // no credentials; layer contents are only referenced by file.
 type Plan struct {
 	Version    int             `json:"version"`
@@ -643,7 +643,7 @@ func (p *Plan) WriteFiles(dir string) error {
 func (p *Plan) Text() string {
 	var w strings.Builder
 	f := func(format string, a ...any) { fmt.Fprintf(&w, format, a...) }
-	f("duet takeover plan (%s)\n\n", p.CreatedAt.Format("2006-01-02 15:04"))
+	f("twinnel takeover plan (%s)\n\n", p.CreatedAt.Format("2006-01-02 15:04"))
 	if m := p.Discovery.Mihomo; m != nil {
 		f("mihomo\n")
 		if m.Service != nil {

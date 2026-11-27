@@ -19,18 +19,18 @@ type HelperMgmtStrings struct {
 	HelperVersionVsApp string // %s: helper version, %s: app version
 
 	// The confirm dialogs.
-	UninstallTitle, RemoveAllTitle         string
-	UninstallRemoves, UninstallKeeps       string // %s: the list
-	UninstallPurge                         string // the checkbox
-	UninstallConfirm, RemoveAllConfirm     string
-	ItemHelper, ItemData, ItemSecrets      string
-	ItemDataCounts                         string // %d subscriptions, %d layers
-	ItemDuetMihomo                         string // %s: the original service it goes back to
-	ItemOriginalMihomo, ItemDuetMihomoKeep string
-	ItemTailscale, ItemApp, ItemAppTrash   string
-	ItemLoginItem                          string
-	UninstallOwnMihomo                     string
-	UninstallRefused                       string // %s: the reason
+	UninstallTitle, RemoveAllTitle            string
+	UninstallRemoves, UninstallKeeps          string // %s: the list
+	UninstallPurge                            string // the checkbox
+	UninstallConfirm, RemoveAllConfirm        string
+	ItemHelper, ItemData, ItemSecrets         string
+	ItemDataCounts                            string // %d subscriptions, %d layers
+	ItemTwinnelMihomo                         string // %s: the original service it goes back to
+	ItemOriginalMihomo, ItemTwinnelMihomoKeep string
+	ItemTailscale, ItemApp, ItemAppTrash      string
+	ItemLoginItem                             string
+	UninstallOwnMihomo                        string
+	UninstallRefused                          string // %s: the reason
 
 	// Outcomes.
 	DoneHelperUpdated, DoneHelperRestarted, DoneHelperUninstalled string
@@ -38,7 +38,7 @@ type HelperMgmtStrings struct {
 	// 登录时打开.
 	General, OpenAtLogin, OpenAtLoginUnsupportedTip, OpenAtLoginApprove string
 
-	// 在程序坞中显示 (macOS): when duet has a Dock icon.
+	// 在程序坞中显示 (macOS): when Twinnel has a Dock icon.
 	ShowInDock, DockWhenOpen, DockAlways, DockNever string
 	DockOpen                                        string // the Dock menu's item that opens the main window
 }
@@ -49,32 +49,32 @@ var zhHelperMgmt = HelperMgmtStrings{
 	HelperRestart:   "重启",
 	HelperViewLog:   "查看日志",
 	HelperUninstall: "卸载…",
-	HelperRemoveAll: "完全移除 duet…",
+	HelperRemoveAll: "完全移除 Twinnel…",
 
 	HelperNeedsUpdate:  "需要更新后台助手",
-	HelperNewerThanApp: "需要更新 duet",
+	HelperNewerThanApp: "需要更新 Twinnel",
 	HelperVersionVsApp: "%s · app %s",
 
-	UninstallTitle:     "卸载后台助手？",
-	RemoveAllTitle:     "完全移除 duet？",
-	UninstallRemoves:   "移除：%s",
-	UninstallKeeps:     "保留：%s",
-	UninstallPurge:     "同时删除数据",
-	UninstallConfirm:   "卸载",
-	RemoveAllConfirm:   "移除",
-	ItemHelper:         "后台助手",
-	ItemData:           "数据",
-	ItemDataCounts:     "数据（%d 个订阅、%d 个覆写、历史、日志）",
-	ItemSecrets:        "钥匙串项目",
-	ItemDuetMihomo:     "duet 的 mihomo 服务（切回 %s，断网几秒）",
-	ItemOriginalMihomo: "mihomo 原来的服务",
-	ItemDuetMihomoKeep: "mihomo 服务",
-	ItemTailscale:      "Tailscale",
-	ItemApp:            "duet.app",
-	ItemAppTrash:       "duet.app（移到废纸篓）",
-	ItemLoginItem:      "登录时打开",
-	UninstallOwnMihomo: "mihomo 正在用 duet 的数据运行，删除数据会断网。先在「内核」页卸载 mihomo 服务。",
-	UninstallRefused:   "无法卸载：%s",
+	UninstallTitle:        "卸载后台助手？",
+	RemoveAllTitle:        "完全移除 Twinnel？",
+	UninstallRemoves:      "移除：%s",
+	UninstallKeeps:        "保留：%s",
+	UninstallPurge:        "同时删除数据",
+	UninstallConfirm:      "卸载",
+	RemoveAllConfirm:      "移除",
+	ItemHelper:            "后台助手",
+	ItemData:              "数据",
+	ItemDataCounts:        "数据（%d 个订阅、%d 个覆写、历史、日志）",
+	ItemSecrets:           "钥匙串项目",
+	ItemTwinnelMihomo:     "Twinnel 的 mihomo 服务（切回 %s，断网几秒）",
+	ItemOriginalMihomo:    "mihomo 原来的服务",
+	ItemTwinnelMihomoKeep: "mihomo 服务",
+	ItemTailscale:         "Tailscale",
+	ItemApp:               "Twinnel.app",
+	ItemAppTrash:          "Twinnel.app（移到废纸篓）",
+	ItemLoginItem:         "登录时打开",
+	UninstallOwnMihomo:    "mihomo 正在用 Twinnel 的数据运行，删除数据会断网。先在「内核」页卸载 mihomo 服务。",
+	UninstallRefused:      "无法卸载：%s",
 
 	DoneHelperUpdated:     "后台助手已更新",
 	DoneHelperRestarted:   "后台助手已重启",
@@ -83,13 +83,13 @@ var zhHelperMgmt = HelperMgmtStrings{
 	General:                   "通用",
 	OpenAtLogin:               "登录时打开",
 	OpenAtLoginUnsupportedTip: "只有打包后的 app 能登录时打开",
-	OpenAtLoginApprove:        "在系统设置 › 通用 › 登录项中允许 duet",
+	OpenAtLoginApprove:        "在系统设置 › 通用 › 登录项中允许 Twinnel",
 
 	ShowInDock:   "在程序坞中显示",
 	DockWhenOpen: "打开窗口时",
 	DockAlways:   "始终",
 	DockNever:    "从不",
-	DockOpen:     "打开 duet",
+	DockOpen:     "打开 Twinnel",
 }
 
 var enHelperMgmt = HelperMgmtStrings{
@@ -98,32 +98,32 @@ var enHelperMgmt = HelperMgmtStrings{
 	HelperRestart:   "Restart",
 	HelperViewLog:   "View Log",
 	HelperUninstall: "Uninstall…",
-	HelperRemoveAll: "Remove duet Completely…",
+	HelperRemoveAll: "Remove Twinnel Completely…",
 
 	HelperNeedsUpdate:  "Helper outdated",
-	HelperNewerThanApp: "duet needs an update",
+	HelperNewerThanApp: "Twinnel needs an update",
 	HelperVersionVsApp: "%s · app %s",
 
-	UninstallTitle:     "Uninstall the helper?",
-	RemoveAllTitle:     "Remove duet completely?",
-	UninstallRemoves:   "Removes: %s",
-	UninstallKeeps:     "Keeps: %s",
-	UninstallPurge:     "Also delete data",
-	UninstallConfirm:   "Uninstall",
-	RemoveAllConfirm:   "Remove",
-	ItemHelper:         "the helper",
-	ItemData:           "data",
-	ItemDataCounts:     "data (%d subscription{s}, %d override{s}, history, logs)",
-	ItemSecrets:        "keychain items",
-	ItemDuetMihomo:     "duet's mihomo service (back to %s, offline for a few seconds)",
-	ItemOriginalMihomo: "mihomo's original service",
-	ItemDuetMihomoKeep: "mihomo service",
-	ItemTailscale:      "Tailscale",
-	ItemApp:            "duet.app",
-	ItemAppTrash:       "duet.app (moved to the Trash)",
-	ItemLoginItem:      "Open at login",
-	UninstallOwnMihomo: "mihomo runs from duet's data; deleting it would cut the network. Uninstall the mihomo service on the Core page first.",
-	UninstallRefused:   "Can't uninstall: %s",
+	UninstallTitle:        "Uninstall the helper?",
+	RemoveAllTitle:        "Remove Twinnel completely?",
+	UninstallRemoves:      "Removes: %s",
+	UninstallKeeps:        "Keeps: %s",
+	UninstallPurge:        "Also delete data",
+	UninstallConfirm:      "Uninstall",
+	RemoveAllConfirm:      "Remove",
+	ItemHelper:            "the helper",
+	ItemData:              "data",
+	ItemDataCounts:        "data (%d subscription{s}, %d override{s}, history, logs)",
+	ItemSecrets:           "keychain items",
+	ItemTwinnelMihomo:     "Twinnel's mihomo service (back to %s, offline for a few seconds)",
+	ItemOriginalMihomo:    "mihomo's original service",
+	ItemTwinnelMihomoKeep: "mihomo service",
+	ItemTailscale:         "Tailscale",
+	ItemApp:               "Twinnel.app",
+	ItemAppTrash:          "Twinnel.app (moved to the Trash)",
+	ItemLoginItem:         "Open at login",
+	UninstallOwnMihomo:    "mihomo runs from Twinnel's data; deleting it would cut the network. Uninstall the mihomo service on the Core page first.",
+	UninstallRefused:      "Can't uninstall: %s",
 
 	DoneHelperUpdated:     "Helper updated",
 	DoneHelperRestarted:   "Helper restarted",
@@ -132,11 +132,11 @@ var enHelperMgmt = HelperMgmtStrings{
 	General:                   "General",
 	OpenAtLogin:               "Open at login",
 	OpenAtLoginUnsupportedTip: "Only the packaged app can open at login",
-	OpenAtLoginApprove:        "Allow duet in System Settings › General › Login Items",
+	OpenAtLoginApprove:        "Allow Twinnel in System Settings › General › Login Items",
 
 	ShowInDock:   "Show in Dock",
 	DockWhenOpen: "While the window is open",
 	DockAlways:   "Always",
 	DockNever:    "Never",
-	DockOpen:     "Open duet",
+	DockOpen:     "Open Twinnel",
 }

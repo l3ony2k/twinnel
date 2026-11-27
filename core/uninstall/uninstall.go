@@ -1,6 +1,6 @@
 // Package uninstall decides what removing the helper does: what goes, what
 // stays, whether mihomo must first be moved back to the service it ran
-// under before `duet helper harden`, and when to refuse. The CLI turns the
+// under before `twinnel helper harden`, and when to refuse. The CLI turns the
 // plan into steps (and runs them as root); the app shows the same lists in
 // its confirm dialog. One rule above all: uninstalling never leaves the
 // owner without a network.
@@ -9,12 +9,12 @@ package uninstall
 import (
 	"fmt"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // Options are the owner's choices.
 type Options struct {
-	// Purge also deletes duet's data: the state dir (settings,
+	// Purge also deletes Twinnel's data: the state dir (settings,
 	// subscriptions, layers, history, logs, takeover and harden backups,
 	// kernels) and the secrets (keychain items).
 	Purge bool
@@ -22,7 +22,7 @@ type Options struct {
 	// replaced (runbook step 8c) before the helper goes: a few seconds
 	// offline.
 	RestoreMihomo bool
-	// KeepMihomo leaves a hardened mihomo running from duet's LaunchDaemon
+	// KeepMihomo leaves a hardened mihomo running from Twinnel's LaunchDaemon
 	// and state dir, unmanaged. Not with Purge (that deletes its files).
 	KeepMihomo bool
 }
@@ -36,10 +36,10 @@ const (
 	HelperSocket   Kind = "helper-socket"   // its socket
 	StateDir       Kind = "state-dir"       // settings, subscriptions, layers, history, logs, backups
 	Secrets        Kind = "secrets"         // keychain items (Names)
-	DuetMihomo     Kind = "duet-mihomo"     // duet's mihomo LaunchDaemon (hardened)
-	OriginalMihomo Kind = "original-mihomo" // the service mihomo ran under before duet (adopted)
+	TwinnelMihomo  Kind = "twinnel-mihomo"  // Twinnel's mihomo LaunchDaemon (hardened)
+	OriginalMihomo Kind = "original-mihomo" // the service mihomo ran under before Twinnel (adopted)
 	Tailscale      Kind = "tailscale"       // tailscaled: never touched
-	App            Kind = "app"             // duet.app itself
+	App            Kind = "app"             // Twinnel.app itself
 )
 
 // Item is one line of the plan.
@@ -52,10 +52,10 @@ type Item struct {
 	Layers        int `json:"layers,omitempty"`
 }
 
-// Restore is the move back from duet's mihomo service to the one it
+// Restore is the move back from Twinnel's mihomo service to the one it
 // replaced, run before the helper is removed.
 type Restore struct {
-	FromLabel  string `json:"from_label"` // duet's (com.l3ony2k.duet.mihomo)
+	FromLabel  string `json:"from_label"` // Twinnel's (com.l3ony2k.twinnel.mihomo)
 	ToLabel    string `json:"to_label"`   // the original (com.mihomo.proxy)
 	ToPlist    string `json:"to_plist"`
 	Controller string `json:"controller"` // waited on: it answers again under ToLabel
@@ -83,10 +83,10 @@ func (r *Refusal) Error() string { return r.Message }
 
 // Refusal codes.
 const (
-	// NeedsRestore: mihomo runs from duet's LaunchDaemon (hardened); pass
+	// NeedsRestore: mihomo runs from Twinnel's LaunchDaemon (hardened); pass
 	// RestoreMihomo (or KeepMihomo without Purge).
 	NeedsRestore = "needs-restore"
-	// OwnMihomo: Purge would delete the files of a mihomo that duet
+	// OwnMihomo: Purge would delete the files of a mihomo that Twinnel
 	// installed itself, and there is no earlier service to go back to.
 	OwnMihomo = "own-mihomo"
 	// Conflict: the options contradict each other.
@@ -110,7 +110,7 @@ type Facts struct {
 // Make builds the plan, or a *Refusal.
 func Make(f Facts, o Options) (Plan, error) {
 	if o.RestoreMihomo && o.KeepMihomo {
-		return Plan{}, &Refusal{Code: Conflict, Message: "choose either restoring mihomo's original service or keeping duet's, not both"}
+		return Plan{}, &Refusal{Code: Conflict, Message: "choose either restoring mihomo's original service or keeping Twinnel's, not both"}
 	}
 	if o.Purge && o.KeepMihomo {
 		return Plan{}, &Refusal{Code: Conflict, Message: "--keep-mihomo cannot be combined with --purge: purging deletes the files that mihomo runs from"}
@@ -131,7 +131,7 @@ func Make(f Facts, o Options) (Plan, error) {
 		switch h := info.Hardened; {
 		case h != nil && !o.RestoreMihomo && !o.KeepMihomo:
 			return Plan{}, &Refusal{Code: NeedsRestore, Message: fmt.Sprintf(
-				"mihomo runs from duet's LaunchDaemon %s (since `duet helper harden`); removing the helper would leave it unmanaged. "+
+				"mihomo runs from Twinnel's LaunchDaemon %s (since `twinnel helper harden`); removing the helper would leave it unmanaged. "+
 					"Pass --restore-mihomo to move it back to %s first (a few seconds offline), or --keep-mihomo to leave it running as it is (not with --purge)",
 				m.Label, h.OldLabel)}
 		case h != nil && o.RestoreMihomo:
@@ -140,18 +140,18 @@ func Make(f Facts, o Options) (Plan, error) {
 					"cannot move mihomo back: %s, the service it ran under before harden, is gone. Restore that plist first (runbook step 8c)", h.OldPlist)}
 			}
 			p.Restore = &Restore{FromLabel: m.Label, ToLabel: h.OldLabel, ToPlist: h.OldPlist, Controller: m.Controller}
-			p.Remove = append(p.Remove, Item{Kind: DuetMihomo, Path: m.Label})
+			p.Remove = append(p.Remove, Item{Kind: TwinnelMihomo, Path: m.Label})
 			p.Keep = append(p.Keep, Item{Kind: OriginalMihomo, Path: h.OldLabel})
 		case h != nil: // KeepMihomo, no purge
-			p.Keep = append(p.Keep, Item{Kind: DuetMihomo, Path: m.Label})
+			p.Keep = append(p.Keep, Item{Kind: TwinnelMihomo, Path: m.Label})
 		case m.Adopted:
 			p.Keep = append(p.Keep, Item{Kind: OriginalMihomo, Path: m.Label})
 		case m.Installed && o.Purge:
 			return Plan{}, &Refusal{Code: OwnMihomo, Message: fmt.Sprintf(
-				"mihomo runs from duet's data (service %s) and has no earlier service to go back to: purging would cut the network. "+
-					"Remove that service first (`duet service uninstall mihomo`), or uninstall without --purge", m.Label)}
+				"mihomo runs from Twinnel's data (service %s) and has no earlier service to go back to: purging would cut the network. "+
+					"Remove that service first (`twinnel service uninstall mihomo`), or uninstall without --purge", m.Label)}
 		case m.Installed:
-			p.Keep = append(p.Keep, Item{Kind: DuetMihomo, Path: m.Label})
+			p.Keep = append(p.Keep, Item{Kind: TwinnelMihomo, Path: m.Label})
 		}
 	}
 	data := Item{Kind: StateDir, Path: stateDir}

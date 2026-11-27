@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/twinnel/core/health"
 )
 
 // NetFingerprint is a cheap summary of the network state. Two equal

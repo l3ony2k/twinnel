@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/service"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
 type fakeExec struct {
@@ -26,7 +26,7 @@ func (f *fakeExec) Run(ctx context.Context, argv []string) ([]byte, error) {
 
 func TestRenderUnit(t *testing.T) {
 	s := &Systemd{Dir: t.TempDir()}
-	spec := service.MihomoSpec("duet-mihomo", "/opt/duet/kernels/mihomo/current/mihomo", "/var/lib/duet/mihomo dir", "/var/lib/duet/mihomo dir/config.yaml", "/var/log/duet")
+	spec := service.MihomoSpec("twinnel-mihomo", "/opt/twinnel/kernels/mihomo/current/mihomo", "/var/lib/twinnel/mihomo dir", "/var/lib/twinnel/mihomo dir/config.yaml", "/var/log/twinnel")
 	spec.Env = map[string]string{"SAFE_PATHS": "/a 100%$HOME"}
 	b, err := s.Render(spec)
 	if err != nil {
@@ -34,12 +34,12 @@ func TestRenderUnit(t *testing.T) {
 	}
 	got := string(b)
 	for _, want := range []string{
-		"[Unit]\nDescription=duet: mihomo\n",
-		`ExecStart=/opt/duet/kernels/mihomo/current/mihomo -d "/var/lib/duet/mihomo dir" -f "/var/lib/duet/mihomo dir/config.yaml"` + "\n",
+		"[Unit]\nDescription=twinnel: mihomo\n",
+		`ExecStart=/opt/twinnel/kernels/mihomo/current/mihomo -d "/var/lib/twinnel/mihomo dir" -f "/var/lib/twinnel/mihomo dir/config.yaml"` + "\n",
 		`Environment="SAFE_PATHS=/a 100%%$$HOME"` + "\n",
 		"Restart=always\nRestartSec=10\n",
-		"StandardOutput=append:/var/log/duet/mihomo.out.log\n",
-		"StandardError=append:/var/log/duet/mihomo.err.log\n",
+		"StandardOutput=append:/var/log/twinnel/mihomo.out.log\n",
+		"StandardError=append:/var/log/twinnel/mihomo.err.log\n",
 		"[Install]\nWantedBy=multi-user.target\n",
 	} {
 		if !strings.Contains(got, want) {
@@ -76,7 +76,7 @@ func TestRenderUnit(t *testing.T) {
 
 func TestPlan(t *testing.T) {
 	s := &Systemd{Dir: "/etc/systemd/system", Systemctl: "/usr/bin/systemctl"}
-	spec := service.HelperSpec("duet-helper", "/usr/local/libexec/duet-helper", "/var/lib/duet", "/run/duet/helper.sock", "/var/log/duet")
+	spec := service.HelperSpec("twinnel-helper", "/usr/local/libexec/twinnel-helper", "/var/lib/twinnel", "/run/twinnel/helper.sock", "/var/log/twinnel")
 	steps, err := s.Plan(service.OpInstall, spec)
 	if err != nil {
 		t.Fatal(err)
@@ -86,22 +86,22 @@ func TestPlan(t *testing.T) {
 		lines = append(lines, st.String())
 	}
 	want := []string{
-		"install -d -m 0755 /var/log/duet",
-		"write /etc/systemd/system/duet-helper.service (mode 0644, " + strconv.Itoa(len(steps[1].Content)) + " bytes)",
+		"install -d -m 0755 /var/log/twinnel",
+		"write /etc/systemd/system/twinnel-helper.service (mode 0644, " + strconv.Itoa(len(steps[1].Content)) + " bytes)",
 		"/usr/bin/systemctl daemon-reload",
-		"/usr/bin/systemctl enable duet-helper.service",
-		"/usr/bin/systemctl restart duet-helper.service",
+		"/usr/bin/systemctl enable twinnel-helper.service",
+		"/usr/bin/systemctl restart twinnel-helper.service",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Errorf("install plan:\n%s", strings.Join(lines, "\n"))
 	}
 	for op, want := range map[service.Op]string{
-		service.OpUninstall: "/usr/bin/systemctl disable --now duet-helper.service  # errors ignored|rm -f /etc/systemd/system/duet-helper.service|/usr/bin/systemctl daemon-reload",
-		service.OpStart:     "/usr/bin/systemctl start duet-helper.service",
-		service.OpStop:      "/usr/bin/systemctl stop duet-helper.service",
-		service.OpRestart:   "/usr/bin/systemctl restart duet-helper.service",
+		service.OpUninstall: "/usr/bin/systemctl disable --now twinnel-helper.service  # errors ignored|rm -f /etc/systemd/system/twinnel-helper.service|/usr/bin/systemctl daemon-reload",
+		service.OpStart:     "/usr/bin/systemctl start twinnel-helper.service",
+		service.OpStop:      "/usr/bin/systemctl stop twinnel-helper.service",
+		service.OpRestart:   "/usr/bin/systemctl restart twinnel-helper.service",
 	} {
-		steps, err := s.Plan(op, service.Spec{Label: "duet-helper"})
+		steps, err := s.Plan(op, service.Spec{Label: "twinnel-helper"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,7 +121,7 @@ func TestPlan(t *testing.T) {
 func TestApplyInstallWithFakes(t *testing.T) {
 	dir := t.TempDir()
 	s := &Systemd{Dir: dir, Systemctl: "systemctl"}
-	steps, err := s.Plan(service.OpInstall, service.TailscaledSpec("duet-tailscaled", "/usr/sbin/tailscaled"))
+	steps, err := s.Plan(service.OpInstall, service.TailscaledSpec("twinnel-tailscaled", "/usr/sbin/tailscaled"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestApplyInstallWithFakes(t *testing.T) {
 	if err := service.Apply(context.Background(), steps, ex, service.OSFiles{}); err != nil {
 		t.Fatal(err)
 	}
-	b, err := os.ReadFile(s.DefinitionPath("duet-tailscaled"))
+	b, err := os.ReadFile(s.DefinitionPath("twinnel-tailscaled"))
 	if err != nil || !strings.Contains(string(b), "ExecStart=/usr/sbin/tailscaled\n") {
 		t.Fatalf("%v\n%s", err, b)
 	}
@@ -146,20 +146,20 @@ func TestStatus(t *testing.T) {
 
 	ex := &fakeExec{out: running}
 	s := &Systemd{Exec: ex, Stat: noFile}
-	st, err := s.Status(context.Background(), "duet-mihomo")
+	st, err := s.Status(context.Background(), "twinnel-mihomo")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !st.Loaded || !st.Running || st.PID != 4242 || st.LastExitCode != nil || st.Runs != 2 ||
-		st.Program != "/opt/duet/kernels/mihomo/current/mihomo" || st.Definition != "/etc/systemd/system/duet-mihomo.service" || !st.Installed {
+		st.Program != "/opt/twinnel/kernels/mihomo/current/mihomo" || st.Definition != "/etc/systemd/system/twinnel-mihomo.service" || !st.Installed {
 		t.Errorf("running: %+v", st)
 	}
-	if got := strings.Join(ex.calls[0], " "); !strings.HasPrefix(got, "systemctl show duet-mihomo.service --no-pager --property=LoadState,") {
+	if got := strings.Join(ex.calls[0], " "); !strings.HasPrefix(got, "systemctl show twinnel-mihomo.service --no-pager --property=LoadState,") {
 		t.Errorf("command: %s", got)
 	}
 
 	s.Exec = &fakeExec{out: failed}
-	st, _ = s.Status(context.Background(), "duet-mihomo")
+	st, _ = s.Status(context.Background(), "twinnel-mihomo")
 	if !st.Loaded || st.Running || st.PID != 0 || st.LastExitCode == nil || *st.LastExitCode != 1 {
 		t.Errorf("failed: %+v", st)
 	}

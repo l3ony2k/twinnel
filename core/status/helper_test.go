@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 type denyPeers struct{}

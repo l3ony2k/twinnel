@@ -10,9 +10,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/rpc/healthsrc"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc/healthsrc"
 )
 
 var serviceMethods = map[string]string{
@@ -43,7 +43,7 @@ func serviceOp(cf *clientFlags, op, name string) error {
 }
 
 func runAccessory(kind string, args []string) error {
-	fs, cf := newFlagSet("kernel "+kind, fmt.Sprintf("usage: duet kernel %s check|update [--force]\n\n", kind))
+	fs, cf := newFlagSet("kernel "+kind, fmt.Sprintf("usage: twinnel kernel %s check|update [--force]\n\n", kind))
 	var force bool
 	fs.BoolVar(&force, "force", false, "download even what looks up to date")
 	pos, done, err := parse(fs, args)
@@ -73,7 +73,7 @@ func runAccessory(kind string, args []string) error {
 		}
 		printAccessories(stdout, r.Files)
 		if r.ReloadNeeded {
-			fmt.Fprintln(stdout, "mihomo reads the new files at its next reload: duet compose --apply --force (or restart the service)")
+			fmt.Fprintln(stdout, "mihomo reads the new files at its next reload: twinnel compose --apply --force (or restart the service)")
 		}
 	})
 }
@@ -121,7 +121,7 @@ func printHealth(w io.Writer, r rpc.HealthReport) {
 		return
 	}
 	if rep == nil {
-		fmt.Fprintln(w, "no health report yet (duet helper health --run)")
+		fmt.Fprintln(w, "no health report yet (twinnel helper health --run)")
 		return
 	}
 	fmt.Fprintf(w, "overall %s, %s (%s), reason %q\n", rep.Overall, r.At.Local().Format("15:04:05"), rep.Duration.Round(1e6), r.Reason)
@@ -136,7 +136,7 @@ func printHealth(w io.Writer, r rpc.HealthReport) {
 // one HTTPS request to an IP-echo address directly and one through mihomo.
 // It prints the egress check alone; --json prints it as JSON.
 func runHelperEgress(args []string) error {
-	fs, cf := newFlagSet("helper egress", "usage: duet helper egress [--json]\n\nRun the egress test once: one HTTPS request to an IP-echo address directly\nand one through mihomo. The result stays in the helper's health report.\n\n")
+	fs, cf := newFlagSet("helper egress", "usage: twinnel helper egress [--json]\n\nRun the egress test once: one HTTPS request to an IP-echo address directly\nand one through mihomo. The result stays in the helper's health report.\n\n")
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
 	}

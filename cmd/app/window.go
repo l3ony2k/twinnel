@@ -14,10 +14,10 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/chart"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 const (
@@ -239,7 +239,7 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 }
 
 // sidebar is the window's source list over the platform's sidebar
-// material, with the duet pair's state at its foot.
+// material, with the Twinnel pair's state at its foot.
 func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	side := ui.Column(c).Width(a.sideInnerW()).Shrink(0).DragWindow()
@@ -278,14 +278,14 @@ func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 				a.pageChanged(old)
 			}
 		})
-		a.sideFooter(c, s) // the duet pair, or its marks on the rail (sidebar.go)
+		a.sideFooter(c, s) // the Twinnel pair, or its marks on the rail (sidebar.go)
 	})
 }
 
 // navSections are the sidebar's pages in order, with the counts their
 // rows show (Tailscale devices online, health problems). The first nine
 // pages get ⌘1…⌘9 (numberPages); 设置 has ⌘, as in every Mac app; 关于,
-// the tenth, has none (the app menu's 关于 duet opens it).
+// the tenth, has none (the app menu's 关于 Twinnel opens it).
 func navSections(ts, health int, healthTone navTone) []navSection {
 	T := i18n.T
 	sections := []navSection{
@@ -534,7 +534,7 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot, height float32) {
 		// The readout: under the pointer (or the arrow keys), a guide at
 		// the nearest sample, a dot on each line, and the sample's rates
 		// beside it, flipped to the guide's left near the right edge.
-		sel := ui.Local(area, "duet.traffic.sel", func() int { return -1 })
+		sel := ui.Local(area, "twinnel.traffic.sel", func() int { return -1 })
 		if sel == nil || len(xs) < 2 {
 			return
 		}
@@ -588,9 +588,9 @@ func trafficRampAlpha(t *ui.Theme) float32 {
 	return 0.16
 }
 
-// shotReadout shows the chart's readout in screenshots (DUET_SHOTS_READOUT),
+// shotReadout shows the chart's readout in screenshots (TWINNEL_SHOTS_READOUT),
 // where no pointer is over it.
-var shotReadout = os.Getenv("DUET_SHOTS") != "" && os.Getenv("DUET_SHOTS_READOUT") != ""
+var shotReadout = os.Getenv("TWINNEL_SHOTS") != "" && os.Getenv("TWINNEL_SHOTS_READOUT") != ""
 
 // rateUnit picks the unit a chart of rates up to hi bytes/s labels its
 // ticks in: KB/s below 1 MB/s, else MB/s (or GB/s).
@@ -1107,7 +1107,7 @@ func (f *settingsForm) load(c status.Config) {
 func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 	pageTitle(c, i18n.T.PageSettings)
 	// 通用 (login, notifications, language), 菜单栏, mihomo, 后台助手 and
-	// 停止使用 duet. Every row is the label, then its control at the
+	// 停止使用 Twinnel. Every row is the label, then its control at the
 	// card's right edge (R-unslop-5).
 	// Shots can show one card alone (shotSection: general, menubar,
 	// mihomo, agent, helper).
@@ -1270,7 +1270,7 @@ func (a *app) setNotifications(on bool) {
 }
 
 // actionNotes shows the last action's error. Read-only mode is shown
-// once, in the sidebar's state footer (duetPair).
+// once, in the sidebar's state footer (twinnelPair).
 func (a *app) actionNotes(c *ui.Context, s status.Snapshot) {
 	if a.actionErr != "" {
 		errorNote(c, a.actionErr)

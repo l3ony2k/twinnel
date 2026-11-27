@@ -108,13 +108,13 @@ func TestValidateRunErrors(t *testing.T) {
 	}
 }
 
-// TestValidateReal runs the real binary when DUET_MIHOMO points to one.
+// TestValidateReal runs the real binary when TWINNEL_MIHOMO points to one.
 func TestValidateReal(t *testing.T) {
-	bin := os.Getenv("DUET_MIHOMO")
+	bin := os.Getenv("TWINNEL_MIHOMO")
 	if bin == "" {
-		t.Skip("DUET_MIHOMO not set")
+		t.Skip("TWINNEL_MIHOMO not set")
 	}
-	geo := os.Getenv("DUET_GEO_DIR")
+	geo := os.Getenv("TWINNEL_GEO_DIR")
 	cfg, err := os.ReadFile(filepath.Join("testdata", "composed.golden.yaml"))
 	if err != nil {
 		t.Fatal(err)
@@ -138,9 +138,9 @@ func TestValidateReal(t *testing.T) {
 // TestCoexistFakeIPModesReal checks with the real binary that the coexist
 // layer keeps configs valid in every fake-ip-filter-mode.
 func TestCoexistFakeIPModesReal(t *testing.T) {
-	bin := os.Getenv("DUET_MIHOMO")
+	bin := os.Getenv("TWINNEL_MIHOMO")
 	if bin == "" {
-		t.Skip("DUET_MIHOMO not set")
+		t.Skip("TWINNEL_MIHOMO not set")
 	}
 	l, err := TailscaleCoexistLayer(TailnetInfo{MagicDNSSuffix: "tn-1.ts.net", PeerShortNames: []string{"nas"},
 		PeerAddrs: map[string][]string{"nas": {"100.64.0.2"}}})
@@ -185,7 +185,7 @@ func TestValidateRunAs(t *testing.T) {
 	if err != nil || !v.OK || !prepared {
 		t.Fatalf("v=%+v err=%v prepared=%v", v, err, prepared)
 	}
-	if !strings.HasPrefix(dir, "/tmp/duet-validate-") {
+	if !strings.HasPrefix(dir, "/tmp/twinnel-validate-") {
 		t.Errorf("work dir %s not in /tmp", dir)
 	}
 }

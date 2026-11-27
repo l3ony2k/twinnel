@@ -6,12 +6,12 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/update"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/update"
 )
 
-// aboutShots (DUET_SHOTS_FLOW=about) captures the 关于 page whole (a tall
+// aboutShots (TWINNEL_SHOTS_FLOW=about) captures the 关于 page whole (a tall
 // window) and the header in each 检查更新 state, set directly: no request
 // goes to GitHub.
 func (a *app) aboutShots(save func(*mygo.Window, string)) {
@@ -34,7 +34,7 @@ func (a *app) aboutShots(save func(*mygo.Window, string)) {
 	})
 	save(a.win, "about")
 	set(func(v *aboutView) {
-		for _, q := range []string{"为什么 duet 不占用系统 VPN 通道？", "「只读」是什么意思？"} {
+		for _, q := range []string{"为什么 Twinnel 不占用系统 VPN 通道？", "「只读」是什么意思？"} {
 			v.faqOpen[q] = true
 		}
 	})
@@ -50,7 +50,7 @@ func (a *app) aboutShots(save func(*mygo.Window, string)) {
 		}},
 		{"about-available", func(v *aboutView) {
 			v.checking, v.checked, v.err = false, true, nil
-			v.res = update.Result{State: update.Available, Latest: "0.2.0", URL: "https://github.com/l3ony2k/duet/releases/tag/v0.2.0"}
+			v.res = update.Result{State: update.Available, Latest: "0.2.0", URL: "https://github.com/l3ony2k/twinnel/releases/tag/v0.2.0"}
 		}},
 		{"about-failed", func(v *aboutView) { v.checking, v.checked, v.err = false, true, errSyntheticUpdate }},
 	} {
@@ -63,7 +63,7 @@ func (a *app) aboutShots(save func(*mygo.Window, string)) {
 	set(func(v *aboutView) { *v = aboutView{cliVersion: v.cliVersion, cliLoaded: true} })
 }
 
-// installShots (DUET_SHOTS_FLOW=install) captures 关于 → 安装: the page
+// installShots (TWINNEL_SHOTS_FLOW=install) captures 关于 → 安装: the page
 // in each helper state, set on the monitor just before the capture (the
 // helper connection may overwrite it later; the shot is taken first).
 func (a *app) installShots(save func(*mygo.Window, string)) {
@@ -73,7 +73,7 @@ func (a *app) installShots(save func(*mygo.Window, string)) {
 		h    status.Helper
 	}{
 		{"install-not-installed", status.Helper{State: status.HelperNotInstalled}},
-		{"install-not-running", status.Helper{State: status.HelperNotRunning, Socket: "/var/run/duet/duet.sock"}},
+		{"install-not-running", status.Helper{State: status.HelperNotRunning, Socket: "/var/run/twinnel/twinnel.sock"}},
 		{"install-installed", status.Helper{State: status.HelperConnected, Status: &rpc.Status{HelperVersion: "0.1.0"}}},
 	} {
 		mygo.RunOnMain(func() {
@@ -91,4 +91,4 @@ func (a *app) installShots(save func(*mygo.Window, string)) {
 }
 
 // errSyntheticUpdate is a failed release check as Go reports it.
-var errSyntheticUpdate = errors.New(`Get "https://api.github.com/repos/l3ony2k/duet/releases/latest": dial tcp: lookup api.github.com: no such host`)
+var errSyntheticUpdate = errors.New(`Get "https://api.github.com/repos/l3ony2k/twinnel/releases/latest": dial tcp: lookup api.github.com: no such host`)

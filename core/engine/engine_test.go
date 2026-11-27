@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/engine/enginetest"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/engine/enginetest"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 const testSecret = "test-controller-secret"

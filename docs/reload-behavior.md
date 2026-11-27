@@ -85,7 +85,7 @@ Not measured (TUN must not be touched on this Mac): the TUN path itself. The inf
 
 ## The owner's adopt
 
-`ReloadImpact(live config.yaml, scratch/takeover/composed.yaml)` (`DUET_IMPACT_A/B … go test -run RealReloadImpact ./core/engine/`):
+`ReloadImpact(live config.yaml, scratch/takeover/composed.yaml)` (`TWINNEL_IMPACT_A/B … go test -run RealReloadImpact ./core/engine/`):
 
 ```
 disruptive=false force=false tun_rebuild=false dns_listener=false listeners=[] providers=[] selection_reset=false restart_needed=[]
@@ -96,9 +96,9 @@ disruptive=false force=false tun_rebuild=false dns_listener=false listeners=[] p
 - There are no proxy providers. `store-selected` is on.
 - `secret: ""` vs no secret counts as the same.
 
-## What duet does with this
+## What Twinnel does with this
 
-- `ReloadImpact(old, new)` is computed on every apply (`ApplyResult.impact`) and stored with every takeover plan (`TakeoverPlan.impact`). `duet helper adopt` prints it as the `reload` line.
+- `ReloadImpact(old, new)` is computed on every apply (`ApplyResult.impact`) and stored with every takeover plan (`TakeoverPlan.impact`). `twinnel helper adopt` prints it as the `reload` line.
 - A disruptive impact (TUN rebuild, DNS re-bind, changed ports, provider connections) adds a warning. The app shows "会短暂中断网络" from `impact.disruptive`.
 - The reload is sent with `force=false` unless an inbound setting changed, or there was no previous file. With unchanged ports this makes no measurable difference. The reload just does strictly less.
 - After a reload, the engine verifies through the **same** controller address and secret, because a hot reload never moves the controller. Before, it built the controller from the new file, which fails when the address changes.

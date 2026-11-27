@@ -265,7 +265,7 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 		}
 	}
 	// No baseline means the network itself could not reach the echo:
-	// nothing to compare and nothing duet or the config can fix.
+	// nothing to compare and nothing Twinnel or the config can fix.
 	if len(direct) == 0 {
 		res.Status, res.Summary = StatusSkip, fmt.Sprintf(L.msgEgressErr, derr)
 		return res

@@ -11,15 +11,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/tailscale"
-	coreversion "github.com/l3ony2k/duet/core/version"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/tailscale"
+	coreversion "github.com/l3ony2k/twinnel/core/version"
 )
 
 func init() {
-	register("version", "print the versions of duet, the helper, mihomo and Tailscale (read-only)", runVersion)
+	register("version", "print the versions of Twinnel, the helper, mihomo and Tailscale (read-only)", runVersion)
 }
 
 // Version sources, replaced by tests. All of them only read.
@@ -53,7 +53,7 @@ var (
 	}
 )
 
-// VersionReport is the output of `duet version --json`.
+// VersionReport is the output of `twinnel version --json`.
 type (
 	VersionReport = coreversion.Report
 	VersionEntry  = coreversion.Entry
@@ -62,10 +62,10 @@ type (
 func runVersion(args []string) error {
 	fs := flag.NewFlagSet("version", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "print the versions as JSON")
-	socket := fs.String("socket", rpc.SocketFromEnv(), "helper socket `PATH` (env DUET_SOCKET)")
+	socket := fs.String("socket", rpc.SocketFromEnv(), "helper socket `PATH` (env TWINNEL_SOCKET)")
 	controller := fs.String("controller", "", "mihomo controller `HOST:PORT` (default: the app's setting, else 127.0.0.1:9090)")
 	timeout := fs.Duration("timeout", 3*time.Second, "how long to wait for each component")
-	short := fs.Bool("short", false, "print only the duet CLI version")
+	short := fs.Bool("short", false, "print only the Twinnel CLI version")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return nil
@@ -114,7 +114,7 @@ func writeVersions(w io.Writer, rep VersionReport) {
 	for _, r := range []struct {
 		name string
 		e    VersionEntry
-	}{{"duet", rep.CLI}, {"duet-helper", rep.Helper}, {"mihomo", rep.Mihomo}, {"tailscale", rep.Tailscale}} {
+	}{{"twinnel", rep.CLI}, {"twinnel-helper", rep.Helper}, {"mihomo", rep.Mihomo}, {"tailscale", rep.Tailscale}} {
 		v := r.e.Version
 		if v == "" {
 			v = "-"
@@ -126,7 +126,7 @@ func writeVersions(w io.Writer, rep VersionReport) {
 		if r.e.Error != "" {
 			extra = append(extra, "not reachable: "+r.e.Error)
 		}
-		line := fmt.Sprintf("%-12s %s", r.name, v)
+		line := fmt.Sprintf("%-15s %s", r.name, v)
 		if len(extra) > 0 {
 			line += "  (" + strings.Join(extra, "; ") + ")"
 		}

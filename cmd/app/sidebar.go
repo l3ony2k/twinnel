@@ -8,8 +8,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // The sidebar's container: how wide it is and in which of three modes,
@@ -327,7 +327,7 @@ func (a *app) contentHairline() bool {
 // sidebarNeed measures the narrowest expanded sidebar that shows every
 // row's label whole with its count (two digits), every section title,
 // and the foot's lines, in the current language and type sizes. The
-// metrics are navRow's and duetPair's.
+// metrics are navRow's and twinnelPair's.
 func sidebarNeed(c *ui.Context) float32 {
 	_, _, iconSize := navMetrics()
 	text := func(s string, size float32, weight int) float32 {
@@ -493,17 +493,17 @@ func railGap(c *ui.Context) {
 	})
 }
 
-// sideFooter is the sidebar's foot: the duet pair, or on the rail its
+// sideFooter is the sidebar's foot: the Twinnel pair, or on the rail its
 // marks alone, one under another, each with its words as tooltip.
 func (a *app) sideFooter(c *ui.Context, s status.Snapshot) {
 	if !navRail {
-		a.duetPair(c, s, navRowPadX()) // on the nav rows' icon column
+		a.twinnelPair(c, s, navRowPadX()) // on the nav rows' icon column
 		return
 	}
 	a.railPair(c, s)
 }
 
-// railPair is duetPair's states on the rail. It follows duetPair's
+// railPair is twinnelPair's states on the rail. It follows twinnelPair's
 // shapes and colors (sidebarstate.go); keep the two alike.
 func (a *app) railPair(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()

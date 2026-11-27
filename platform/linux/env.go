@@ -21,10 +21,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/health/dnswire"
-	"github.com/l3ony2k/duet/platform/common"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/health/dnswire"
+	"github.com/l3ony2k/twinnel/platform/common"
 )
 
 // CommandRunner runs a command and returns its stdout. Tests replace it.

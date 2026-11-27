@@ -3,9 +3,9 @@ package linux
 import (
 	"path/filepath"
 
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/platform/linux/systemd"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/platform/linux/systemd"
 )
 
 // InstallPaths maps the CLI's flag defaults, which are the macOS ones

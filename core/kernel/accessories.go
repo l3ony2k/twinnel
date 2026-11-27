@@ -9,7 +9,7 @@ package kernel
 // download; other URLs are downloaded unverified (size limit and a format
 // check only). Files are swapped as a set: everything is downloaded and
 // checked first, then each file is renamed into place with the old one kept
-// as <file>.duet-bak; if a rename fails, the files already replaced are
+// as <file>.twinnel-bak; if a rename fails, the files already replaced are
 // put back.
 
 import (
@@ -46,10 +46,10 @@ const (
 
 // Suffixes of the files written next to an accessory.
 const (
-	NewSuffix    = ".duet-new"
-	BackupSuffix = ".duet-bak"
+	NewSuffix    = ".twinnel-new"
+	BackupSuffix = ".twinnel-bak"
 	// UIStamp is written into the UI dir: where the bundle came from.
-	UIStamp = ".duet-ui.json"
+	UIStamp = ".twinnel-ui.json"
 )
 
 // Size limits.

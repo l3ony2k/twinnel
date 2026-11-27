@@ -8,13 +8,13 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // shots saves PNGs of every page of the main window and of the panel into
-// dir, then quits: DUET_SHOTS=<dir>. A development aid for checking the
+// dir, then quits: TWINNEL_SHOTS=<dir>. A development aid for checking the
 // layout without screen-recording rights; MyGo renders the native content
 // itself (Window.CapturePage).
 func (a *app) shots(dir string) {
@@ -36,7 +36,7 @@ func (a *app) shots(dir string) {
 	}
 	go func() {
 		time.Sleep(6 * time.Second) // let the monitor load, traffic accumulate and the health checks finish
-		if f, ok := a.shotFlows()[os.Getenv("DUET_SHOTS_FLOW")]; ok {
+		if f, ok := a.shotFlows()[os.Getenv("TWINNEL_SHOTS_FLOW")]; ok {
 			f(save)
 			mygo.App.Quit()
 			return
@@ -72,7 +72,7 @@ func (a *app) shots(dir string) {
 				})
 			}
 		}
-		if os.Getenv("DUET_SHOTS_QUICK") == "" { // quick: the main pages and the panel only
+		if os.Getenv("TWINNEL_SHOTS_QUICK") == "" { // quick: the main pages and the panel only
 			a.helperShots(dir, save)
 		}
 		for _, v := range []status.TrayIcon{status.TrayOK, status.TrayWarn, status.TrayError, status.TrayUnknown,
@@ -95,7 +95,7 @@ func (a *app) shots(dir string) {
 // shotSaver saves a window's capture under a name.
 type shotSaver = func(w *mygo.Window, name string)
 
-// shotFlows are the passes DUET_SHOTS_FLOW picks; any other value (or
+// shotFlows are the passes TWINNEL_SHOTS_FLOW picks; any other value (or
 // none) runs the default pass in shots.
 func (a *app) shotFlows() map[string]func(save shotSaver) {
 	return map[string]func(save shotSaver){
@@ -131,8 +131,8 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 }
 
 // helperShots walks the helper pages, driving the app's own handlers
-// against whatever helper DUET_SOCKET names (a dev helper with fakes).
-// With DUET_READ_ONLY=0 and DUET_SHOTS_WRITE=1 it also writes: a new
+// against whatever helper TWINNEL_SOCKET names (a dev helper with fakes).
+// With TWINNEL_READ_ONLY=0 and TWINNEL_SHOTS_WRITE=1 it also writes: a new
 // layer, apply, rollback.
 func (a *app) helperShots(dir string, save func(*mygo.Window, string)) {
 	on := func(fn func()) { mygo.RunOnMain(func() { fn(); a.invalidate() }) }
@@ -160,7 +160,7 @@ func (a *app) helperShots(dir string, save func(*mygo.Window, string)) {
 	}
 	var snap status.Snapshot
 	mygo.RunOnMain(func() { snap = a.mon.Snapshot() })
-	writes := snap.WritesAllowed && os.Getenv("DUET_SHOTS_WRITE") == "1"
+	writes := snap.WritesAllowed && os.Getenv("TWINNEL_SHOTS_WRITE") == "1"
 
 	page(pageConfig)
 	for i := 0; i < 50; i++ { // the first-run view loads the install plan
@@ -317,7 +317,7 @@ func (a *app) kernelShots(save func(*mygo.Window, string), wait func(time.Durati
 }
 
 // takeoverShots: the 接管 page against the helper (which on main says it
-// is too old), then the wizard from DUET_TAKEOVER_FIXTURE in sections.
+// is too old), then the wizard from TWINNEL_TAKEOVER_FIXTURE in sections.
 func (a *app) takeoverShots(save func(*mygo.Window, string), wait func(time.Duration), on func(func()), page func(string)) {
 	page(pageTakeover)
 	wait(time.Second)
@@ -329,7 +329,7 @@ func (a *app) takeoverShots(save func(*mygo.Window, string), wait func(time.Dura
 		wait(5 * time.Second)
 		save(a.win, "takeover-helper-plan")
 	}
-	dir := os.Getenv("DUET_TAKEOVER_FIXTURE")
+	dir := os.Getenv("TWINNEL_TAKEOVER_FIXTURE")
 	if dir == "" {
 		return
 	}
@@ -365,7 +365,7 @@ func (a *app) section(name string) bool {
 
 // sidebarShots captures the source list's looks: selection in a key and a
 // non-key window, hover, and the count badges on a selected row
-// (DUET_SHOTS_FLOW=sidebar). The key state is forced (shotNav), since a
+// (TWINNEL_SHOTS_FLOW=sidebar). The key state is forced (shotNav), since a
 // capture does not change which window is key.
 func (a *app) sidebarShots(save func(*mygo.Window, string)) {
 	yes, no := true, false

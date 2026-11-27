@@ -1,11 +1,11 @@
-// Command duet-helper is the duet daemon. Installed, it runs as root from a
-// LaunchDaemon and is the only part of duet that writes system state:
+// Command twinnel-helper is the Twinnel daemon. Installed, it runs as root from a
+// LaunchDaemon and is the only part of Twinnel that writes system state:
 // mihomo configs, kernels and service definitions. Clients (the app, the
-// duet CLI) talk to it over a unix socket with JSON-RPC (core/rpc).
+// Twinnel CLI) talk to it over a unix socket with JSON-RPC (core/rpc).
 //
 // For development it runs fine as a normal user against a temp state dir:
 //
-//	go run ./cmd/helper --state-dir /tmp/x --socket /tmp/x/duet.sock --foreground
+//	go run ./cmd/helper --state-dir /tmp/x --socket /tmp/x/twinnel.sock --foreground
 package main
 
 import (
@@ -21,12 +21,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/l3ony2k/duet/core/engine"
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/kernel"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/engine"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 type options struct {
@@ -52,7 +52,7 @@ type options struct {
 
 func parseFlags(args []string) (*options, error) {
 	o := &options{}
-	fs := flag.NewFlagSet("duet-helper", flag.ContinueOnError)
+	fs := flag.NewFlagSet("twinnel-helper", flag.ContinueOnError)
 	fs.StringVar(&o.stateDir, "state-dir", store.DefaultDir, "state `DIR` (settings, layers, history, kernels)")
 	fs.StringVar(&o.socket, "socket", rpc.DefaultSocket, "unix socket `PATH` to listen on")
 	fs.BoolVar(&o.foreground, "foreground", false, "log to stderr instead of <state-dir>/logs/helper.log")
@@ -83,17 +83,17 @@ func main() {
 		if errors.Is(err, flag.ErrHelp) {
 			return
 		}
-		fmt.Fprintln(os.Stderr, "duet-helper:", err)
+		fmt.Fprintln(os.Stderr, "twinnel-helper:", err)
 		os.Exit(2)
 	}
 	if o.version {
-		fmt.Println("duet-helper", engine.HelperVersion)
+		fmt.Println("twinnel-helper", engine.HelperVersion)
 		return
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, o, nil); err != nil {
-		fmt.Fprintln(os.Stderr, "duet-helper:", err)
+		fmt.Fprintln(os.Stderr, "twinnel-helper:", err)
 		os.Exit(1)
 	}
 }

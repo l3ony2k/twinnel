@@ -44,7 +44,7 @@ type Settings struct {
 	// Adopted is set when the settings came from takeover.adopt.
 	Adopted *Adoption `json:"adopted,omitempty"`
 	// Hardened is set when service.harden.apply moved mihomo to the
-	// managed kernel, a root-owned config dir and a duet LaunchDaemon.
+	// managed kernel, a root-owned config dir and a Twinnel LaunchDaemon.
 	Hardened *Hardening `json:"hardened,omitempty"`
 
 	// Drift is set after a rollback to a config the current overrides
@@ -52,7 +52,7 @@ type Settings struct {
 	// Automatic re-compose waits while it is set; an apply clears it.
 	Drift *Drift `json:"drift,omitempty"`
 
-	// Agent: the local agent switches (`duet mcp`). Nil fields take their
+	// Agent: the local agent switches (`twinnel mcp`). Nil fields take their
 	// defaults: MCP off, operate on, configure off.
 	Agent AgentSettings `json:"agent,omitzero"`
 }
@@ -116,7 +116,7 @@ type MihomoSettings struct {
 	MixedPort    int    `json:"mixed_port,omitempty"`
 	ServiceLabel string `json:"service_label,omitempty"`
 	// ServiceAdopted: the service definition (plist) under ServiceLabel
-	// was found on the system by takeover.adopt. duet starts/stops it but
+	// was found on the system by takeover.adopt. Twinnel starts/stops it but
 	// never replaces or removes its definition.
 	ServiceAdopted bool   `json:"service_adopted,omitempty"`
 	LogDir         string `json:"log_dir,omitempty"`
@@ -187,9 +187,9 @@ const (
 
 // Default labels.
 const (
-	DefaultMihomoLabel    = "com.l3ony2k.duet.mihomo"
+	DefaultMihomoLabel    = "com.l3ony2k.twinnel.mihomo"
 	DefaultTailscaleLabel = "com.tailscale.tailscaled"
-	DefaultHelperLabel    = "com.l3ony2k.duet.helper"
+	DefaultHelperLabel    = "com.l3ony2k.twinnel.helper"
 )
 
 // Defaults fills zero fields.

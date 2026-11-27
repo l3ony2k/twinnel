@@ -6,10 +6,10 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
-// surfacesShots (DUET_SHOTS_FLOW=surfaces) renders the shared surfaces
+// surfacesShots (TWINNEL_SHOTS_FLOW=surfaces) renders the shared surfaces
 // that the default pass rarely shows: the toasts (success with 查看, a
 // failed operation with ✕), the segmented control, enabled and disabled
 // main actions, the failed row, the diff block, the loading skeleton and

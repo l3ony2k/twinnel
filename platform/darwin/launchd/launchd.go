@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/service"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
 // DefaultDir is where system LaunchDaemons live.

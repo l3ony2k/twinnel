@@ -8,17 +8,17 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
-// configUIShots (DUET_SHOTS_FLOW=configui) walks batch C's screens
-// against a dev helper with fakes (DUET_SOCKET, writes on): the 覆写 list
+// configUIShots (TWINNEL_SHOTS_FLOW=configui) walks batch C's screens
+// against a dev helper with fakes (TWINNEL_SOCKET, writes on): the 覆写 list
 // in compose order, a save the lint holds back, a save the helper refuses
 // (shown at its line), preview with the pending row and the 说明 filled
 // in, apply, a failed mihomo -t and a failed reload (U53), history with
 // its reasons, a rollback that drifts and the drift row, restoring the
-// overrides, and 日志 → duet. Confirm dialogs are never shown (they take
+// overrides, and 日志 → Twinnel. Confirm dialogs are never shown (they take
 // the focus): their text goes to the log instead.
 func (a *app) configUIShots(save func(*mygo.Window, string)) {
 	on := func(fn func()) { mygo.RunOnMain(func() { fn(); a.invalidate() }) }
@@ -101,8 +101,8 @@ func (a *app) configUIShots(save func(*mygo.Window, string)) {
 	// U53: mihomo -t fails; then the reload fails and the old config is
 	// put back.
 	for _, f := range []struct{ id, marker, shot string }{
-		{"bad-check", "duet-test-invalid", "c07-apply-check-failed"},
-		{"bad-reload", "duet-test-reload-fail", "c08-apply-reload-failed"},
+		{"bad-check", "twinnel-test-invalid", "c07-apply-check-failed"},
+		{"bad-reload", "twinnel-test-reload-fail", "c08-apply-reload-failed"},
 	} {
 		newLayer(f.id, f.id, "# synthetic\n+rules:\n  - DOMAIN,"+f.marker+".example,DIRECT\n", 0)
 		on(a.saveLayer)
@@ -164,16 +164,16 @@ func (a *app) configUIShots(save func(*mygo.Window, string)) {
 		save(a.win, "c12-config-restored")
 	}
 
-	// U29: what duet did.
+	// U29: what Twinnel did.
 	page(pageLogs)
-	on(func() { a.logs.source = logsDuet })
+	on(func() { a.logs.source = logsTwinnel })
 	wait(1500 * time.Millisecond)
-	save(a.win, "c13-logs-duet")
+	save(a.win, "c13-logs-Twinnel")
 	on(func() { a.logs.query = "应用" })
-	if os.Getenv("DUET_LANG") == "en" {
+	if os.Getenv("TWINNEL_LANG") == "en" {
 		on(func() { a.logs.query = "apply" })
 	}
 	wait(500 * time.Millisecond)
-	save(a.win, "c14-logs-duet-search")
+	save(a.win, "c14-logs-twinnel-search")
 	on(func() { a.logs.query, a.logs.source = "", logsMihomo })
 }

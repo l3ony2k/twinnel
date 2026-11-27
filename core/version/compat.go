@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Compare orders two duet versions: -1 when a is older than b, 0 when they
+// Compare orders two twinnel versions: -1 when a is older than b, 0 when they
 // are the same, 1 when a is newer. Versions are "major.minor.patch" with an
 // optional "v" and a suffix: a `git describe` suffix ("-3-gabc1234",
 // "-dirty") counts commits after the release, so 0.2.0-3-gabc is newer

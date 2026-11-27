@@ -8,12 +8,12 @@ import (
 	"os/user"
 	"time"
 
-	"github.com/l3ony2k/duet/core/engine"
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/platform/linux"
-	"github.com/l3ony2k/duet/platform/linux/systemd"
+	"github.com/l3ony2k/twinnel/core/engine"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/platform/linux"
+	"github.com/l3ony2k/twinnel/platform/linux/systemd"
 )
 
 // Secrets stay in <state-dir>/secrets.json (0600, root-owned when
@@ -40,7 +40,7 @@ func tailnetInterface(ctx context.Context) (string, error) {
 //   - the systemd unit names replace the macOS labels in settings (only
 //     labels still at their macOS default);
 //   - the socket group: the macOS default "admin" rarely exists on Linux,
-//     so when it does not, sudo, wheel or duet is used (linux.SocketGroup);
+//     so when it does not, sudo, wheel or Twinnel is used (linux.SocketGroup);
 //   - the Tailscale interface lookup and the health scheduler over
 //     linux.Env. There is no network watcher on Linux yet: health runs on
 //     the interval and after applies and service operations.
@@ -72,7 +72,7 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 }
 
 // linuxSettings rewrites the macOS default service labels to the Linux
-// unit names (duet-mihomo, tailscaled, duet-helper) once.
+// unit names (twinnel-mihomo, tailscaled, twinnel-helper) once.
 func linuxSettings(e *engine.Engine) {
 	st, err := e.Store.Settings()
 	if err != nil {

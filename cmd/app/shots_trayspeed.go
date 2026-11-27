@@ -5,10 +5,10 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// trayspeedShots (DUET_SHOTS_FLOW=trayspeed) captures 设置 with the menu
+// trayspeedShots (TWINNEL_SHOTS_FLOW=trayspeed) captures 设置 with the menu
 // bar card in each state: one line, two lines, off. The settings change in
 // memory only (shot mode saves no config). The menu bar item itself cannot
 // be captured without showing it: TestTraySpeedShots draws it instead.

@@ -14,11 +14,11 @@ import (
 )
 
 // DefaultSocket is where the installed helper listens on macOS and Linux.
-const DefaultSocket = "/var/run/duet/helper.sock"
+const DefaultSocket = "/var/run/twinnel/helper.sock"
 
-// SocketFromEnv returns $DUET_SOCKET or DefaultSocket.
+// SocketFromEnv returns $TWINNEL_SOCKET or DefaultSocket.
 func SocketFromEnv() string {
-	if s := os.Getenv("DUET_SOCKET"); s != "" {
+	if s := os.Getenv("TWINNEL_SOCKET"); s != "" {
 		return s
 	}
 	return DefaultSocket

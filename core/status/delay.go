@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/l3ony2k/duet/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/mihomo"
 )
 
 // Delay tests. mihomo can test a whole group (GET /group/<name>/delay),

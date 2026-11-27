@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/msg"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/update"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/msg"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/update"
 )
 
 // otherLang returns what in texts belongs to the other UI language:
@@ -50,7 +50,7 @@ func TestTakeoverResultAndUpdateInOneLanguage(t *testing.T) {
 	}
 	errs := []error{
 		update.ErrRateLimited,
-		errors.New(`Get "https://api.github.com/repos/l3ony2k/duet/releases/latest": dial tcp: lookup api.github.com: no such host`),
+		errors.New(`Get "https://api.github.com/repos/l3ony2k/twinnel/releases/latest": dial tcp: lookup api.github.com: no such host`),
 		errors.New("something nobody words"),
 	}
 	for _, lang := range []string{"zh-Hans", "en"} {

@@ -1,10 +1,10 @@
 package main
 
-// duet helper install / uninstall. The plan (copy the binary, write and
-// load the LaunchDaemon) is printed first. Run as a normal user, duet
+// twinnel helper install / uninstall. The plan (copy the binary, write and
+// load the LaunchDaemon) is printed first. Run as a normal user, Twinnel
 // re-executes itself as root through
 //
-//	osascript -e 'do shell script "<duet> helper install --as-root ..." with administrator privileges'
+//	osascript -e 'do shell script "<Twinnel> helper install --as-root ..." with administrator privileges'
 //
 // which shows the system's administrator password dialog once. As root
 // (--as-root) it applies the plan.
@@ -24,9 +24,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // Replaceable in tests: nothing in a test may run osascript, launchctl or
@@ -63,19 +63,19 @@ func newInstallFlags(name string, withBin bool) (*flag.FlagSet, *installFlags) {
 	fs.BoolVar(&f.yes, "yes", false, "do not ask for confirmation (the administrator password dialog still appears)")
 	fs.BoolVar(&f.asRoot, "as-root", false, "internal: run the plan; only valid as root")
 	if withBin {
-		fs.StringVar(&f.helperBin, "helper-bin", "", "duet-helper `BINARY` to install (default: next to this duet binary)")
+		fs.StringVar(&f.helperBin, "helper-bin", "", "twinnel-helper `BINARY` to install (default: next to this Twinnel binary)")
 	}
 	fs.StringVar(&f.stateDir, "state-dir", store.DefaultDir, "helper state `DIR`")
 	fs.StringVar(&f.socket, "socket", rpc.DefaultSocket, "socket `PATH` the helper listens on")
 	fs.StringVar(&f.label, "label", store.DefaultHelperLabel, "launchd `LABEL`")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "usage: duet %s [flags]\n\nflags:\n", name)
+		fmt.Fprintf(fs.Output(), "usage: Twinnel %s [flags]\n\nflags:\n", name)
 		fs.PrintDefaults()
 	}
 	return fs, f
 }
 
-// rootArgs are the flags passed to the elevated copy of duet: every path
+// rootArgs are the flags passed to the elevated copy of twinnel: every path
 // absolute, so the root shell's working directory does not matter.
 func (f *installFlags) rootArgs(sub string) ([]string, error) {
 	args := []string{"helper", sub, "--as-root", "--yes"}
@@ -126,7 +126,7 @@ func helperInstall(f *installFlags) error {
 }
 
 // runPlan prints the plan, then runs it as root (directly with --as-root,
-// else by re-executing duet through osascript).
+// else by re-executing Twinnel through osascript).
 func runPlan(op string, f *installFlags, steps []service.Step, precheck func() error) error {
 	return runAsRoot(op, f, func(w io.Writer) { service.FormatPlan(w, steps) }, func(ctx context.Context) error {
 		return applyPlan(ctx, steps)
@@ -134,15 +134,15 @@ func runPlan(op string, f *installFlags, steps []service.Step, precheck func() e
 }
 
 // runAsRoot shows what an operation does (show), then runs it as root
-// (run): directly with --as-root or under sudo, else by re-executing duet
+// (run): directly with --as-root or under sudo, else by re-executing Twinnel
 // through osascript with the same flags (f.rootArgs), which asks for the
 // administrator password once.
 func runAsRoot(op string, f *installFlags, show func(io.Writer), run func(context.Context) error, precheck func() error) error {
 	if f.asRoot {
 		if geteuid() != 0 {
-			return errors.New("--as-root is only for the elevated copy of duet; run without it")
+			return errors.New("--as-root is only for the elevated copy of Twinnel; run without it")
 		}
-		fmt.Fprintf(stdout, "# duet helper %s: running as root\n", op)
+		fmt.Fprintf(stdout, "# twinnel helper %s: running as root\n", op)
 		if precheck != nil {
 			if err := precheck(); err != nil {
 				return err
@@ -156,9 +156,9 @@ func runAsRoot(op string, f *installFlags, show func(io.Writer), run func(contex
 	}
 
 	if f.dryRun {
-		fmt.Fprintf(stdout, "# duet helper %s --dry-run: nothing below has been run.\n", op)
+		fmt.Fprintf(stdout, "# twinnel helper %s --dry-run: nothing below has been run.\n", op)
 	} else {
-		fmt.Fprintf(stdout, "# duet helper %s will run these steps as root:\n", op)
+		fmt.Fprintf(stdout, "# twinnel helper %s will run these steps as root:\n", op)
 	}
 	show(stdout)
 	if f.dryRun {
@@ -219,7 +219,7 @@ var osascriptErrRE = regexp.MustCompile(`(?s)execution error: (.*) \((-?\d+)\)\s
 
 // elevatedFailure reads osascript's stderr after a failed `do shell
 // script`: "execution error: <the script's stderr> (<code>)". It returns
-// the elevated duet's own error (its last "duet: " line, without the
+// the elevated Twinnel's own error (its last "twinnel: " line, without the
 // prefix), or cancelled when the person dismissed the dialog (-128).
 func elevatedFailure(stderr string) (msg string, cancelled bool) {
 	m := osascriptErrRE.FindStringSubmatch(strings.TrimSpace(stderr))
@@ -230,8 +230,8 @@ func elevatedFailure(stderr string) (msg string, cancelled bool) {
 		return "", true
 	}
 	text := strings.ReplaceAll(m[1], "\r", "\n")
-	if i := strings.LastIndex(text, "duet: "); i >= 0 {
-		text = text[i+len("duet: "):]
+	if i := strings.LastIndex(text, "twinnel: "); i >= 0 {
+		text = text[i+len("twinnel: "):]
 	}
 	if i := strings.IndexByte(text, '\n'); i >= 0 {
 		text = text[:i]
@@ -293,18 +293,18 @@ func osascriptArgv(exe string, args []string) ([]string, error) {
 
 func defaultHelperBin() string {
 	if exe, err := executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "duet-helper")
+		p := filepath.Join(filepath.Dir(exe), "twinnel-helper")
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}
 	}
-	return "./duet-helper"
+	return "./twinnel-helper"
 }
 
 // ---- health and adopt over RPC ----
 
 func runHelperHealth(args []string) error {
-	fs, cf := newFlagSet("helper health", "usage: duet helper health [--run] [--json]\n\n")
+	fs, cf := newFlagSet("helper health", "usage: twinnel helper health [--run] [--json]\n\n")
 	var run bool
 	fs.BoolVar(&run, "run", false, "run the checks now instead of showing the helper's last report")
 	if _, done, err := parse(fs, args); done || err != nil {

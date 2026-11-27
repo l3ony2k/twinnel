@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
-// Report is every component's version (`duet version --json`).
+// Report is every component's version (`twinnel version --json`).
 type Report struct {
 	CLI       Entry `json:"cli"`
 	Helper    Entry `json:"helper"`

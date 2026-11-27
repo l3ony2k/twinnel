@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
 // States that stand in for content: a service that can't be reached, a
@@ -86,7 +86,7 @@ func rawDetails(c *ui.Context, raw string) ui.Element {
 
 // failedRow is the failed state at a card's size (kubai R-10, Vibe Design
 // Tips 022 d): the warning mark and what did not work (没能检查 mihomo
-// 更新), the reason in plain words under it when duet knows one, then 重试
+// 更新), the reason in plain words under it when Twinnel knows one, then 重试
 // (its refresh icon turning while retrying) and 复制详情 at the row's end.
 // raw is the error as it came; it is never the message. retry may be nil
 // (no 重试); busy is true while the retry runs.

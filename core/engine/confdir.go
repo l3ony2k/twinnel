@@ -21,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // confDir is an opened config dir.

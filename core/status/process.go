@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
 // Process is what the system says about a running daemon (mihomo,

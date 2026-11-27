@@ -1,20 +1,20 @@
-# duet helper install --dry-run: nothing below has been run.
-1. install -d -m 0755 '/Library/Application Support/duet'
-2. install -m 0755 /Applications/duet.app/Contents/Resources/bin/duet-helper '/Library/Application Support/duet/bin/duet-helper'
-3. install -d -m 0755 '/Library/Application Support/duet/logs'
-4. launchctl bootout system/com.l3ony2k.duet.helper
-5. wait until `launchctl print system/com.l3ony2k.duet.helper` says "not loaded" (up to 10s)
-6. write /Library/LaunchDaemons/com.l3ony2k.duet.helper.plist (mode 0644, 812 bytes)
------ /Library/LaunchDaemons/com.l3ony2k.duet.helper.plist -----
+# twinnel helper install --dry-run: nothing below has been run.
+1. install -d -m 0755 '/Library/Application Support/twinnel'
+2. install -m 0755 /Applications/Twinnel.app/Contents/Resources/bin/twinnel-helper '/Library/Application Support/twinnel/bin/twinnel-helper'
+3. install -d -m 0755 '/Library/Application Support/twinnel/logs'
+4. launchctl bootout system/com.l3ony2k.twinnel.helper
+5. wait until `launchctl print system/com.l3ony2k.twinnel.helper` says "not loaded" (up to 10s)
+6. write /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist (mode 0644, 812 bytes)
+----- /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist -----
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.l3ony2k.duet.helper</string>
+	<string>com.l3ony2k.twinnel.helper</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Library/Application Support/duet/bin/duet-helper</string>
+		<string>/Library/Application Support/twinnel/bin/twinnel-helper</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
@@ -23,5 +23,5 @@
 </dict>
 </plist>
 ----- end -----
-7. launchctl enable system/com.l3ony2k.duet.helper
-8. launchctl bootstrap system /Library/LaunchDaemons/com.l3ony2k.duet.helper.plist  # retried up to 3 times while busy
+7. launchctl enable system/com.l3ony2k.twinnel.helper
+8. launchctl bootstrap system /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist  # retried up to 3 times while busy

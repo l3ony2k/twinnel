@@ -6,12 +6,12 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // takeoverE2E drives the takeover wizard end to end against a development
-// helper (DUET_SHOTS_FLOW=takeover, with DUET_SOCKET, DUET_READ_ONLY=0):
+// helper (TWINNEL_SHOTS_FLOW=takeover, with TWINNEL_SOCKET, TWINNEL_READ_ONLY=0):
 // plan → candidates → re-plan with another base → plan with the best base →
 // adopt (health before/after) → rollback to the pre-adopt file via 历史 →
 // controller.secure, then checks the monitor still reaches the controller

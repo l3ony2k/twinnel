@@ -9,16 +9,16 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// configPolishShots (DUET_SHOTS_FLOW=configpolish) walks the 订阅与覆写
-// page's states against a scratch dev helper (DUET_SOCKET, writes on)
+// configPolishShots (TWINNEL_SHOTS_FLOW=configpolish) walks the 订阅与覆写
+// page's states against a scratch dev helper (TWINNEL_SOCKET, writes on)
 // whose state starts empty: the empty page, a subscription with two user
 // overrides, the managed rows opened, unapplied changes and their
 // preview, a failed apply, and the drift after a rollback.
-// DUET_POLISH_DATA is the folder with synthetic subscription.yaml.
+// TWINNEL_POLISH_DATA is the folder with synthetic subscription.yaml.
 // Confirm dialogs are never shown (they take the focus).
 func (a *app) configPolishShots(save func(*mygo.Window, string)) {
 	on := func(fn func()) { mygo.RunOnMain(func() { fn(); a.invalidate() }) }
@@ -73,7 +73,7 @@ func (a *app) configPolishShots(save func(*mygo.Window, string)) {
 	save(a.win, "p01-empty")
 
 	// A subscription and two user overrides, applied.
-	sub, _ := os.ReadFile(filepath.Join(os.Getenv("DUET_POLISH_DATA"), "subscription.yaml"))
+	sub, _ := os.ReadFile(filepath.Join(os.Getenv("TWINNEL_POLISH_DATA"), "subscription.yaml"))
 	mins := 1440
 	call(rpc.MethodSubPut, rpc.SubPutParams{ID: "main", Name: "Example Cloud", Content: string(sub), IntervalMinutes: &mins})
 	call(rpc.MethodSubActivate, rpc.IDParams{ID: "main"})
@@ -112,7 +112,7 @@ func (a *app) configPolishShots(save func(*mygo.Window, string)) {
 	scroll(0)
 
 	// A failed apply (mihomo -t refuses).
-	call(rpc.MethodLayerPut, rpc.LayerPutParams{ID: "broken", Name: "坏的覆写", Content: "# synthetic\n+rules:\n  - DOMAIN,duet-test-invalid.example,DIRECT\n"})
+	call(rpc.MethodLayerPut, rpc.LayerPutParams{ID: "broken", Name: "坏的覆写", Content: "# synthetic\n+rules:\n  - DOMAIN,twinnel-test-invalid.example,DIRECT\n"})
 	on(a.runApply)
 	wait(2 * time.Second)
 	save(a.win, "p08-apply-failed")

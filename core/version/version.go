@@ -1,5 +1,5 @@
-// Package version is duet's own version and module path, and the version
-// report of every component (`duet version`, the app's 关于 page).
+// Package version is Twinnel's own version and module path, and the version
+// report of every component (`twinnel version`, the app's 关于 page).
 package version
 
 import (
@@ -7,19 +7,19 @@ import (
 	"strings"
 )
 
-// Module is duet's Go module path: the GitHub repository it is published
+// Module is Twinnel's Go module path: the GitHub repository it is published
 // from (releases, issues, the license). The one place it is written down.
-const Module = "github.com/l3ony2k/duet"
+const Module = "github.com/l3ony2k/twinnel"
 
-// Version is duet's version, set at build time (scripts/build-release.sh):
+// Version is Twinnel's version, set at build time (scripts/build-release.sh):
 //
-//	-ldflags "-X github.com/l3ony2k/duet/core/version.Version=1.2.3"
+//	-ldflags "-X github.com/l3ony2k/twinnel/core/version.Version=1.2.3"
 var Version = "0.1.0-dev"
 
 // RepoURL is the repository's web page.
 func RepoURL() string { return "https://" + Module }
 
-// Owner and Repo split Module's GitHub path ("l3ony2k", "duet").
+// Owner and Repo split Module's GitHub path ("l3ony2k", "twinnel").
 func Owner() string { return part(1) }
 func Repo() string  { return part(2) }
 

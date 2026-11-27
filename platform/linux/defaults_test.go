@@ -5,7 +5,7 @@ import (
 	"os/user"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 func groups(names ...string) func(string) (*user.Group, error) {
@@ -27,8 +27,8 @@ func TestSocketGroup(t *testing.T) {
 	}{
 		{[]string{"sudo", "wheel"}, "sudo", true},
 		{[]string{"wheel"}, "wheel", true},
-		{[]string{"duet"}, "duet", true},
-		{nil, "duet", false},
+		{[]string{"twinnel"}, "twinnel", true},
+		{nil, "twinnel", false},
 	} {
 		g, ok := SocketGroup(groups(c.have...))
 		if g != c.want || ok != c.exists {
@@ -39,7 +39,7 @@ func TestSocketGroup(t *testing.T) {
 
 func TestLinuxLabels(t *testing.T) {
 	st := &store.Settings{}
-	st.Defaults("/var/lib/duet")
+	st.Defaults("/var/lib/twinnel")
 	if !LinuxLabels(st) {
 		t.Fatal("no change")
 	}

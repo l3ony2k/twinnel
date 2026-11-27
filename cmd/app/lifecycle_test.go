@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 func TestEffectRows(t *testing.T) {
@@ -111,12 +111,12 @@ func TestPendingRestart(t *testing.T) {
 func TestAppInventoryAndExtras(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	backups := filepath.Join(home, "Library", "Application Support", "duet", "backups")
+	backups := filepath.Join(home, "Library", "Application Support", "twinnel", "backups")
 	agents := filepath.Join(home, "Library", "LaunchAgents")
-	os.MkdirAll(filepath.Join(backups, "duet-0.1.app"), 0o755)
-	os.WriteFile(filepath.Join(backups, "duet-0.1.app", "x"), []byte("12345"), 0o644)
+	os.MkdirAll(filepath.Join(backups, "Twinnel-0.1.app"), 0o755)
+	os.WriteFile(filepath.Join(backups, "Twinnel-0.1.app", "x"), []byte("12345"), 0o644)
 	os.MkdirAll(agents, 0o755)
-	agent := filepath.Join(agents, duetAgentPrefix+".dev.plist")
+	agent := filepath.Join(agents, twinnelAgentPrefix+".dev.plist")
 	other := filepath.Join(agents, "com.other.plist")
 	os.WriteFile(agent, []byte("<plist/>"), 0o644)
 	os.WriteFile(other, []byte("<plist/>"), 0o644)
@@ -153,7 +153,7 @@ func TestAppInventoryAndExtras(t *testing.T) {
 		t.Fatal("another app's agent removed")
 	}
 	if _, err := os.Stat(filepath.Dir(backups)); err != nil {
-		t.Fatal("the duet support dir itself went")
+		t.Fatal("the Twinnel support dir itself went")
 	}
 }
 

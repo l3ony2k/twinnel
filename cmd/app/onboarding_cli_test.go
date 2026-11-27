@@ -3,7 +3,7 @@ package main
 import "testing"
 
 func TestCLIFailureAfterPrompt(t *testing.T) {
-	out := "# plan\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\nProceed? [y/N] duet: cancelled; nothing was changed\n"
+	out := "# plan\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\nProceed? [y/N] twinnel: cancelled; nothing was changed\n"
 	if got := cliFailure(out, nil); got != "cancelled; nothing was changed" {
 		t.Fatalf("cliFailure = %q", got)
 	}

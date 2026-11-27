@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/internal/rulegen"
+	"github.com/l3ony2k/twinnel/core/internal/rulegen"
 )
 
 // diffRule draws from a pool with heavy overlap so that suffix, keyword,

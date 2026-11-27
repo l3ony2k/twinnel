@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/engine"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/platform/darwin"
+	"github.com/l3ony2k/twinnel/core/engine"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/platform/darwin"
 )
 
 // With --tailnet-status-file the health checks read the file, never the

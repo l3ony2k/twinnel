@@ -26,7 +26,7 @@ func TailscaledSpec(label, bin string) Spec {
 	}
 }
 
-// HelperSpec is the duet helper daemon.
+// HelperSpec is the twinnel helper daemon.
 func HelperSpec(label, bin, stateDir, socket, logDir string) Spec {
 	s := Spec{
 		Name: "helper", Label: label, Program: bin,

@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/l3ony2k/duet/core/config"
+	"github.com/l3ony2k/twinnel/core/config"
 )
 
 // LoadPlan reads a plan.json written by WriteFiles, together with its layer

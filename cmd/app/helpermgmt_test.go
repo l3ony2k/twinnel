@@ -6,15 +6,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/uninstall"
-	"github.com/l3ony2k/duet/core/version"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/uninstall"
+	"github.com/l3ony2k/twinnel/core/version"
 )
 
 func hardenedPlan(purge bool) *uninstall.Plan {
-	p := &uninstall.Plan{Known: true, Restore: &uninstall.Restore{FromLabel: "com.l3ony2k.duet.mihomo", ToLabel: "com.mihomo.proxy"}}
-	p.Remove = []uninstall.Item{{Kind: uninstall.HelperService}, {Kind: uninstall.HelperBinary}, {Kind: uninstall.HelperSocket}, {Kind: uninstall.DuetMihomo}}
+	p := &uninstall.Plan{Known: true, Restore: &uninstall.Restore{FromLabel: "com.l3ony2k.twinnel.mihomo", ToLabel: "com.mihomo.proxy"}}
+	p.Remove = []uninstall.Item{{Kind: uninstall.HelperService}, {Kind: uninstall.HelperBinary}, {Kind: uninstall.HelperSocket}, {Kind: uninstall.TwinnelMihomo}}
 	data := []uninstall.Item{{Kind: uninstall.StateDir, Subscriptions: 1, Layers: 3}, {Kind: uninstall.Secrets}}
 	p.Keep = []uninstall.Item{{Kind: uninstall.OriginalMihomo}}
 	if purge {
@@ -27,18 +27,18 @@ func hardenedPlan(purge bool) *uninstall.Plan {
 }
 
 func TestPlanText(t *testing.T) {
-	t.Setenv("HOME", t.TempDir()) // the real ~/Library/Application Support/duet/backups must not leak in
+	t.Setenv("HOME", t.TempDir()) // the real ~/Library/Application Support/twinnel/backups must not leak in
 	got := planText(hardenedPlan(false), false)
-	want := "移除：后台助手、duet 的 mihomo 服务（切回 com.mihomo.proxy，断网几秒）\n" +
-		"保留：mihomo 原来的服务、数据（1 个订阅、3 个覆写、历史、日志）、钥匙串项目、Tailscale、duet.app"
+	want := "移除：后台助手、Twinnel 的 mihomo 服务（切回 com.mihomo.proxy，断网几秒）\n" +
+		"保留：mihomo 原来的服务、数据（1 个订阅、3 个覆写、历史、日志）、钥匙串项目、Tailscale、Twinnel.app"
 	if got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
 	}
 	got = planText(hardenedPlan(true), true)
-	if !strings.HasPrefix(got, "移除：后台助手、duet 的 mihomo 服务（切回 com.mihomo.proxy，断网几秒）、数据（1 个订阅、3 个覆写、历史、日志）、钥匙串项目、登录时打开、duet.app（移到废纸篓）\n保留：mihomo 原来的服务、Tailscale") {
+	if !strings.HasPrefix(got, "移除：后台助手、Twinnel 的 mihomo 服务（切回 com.mihomo.proxy，断网几秒）、数据（1 个订阅、3 个覆写、历史、日志）、钥匙串项目、登录时打开、Twinnel.app（移到废纸篓）\n保留：mihomo 原来的服务、Tailscale") {
 		t.Errorf("remove all:\n%s", got)
 	}
-	if strings.Contains(got, "保留：mihomo 原来的服务、Tailscale、duet.app") {
+	if strings.Contains(got, "保留：mihomo 原来的服务、Tailscale、Twinnel.app") {
 		t.Error("remove all keeps the app")
 	}
 }
@@ -62,7 +62,7 @@ func TestRefusalText(t *testing.T) {
 }
 
 func TestCLIFailure(t *testing.T) {
-	out := "# duet helper upgrade will run these steps as root:\n1. x\nduet: helper upgrade did not complete (cancelled)\n"
+	out := "# twinnel helper upgrade will run these steps as root:\n1. x\ntwinnel: helper upgrade did not complete (cancelled)\n"
 	if got := cliFailure(out, errors.New("exit status 1")); got != "helper upgrade did not complete (cancelled)" {
 		t.Errorf("got %q", got)
 	}

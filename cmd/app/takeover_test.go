@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 func TestTakeoverFixture(t *testing.T) {

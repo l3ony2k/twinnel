@@ -7,11 +7,11 @@ import (
 	"github.com/egoist/mygo"
 )
 
-// centerShots (DUET_SHOTS_FLOW=center) captures pages at widths from a
+// centerShots (TWINNEL_SHOTS_FLOW=center) captures pages at widths from a
 // small window to a full-screen wide display, with the sidebar expanded,
 // as icons and hidden: past pageMaxWidth the page column, and the
 // toolbar's title and actions over it, sit in the middle of the pane.
-// Run with DUET_LANG=zh|en and DUET_THEME=light|dark.
+// Run with TWINNEL_LANG=zh|en and TWINNEL_THEME=light|dark.
 func (a *app) centerShots(save func(*mygo.Window, string)) {
 	yes := true
 	shotLights = true

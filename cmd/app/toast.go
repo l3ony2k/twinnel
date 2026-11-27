@@ -6,10 +6,10 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
-// duet's toasts (unslop R-12, kubai R-5): the outcome of what the person
+// Twinnel's toasts (unslop R-12, kubai R-5): the outcome of what the person
 // just did, at the bottom centre of the page pane, as a macOS HUD. One
 // look in both appearances, never the inverted pill MyGo draws by default:
 //
@@ -65,7 +65,7 @@ func toastKind(ts ui.Toast) (kind, text string) {
 	return kind, text
 }
 
-// toasts builds the window's toasts with duet's look. Call once per frame
+// toasts builds the window's toasts with Twinnel's look. Call once per frame
 // of the main window (mainView), after the page.
 func (a *app) toasts(c *ui.Context) {
 	left := a.side.widthOf(a.side.mode) // centred on the page pane, not the window
@@ -133,13 +133,13 @@ func (a *app) flushToast(c *ui.Context) {
 	if a.toast != "" {
 		ts := ui.Toast{ID: a.toast, Title: a.toast, Type: toastSuccess}
 		if a.toastOp {
-			ts.Timeout, ts.Action, ts.OnAction = 8*time.Second, i18n.T.EvShow, a.showDuetLog
+			ts.Timeout, ts.Action, ts.OnAction = 8*time.Second, i18n.T.EvShow, a.showTwinnelLog
 		}
 		c.AddToast(ts)
 		a.toast, a.toastOp = "", false
 	}
 	if a.toastErr != "" {
-		c.AddToast(ui.Toast{ID: "op-failed", Title: a.toastErr, Type: toastError, Timeout: -1, Action: i18n.T.EvShow, OnAction: a.showDuetLog})
+		c.AddToast(ui.Toast{ID: "op-failed", Title: a.toastErr, Type: toastError, Timeout: -1, Action: i18n.T.EvShow, OnAction: a.showTwinnelLog})
 		a.toastErr = ""
 	}
 }

@@ -5,13 +5,13 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/version"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/version"
 )
 
-// helperMgmtShots (DUET_SHOTS_FLOW=helpermgmt) captures 设置 → 后台助手 in
+// helperMgmtShots (TWINNEL_SHOTS_FLOW=helpermgmt) captures 设置 → 后台助手 in
 // each state, and the version row in the sidebar footer and on the
 // overview. The helper state, the app's version and the upgrade check are
 // set directly: no CLI runs and nothing is written.
@@ -19,7 +19,7 @@ func (a *app) helperMgmtShots(save func(*mygo.Window, string)) {
 	oldVersion := version.Version
 	defer func() { version.Version = oldVersion }()
 	connected := func(v string) status.Helper {
-		return status.Helper{State: status.HelperConnected, Socket: "/var/run/duet/helper.sock",
+		return status.Helper{State: status.HelperConnected, Socket: "/var/run/twinnel/helper.sock",
 			Status: &rpc.Status{HelperVersion: v, PID: 4242}}
 	}
 	mygo.RunOnMain(func() { a.win.SetSize(a.winWidth(), 1250) })
@@ -36,7 +36,7 @@ func (a *app) helperMgmtShots(save func(*mygo.Window, string)) {
 			helperMgmtView{check: &upgradeCheck{Action: "upgrade"}, checkPID: 4242, running: i18n.T.HelperUpdate}},
 		{"settings-helper-refused", pageSettings, "0.2.0", connected("0.2.0"),
 			helperMgmtView{check: &upgradeCheck{Action: "none"}, checkPID: 4242, errMsg: i18n.T.UninstallOwnMihomo}},
-		{"settings-helper-not-running", pageSettings, "0.2.0", status.Helper{State: status.HelperNotRunning, Socket: "/var/run/duet/helper.sock"},
+		{"settings-helper-not-running", pageSettings, "0.2.0", status.Helper{State: status.HelperNotRunning, Socket: "/var/run/twinnel/helper.sock"},
 			helperMgmtView{check: &upgradeCheck{Action: "none"}}},
 		{"settings-helper-not-installed", pageSettings, "0.2.0", status.Helper{State: status.HelperNotInstalled},
 			helperMgmtView{check: &upgradeCheck{Action: "not-installed"}}},

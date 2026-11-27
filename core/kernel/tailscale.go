@@ -155,7 +155,7 @@ func (p *TailscaleProbe) Latest(ctx context.Context, kind string) (string, error
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", "duet-helper")
+	req.Header.Set("User-Agent", "twinnel-helper")
 	cl := p.HTTP
 	if cl == nil {
 		cl = &http.Client{Timeout: 30 * time.Second}

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 func TestGeneratesControllerSecret(t *testing.T) {

@@ -16,7 +16,7 @@ import (
 // synthetic fixture (cmd/app/testdata/shots-tailscale-status.json) so no
 // real account, tailnet or device name ends up in a shot. It is never set
 // in a release; the app says so in its log when it is.
-const StatusFileEnv = "DUET_TAILSCALE_STATUS_FILE"
+const StatusFileEnv = "TWINNEL_TAILSCALE_STATUS_FILE"
 
 // ErrStatusFile is returned by a FileAPI's writes: the fixture is read-only.
 var ErrStatusFile = errors.New("tailscale: reading a status file (" + StatusFileEnv + "); changes are not possible")

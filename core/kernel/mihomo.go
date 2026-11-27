@@ -192,7 +192,7 @@ func (m *Manager) release(ctx context.Context, channel, path string) (Release, e
 		return Release{}, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "duet-helper")
+	req.Header.Set("User-Agent", "twinnel-helper")
 	resp, err := m.client().Do(req)
 	if err != nil {
 		return Release{}, err
@@ -316,7 +316,7 @@ func (m *Manager) download(ctx context.Context, rawURL, dst, wantHex string) err
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "duet-helper")
+	req.Header.Set("User-Agent", "twinnel-helper")
 	cl := *m.client()
 	// Redirects (GitHub → its CDN) are followed, but only over https, or
 	// within the test host.

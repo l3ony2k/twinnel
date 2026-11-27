@@ -76,7 +76,7 @@ func Validate(ctx context.Context, mihomoBin string, config []byte, opts ...Vali
 		// The helper's own TMPDIR may not be reachable by that user.
 		tmpRoot = "/tmp"
 	}
-	dir, err := os.MkdirTemp(tmpRoot, "duet-validate-")
+	dir, err := os.MkdirTemp(tmpRoot, "twinnel-validate-")
 	if err != nil {
 		return nil, err
 	}

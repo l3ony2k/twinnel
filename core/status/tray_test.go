@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 func TestTrayIconFor(t *testing.T) {

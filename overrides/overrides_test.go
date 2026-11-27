@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/config"
+	"github.com/l3ony2k/twinnel/core/config"
 )
 
 // Every template must parse and merge onto an empty config.

@@ -15,13 +15,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/engine/enginetest"
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/core/tailscale"
-	"github.com/l3ony2k/duet/core/takeover"
+	"github.com/l3ony2k/twinnel/core/engine/enginetest"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/takeover"
 )
 
 // Synthetic hand-made setup: a raw subscription in backup/, a live config

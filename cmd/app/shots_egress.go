@@ -6,10 +6,10 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/twinnel/core/health"
 )
 
-// egressShots (DUET_SHOTS_FLOW=egress) shows 健康检查 → 出口 IP 实测:
+// egressShots (TWINNEL_SHOTS_FLOW=egress) shows 健康检查 → 出口 IP 实测:
 // untested (检测出口 and 定期检测 on the row), while the test runs, with
 // its result and time (closed and opened), a failed run and 定期检测 on. Shots run the fixture's probe, never the helper's real test.
 func (a *app) egressShots(save func(*mygo.Window, string)) {
@@ -37,7 +37,7 @@ func (a *app) egressShots(save func(*mygo.Window, string)) {
 	step("egress-result-open", 700*time.Millisecond, func() { a.healthOpen[id] = true })
 	step("egress-failed", 700*time.Millisecond, func() {
 		a.healthOpen[id] = false
-		err := errors.New("dial unix /tmp/duet.sock: connect: connection refused")
+		err := errors.New("dial unix /tmp/twinnel.sock: connect: connection refused")
 		a.egress.err, a.egress.why = err.Error(), helperError(err)
 	})
 	step("egress-periodic", 700*time.Millisecond, func() {

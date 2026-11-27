@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build release artifacts into dist/ (gitignored):
-#   dist/duet_<version>_<os>_<arch>.tar.gz   the duet CLI and duet-helper
-#   dist/app/                                 duet.app + .dmg (macOS hosts only)
+#   dist/twinnel_<version>_<os>_<arch>.tar.gz   the twinnel CLI and twinnel-helper
+#   dist/app/                                 Twinnel.app + .dmg (macOS hosts only)
 #   dist/SHA256SUMS
 #
 # Usage: scripts/build-release.sh [-v VERSION] [--no-app] [--targets "darwin/arm64 linux/amd64"]
@@ -10,7 +10,7 @@
 # `mygo build` (run through `go run`, pinned to the version in go.mod) and,
 # for signing and the disk image, a macOS host.
 #
-# Signing: the embedded duet and duet-helper, then the .app, are signed with
+# Signing: the embedded twinnel and twinnel-helper, then the .app, are signed with
 # $SIGN_IDENTITY: "-" (the default) is an ad-hoc signature, enough for a
 # self-built copy that Gatekeeper does not quarantine (built locally, never
 # downloaded). For distribution set SIGN_IDENTITY to a "Developer ID
@@ -22,7 +22,7 @@
 # 0.0.0-<commits>-g<hash>[-dirty], which orders like a describe of a tag.
 #
 # Icon: with Xcode 26's actool the app also gets the macOS 26 layered icon
-# (assets/appicon/duet.icon → Assets.car); DUET_REQUIRE_LAYERED_ICON=1 fails
+# (assets/appicon/twinnel.icon → Assets.car); TWINNEL_REQUIRE_LAYERED_ICON=1 fails
 # the build without it (docs/release.md).
 set -euo pipefail
 
@@ -52,21 +52,21 @@ if [ -z "$version" ]; then
 fi
 sign_identity="${SIGN_IDENTITY:--}"
 
-# The macOS 26 layered icon (assets/appicon/duet.icon, Icon Composer) needs
+# The macOS 26 layered icon (assets/appicon/twinnel.icon, Icon Composer) needs
 # actool from Xcode 26. With it, the .icon is compiled to Assets.car in
 # Contents/Resources and named by CFBundleIconName; AppIcon.icns stays as
 # CFBundleIconFile for older macOS. Without it the app keeps the .icns only
-# and the build warns; DUET_REQUIRE_LAYERED_ICON=1 (release CI) makes that
+# and the build warns; TWINNEL_REQUIRE_LAYERED_ICON=1 (release CI) makes that
 # an error.
-layered_icon=assets/appicon/duet.icon
+layered_icon=assets/appicon/twinnel.icon
 add_layered_icon() {
 	local app="$1" out msg
 	if ! xcrun --find actool >/dev/null 2>&1; then
-		if [ "${DUET_REQUIRE_LAYERED_ICON:-0}" = 1 ]; then
-			echo "error: DUET_REQUIRE_LAYERED_ICON=1 but actool (Xcode 26) is not available" >&2
+		if [ "${TWINNEL_REQUIRE_LAYERED_ICON:-0}" = 1 ]; then
+			echo "error: TWINNEL_REQUIRE_LAYERED_ICON=1 but actool (Xcode 26) is not available" >&2
 			exit 1
 		fi
-		echo "    warning: no actool (Xcode 26): duet.app gets the .icns only, no layered macOS 26 icon" >&2
+		echo "    warning: no actool (Xcode 26): Twinnel.app gets the .icns only, no layered macOS 26 icon" >&2
 		return 0
 	fi
 	out="$dist/.actool"
@@ -75,40 +75,40 @@ add_layered_icon() {
 	# icon; macOS 15 and earlier take CFBundleIconFile (our drawn .icns).
 	if ! msg="$(xcrun actool "$layered_icon" --compile "$out" --output-format human-readable-text \
 		--platform macosx --target-device mac --minimum-deployment-target 26.0 \
-		--app-icon duet --output-partial-info-plist "$out/partial.plist" 2>&1)" || [ ! -f "$out/Assets.car" ]; then
+		--app-icon twinnel --output-partial-info-plist "$out/partial.plist" 2>&1)" || [ ! -f "$out/Assets.car" ]; then
 		echo "$msg" >&2
-		if [ "${DUET_REQUIRE_LAYERED_ICON:-0}" = 1 ]; then
+		if [ "${TWINNEL_REQUIRE_LAYERED_ICON:-0}" = 1 ]; then
 			echo "error: actool could not compile $layered_icon" >&2
 			exit 1
 		fi
-		echo "    warning: actool could not compile $layered_icon: duet.app gets the .icns only" >&2
+		echo "    warning: actool could not compile $layered_icon: Twinnel.app gets the .icns only" >&2
 		rm -rf "$out"
 		return 0
 	fi
 	cp "$out/Assets.car" "$app/Contents/Resources/Assets.car"
-	plutil -replace CFBundleIconName -string duet "$app/Contents/Info.plist"
+	plutil -replace CFBundleIconName -string twinnel "$app/Contents/Info.plist"
 	rm -rf "$out"
-	echo "    layered icon: Assets.car (CFBundleIconName duet), .icns kept for macOS 15 and earlier"
+	echo "    layered icon: Assets.car (CFBundleIconName twinnel), .icns kept for macOS 15 and earlier"
 }
 
 dist=dist
 rm -rf "$dist"
 mkdir -p "$dist"
 
-# core/version.Version is duet's version (CLI, app); the helper reports
+# core/version.Version is twinnel's version (CLI, app); the helper reports
 # engine.HelperVersion.
-vflags="-X github.com/l3ony2k/duet/core/version.Version=${version} -X github.com/l3ony2k/duet/core/engine.HelperVersion=${version}"
+vflags="-X github.com/l3ony2k/twinnel/core/version.Version=${version} -X github.com/l3ony2k/twinnel/core/engine.HelperVersion=${version}"
 ldflags="-s -w ${vflags}"
 
 for t in $targets; do
 	os="${t%/*}"
 	arch="${t#*/}"
-	name="duet_${version}_${os}_${arch}"
+	name="twinnel_${version}_${os}_${arch}"
 	out="$dist/$name"
 	mkdir -p "$out"
 	echo "==> $os/$arch"
-	CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "$ldflags" -o "$out/duet" ./cmd/cli
-	CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "$ldflags" -o "$out/duet-helper" ./cmd/helper
+	CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "$ldflags" -o "$out/twinnel" ./cmd/cli
+	CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "$ldflags" -o "$out/twinnel-helper" ./cmd/helper
 	cp LICENSE README.md "$out/" 2>/dev/null || true
 	tar -C "$dist" -czf "$dist/$name.tar.gz" "$name"
 	rm -rf "$out"
@@ -116,10 +116,10 @@ done
 
 if [ "$build_app" = 1 ]; then
 	if [ "$(uname -s)" = Darwin ]; then
-		# duet.app ships the CLI and the helper in Contents/Resources/bin, so
+		# Twinnel.app ships the CLI and the helper in Contents/Resources/bin, so
 		# the first-run 安装后台助手 button works from a packaged app (the app
-		# runs bin/duet helper install --helper-bin bin/duet-helper).
-		# Contents/MacOS/duet is the app itself. mygo copies the project's
+		# runs bin/twinnel helper install --helper-bin bin/twinnel-helper).
+		# Contents/MacOS/Twinnel is the app itself. mygo copies the project's
 		# resources/<goos>-<goarch>/ into the bundle and signs the binaries.
 		app_platform="darwin/arm64"
 		app_arch="${app_platform#*/}"
@@ -134,7 +134,7 @@ if [ "$build_app" = 1 ]; then
 		trap cleanup_app EXIT
 		rm -rf "$res"
 		mkdir -p "$res/darwin-$app_arch/bin"
-		for cmd in cli:duet helper:duet-helper; do
+		for cmd in cli:twinnel helper:twinnel-helper; do
 			CGO_ENABLED=0 GOOS=darwin GOARCH="$app_arch" go build -trimpath -ldflags "$ldflags" \
 				-o "$res/darwin-$app_arch/bin/${cmd#*:}" "./cmd/${cmd%:*}"
 		done
@@ -149,15 +149,15 @@ if [ "$build_app" = 1 ]; then
 		' "$app_json_orig" >"$app_json"
 		grep -q "\"version\": \"${bundle_version}\"" "$app_json" || { echo "could not set the app version in $app_json" >&2; exit 1; }
 		mygo_version="$(go list -m -f '{{.Version}}' github.com/egoist/mygo)"
-		echo "==> duet.app ${bundle_version} (mygo $mygo_version)"
+		echo "==> Twinnel.app ${bundle_version} (mygo $mygo_version)"
 		MYGO_LDFLAGS="$vflags" go run "github.com/egoist/mygo/cmd/mygo@${mygo_version}" build -platform "$app_platform" -o "$PWD/$dist/app" cmd/app
 		cleanup_app
 		trap - EXIT
 		app_bundle="$(find "$dist/app" -maxdepth 2 -name '*.app' -type d | head -n 1)"
-		for f in duet duet-helper; do
+		for f in twinnel twinnel-helper; do
 			[ -x "$app_bundle/Contents/Resources/bin/$f" ] || { echo "missing $f in $app_bundle" >&2; exit 1; }
 		done
-		echo "    bundled: $app_bundle/Contents/Resources/bin/{duet,duet-helper}"
+		echo "    bundled: $app_bundle/Contents/Resources/bin/{twinnel,twinnel-helper}"
 		add_layered_icon "$app_bundle"
 		# Sign inside out: the embedded tools (each with its own identifier,
 		# not the linker's "a.out"), then the bundle; verify; then rebuild
@@ -167,8 +167,8 @@ if [ "$build_app" = 1 ]; then
 			sign_flags+=(--options runtime --timestamp)
 		fi
 		bundle_id="$(sed -nE 's/^[[:space:]]*"identifier":[[:space:]]*"([^"]+)".*/\1/p' "$app_json" | head -n 1)"
-		codesign "${sign_flags[@]}" --identifier "${bundle_id}.cli" "$app_bundle/Contents/Resources/bin/duet"
-		codesign "${sign_flags[@]}" --identifier "${bundle_id}.helper" "$app_bundle/Contents/Resources/bin/duet-helper"
+		codesign "${sign_flags[@]}" --identifier "${bundle_id}.cli" "$app_bundle/Contents/Resources/bin/twinnel"
+		codesign "${sign_flags[@]}" --identifier "${bundle_id}.helper" "$app_bundle/Contents/Resources/bin/twinnel-helper"
 		codesign "${sign_flags[@]}" "$app_bundle"
 		codesign --verify --deep --strict "$app_bundle"
 		echo "    signed: ${sign_identity/#-/ad hoc} ($bundle_id)"
@@ -179,7 +179,7 @@ if [ "$build_app" = 1 ]; then
 			ditto "$app_bundle" "$stage/$(basename "$app_bundle")"
 			ln -s /Applications "$stage/Applications"
 			rm -f "$dmg"
-			hdiutil create -quiet -volname duet -srcfolder "$stage" -ov -format UDZO "$dmg"
+			hdiutil create -quiet -volname twinnel -srcfolder "$stage" -ov -format UDZO "$dmg"
 			rm -rf "$stage"
 			if [ "$sign_identity" != "-" ]; then
 				codesign --force --sign "$sign_identity" --timestamp "$dmg"
@@ -191,7 +191,7 @@ if [ "$build_app" = 1 ]; then
 			echo "    disk image: $dmg"
 		fi
 	else
-		echo "==> skipping duet.app: mygo signs and packages .app bundles on macOS only"
+		echo "==> skipping Twinnel.app: mygo signs and packages .app bundles on macOS only"
 	fi
 fi
 

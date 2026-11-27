@@ -4,19 +4,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/service"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
 func TestParsePlan(t *testing.T) {
 	var b strings.Builder
-	b.WriteString("# duet helper install --dry-run: nothing below has been run.\n")
+	b.WriteString("# twinnel helper install --dry-run: nothing below has been run.\n")
 	service.FormatPlan(&b, []service.Step{
-		{Kind: service.StepMkdir, Path: "/Library/Application Support/duet", Mode: 0o755},
-		{Kind: service.StepCopy, Src: "/x/duet-helper", Path: "/Library/PrivilegedHelperTools/h", Mode: 0o755},
+		{Kind: service.StepMkdir, Path: "/Library/Application Support/twinnel", Mode: 0o755},
+		{Kind: service.StepCopy, Src: "/x/twinnel-helper", Path: "/Library/PrivilegedHelperTools/h", Mode: 0o755},
 		{Kind: service.StepRun, Argv: []string{"/bin/launchctl", "bootout", "system/h"}, IgnoreError: true},
 		{Kind: service.StepWrite, Path: "/Library/LaunchDaemons/h.plist", Mode: 0o644, Content: []byte("<plist>\n</plist>\n")},
 		{Kind: service.StepRun, Argv: []string{"/bin/launchctl", "bootstrap", "system", "/Library/LaunchDaemons/h.plist"}},
-		{Kind: service.StepRun, Argv: []string{"/usr/sbin/groupadd", "--system", "duet"}},
+		{Kind: service.StepRun, Argv: []string{"/usr/sbin/groupadd", "--system", "twinnel"}},
 		{Kind: service.StepWait, Argv: []string{"/bin/launchctl", "print", "system/h"}, Until: "Could not find service", Timeout: 10e9, IgnoreError: true},
 		{Kind: service.StepRun, Argv: []string{"/bin/launchctl", "kickstart", "-k", "system/h"}},
 	})
@@ -25,12 +25,12 @@ func TestParsePlan(t *testing.T) {
 		t.Fatalf("steps = %+v", steps)
 	}
 	want := []string{
-		"创建目录 /Library/Application Support/duet",
+		"创建目录 /Library/Application Support/twinnel",
 		"把后台助手复制到 /Library/PrivilegedHelperTools/h",
 		"停掉旧的后台助手（如果有）",
 		"写入服务定义 /Library/LaunchDaemons/h.plist",
 		"加载服务：后台助手以 root 启动",
-		"/usr/sbin/groupadd --system duet", // not known: the command itself
+		"/usr/sbin/groupadd --system twinnel", // not known: the command itself
 		"等旧的后台助手完全停下",
 		"重新启动后台助手",
 	}

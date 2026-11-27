@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/service"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
 // fakeExec records commands and answers from a table.
@@ -54,7 +54,7 @@ func (f *fakeExec) answer(cmd string, out []byte, err error) {
 
 func TestRenderPlist(t *testing.T) {
 	l := &Launchd{Dir: t.TempDir()}
-	spec := service.MihomoSpec("com.example.mihomo", "/opt/duet/kernels/mihomo/current/mihomo", "/opt/duet/mihomo", "/opt/duet/mihomo/config.yaml", "/opt/duet/logs")
+	spec := service.MihomoSpec("com.example.mihomo", "/opt/twinnel/kernels/mihomo/current/mihomo", "/opt/twinnel/mihomo", "/opt/twinnel/mihomo/config.yaml", "/opt/twinnel/logs")
 	spec.Env = map[string]string{"SAFE_PATHS": "/a & <b>"}
 	b, err := l.Render(spec)
 	if err != nil {
@@ -62,10 +62,10 @@ func TestRenderPlist(t *testing.T) {
 	}
 	for _, want := range []string{
 		"<key>Label</key>\n\t<string>com.example.mihomo</string>",
-		"<string>/opt/duet/kernels/mihomo/current/mihomo</string>\n\t\t<string>-d</string>\n\t\t<string>/opt/duet/mihomo</string>\n\t\t<string>-f</string>",
+		"<string>/opt/twinnel/kernels/mihomo/current/mihomo</string>\n\t\t<string>-d</string>\n\t\t<string>/opt/twinnel/mihomo</string>\n\t\t<string>-f</string>",
 		"<key>KeepAlive</key>\n\t<true/>",
 		"<key>ThrottleInterval</key>\n\t<integer>10</integer>",
-		"<string>/opt/duet/logs/mihomo.err.log</string>",
+		"<string>/opt/twinnel/logs/mihomo.err.log</string>",
 		"<string>/a &amp; &lt;b&gt;</string>",
 		"<key>UserName</key>\n\t<string>root</string>",
 	} {
@@ -92,7 +92,7 @@ func TestRenderPlist(t *testing.T) {
 func TestPlans(t *testing.T) {
 	dir := t.TempDir()
 	l := &Launchd{Dir: dir, Launchctl: "/bin/launchctl"}
-	spec := service.HelperSpec("com.example.helper", "/Library/PrivilegedHelperTools/com.example.helper", "/x/state", "/var/run/duet/helper.sock", "/x/state/logs")
+	spec := service.HelperSpec("com.example.helper", "/Library/PrivilegedHelperTools/com.example.helper", "/x/state", "/var/run/twinnel/helper.sock", "/x/state/logs")
 
 	steps, err := l.Plan(service.OpInstall, spec)
 	if err != nil {

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 func planText(steps []service.Step) string {
@@ -17,21 +17,21 @@ func planText(steps []service.Step) string {
 }
 
 func TestHelperInstallPlan(t *testing.T) {
-	steps, err := HelperInstallPlan("/tmp/build/duet-helper", store.DefaultDir, rpc.DefaultSocket, store.DefaultHelperLabel, "sudo", true)
+	steps, err := HelperInstallPlan("/tmp/build/twinnel-helper", store.DefaultDir, rpc.DefaultSocket, store.DefaultHelperLabel, "sudo", true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	out := planText(steps)
 	t.Log("\n" + out)
 	for _, s := range []string{
-		"install -m 0755 /tmp/build/duet-helper /usr/local/libexec/duet-helper",
-		"install -d -m 0755 /var/lib/duet",
-		"install -d -m 0755 /var/run/duet",
-		"/etc/systemd/system/duet-helper.service",
-		"--state-dir /var/lib/duet",
+		"install -m 0755 /tmp/build/twinnel-helper /usr/local/libexec/twinnel-helper",
+		"install -d -m 0755 /var/lib/twinnel",
+		"install -d -m 0755 /var/run/twinnel",
+		"/etc/systemd/system/twinnel-helper.service",
+		"--state-dir /var/lib/twinnel",
 		"--group sudo",
 		"daemon-reload",
-		"enable duet-helper",
+		"enable twinnel-helper",
 	} {
 		if !strings.Contains(out, s) {
 			t.Errorf("%q not in plan:\n%s", s, out)
@@ -41,9 +41,9 @@ func TestHelperInstallPlan(t *testing.T) {
 		t.Errorf("macOS paths, groupadd or log files in plan:\n%s", out)
 	}
 
-	steps, _ = HelperInstallPlan("/b/duet-helper", "/srv/duet", rpc.DefaultSocket, "my-helper", "duet", false)
+	steps, _ = HelperInstallPlan("/b/twinnel-helper", "/srv/twinnel", rpc.DefaultSocket, "my-helper", "twinnel", false)
 	out = planText(steps)
-	if !strings.Contains(out, "/usr/sbin/groupadd --system duet") || !strings.Contains(out, "--state-dir /srv/duet") || !strings.Contains(out, "my-helper.service") {
+	if !strings.Contains(out, "/usr/sbin/groupadd --system twinnel") || !strings.Contains(out, "--state-dir /srv/twinnel") || !strings.Contains(out, "my-helper.service") {
 		t.Errorf("plan:\n%s", out)
 	}
 
@@ -52,7 +52,7 @@ func TestHelperInstallPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	out = planText(steps)
-	if !strings.Contains(out, "disable --now duet-helper") || !strings.Contains(out, "rm -f /usr/local/libexec/duet-helper") || strings.Contains(out, "/var/lib/duet") {
+	if !strings.Contains(out, "disable --now twinnel-helper") || !strings.Contains(out, "rm -f /usr/local/libexec/twinnel-helper") || strings.Contains(out, "/var/lib/twinnel") {
 		t.Errorf("uninstall plan:\n%s", out)
 	}
 }

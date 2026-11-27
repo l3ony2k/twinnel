@@ -74,7 +74,7 @@ func (b *busySpan) track(busy bool, now time.Time) {
 // running while busy is true; e keeps the timing (ui.Local), so each
 // control has its own, and frames are scheduled for the changes.
 func showBusy(c *ui.Context, e ui.Element, busy bool) bool {
-	st := ui.Local(e, "duet.busy", func() busySpan { return busySpan{} })
+	st := ui.Local(e, "twinnel.busy", func() busySpan { return busySpan{} })
 	if st == nil {
 		return false
 	}
@@ -114,7 +114,7 @@ func turningIcon(c *ui.Context, icon *ui.SVG, turning bool) ui.Element {
 		}
 		return e
 	}
-	st := ui.Local(e, "duet.turn", func() turnState { return turnState{} })
+	st := ui.Local(e, "twinnel.turn", func() turnState { return turnState{} })
 	if st == nil {
 		return e
 	}

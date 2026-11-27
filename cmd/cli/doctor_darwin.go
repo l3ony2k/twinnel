@@ -3,8 +3,8 @@
 package main
 
 import (
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/platform/darwin"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/platform/darwin"
 )
 
 const configDiscovery = "discovered from the mihomo LaunchDaemon"

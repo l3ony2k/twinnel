@@ -11,14 +11,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/config"
+	"github.com/l3ony2k/twinnel/core/config"
 )
 
 func init() {
 	register("compose", "compose a mihomo config from a subscription and override layers", runCompose)
 }
 
-const composeUsage = `usage: duet compose --sub FILE [flags]
+const composeUsage = `usage: twinnel compose --sub FILE [flags]
 
 Builds the final mihomo config: subscription → --base → --layer/--verge (in
 the order given) → Tailscale coexist → leak guard. Nothing is written unless

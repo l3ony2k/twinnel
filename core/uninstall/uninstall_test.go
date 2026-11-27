@@ -4,21 +4,21 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 func facts(info *rpc.HelperInfo) Facts {
 	return Facts{
-		Info: info, HelperService: "/L/com.l3ony2k.duet.helper.plist", HelperBinary: "/P/com.l3ony2k.duet.helper",
-		Socket: "/var/run/duet/helper.sock", StateDir: "/S/duet", SecretStore: "keychain",
+		Info: info, HelperService: "/L/com.l3ony2k.twinnel.helper.plist", HelperBinary: "/P/com.l3ony2k.twinnel.helper",
+		Socket: "/var/run/twinnel/helper.sock", StateDir: "/S/twinnel", SecretStore: "keychain",
 		OldPlistExists: func(string) bool { return true },
 	}
 }
 
 func hardened() *rpc.HelperInfo {
 	return &rpc.HelperInfo{
-		StateDir:   "/S/duet",
-		Mihomo:     rpc.HelperMihomoService{Label: "com.l3ony2k.duet.mihomo", Installed: true, Controller: "127.0.0.1:9090"},
+		StateDir:   "/S/twinnel",
+		Mihomo:     rpc.HelperMihomoService{Label: "com.l3ony2k.twinnel.mihomo", Installed: true, Controller: "127.0.0.1:9090"},
 		Hardened:   &rpc.HelperHardened{PlanID: "h1", OldLabel: "com.mihomo.proxy", OldPlist: "/L/com.mihomo.proxy.plist"},
 		SecretKeys: []string{"controller-secret", "subscription-url/adopted"},
 	}
@@ -49,10 +49,10 @@ func TestHardenedRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := p.Restore
-	if r == nil || r.FromLabel != "com.l3ony2k.duet.mihomo" || r.ToLabel != "com.mihomo.proxy" || r.ToPlist != "/L/com.mihomo.proxy.plist" || r.Controller != "127.0.0.1:9090" {
+	if r == nil || r.FromLabel != "com.l3ony2k.twinnel.mihomo" || r.ToLabel != "com.mihomo.proxy" || r.ToPlist != "/L/com.mihomo.proxy.plist" || r.Controller != "127.0.0.1:9090" {
 		t.Fatalf("restore = %+v", r)
 	}
-	for _, k := range []Kind{HelperService, HelperBinary, HelperSocket, DuetMihomo, StateDir, Secrets} {
+	for _, k := range []Kind{HelperService, HelperBinary, HelperSocket, TwinnelMihomo, StateDir, Secrets} {
 		if !p.Removes(k) {
 			t.Errorf("does not remove %s: %+v", k, p.Remove)
 		}
@@ -74,13 +74,13 @@ func TestHardenedKeep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Restore != nil || p.Removes(StateDir) || p.Removes(DuetMihomo) {
+	if p.Restore != nil || p.Removes(StateDir) || p.Removes(TwinnelMihomo) {
 		t.Fatalf("plan = %+v", p)
 	}
 }
 
 func TestOwnMihomoRefusesPurge(t *testing.T) {
-	info := &rpc.HelperInfo{Mihomo: rpc.HelperMihomoService{Label: "com.l3ony2k.duet.mihomo", Installed: true}}
+	info := &rpc.HelperInfo{Mihomo: rpc.HelperMihomoService{Label: "com.l3ony2k.twinnel.mihomo", Installed: true}}
 	_, err := Make(facts(info), Options{Purge: true})
 	refusal(t, err, OwnMihomo)
 	p, err := Make(facts(info), Options{})
@@ -90,7 +90,7 @@ func TestOwnMihomoRefusesPurge(t *testing.T) {
 }
 
 func TestAdoptedPurge(t *testing.T) {
-	info := &rpc.HelperInfo{StateDir: "/S/duet", Subscriptions: 1, Layers: 3,
+	info := &rpc.HelperInfo{StateDir: "/S/twinnel", Subscriptions: 1, Layers: 3,
 		Mihomo: rpc.HelperMihomoService{Label: "com.mihomo.proxy", Adopted: true, Installed: true}}
 	p, err := Make(facts(info), Options{Purge: true})
 	if err != nil {

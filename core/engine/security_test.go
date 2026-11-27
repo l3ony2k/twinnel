@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/kernel"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/core/takeover"
+	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/core/takeover"
 )
 
 // asRoot makes the engine believe it runs as root (owner checks on).

@@ -12,16 +12,16 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/takeover"
-	"github.com/l3ony2k/duet/platform/darwin/takeoverprobe"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/takeover"
+	"github.com/l3ony2k/twinnel/platform/darwin/takeoverprobe"
 )
 
 func init() {
 	register("takeover", "inspect a hand-made mihomo + Tailscale setup and write a takeover plan (read-only)", runTakeover)
 }
 
-const takeoverUsage = `usage: duet takeover plan [--base FILE] [--out DIR] [flags]
+const takeoverUsage = `usage: twinnel takeover plan [--base FILE] [--out DIR] [flags]
 
 Finds the running mihomo service and Tailscale, picks the subscription the
 live config was built from, derives override layers (base settings, user
@@ -31,7 +31,7 @@ and the composed config into DIR (default: a new temp dir) and prints a
 summary. Nothing on the system is changed.
 
 With --via-helper the helper makes the plan itself and keeps it under its
-state dir; adopt it with ` + "`duet helper adopt PLAN_ID`" + `.
+state dir; adopt it with ` + "`twinnel helper adopt PLAN_ID`" + `.
 
 flags:
 `
@@ -56,7 +56,7 @@ func runTakeover(args []string) error {
 	fs.StringVar(&opt.MihomoBin, "mihomo", "", "mihomo `BIN` for validation (default: the service's binary)")
 	fs.BoolVar(&opt.NoValidate, "no-validate", false, "skip mihomo -t")
 	fs.BoolVar(&asJSON, "json", false, "print plan.json instead of the summary")
-	fs.BoolVar(&viaHelper, "via-helper", false, "let the helper make the plan and keep it under its state dir (for 'duet helper adopt')")
+	fs.BoolVar(&viaHelper, "via-helper", false, "let the helper make the plan and keep it under its state dir (for 'twinnel helper adopt')")
 	fs.StringVar(&socket, "socket", rpc.SocketFromEnv(), "helper socket `PATH` (with --via-helper)")
 	if err := fs.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -80,7 +80,7 @@ func runTakeover(args []string) error {
 		return err
 	}
 	if out == "" {
-		if out, err = os.MkdirTemp("", "duet-takeover-"); err != nil {
+		if out, err = os.MkdirTemp("", "twinnel-takeover-"); err != nil {
 			return err
 		}
 	} else if entries, err := os.ReadDir(out); err == nil && len(entries) > 0 {

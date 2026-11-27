@@ -1,6 +1,6 @@
 package main
 
-// duet helper uninstall / upgrade / restart: the helper's own lifecycle.
+// twinnel helper uninstall / upgrade / restart: the helper's own lifecycle.
 // Each runs as root the same way as install (one administrator prompt
 // through osascript), and none of them restarts or reloads mihomo or
 // tailscaled, except the documented move back of a hardened mihomo that
@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/core/uninstall"
-	"github.com/l3ony2k/duet/core/version"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/core/uninstall"
+	"github.com/l3ony2k/twinnel/core/version"
 )
 
 // Replaceable in tests (no test may reach a real helper, mihomo or binary
@@ -39,7 +39,7 @@ var (
 		defer c.Close()
 		return c.Call(ctx, method, params, result)
 	}
-	// binaryVersion runs `<bin> --version` ("duet-helper 1.2.3").
+	// binaryVersion runs `<bin> --version` ("twinnel-helper 1.2.3").
 	binaryVersion = func(ctx context.Context, bin string) (string, error) {
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
@@ -76,19 +76,19 @@ var (
 
 // ---- uninstall ----
 
-const uninstallUsage = `usage: duet helper uninstall [--purge] [--restore-mihomo | --keep-mihomo] [--dry-run] [--yes] [--json]
+const uninstallUsage = `usage: twinnel helper uninstall [--purge] [--restore-mihomo | --keep-mihomo] [--dry-run] [--yes] [--json]
 
 Removes the helper (its service, binary and socket). Lists exactly what goes
 and what stays first.
 
---purge           also delete duet's data: the state dir (settings,
+--purge           also delete Twinnel's data: the state dir (settings,
                   subscriptions, layers, history, logs, backups, kernels)
                   and the keychain items.
---restore-mihomo  after "duet helper harden": move mihomo back to the
+--restore-mihomo  after "twinnel helper harden": move mihomo back to the
                   service it ran under before (a few seconds offline),
                   then remove the helper.
---keep-mihomo     after "duet helper harden": leave mihomo running from
-                  duet's LaunchDaemon, unmanaged (not with --purge).
+--keep-mihomo     after "twinnel helper harden": leave mihomo running from
+                  Twinnel's LaunchDaemon, unmanaged (not with --purge).
 
 `
 
@@ -96,9 +96,9 @@ func runHelperUninstall(args []string) error {
 	fs, f := newInstallFlags("helper uninstall", false)
 	var o uninstall.Options
 	var asJSON bool
-	fs.BoolVar(&o.Purge, "purge", false, "also delete duet's data (state dir and keychain items)")
+	fs.BoolVar(&o.Purge, "purge", false, "also delete Twinnel's data (state dir and keychain items)")
 	fs.BoolVar(&o.RestoreMihomo, "restore-mihomo", false, "after harden: move mihomo back to its original service first")
-	fs.BoolVar(&o.KeepMihomo, "keep-mihomo", false, "after harden: leave mihomo running from duet's LaunchDaemon")
+	fs.BoolVar(&o.KeepMihomo, "keep-mihomo", false, "after harden: leave mihomo running from Twinnel's LaunchDaemon")
 	fs.BoolVar(&asJSON, "json", false, "with --dry-run: print the plan (or the refusal) as JSON")
 	fs.Usage = func() { fmt.Fprint(fs.Output(), uninstallUsage); fs.PrintDefaults() }
 	if _, done, err := parse(fs, args); done || err != nil {
@@ -206,8 +206,8 @@ func infoFromSettings(stateDir string) *rpc.HelperInfo {
 }
 
 // purgeSteps delete the keychain items and the state dir. The state dir is
-// removed with rm -rf, so it must look like duet's: absolute, not a
-// top-level dir, named duet.
+// removed with rm -rf, so it must look like Twinnel's: absolute, not a
+// top-level dir, named Twinnel.
 func purgeSteps(p uninstall.Plan, stateDir string) ([]service.Step, error) {
 	var steps []service.Step
 	for _, it := range p.Remove {
@@ -220,8 +220,8 @@ func purgeSteps(p uninstall.Plan, stateDir string) ([]service.Step, error) {
 			steps = append(steps, planSecretsDelete(keys)...)
 		case uninstall.StateDir:
 			dir := filepath.Clean(it.Path)
-			if !filepath.IsAbs(dir) || filepath.Dir(dir) == "/" || !strings.Contains(strings.ToLower(filepath.Base(dir)), "duet") {
-				return nil, fmt.Errorf("refusing to delete %q: not duet's state dir", it.Path)
+			if !filepath.IsAbs(dir) || filepath.Dir(dir) == "/" || !strings.Contains(strings.ToLower(filepath.Base(dir)), "twinnel") {
+				return nil, fmt.Errorf("refusing to delete %q: not Twinnel's state dir", it.Path)
 			}
 			steps = append(steps, service.Step{Kind: service.StepRun, Argv: []string{"/bin/rm", "-rf", "--", dir}})
 		}
@@ -230,8 +230,8 @@ func purgeSteps(p uninstall.Plan, stateDir string) ([]service.Step, error) {
 }
 
 // runUninstall runs as root: the move back of a hardened mihomo first
-// (stop duet's, wait until its controller is gone, start the original,
-// wait until it answers; start duet's again if it does not), then the
+// (stop Twinnel's, wait until its controller is gone, start the original,
+// wait until it answers; start Twinnel's again if it does not), then the
 // helper's removal, then the purge.
 func runUninstall(ctx context.Context, p uninstall.Plan, steps, purge []service.Step, stateDir string) error {
 	if r := p.Restore; r != nil {
@@ -264,7 +264,7 @@ func restoreMihomo(ctx context.Context, r *uninstall.Restore, purge bool, stateD
 	startErr := applyPlan(ctx, start)
 	if startErr == nil && waitController(ctx, r.Controller, true, restoreTimeouts.up) {
 		fmt.Fprintf(stdout, "# mihomo: %s answers at %s\n", r.ToLabel, r.Controller)
-		// duet's plist goes; without --purge a copy stays in the state dir.
+		// Twinnel's plist goes; without --purge a copy stays in the state dir.
 		def := serviceDefinition(r.FromLabel)
 		var after []service.Step
 		if !purge {
@@ -350,46 +350,46 @@ func describeItem(it uninstall.Item) string {
 	case uninstall.HelperSocket:
 		return "helper socket " + it.Path
 	case uninstall.StateDir:
-		s := "duet's data " + it.Path + " (settings, subscriptions, layers, history, logs, backups, kernels)"
+		s := "Twinnel's data " + it.Path + " (settings, subscriptions, layers, history, logs, backups, kernels)"
 		if it.Subscriptions > 0 || it.Layers > 0 {
 			s += fmt.Sprintf(": %d subscriptions, %d layers", it.Subscriptions, it.Layers)
 		}
 		return s
 	case uninstall.Secrets:
 		if len(it.Names) == 0 {
-			return "keychain items duet.*"
+			return "keychain items twinnel.*"
 		}
 		names := make([]string, len(it.Names))
 		for i, n := range it.Names {
-			names[i] = "duet." + n
+			names[i] = "twinnel." + n
 		}
 		return "keychain items " + strings.Join(names, ", ")
-	case uninstall.DuetMihomo:
-		return "duet's mihomo service " + it.Path
+	case uninstall.TwinnelMihomo:
+		return "Twinnel's mihomo service " + it.Path
 	case uninstall.OriginalMihomo:
 		return "mihomo's original service " + it.Path + " (and its binary and config)"
 	case uninstall.Tailscale:
 		return "Tailscale (not touched)"
 	case uninstall.App:
-		return "duet.app and the duet command"
+		return "Twinnel.app and the twinnel command"
 	}
 	return string(it.Kind) + " " + it.Path
 }
 
 // ---- upgrade ----
 
-const upgradeUsage = `usage: duet helper upgrade [--check] [--force] [--dry-run] [--yes] [--json]
+const upgradeUsage = `usage: twinnel helper upgrade [--check] [--force] [--dry-run] [--yes] [--json]
 
-Replaces the installed helper with the one next to this duet (or
+Replaces the installed helper with the one next to this Twinnel (or
 --helper-bin) when they differ, restarts only the helper's service and
 waits until it answers with the new version. mihomo and tailscaled are not
 touched. Refuses to install an older helper unless --force.
 
 `
 
-// UpgradeCheck is `duet helper upgrade --check --json`.
+// UpgradeCheck is `twinnel helper upgrade --check --json`.
 type UpgradeCheck struct {
-	Bundled     string `json:"bundled"`                // version of the helper next to duet
+	Bundled     string `json:"bundled"`                // version of the helper next to Twinnel
 	BundledPath string `json:"bundled_path"`           //
 	Installed   string `json:"installed,omitempty"`    // version of the installed binary
 	Running     string `json:"running,omitempty"`      // version the running helper reports
@@ -404,7 +404,7 @@ const (
 	UpgradeInstall      = "upgrade"       // the bundled helper is newer (or another build)
 	UpgradeRestart      = "restart"       // the binary is current, the running process is not
 	UpgradeDowngrade    = "downgrade"     // the bundled helper is older: --force
-	UpgradeNotInstalled = "not-installed" // duet helper install
+	UpgradeNotInstalled = "not-installed" // twinnel helper install
 )
 
 func runHelperUpgrade(args []string) error {
@@ -455,7 +455,7 @@ func helperUpgrade(ctx context.Context, f *installFlags, c UpgradeCheck, force b
 	case UpgradeNone:
 		return nil
 	case UpgradeNotInstalled:
-		return errors.New("the helper is not installed: duet helper install")
+		return errors.New("the helper is not installed: twinnel helper install")
 	case UpgradeDowngrade:
 		if !force {
 			return fmt.Errorf("the bundled helper %s is older than the installed %s; pass --force to install it anyway", c.Bundled, c.Installed)
@@ -603,7 +603,7 @@ func printUpgradeCheck(w io.Writer, c UpgradeCheck) {
 		UpgradeInstall:      "the installed helper will be replaced",
 		UpgradeRestart:      "the helper will be restarted",
 		UpgradeDowngrade:    "the bundled helper is OLDER than the installed one (--force to install it anyway)",
-		UpgradeNotInstalled: "not installed (duet helper install)",
+		UpgradeNotInstalled: "not installed (twinnel helper install)",
 	}[c.Action]
 	if c.Detail != "" {
 		text += " (" + c.Detail + ")"

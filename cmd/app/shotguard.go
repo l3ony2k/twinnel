@@ -8,34 +8,34 @@ import (
 	"os/user"
 	"path/filepath"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
-// shotGuard refuses a shot run (DUET_SHOTS set) that could reach the
+// shotGuard refuses a shot run (TWINNEL_SHOTS set) that could reach the
 // owner's live stack or show their machine in a picture. It must name
 //
-//   - a scratch helper socket (DUET_SOCKET, never the installed helper's);
-//   - a fake controller (DUET_CONTROLLER, never port 9090);
-//   - a synthetic tailnet (DUET_TAILSCALE_STATUS_FILE, a readable file);
+//   - a scratch helper socket (TWINNEL_SOCKET, never the installed helper's);
+//   - a fake controller (TWINNEL_CONTROLLER, never port 9090);
+//   - a synthetic tailnet (TWINNEL_TAILSCALE_STATUS_FILE, a readable file);
 //   - a scratch HOME (set, absolute, not the user's real home), since the
 //     app's config, logs and takeover paths live under it.
 //
 // The health checks and the live-setup detection then read fixtures
 // (probes.go). A normal run passes.
 func shotGuard(getenv func(string) string) error {
-	if getenv("DUET_SHOTS") == "" {
+	if getenv("TWINNEL_SHOTS") == "" {
 		return nil
 	}
-	if s := getenv("DUET_SOCKET"); s == "" || filepath.Clean(s) == rpc.DefaultSocket {
-		return errors.New("shots need DUET_SOCKET set to a scratch helper's socket, not the installed helper's")
+	if s := getenv("TWINNEL_SOCKET"); s == "" || filepath.Clean(s) == rpc.DefaultSocket {
+		return errors.New("shots need TWINNEL_SOCKET set to a scratch helper's socket, not the installed helper's")
 	}
-	c := getenv("DUET_CONTROLLER")
+	c := getenv("TWINNEL_CONTROLLER")
 	if c == "" {
-		return errors.New("shots need DUET_CONTROLLER set to a fake mihomo controller")
+		return errors.New("shots need TWINNEL_CONTROLLER set to a fake mihomo controller")
 	}
 	if _, port, err := net.SplitHostPort(c); err != nil || port == "9090" {
-		return errors.New("shots refuse DUET_CONTROLLER " + c + ": port 9090 is the live mihomo")
+		return errors.New("shots refuse TWINNEL_CONTROLLER " + c + ": port 9090 is the live mihomo")
 	}
 	f := getenv(tailscale.StatusFileEnv)
 	if f == "" {

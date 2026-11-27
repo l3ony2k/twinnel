@@ -37,7 +37,7 @@ DIRECT. The trade-off: a guarded group can still leak through a nested
 group that lists DIRECT, or through one that is empty at run time (a failed
 provider, a filter that matches nothing). The leak guard warns about both.
 
-The generator option `leak_guard_nested: true` (`duet compose
+The generator option `leak_guard_nested: true` (`twinnel compose
 --leak-guard-nested`) also sets `empty-fallback: REJECT` on nested groups
 that only guarded groups use. A nested group counts as shared, and is left
 alone, when an unguarded group lists it or when a rule, a sub-rule, a
@@ -56,4 +56,4 @@ nested groups are never removed; move DIRECT out of such a group yourself.
 | `'<+.lan>': ...` | literal key containing `+`/`!` (markers go outside: `'<a+>+'`) |
 
 Clash Verge Rev "Merge" files (`prepend-rules`, `append-proxies`, ...) are
-converted with `config.ImportVergeMerge` / `duet compose --verge FILE`.
+converted with `config.ImportVergeMerge` / `twinnel compose --verge FILE`.

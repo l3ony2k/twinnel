@@ -11,9 +11,9 @@ import (
 
 // TestLive runs read-only requests against a real controller:
 //
-//	DUET_CONTROLLER=127.0.0.1:9090 DUET_MIHOMO_SECRET=... go test -tags live ./core/mihomo
+//	TWINNEL_CONTROLLER=127.0.0.1:9090 TWINNEL_MIHOMO_SECRET=... go test -tags live ./core/mihomo
 func TestLive(t *testing.T) {
-	c, err := New(Options{Address: os.Getenv("DUET_CONTROLLER"), Secret: os.Getenv("DUET_MIHOMO_SECRET")})
+	c, err := New(Options{Address: os.Getenv("TWINNEL_CONTROLLER"), Secret: os.Getenv("TWINNEL_MIHOMO_SECRET")})
 	if err != nil {
 		t.Fatal(err)
 	}

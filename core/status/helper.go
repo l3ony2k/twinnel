@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // HelperState is how the app stands with the root helper.
@@ -79,7 +79,7 @@ type HelperConn struct {
 	Socket string
 	// Installed reports whether a helper is installed, to tell "not
 	// installed" from "not running" when the socket is missing. nil:
-	// installed is assumed (a socket from DUET_SOCKET, a dev run).
+	// installed is assumed (a socket from TWINNEL_SOCKET, a dev run).
 	Installed func() bool
 	Dial      HelperDialer // default: rpc.Dial over the unix transport
 	// OnChange is called (on a connection goroutine) after the state or

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 func init() {
@@ -85,12 +85,12 @@ func appConfigPath() string {
 	if err != nil {
 		return ""
 	}
-	return dir + "/duet/app.json"
+	return dir + "/twinnel/app.json"
 }
 
 func statusText(s status.Snapshot) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "duet: %s (%s)\n", s.Level.Text(), s.Level)
+	fmt.Fprintf(&b, "twinnel: %s (%s)\n", s.Level.Text(), s.Level)
 	for _, r := range s.Reasons {
 		fmt.Fprintf(&b, "  - [%s] %s\n", r.Level, r.Text)
 	}

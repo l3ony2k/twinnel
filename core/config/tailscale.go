@@ -152,7 +152,7 @@ func TailscaleCoexist(info TailnetInfo) ([]byte, error) {
 	add("IP-CIDR6," + v6 + ",DIRECT,no-resolve")
 
 	root := newMap()
-	root.HeadComment = "Managed by duet: Tailscale coexistence. Regenerated when the tailnet changes; do not edit."
+	root.HeadComment = "Managed by twinnel: Tailscale coexistence. Regenerated when the tailnet changes; do not edit."
 	root.Content = append(root.Content, newStr("tun"), tun)
 	if hosts != nil {
 		root.Content = append(root.Content, newStr("hosts"), hosts)

@@ -12,13 +12,13 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/assets/appicon"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/update"
-	"github.com/l3ony2k/duet/core/version"
+	"github.com/l3ony2k/twinnel/assets/appicon"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/update"
+	"github.com/l3ony2k/twinnel/core/version"
 )
 
 // The 关于 page: the app's version with a manual update check, the
@@ -32,7 +32,7 @@ type aboutView struct {
 	res      update.Result
 	err      error // the failed check; worded when drawn, in the UI language of the moment (N15)
 
-	cliVersion string // `duet version --short`; "" unknown
+	cliVersion string // `twinnel version --short`; "" unknown
 	cliLoaded  bool
 
 	faqOpen map[string]bool
@@ -117,7 +117,7 @@ func (a *app) checkUpdate() {
 }
 
 // updateFailText is a failed check in the UI language: the reason in
-// words when duet knows it, else 检查失败 alone (the system's text is the
+// words when Twinnel knows it, else 检查失败 alone (the system's text is the
 // tooltip). Never the system's English, and never a reason worded in
 // another language (walkthrough 2, N15).
 func updateFailText(err error) string {
@@ -156,7 +156,7 @@ func (a *app) aboutHeader(c *ui.Context) {
 	groupBox(c, t).Padding(16, groupPadX).Children(func() {
 		ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() {
 			if appIconImage != nil {
-				ui.Image(c, appIconImage).Size(64, 64).Shrink(0).Label("duet")
+				ui.Image(c, appIconImage).Size(64, 64).Shrink(0).Label("twinnel")
 			}
 			ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 				ui.Text(c, T.AppName).FontSize(plat.titleSize).FontWeight(plat.titleWeight).SingleLine()
@@ -216,7 +216,7 @@ func (a *app) updateOutcome(c *ui.Context) {
 	}
 }
 
-// aboutComponents: every component's version (core/version, what `duet
+// aboutComponents: every component's version (core/version, what `Twinnel
 // version` reports), from what the app already knows: no extra reads
 // besides the CLI's own --short.
 func (a *app) aboutComponents(c *ui.Context, s status.Snapshot) {
@@ -272,7 +272,7 @@ func (a *app) aboutBasics(c *ui.Context, s status.Snapshot) {
 	card(c, T.AboutBasics, func() {
 		pathRow(c, "prefs", T.AppPrefs, a.cfgPath)
 		// The config the running mihomo uses: the helper's own path is
-		// duet's default until the takeover.
+		// Twinnel's default until the takeover.
 		if p := a.liveConfigPath(s); p != "" {
 			pathRow(c, "mihomo-config", T.MihomoConfigRow, p)
 		} else if a.live.loaded || a.shotMode {
@@ -488,7 +488,7 @@ func aboutLinks(c *ui.Context) {
 }
 
 // pathRow is a file row: its name (the path in the tooltip) and 在
-// Finder 中显示 as a muted icon at the row's end, as on 停止使用 duet: the
+// Finder 中显示 as a muted icon at the row's end, as on 停止使用 twinnel: the
 // accent stays for actions (R-unslop-10).
 func pathRow(c *ui.Context, key, label, path string) {
 	kvWith(c.Key(key), label, func() {

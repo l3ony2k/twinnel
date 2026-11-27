@@ -2,9 +2,9 @@ package rpc
 
 import "time"
 
-// Local AI agents (`duet mcp`, docs/agents.md). The tier switches live in
+// Local AI agents (`twinnel mcp`, docs/agents.md). The tier switches live in
 // the helper's settings so they hold for every client; agent.record keeps
-// what an agent changed, for 日志 → duet and 设置 → 本地 Agent.
+// what an agent changed, for 日志 → Twinnel and 设置 → 本地 Agent.
 const (
 	// MethodAgentRecord appends one agent action to the activity log and
 	// publishes EventAgentAction. The caller redacts Args before sending.
@@ -13,7 +13,7 @@ const (
 	MethodAgentActivity = "agent.activity"
 )
 
-// EventAgentAction: a local agent changed something through duet (data:
+// EventAgentAction: a local agent changed something through Twinnel (data:
 // AgentAction).
 const EventAgentAction = "agent.action"
 
@@ -26,7 +26,7 @@ const (
 
 // AgentSettings are the switches of 设置 → 本地 Agent.
 type AgentSettings struct {
-	// MCP: `duet mcp` serves tools at all. Off: every tool answers that
+	// MCP: `twinnel mcp` serves tools at all. Off: every tool answers that
 	// MCP is turned off in the app.
 	MCP bool `json:"mcp"`
 	// Operate: the reversible operate tools (default on).

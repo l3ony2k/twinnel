@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
 )
 
 // A synthetic `ps -axo pid=,rss=,pcpu=,etime=,comm=`.
@@ -64,7 +64,7 @@ func TestProcessMatch(t *testing.T) {
 		"/opt/mihomo/mihomo-darwin-arm64-v2": true,
 		"/usr/bin/clash-meta":                true,
 		"/tmp/h/bin/fakemihomo":              false,
-		"/Applications/duet.app/duet":        false,
+		"/Applications/Twinnel.app/twinnel":  false,
 	} {
 		if IsMihomoCommand(cmd) != want {
 			t.Errorf("mihomo %s: %v", cmd, !want)

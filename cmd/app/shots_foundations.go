@@ -9,19 +9,19 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // rowForce, set only by the foundations shot flow, draws every rowFill
 // row as hovered, so a capture shows the fill's extent.
 var rowForce string
 
-// foundationsShots (DUET_SHOTS_FLOW=foundations) checks the shared layout
+// foundationsShots (TWINNEL_SHOTS_FLOW=foundations) checks the shared layout
 // rules on every page: list rows' fills edge to edge, headings on the
 // column's edge, technical values in mono, controls in kv rows at their
-// natural width. With DUET_SHOTS_WRITE=1 against a scratch helper it
-// first seeds a synthetic subscription (DUET_POLISH_DATA) and two
+// natural width. With TWINNEL_SHOTS_WRITE=1 against a scratch helper it
+// first seeds a synthetic subscription (TWINNEL_POLISH_DATA) and two
 // overrides, so 订阅与覆写 has rows.
 func (a *app) foundationsShots(save func(*mygo.Window, string)) {
 	on := func(fn func()) { mygo.RunOnMain(func() { fn(); a.invalidate() }) }
@@ -38,7 +38,7 @@ func (a *app) foundationsShots(save func(*mygo.Window, string)) {
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	if os.Getenv("DUET_SHOTS_WRITE") == "1" {
+	if os.Getenv("TWINNEL_SHOTS_WRITE") == "1" {
 		call := func(method string, p any) {
 			var hc *status.HelperConn
 			mygo.RunOnMain(func() { hc = a.hc })
@@ -51,7 +51,7 @@ func (a *app) foundationsShots(save func(*mygo.Window, string)) {
 			}
 			cancel()
 		}
-		sub, _ := os.ReadFile(filepath.Join(os.Getenv("DUET_POLISH_DATA"), "subscription.yaml"))
+		sub, _ := os.ReadFile(filepath.Join(os.Getenv("TWINNEL_POLISH_DATA"), "subscription.yaml"))
 		mins := 1440
 		call(rpc.MethodSubPut, rpc.SubPutParams{ID: "main", Name: "Example Cloud", Content: string(sub), IntervalMinutes: &mins})
 		call(rpc.MethodSubActivate, rpc.IDParams{ID: "main"})

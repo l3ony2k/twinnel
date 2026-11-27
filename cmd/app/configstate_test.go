@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 func testManifest() *rpc.LayerManifest {
@@ -117,7 +117,7 @@ func TestHistoryReasonLegacy(t *testing.T) {
 	}
 }
 
-// 日志 → duet: a failed apply is one line in words (no HTTP, no 应用 twice),
+// 日志 → twinnel: a failed apply is one line in words (no HTTP, no 应用 twice),
 // and an edit names what it changed (walkthrough 2, N6 and N7).
 func TestDescribeEventWords(t *testing.T) {
 	i18n.Set("zh")

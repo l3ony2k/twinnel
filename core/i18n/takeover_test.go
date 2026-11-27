@@ -3,7 +3,7 @@ package i18n
 import (
 	"testing"
 
-	"github.com/l3ony2k/duet/core/takeover"
+	"github.com/l3ony2k/twinnel/core/takeover"
 )
 
 func TestTakeoverCodes(t *testing.T) {

@@ -5,7 +5,7 @@
 # subscription and layers (cmd/app/testdata/readme), the Tailscale status
 # fixture and a scratch HOME. Nothing reads or touches the live mihomo,
 # Tailscale or the installed helper; the app never activates or shows a
-# window (DUET_SHOTS, DUET_SHOTS_FLOW=readme).
+# window (TWINNEL_SHOTS, TWINNEL_SHOTS_FLOW=readme).
 #
 # SCRATCH is a directory outside the repository (it is emptied); OUT
 # defaults to docs/images. Needs: go, magick, pngquant, oxipng (brew).
@@ -29,18 +29,18 @@ for t in go magick pngquant oxipng; do command -v $t >/dev/null || { echo "missi
 FIX=$REPO/cmd/app/testdata/readme
 TS=$FIX/tailscale-status.json # no exit node in use: every check passes
 CTRL=127.0.0.1:19894
-SOCKDIR=$(mktemp -d /tmp/duet-readme.XXXXXX) # a unix socket path must stay under 104 bytes
-SOCK=$SOCKDIR/duet.sock
-export DUET_SOCKET=$SOCK # the CLI below talks to the scratch helper only
+SOCKDIR=$(mktemp -d /tmp/twinnel-readme.XXXXXX) # a unix socket path must stay under 104 bytes
+SOCK=$SOCKDIR/twinnel.sock
+export TWINNEL_SOCKET=$SOCK # the CLI below talks to the scratch helper only
 
 rm -rf "$S/run" "$S/raw"
 mkdir -p "$S/bin" "$S/run" "$S/raw"
 cd "$REPO"
 echo "building"
 go build -o "$S/bin/fakemihomo" ./cmd/app/internal/fakemihomo
-go build -o "$S/bin/duet-helper" ./cmd/helper
-go build -o "$S/bin/duet" ./cmd/cli
-go build -o "$S/bin/duet-app" ./cmd/app
+go build -o "$S/bin/twinnel-helper" ./cmd/helper
+go build -o "$S/bin/twinnel" ./cmd/cli
+go build -o "$S/bin/twinnel-app" ./cmd/app
 # devfake writes the fake `mihomo -t` the helper validates with.
 go build -o "$S/bin/devfake" ./cmd/helper/internal/devfake
 
@@ -56,7 +56,7 @@ front() { osascript -e 'tell application "System Events" to get name of first pr
 FRONT_BEFORE=$(front)
 
 helper_up() { # $1 run dir
-	"$S/bin/duet-helper" --state-dir "$1/state" --socket "$SOCK" --foreground --secrets file --group staff \
+	"$S/bin/twinnel-helper" --state-dir "$1/state" --socket "$SOCK" --foreground --secrets file --group staff \
 		--tailnet-status-file "$TS" --no-health --tailnet-iface none \
 		--takeover-services-dir "$1/empty" --takeover-home "$1/home" >>"$1/helper.log" 2>&1 &
 	HELPER=$!
@@ -105,7 +105,7 @@ json.dump(d, open(p, "w"), indent=2)
 PY
 	helper_up "$R"
 
-	D="$S/bin/duet"
+	D="$S/bin/twinnel"
 	$D sub put main --name "$SUB" --file "$FIX/subscription-$lang.yaml" --interval 1440 >/dev/null
 	$D layer put base "$FIX/base.yaml" --stage base --name "Base" >/dev/null
 	$D compose --apply --reason "$R1" >/dev/null
@@ -122,12 +122,12 @@ PY
 			dir=$S/raw/$lang-$theme-$part
 			mkdir -p "$dir"
 			extra=()
-			[ $part = health ] && extra=(DUET_README_PART=health DUET_HEALTH_FIXTURE="$FIX/health-warn.json")
+			[ $part = health ] && extra=(TWINNEL_README_PART=health TWINNEL_HEALTH_FIXTURE="$FIX/health-warn.json")
 			echo "shots: $lang $theme $part"
 			env -i PATH="$PATH" HOME="$R/home" TMPDIR="$S/run" \
-				DUET_SHOTS="$dir" DUET_SHOTS_FLOW=readme DUET_SOCKET="$SOCK" DUET_CONTROLLER=$CTRL \
-				DUET_TAILSCALE_STATUS_FILE="$TS" DUET_LANG=$APPLANG DUET_THEME=$theme DUET_READ_ONLY=1 \
-				${extra[@]+"${extra[@]}"} "$S/bin/duet-app" >"$dir/app.log" 2>&1
+				TWINNEL_SHOTS="$dir" TWINNEL_SHOTS_FLOW=readme TWINNEL_SOCKET="$SOCK" TWINNEL_CONTROLLER=$CTRL \
+				TWINNEL_TAILSCALE_STATUS_FILE="$TS" TWINNEL_LANG=$APPLANG TWINNEL_THEME=$theme TWINNEL_READ_ONLY=1 \
+				${extra[@]+"${extra[@]}"} "$S/bin/twinnel-app" >"$dir/app.log" 2>&1
 		done
 	done
 	kill $HELPER $FAKE 2>/dev/null || true
@@ -163,7 +163,7 @@ done
 
 # The menu bar icon states: each template icon on a light and a dark bar.
 T=$S/raw/en-light-main
-STATES="duet duet-warn duet-error duet-unknown duet-tsdown duet-mode duet-nohelper"
+STATES="twinnel twinnel-warn twinnel-error twinnel-unknown twinnel-tsdown twinnel-mode twinnel-nohelper"
 row() { # bg fg out
 	local args=()
 	for s in $STATES; do

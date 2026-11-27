@@ -1,7 +1,7 @@
 //go:build darwin
 
 // Package takeoverprobe is the read-only takeover.Probe for macOS. Both the
-// CLI (`duet takeover plan`) and the helper (`takeover.plan`) use it.
+// CLI (`twinnel takeover plan`) and the helper (`takeover.plan`) use it.
 package takeoverprobe
 
 import (
@@ -16,11 +16,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/kernel"
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/tailscale"
-	"github.com/l3ony2k/duet/core/takeover"
-	"github.com/l3ony2k/duet/platform/darwin"
+	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/takeover"
+	"github.com/l3ony2k/twinnel/platform/darwin"
 )
 
 // Probe reads launchd plists, asks the mihomo controller for its version,

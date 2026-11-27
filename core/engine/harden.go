@@ -3,7 +3,7 @@ package engine
 // service.harden: move an adopted mihomo (a root LaunchDaemon that runs a
 // user-owned binary with a user-writable -d dir, security review finding 5)
 // to the managed kernel, a root-owned config dir under the state dir and a
-// duet LaunchDaemon, in one restart.
+// Twinnel LaunchDaemon, in one restart.
 //
 // Everything that does not interrupt the network happens first (kernel
 // install, copying the config dir, mihomo -t, writing the new plist). Then
@@ -27,12 +27,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/kernel"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // Files in a harden plan dir.
@@ -114,7 +114,7 @@ func (e *Engine) hardenable(st *store.Settings) error {
 		return rpc.ErrInvalid("harden moves an adopted mihomo service; %s was not adopted", st.Mihomo.ServiceLabel)
 	}
 	if st.Mihomo.ServiceLabel == store.DefaultMihomoLabel {
-		return rpc.ErrInvalid("the adopted service already uses duet's label %s", store.DefaultMihomoLabel)
+		return rpc.ErrInvalid("the adopted service already uses Twinnel's label %s", store.DefaultMihomoLabel)
 	}
 	if _, ok := st.ActiveSubscription(); !ok {
 		return rpc.ErrInvalid("no active subscription: nothing to compose the new config from")
@@ -143,7 +143,7 @@ func (e *Engine) hardenNewFree(ctx context.Context, ns *store.Settings) error {
 	label := ns.Mihomo.ServiceLabel
 	plist := e.Services.DefinitionPath(label)
 	if _, err := os.Lstat(plist); err == nil {
-		return rpc.ErrInvalid("%s already exists; remove it (or `duet service uninstall mihomo` on a non-adopted setup) first", plist)
+		return rpc.ErrInvalid("%s already exists; remove it (or `twinnel service uninstall mihomo` on a non-adopted setup) first", plist)
 	}
 	if s, err := e.Services.Status(ctx, label); err == nil && s.Loaded {
 		return rpc.ErrInvalid("%s is already loaded in launchd", label)
@@ -556,7 +556,7 @@ func (e *Engine) HardenPlan(ctx context.Context, p rpc.HardenPlanParams) (rpc.Ha
 	}
 	if stripped, _, err := withoutSecret(current); err == nil {
 		if rel, _, err := relocatePaths(stripped, st.Mihomo.ConfigDir); err == nil && !sameYAML(rel, composed) {
-			plan.ConfigChanges = append(plan.ConfigChanges, "the composed config differs from the running file in more than paths (subscription, layers or tailnet changed since the last apply; see `duet compose --preview`)")
+			plan.ConfigChanges = append(plan.ConfigChanges, "the composed config differs from the running file in more than paths (subscription, layers or tailnet changed since the last apply; see `twinnel compose --preview`)")
 		}
 	}
 	newSecretVal, _ := topLevel(final, "secret")
@@ -566,7 +566,7 @@ func (e *Engine) HardenPlan(ctx context.Context, p rpc.HardenPlanParams) (rpc.Ha
 		plan.ConfigChanges = append(plan.ConfigChanges, "a new controller secret (clients of the controller need it afterwards)")
 	case newSecretVal == "":
 		plan.Secret = "none"
-		plan.Warnings = append(plan.Warnings, "the controller has no secret. After the move the helper manages the config and its next apply generates one, which mihomo only loads at its next restart; plan with a new secret (duet helper harden plan --new-secret) to set one in this restart")
+		plan.Warnings = append(plan.Warnings, "the controller has no secret. After the move the helper manages the config and its next apply generates one, which mihomo only loads at its next restart; plan with a new secret (twinnel helper harden plan --new-secret) to set one in this restart")
 	case newSecretVal != runningSecret:
 		plan.Secret = "activate"
 		plan.ConfigChanges = append(plan.ConfigChanges, "the stored controller secret (written by controller.secure, not yet loaded) becomes active")

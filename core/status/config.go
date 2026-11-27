@@ -41,15 +41,15 @@ type Config struct {
 	Sidebar      string  `json:"sidebar,omitempty"`
 	SidebarWidth float32 `json:"sidebarWidth,omitempty"`
 	// DailyUsed is set the first time the user does an everyday operation
-	// in duet (node, mode, TUN, Tailscale, exit node, delay test): 关于 →
+	// in Twinnel (node, mode, TUN, Tailscale, exit node, delay test): 关于 →
 	// 入门's last step reads it.
 	DailyUsed bool `json:"dailyUsed,omitempty"`
-	// Dock is when duet has a Dock icon (macOS): "" while the main window
+	// Dock is when Twinnel has a Dock icon (macOS): "" while the main window
 	// is open, DockAlways, DockNever (a menu bar app only).
 	Dock string `json:"dock,omitempty"`
 
 	// From the environment only, never saved. AllowWrites is on unless
-	// DUET_READ_ONLY=1: a deny switch for development and test runs
+	// TWINNEL_READ_ONLY=1: a deny switch for development and test runs
 	// (shots, agents), not a product setting. What a control can change
 	// follows from the state of what it acts on (Snapshot.Can).
 	AllowWrites   bool `json:"-"`
@@ -58,10 +58,10 @@ type Config struct {
 
 // Environment variables read by LoadConfig.
 const (
-	EnvController = "DUET_CONTROLLER"
-	EnvSecret     = "DUET_MIHOMO_SECRET"
+	EnvController = "TWINNEL_CONTROLLER"
+	EnvSecret     = "TWINNEL_MIHOMO_SECRET"
 	// EnvReadOnly=1 keeps every write off (development and test runs).
-	EnvReadOnly = "DUET_READ_ONLY"
+	EnvReadOnly = "TWINNEL_READ_ONLY"
 )
 
 // TraySpeedOneLine is Config.TraySpeedLayout for one line ("↓ 512K ↑ 3M");

@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/l3ony2k/duet/platform/darwin"
+	"github.com/l3ony2k/twinnel/platform/darwin"
 )
 
 // tailscaleIface returns the interface that carries 100.100.100.100

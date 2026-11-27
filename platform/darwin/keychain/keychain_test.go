@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 type call struct {
@@ -45,7 +45,7 @@ func TestSecretNeverInArgv(t *testing.T) {
 	if strings.Contains(c.stdin, "s3cr3t") {
 		t.Error("secret in clear on stdin; want hex")
 	}
-	want := `add-generic-password -U -a "duet" -s "duet.subscription-url/main" -l "duet.subscription-url/main" -X 68747470733a2f2f7375622e6578616d706c652f783f746f6b656e3d733363723374 "/tmp/x.keychain"` + "\n"
+	want := `add-generic-password -U -a "twinnel" -s "twinnel.subscription-url/main" -l "twinnel.subscription-url/main" -X 68747470733a2f2f7375622e6578616d706c652f783f746f6b656e3d733363723374 "/tmp/x.keychain"` + "\n"
 	if c.stdin != want {
 		t.Errorf("stdin\n got %q\nwant %q", c.stdin, want)
 	}
@@ -69,7 +69,7 @@ func TestGetDelete(t *testing.T) {
 	if v, err := k.Get(store.SecretController); err != nil || v != "value" {
 		t.Errorf("get: %q %v", v, err)
 	}
-	if got := strings.Join(calls[0].args, " "); got != "find-generic-password -a duet -s duet.controller-secret -w /Library/Keychains/System.keychain" {
+	if got := strings.Join(calls[0].args, " "); got != "find-generic-password -a twinnel -s twinnel.controller-secret -w /Library/Keychains/System.keychain" {
 		t.Errorf("argv %q", got)
 	}
 	k.Run = fake(&calls, exitNotFound, "")
@@ -103,16 +103,16 @@ func TestRefusesBadInput(t *testing.T) {
 
 // TestRealKeychain round-trips through a throwaway keychain file. It does
 // not touch the login or System keychain or the search list. Opt in with
-// DUET_REAL_KEYCHAIN=1.
+// TWINNEL_REAL_KEYCHAIN=1.
 func TestRealKeychain(t *testing.T) {
-	if os.Getenv("DUET_REAL_KEYCHAIN") != "1" {
-		t.Skip("set DUET_REAL_KEYCHAIN=1")
+	if os.Getenv("TWINNEL_REAL_KEYCHAIN") != "1" {
+		t.Skip("set TWINNEL_REAL_KEYCHAIN=1")
 	}
-	path := filepath.Join(t.TempDir(), "duet-test.keychain")
+	path := filepath.Join(t.TempDir(), "twinnel-test.keychain")
 	if out, err := exec.Command(securityBin, "create-keychain", "-p", "test", path).CombinedOutput(); err != nil {
 		t.Fatalf("create-keychain: %v %s", err, out)
 	}
-	k := &Keychain{Path: path, Service: "duet-test"}
+	k := &Keychain{Path: path, Service: "twinnel-test"}
 	if _, err := k.Get("a"); !errors.Is(err, store.ErrNoSecret) {
 		t.Fatalf("empty: %v", err)
 	}

@@ -4,17 +4,17 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
-// The install plan of the first-run view: `duet helper install --dry-run`
+// The install plan of the first-run view: `twinnel helper install --dry-run`
 // prints numbered steps (core/service.FormatPlan: "N. <command>", a written
 // file's content between "----- <path> -----" and "----- end -----").
 // parsePlan turns that into steps a person reads: what the step does in
 // words, the command under it, and a file's content behind a disclosure.
 
 type planStep struct {
-	what    string // in words; the command when the step is not one duet knows
+	what    string // in words; the command when the step is not one Twinnel knows
 	cmd     string // the command as printed
 	content string // a written file's content
 }

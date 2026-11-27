@@ -11,8 +11,8 @@ import (
 
 func TestStepStringAndFormatPlan(t *testing.T) {
 	steps := []Step{
-		{Kind: StepMkdir, Path: "/Library/Application Support/duet", Mode: 0o755},
-		{Kind: StepCopy, Src: "/tmp/duet-helper", Path: "/Library/PrivilegedHelperTools/x", Mode: 0o755},
+		{Kind: StepMkdir, Path: "/Library/Application Support/twinnel", Mode: 0o755},
+		{Kind: StepCopy, Src: "/tmp/twinnel-helper", Path: "/Library/PrivilegedHelperTools/x", Mode: 0o755},
 		{Kind: StepWrite, Path: "/Library/LaunchDaemons/x.plist", Mode: 0o644, Content: []byte("<plist/>")},
 		{Kind: StepRun, Argv: []string{"/bin/launchctl", "bootout", "system/x"}, IgnoreError: true},
 		{Kind: StepRun, Argv: []string{"echo", "it's"}},
@@ -21,8 +21,8 @@ func TestStepStringAndFormatPlan(t *testing.T) {
 	}
 	var b bytes.Buffer
 	FormatPlan(&b, steps)
-	want := `1. install -d -m 0755 '/Library/Application Support/duet'
-2. install -m 0755 /tmp/duet-helper /Library/PrivilegedHelperTools/x
+	want := `1. install -d -m 0755 '/Library/Application Support/twinnel'
+2. install -m 0755 /tmp/twinnel-helper /Library/PrivilegedHelperTools/x
 3. write /Library/LaunchDaemons/x.plist (mode 0644, 8 bytes)
 ----- /Library/LaunchDaemons/x.plist -----
 <plist/>

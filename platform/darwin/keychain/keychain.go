@@ -3,9 +3,9 @@
 // Package keychain implements store.Secrets with the macOS keychain through
 // the `security` command line tool (no cgo).
 //
-// Items are generic passwords with account "duet" and service
-// "duet.<key>" (e.g. "duet.controller-secret",
-// "duet.subscription-url/main"). The helper, running as root, uses the
+// Items are generic passwords with account "twinnel" and service
+// "twinnel.<key>" (e.g. "twinnel.controller-secret",
+// "twinnel.subscription-url/main"). The helper, running as root, uses the
 // System keychain (/Library/Keychains/System.keychain), which is unlocked
 // for root without a prompt; development runs can point Path at a test
 // keychain.
@@ -37,7 +37,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // SystemKeychain is the keychain of the root daemon.
@@ -45,8 +45,8 @@ const SystemKeychain = "/Library/Keychains/System.keychain"
 
 // Defaults.
 const (
-	DefaultService = "duet"
-	DefaultAccount = "duet"
+	DefaultService = "twinnel"
+	DefaultAccount = "twinnel"
 	securityBin    = "/usr/bin/security"
 )
 
@@ -61,9 +61,9 @@ type Runner func(ctx context.Context, stdin []byte, args ...string) (stdout, std
 type Keychain struct {
 	// Path of the keychain file. Default SystemKeychain.
 	Path string
-	// Service is the prefix of item service names. Default "duet".
+	// Service is the prefix of item service names. Default "twinnel".
 	Service string
-	// Account of every item. Default "duet".
+	// Account of every item. Default "twinnel".
 	Account string
 	// Run defaults to running /usr/bin/security.
 	Run Runner

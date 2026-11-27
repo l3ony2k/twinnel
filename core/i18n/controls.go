@@ -73,11 +73,11 @@ var zhControls = ControlStrings{
 	DoneRolledBack:   "已回滚",
 	OpFinishedTitle:  "%s：已完成",
 	OpFailedTitle:    "%s：失败",
-	OpFinishedBody:   "点按打开 duet 查看结果",
+	OpFinishedBody:   "点按打开 Twinnel 查看结果",
 	OpWarnings:       "%d 条提醒",
 
-	PanelOpen: "打开 duet…",
-	PanelQuit: "退出 duet",
+	PanelOpen: "打开 Twinnel…",
+	PanelQuit: "退出 Twinnel",
 }
 
 // NetUnreachable is NetUnreachableF for host.

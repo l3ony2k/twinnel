@@ -13,7 +13,7 @@ func TestCLIPathBundle(t *testing.T) {
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, n := range []string{"duet", "duet-helper"} {
+	for _, n := range []string{"twinnel", "twinnel-helper"} {
 		if err := os.WriteFile(filepath.Join(bin, n), []byte("#!/bin/sh\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -21,19 +21,19 @@ func TestCLIPathBundle(t *testing.T) {
 	old := resourcesDir
 	resourcesDir = func() (string, error) { return dir, nil }
 	t.Cleanup(func() { resourcesDir = old })
-	t.Setenv("DUET_CLI", "")
+	t.Setenv("TWINNEL_CLI", "")
 
 	p, err := cliPath()
-	if err != nil || p != filepath.Join(bin, "duet") {
+	if err != nil || p != filepath.Join(bin, "twinnel") {
 		t.Fatalf("cliPath = %q, %v", p, err)
 	}
 	args := installArgs("--dry-run")
-	if i := slices.Index(args, "--helper-bin"); i < 0 || args[i+1] != filepath.Join(bin, "duet-helper") {
+	if i := slices.Index(args, "--helper-bin"); i < 0 || args[i+1] != filepath.Join(bin, "twinnel-helper") {
 		t.Errorf("installArgs = %v", args)
 	}
 
-	t.Setenv("DUET_CLI", "/x/duet")
-	if p, _ := cliPath(); p != "/x/duet" {
-		t.Errorf("DUET_CLI not first: %q", p)
+	t.Setenv("TWINNEL_CLI", "/x/twinnel")
+	if p, _ := cliPath(); p != "/x/twinnel" {
+		t.Errorf("TWINNEL_CLI not first: %q", p)
 	}
 }

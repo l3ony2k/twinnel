@@ -4,7 +4,7 @@ import "strings"
 
 // Texts of batch C (design review 2026-11-27): the 订阅与覆写 page's
 // compose groups, drift and pending rows, the 历史 page's reasons, the
-// 日志 page's duet events, and the helper messages coded by core/msg.
+// 日志 page's twinnel events, and the helper messages coded by core/msg.
 // Both languages live here, so this area's work does not touch en.go.
 //
 // Glossary (U59; docs/i18n-glossary.md has the English side):
@@ -12,7 +12,7 @@ import "strings"
 //     base. Never 基础订阅.
 //   - 覆写: any layer. Never 层 or 分层 in the UI.
 //   - 基础设置: the base-stage managed layer.
-//   - 托管: "duet 生成，只能开关". Only as the layer chip.
+//   - 托管: "Twinnel 生成，只能开关". Only as the layer chip.
 //   - 接管: the takeover act; chip 「接管」 for adopted services/kernels.
 //   - 控制接口: the external-controller (its address is a row 「地址」).
 
@@ -102,12 +102,12 @@ type ConfigUIStrings struct {
 	RollbackNoLayers string // the entry is a plain file: the overrides will not describe it
 
 	// History (U40).
-	HistReasons     map[string]string // core/store Reason… code → template (%s: args)
-	HistBeforeDuet  string            // chip
-	HistCopyHash    string
-	HistOverrides   string // detail label: the overrides the entry was composed from
-	HistNoManifest  string
-	HistRollbackRef string // the time a rollback went back to, when the entry is gone
+	HistReasons       map[string]string // core/store Reason… code → template (%s: args)
+	HistBeforeTwinnel string            // chip
+	HistCopyHash      string
+	HistOverrides     string // detail label: the overrides the entry was composed from
+	HistNoManifest    string
+	HistRollbackRef   string // the time a rollback went back to, when the entry is gone
 
 	// Helper messages coded by core/msg (U57): code → template; the
 	// arguments in the order core/msg captures them. WarningTexts (i18n.go)
@@ -130,15 +130,15 @@ type ConfigUIStrings struct {
 	CulpritLayer, CulpritSub, CulpritOpen string
 	ApplyFailedRestore                    string // the new config failed after writing; the old one runs
 
-	// Logs: the duet tab (U29, H7).
-	LogsSourceMihomo, LogsSourceDuet string
-	LogSearch                        string
-	LogNoMatch                       string
-	EventsEmpty                      string
-	EventKinds                       map[string]string // event type → chip
-	EvApplied, EvApplyUnchanged      string            // %s: reason
-	EvApplyFailed                    string            // %s: reason
-	EvViaCLI                         string            // the reason of duet compose --apply
+	// Logs: the Twinnel tab (U29, H7).
+	LogsSourceMihomo, LogsSourceTwinnel string
+	LogSearch                           string
+	LogNoMatch                          string
+	EventsEmpty                         string
+	EventKinds                          map[string]string // event type → chip
+	EvApplied, EvApplyUnchanged         string            // %s: reason
+	EvApplyFailed                       string            // %s: reason
+	EvViaCLI                            string            // the reason of twinnel compose --apply
 	// EvStateOps: an edit, by "layer.<op>" / "subscription.<op>" (op:
 	// saved, deleted, on, off, activated) or the kind alone. %s: the name.
 	EvStateOps                       map[string]string
@@ -150,7 +150,7 @@ type ConfigUIStrings struct {
 	EvHealth                         string // %d: failed, %d: warnings
 	EvService, EvTakeover            string
 	EvHelperStarted, EvHelperStop    string
-	EvShow                           string // toast action: open the event in 日志 → duet
+	EvShow                           string // toast action: open the event in 日志 → Twinnel
 
 	// Round 3 (config-pages): the layer editor's format choice and its ⓘ,
 	// the marks on a layer row, the undo toasts of reversible actions,
@@ -172,9 +172,9 @@ var zhConfigUI = ConfigUIStrings{
 	GroupUser:         "用户覆写",
 	GroupManaged:      "托管",
 
-	ManagedTitle:        "duet 托管",
+	ManagedTitle:        "Twinnel 托管",
 	OverridesInfo:       "覆写按从上到下的顺序改写订阅，后面的可以覆盖前面的。拖动一行可以调整顺序。",
-	ManagedInfo:         "这些覆写由 duet 按 Tailscale 和设置生成并保持最新，只能开关。它们总排在你的覆写之后。",
+	ManagedInfo:         "这些覆写由 Twinnel 按 Tailscale 和设置生成并保持最新，只能开关。它们总排在你的覆写之后。",
 	CoexistInfo:         "让 mihomo 的 TUN 和 Tailscale 同时工作：tailnet 网段和设备名直连，MagicDNS 名称交给 Tailscale 解析。",
 	LeakGuardInfo:       "从所选策略组中去掉 DIRECT，这些组的流量就不会绕过代理。组里没有别的节点时改为 REJECT。",
 	DriftInfo:           "回滚后，mihomo 运行的是历史版本，不是这些覆写合成的结果。重新应用之前，订阅和 Tailscale 变化不会自动应用。",
@@ -263,24 +263,24 @@ var zhConfigUI = ConfigUIStrings{
 		"adopt-failed":         "接管失败，写回原配置",
 		"takeover-undo":        "撤销接管",
 		"controller-secure":    "加固控制接口",
-		"harden":               "改用 duet 的服务",
+		"harden":               "改用 Twinnel 的服务",
 		"subscription-updated": "订阅「%s」更新",
 		"tailnet-changed":      "Tailscale 设备变化",
 		"restore-layers":       "恢复覆写",
 		"cli-apply":            "通过命令行应用",
 	},
-	HistBeforeDuet:  "接管前",
-	HistCopyHash:    "复制哈希",
-	HistOverrides:   "覆写",
-	HistNoManifest:  "没有记录",
-	HistRollbackRef: "已删除的记录",
+	HistBeforeTwinnel: "接管前",
+	HistCopyHash:      "复制哈希",
+	HistOverrides:     "覆写",
+	HistNoManifest:    "没有记录",
+	HistRollbackRef:   "已删除的记录",
 
 	MsgTexts: map[string]string{
 		"no-active-subscription": "没有在用的订阅",
 		"subscription-empty":     "订阅「%s」还没有内容，先更新它",
 		"validate-failed":        "mihomo -t 没有通过，配置没有改动",
-		"refuses-exposed":        "%[1]s 对外监听 %[2]s 却没有密钥，duet 不写这样的配置",
-		"refuses-socket":         "%[1]s 指向配置目录之外（%[2]s），duet 不写这样的配置",
+		"refuses-exposed":        "%[1]s 对外监听 %[2]s 却没有密钥，Twinnel 不写这样的配置",
+		"refuses-socket":         "%[1]s 指向配置目录之外（%[2]s），Twinnel 不写这样的配置",
 		"backup-failed":          "没能备份当前配置：%s",
 		"write-failed":           "没能写入 %[1]s：%[2]s",
 		"reload-failed":          "mihomo 重载失败，已恢复旧配置：%s",
@@ -315,11 +315,11 @@ var zhConfigUI = ConfigUIStrings{
 	CulpritOpen:        "打开",
 	ApplyFailedRestore: "新配置出错，已恢复旧配置",
 
-	LogsSourceMihomo: "mihomo",
-	LogsSourceDuet:   "duet",
-	LogSearch:        "搜索",
-	LogNoMatch:       "没有匹配的条目",
-	EventsEmpty:      "还没有事件",
+	LogsSourceMihomo:  "mihomo",
+	LogsSourceTwinnel: "twinnel",
+	LogSearch:         "搜索",
+	LogNoMatch:        "没有匹配的条目",
+	EventsEmpty:       "还没有事件",
 	EventKinds: map[string]string{
 		"compose.applied":      "应用",
 		"compose.failed":       "应用",
@@ -389,9 +389,9 @@ var enConfigUI = ConfigUIStrings{
 	GroupUser:         "User overrides",
 	GroupManaged:      "Managed",
 
-	ManagedTitle:        "Managed by duet",
+	ManagedTitle:        "Managed by Twinnel",
 	OverridesInfo:       "Overrides change the subscription in order, top to bottom; a later one can override an earlier one. Drag a row to reorder.",
-	ManagedInfo:         "duet generates these from Tailscale and your settings and keeps them current. You can only turn them on or off. They always come after your own.",
+	ManagedInfo:         "Twinnel generates these from Tailscale and your settings and keeps them current. You can only turn them on or off. They always come after your own.",
 	CoexistInfo:         "Lets mihomo's TUN and Tailscale work together: tailnet addresses and device names go direct, and Tailscale resolves MagicDNS names.",
 	LeakGuardInfo:       "Removes DIRECT from the groups you choose, so their traffic never bypasses the proxy. A group left with no other node becomes REJECT.",
 	DriftInfo:           "After a rollback mihomo runs a history version, not what these overrides compose. Until you apply again, subscription and Tailscale changes are not applied on their own.",
@@ -480,24 +480,24 @@ var enConfigUI = ConfigUIStrings{
 		"adopt-failed":         "Takeover failed, original config written back",
 		"takeover-undo":        "Takeover undone",
 		"controller-secure":    "Secure the controller",
-		"harden":               "Switch to duet's service",
+		"harden":               "Switch to Twinnel's service",
 		"subscription-updated": "Subscription “%s” updated",
 		"tailnet-changed":      "Tailscale devices changed",
 		"restore-layers":       "Overrides restored",
 		"cli-apply":            "Applied from the command line",
 	},
-	HistBeforeDuet:  "Before duet",
-	HistCopyHash:    "Copy Hash",
-	HistOverrides:   "Overrides",
-	HistNoManifest:  "Not recorded",
-	HistRollbackRef: "a deleted entry",
+	HistBeforeTwinnel: "Before Twinnel",
+	HistCopyHash:      "Copy Hash",
+	HistOverrides:     "Overrides",
+	HistNoManifest:    "Not recorded",
+	HistRollbackRef:   "a deleted entry",
 
 	MsgTexts: map[string]string{
 		"no-active-subscription": "No subscription is in use",
 		"subscription-empty":     "Subscription “%s” has no content yet; update it first",
 		"validate-failed":        "mihomo -t failed; the config was not changed",
-		"refuses-exposed":        "%[1]s listens on %[2]s beyond this Mac without a secret; duet won't write that",
-		"refuses-socket":         "%[1]s points outside the config folder (%[2]s); duet won't write that",
+		"refuses-exposed":        "%[1]s listens on %[2]s beyond this Mac without a secret; Twinnel won't write that",
+		"refuses-socket":         "%[1]s points outside the config folder (%[2]s); Twinnel won't write that",
 		"backup-failed":          "Couldn't back up the current config: %s",
 		"write-failed":           "Couldn't write %[1]s: %[2]s",
 		"reload-failed":          "mihomo failed to reload; the old config was restored: %s",
@@ -532,11 +532,11 @@ var enConfigUI = ConfigUIStrings{
 	CulpritOpen:        "Open",
 	ApplyFailedRestore: "The new config failed; the old one was restored",
 
-	LogsSourceMihomo: "mihomo",
-	LogsSourceDuet:   "duet",
-	LogSearch:        "Search",
-	LogNoMatch:       "No matching entries",
-	EventsEmpty:      "No events yet",
+	LogsSourceMihomo:  "mihomo",
+	LogsSourceTwinnel: "twinnel",
+	LogSearch:         "Search",
+	LogNoMatch:        "No matching entries",
+	EventsEmpty:       "No events yet",
 	EventKinds: map[string]string{
 		"compose.applied":      "Apply",
 		"compose.failed":       "Apply",

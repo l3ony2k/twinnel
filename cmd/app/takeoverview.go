@@ -10,10 +10,10 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // The 接管 page's views: what exists and what happens to each piece
@@ -73,7 +73,7 @@ func (a *app) takeoverNotes(c *ui.Context, s status.Snapshot) (planErr string) {
 	return planErr
 }
 
-// takeoverAdopted: duet took over this setup (a plan is adopted).
+// takeoverAdopted: Twinnel took over this setup (a plan is adopted).
 func (a *app) takeoverAdopted() bool {
 	v := &a.hd.take
 	if v.adopt != nil && v.adopt.OK {
@@ -88,7 +88,7 @@ func (a *app) takeoverAdopted() bool {
 }
 
 // takeoverIntro: what takeover does, in one line and three points, and
-// 了解接管, which opens 关于 at 接管是什么. Drawn until duet took over.
+// 了解接管, which opens 关于 at 接管是什么. Drawn until Twinnel took over.
 func (a *app) takeoverIntro(c *ui.Context) {
 	t := c.Theme()
 	T := i18n.T
@@ -140,7 +140,7 @@ func (a *app) tipHead(c *ui.Context, title, tip string, more func(), trailing ..
 
 // takeoverEmpty: before any plan, what runs now (the running mihomo's
 // service, binary and config, detected as a plan would; the helper's own
-// settings are duet's defaults until the takeover), then 生成接管计划
+// settings are Twinnel's defaults until the takeover), then 生成接管计划
 // with its note: making a plan changes nothing.
 func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot, planErr string) {
 	t := c.Theme()
@@ -358,7 +358,7 @@ func effectRows(p *rpc.TakeoverPlan) []effectRow {
 }
 
 // effectText is the 接管后 cell: what happens to the piece, as text that
-// wraps (never cut short): in the text color when duet rewrites it, muted
+// wraps (never cut short): in the text color when Twinnel rewrites it, muted
 // when it stays as it is, in the warning color with ⚠ when it needs a
 // decision (kubai R-17, unslop R-11). Tags are for one-word states.
 func effectText(c *ui.Context, text, tip string, warn, rewrite bool) ui.Element {
@@ -894,7 +894,7 @@ func rewriteRows(p *rpc.TakeoverPlan) []effectRow {
 }
 
 // adoptCard: the decision and its consequence on one row (H5): how many
-// pieces duet rewrites and the reload's impact, then 接管.
+// pieces Twinnel rewrites and the reload's impact, then 接管.
 func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 	t := c.Theme()
 	T := i18n.T
@@ -959,7 +959,7 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 	})
 }
 
-// adoptConfirmBody lists only what duet rewrites, and the reload.
+// adoptConfirmBody lists only what Twinnel rewrites, and the reload.
 func adoptConfirmBody(p *rpc.TakeoverPlan) string {
 	T := i18n.T
 	rw := rewriteRows(p)
@@ -1054,7 +1054,7 @@ type adoptNote struct {
 // adoptNotes are the result's warnings as the page shows them: the reload
 // impact worded from its fields (the helper's notes are English), a
 // config rebuilt from a newer tailnet as information, and nothing that
-// 下一步 already offers (binary-writable → 改用 duet 管理的内核).
+// 下一步 already offers (binary-writable → 改用 Twinnel 管理的内核).
 func adoptNotes(r *rpc.AdoptResult) []adoptNote {
 	T := i18n.T
 	var out []adoptNote
@@ -1340,7 +1340,7 @@ func (a *app) adoptNext(c *ui.Context, s status.Snapshot, r *rpc.AdoptResult, fa
 }
 
 // secureCard: 加固控制接口 as a state row (当前密钥：已设 / 未设) and its
-// button; shown once duet took over.
+// button; shown once Twinnel took over.
 func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T

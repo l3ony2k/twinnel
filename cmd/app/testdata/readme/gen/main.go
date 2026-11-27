@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/health/fixture"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/health/fixture"
 )
 
 func main() {

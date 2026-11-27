@@ -3,7 +3,7 @@ package config
 import (
 	"testing"
 
-	"github.com/l3ony2k/duet/core/internal/rulegen"
+	"github.com/l3ony2k/twinnel/core/internal/rulegen"
 )
 
 // coexistHead is a synthetic coexist-style prefix.

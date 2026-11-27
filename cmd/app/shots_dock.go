@@ -5,10 +5,10 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// dockShots (DUET_SHOTS_FLOW=dock) captures 设置 → 通用 with each value of
+// dockShots (TWINNEL_SHOTS_FLOW=dock) captures 设置 → 通用 with each value of
 // 在程序坞中显示. The setting changes in memory only, and shot mode never
 // changes the activation policy (dockManaged).
 func (a *app) dockShots(save func(*mygo.Window, string)) {

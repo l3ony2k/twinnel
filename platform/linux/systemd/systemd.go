@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/l3ony2k/duet/core/service"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
 // DefaultDir is where administrator-installed system units live.
@@ -96,8 +96,8 @@ func (s *Systemd) Render(sp service.Spec) ([]byte, error) {
 	if name == "" {
 		name = sp.Label
 	}
-	fmt.Fprintf(&b, "# Written by duet. Local changes are overwritten; use a drop-in instead.\n")
-	fmt.Fprintf(&b, "[Unit]\nDescription=duet: %s\n", escapeValue(name))
+	fmt.Fprintf(&b, "# Written by Twinnel. Local changes are overwritten; use a drop-in instead.\n")
+	fmt.Fprintf(&b, "[Unit]\nDescription=twinnel: %s\n", escapeValue(name))
 	b.WriteString("Wants=network-online.target\nAfter=network-online.target\n\n")
 	b.WriteString("[Service]\nType=simple\n")
 	args := append([]string{sp.Program}, sp.Args...)

@@ -7,10 +7,10 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
-// overviewShots (DUET_SHOTS_FLOW=overview) captures 总览 at the widths it
+// overviewShots (TWINNEL_SHOTS_FLOW=overview) captures 总览 at the widths it
 // is laid out for: 900 (two tiles a row, cards stacked or paired by
 // language), 1280 and 1600 (four tiles, cards paired). When the helper
 // has no events yet, 最近活动 shows synthetic ones (memory only).
@@ -48,7 +48,7 @@ func (a *app) overviewShots(save func(*mygo.Window, string)) {
 	}
 }
 
-// shotEvents are synthetic duet events: an apply, a check that changed,
+// shotEvents are synthetic twinnel events: an apply, a check that changed,
 // a subscription refresh.
 func shotEvents(now time.Time) []rpc.Event {
 	data := func(v any) json.RawMessage { b, _ := json.Marshal(v); return b }

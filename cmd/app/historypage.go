@@ -11,9 +11,9 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // The 历史 page: applied configs, a diff of one against the live config,
@@ -87,8 +87,8 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 			case 3:
 				reason := historyReason(e)
 				el = ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					if e.BeforeDuet {
-						tag(c, T.HistBeforeDuet)
+					if e.BeforeTwinnel {
+						tag(c, T.HistBeforeTwinnel)
 					}
 					cell(c, reason).SingleLine().Shrink(1).Tooltip(reason)
 				})
@@ -134,8 +134,8 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 	detail := headedCard(c, func() {
 		ui.Text(c, T.HistoryEntry).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 		infoTipAbout(c, T.HistoryRollback, T.TipHistRollback, nil)
-		if entry.BeforeDuet {
-			tag(c, T.HistBeforeDuet)
+		if entry.BeforeTwinnel {
+			tag(c, T.HistBeforeTwinnel)
 		}
 		ui.Spacer(c)
 		if pushButton(c.Key("hist-diff"), T.HistoryDiff).Disabled(a.hd.busy != "").Clicked() {

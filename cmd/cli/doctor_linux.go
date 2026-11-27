@@ -3,8 +3,8 @@
 package main
 
 import (
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/platform/linux"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/platform/linux"
 )
 
 const configDiscovery = "discovered from a systemd unit running mihomo, else /etc/mihomo/config.yaml, else ~/.config/mihomo/config.yaml"

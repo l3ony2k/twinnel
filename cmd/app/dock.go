@@ -4,11 +4,11 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// The Dock icon (macOS). duet is a menu bar app; by default it also shows
+// The Dock icon (macOS). Twinnel is a menu bar app; by default it also shows
 // in the Dock (and in ⌘Tab) while its main window is open, as Rectangle or
 // Docker Desktop do. 设置 → 通用 → 在程序坞中显示 can make that always or
 // never. The bundle keeps LSUIElement, so a launch never flashes a Dock
@@ -48,7 +48,7 @@ func (a *app) initDock() {
 }
 
 // readyDock wires the Dock icon once the app runs: a click on it (or
-// opening duet.app again) opens the main window, and its menu.
+// opening Twinnel.app again) opens the main window, and its menu.
 func (a *app) readyDock() {
 	if !a.dockManaged() {
 		return
@@ -58,7 +58,7 @@ func (a *app) readyDock() {
 }
 
 // setDockMenu is the Dock icon's menu above the standard items (退出
-// there quits duet, as 退出 duet does; the helper keeps running).
+// there quits Twinnel, as 退出 Twinnel does; the helper keeps running).
 func (a *app) setDockMenu() {
 	if !a.dockManaged() {
 		return
@@ -85,16 +85,16 @@ func (a *app) syncDockFor(windowOpen bool) {
 	}
 	a.dockPol = p
 	mygo.App.SetActivationPolicy(p)
-	// Back to a menu bar app while duet is in front with no window (its
+	// Back to a menu bar app while Twinnel is in front with no window (its
 	// window just closed): hand the front to the app before it, so no
-	// stale duet menu bar stays. Not while the flyout is open: it has the
+	// stale Twinnel menu bar stays. Not while the flyout is open: it has the
 	// keys; not with the window open (从不 chosen in it).
 	if p == mygo.ActivationPolicyAccessory && a.win == nil && a.panel == nil && mygo.App.IsActive() {
 		mygo.App.Hide()
 	}
 }
 
-// unhideApp undoes the Hide of syncDock before duet shows a window.
+// unhideApp undoes the Hide of syncDock before Twinnel shows a window.
 func (a *app) unhideApp() {
 	if a.dockManaged() && mygo.App.IsHidden() {
 		mygo.App.Show()

@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/msg"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/msg"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // Reserved IDs of the managed layers.
@@ -337,7 +337,7 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 		latest, ok, _ := e.Store.LatestHistory()
 		if !ok || (latest.Hash != store.Hash(stripped) && !sameComposed(current, latest)) {
 			bm := store.HistoryMeta{Reason: "file on disk before apply", Code: store.ReasonBackup,
-				BeforeDuet: !ok || p.ReasonCode == store.ReasonAdopt}
+				BeforeTwinnel: !ok || p.ReasonCode == store.ReasonAdopt}
 			if _, err := e.Store.AddHistoryMeta(store.HistoryBackup, bm, stripped, e.now(), st.HistoryKeep); err != nil {
 				return e.fail(res, start, fmt.Errorf("backup: %w", err))
 			}
@@ -528,7 +528,7 @@ func (e *Engine) History() ([]rpc.HistoryEntry, error) {
 	out := make([]rpc.HistoryEntry, 0, len(idx))
 	for _, h := range idx {
 		out = append(out, rpc.HistoryEntry{ID: h.ID, Time: h.Time, Hash: h.Hash, Size: h.Size, Kind: h.Kind, Reason: h.Reason,
-			ReasonCode: h.ReasonCode, ReasonArgs: h.ReasonArgs, BeforeDuet: h.BeforeDuet, Layers: toRPCManifest(h.Layers)})
+			ReasonCode: h.ReasonCode, ReasonArgs: h.ReasonArgs, BeforeTwinnel: h.BeforeTwinnel, Layers: toRPCManifest(h.Layers)})
 	}
 	return out, nil
 }

@@ -9,7 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/l3ony2k/duet/core/config"
+	"github.com/l3ony2k/twinnel/core/config"
 )
 
 // DerivedLayer is one override layer derived from the live config.

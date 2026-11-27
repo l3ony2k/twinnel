@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/platform/darwin/keychain"
-	"github.com/l3ony2k/duet/platform/darwin/launchd"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/platform/darwin/keychain"
+	"github.com/l3ony2k/twinnel/platform/darwin/launchd"
 )
 
 // helperInstallDir holds the installed helper binary.
@@ -99,10 +99,10 @@ func planSecretsDelete(keys []string) []service.Step {
 	return steps
 }
 
-// planMihomoRestore is the documented move back from duet's mihomo
+// planMihomoRestore is the documented move back from Twinnel's mihomo
 // LaunchDaemon to the original one (runbook step 8c), in three parts run
-// with waits in between: stop duet's, start the original, and undo (start
-// duet's again) when the original does not answer.
+// with waits in between: stop Twinnel's, start the original, and undo (start
+// Twinnel's again) when the original does not answer.
 func planMihomoRestore(from, to, toPlist string) (stop, start, undo []service.Step) {
 	lc := "/bin/launchctl"
 	run := func(ignore bool, args ...string) service.Step {

@@ -1,12 +1,12 @@
 # Security policy
 
-duet runs a root helper and manages the network path of the machine it runs on, so we treat security reports seriously.
+Twinnel runs a root helper and manages the network path of the machine it runs on, so we treat security reports seriously.
 
 ## Reporting a vulnerability
 
 Please do not open a public issue. Use GitHub's private vulnerability reporting for this repository ("Security" tab → "Report a vulnerability"). Include what you found, how to reproduce it, and the version or commit.
 
-We aim to acknowledge a report within a week. duet is maintained in spare time, so a fix can take longer; we will keep you informed and credit you if you wish.
+We aim to acknowledge a report within a week. Twinnel is maintained in spare time, so a fix can take longer; we will keep you informed and credit you if you wish.
 
 ## Scope
 
@@ -22,4 +22,4 @@ Out of scope: vulnerabilities in mihomo or Tailscale themselves (report those up
 
 ## Supported versions
 
-duet is in early development. Only the latest commit on `main` is supported.
+Twinnel is in early development. Only the latest commit on `main` is supported.

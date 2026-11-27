@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 type pattern struct {
@@ -48,8 +48,8 @@ var patterns = []pattern{
 	{code: "no-active-subscription", re: regexp.MustCompile(`^no active subscription`)},
 	{code: "subscription-empty", re: regexp.MustCompile(`^subscription (\S+) has no content yet`)},
 	{code: "validate-failed", re: regexp.MustCompile(`^mihomo -t rejected the config`)},
-	{code: "refuses-exposed", re: regexp.MustCompile(`^duet refuses (\S+): (\S+) listens beyond this Mac and the controller has no secret`)},
-	{code: "refuses-socket", re: regexp.MustCompile(`^duet refuses (\S+): (.+) is outside the config dir (.+) \(mihomo, as root`)},
+	{code: "refuses-exposed", re: regexp.MustCompile(`^Twinnel refuses (\S+): (\S+) listens beyond this Mac and the controller has no secret`)},
+	{code: "refuses-socket", re: regexp.MustCompile(`^Twinnel refuses (\S+): (.+) is outside the config dir (.+) \(mihomo, as root`)},
 	{code: "backup-failed", re: regexp.MustCompile(`^backup: (.*)$`)},
 	{code: "write-failed", re: regexp.MustCompile(`^write (\S+): (.*)$`)},
 	{code: "reload-failed", re: regexp.MustCompile(`^reload: (.*)$`)},

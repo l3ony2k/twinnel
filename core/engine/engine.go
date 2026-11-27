@@ -19,13 +19,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/kernel"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/core/takeover"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/core/takeover"
 )
 
 // HelperVersion is reported by status.get.
@@ -325,14 +325,14 @@ func (e *Engine) Run(ctx context.Context) {
 // lastApplyFromHistory is the newest config the helper applied, read
 // from history: what status.get reports as the last apply after a helper
 // restart (an upgrade), until this run applies something. Backups and
-// entries from before duet are not applies; nil when there is none.
+// entries from before Twinnel are not applies; nil when there is none.
 func (e *Engine) lastApplyFromHistory() *rpc.ApplyResult {
 	hist, err := e.Store.History()
 	if err != nil {
 		return nil
 	}
 	for _, h := range hist { // newest first
-		if h.BeforeDuet || h.Kind != store.HistoryApplied && h.Kind != store.HistoryRollback {
+		if h.BeforeTwinnel || h.Kind != store.HistoryApplied && h.Kind != store.HistoryRollback {
 			continue
 		}
 		la := &rpc.ApplyResult{Reason: h.Reason, ReasonCode: h.ReasonCode, ReasonArgs: h.ReasonArgs,

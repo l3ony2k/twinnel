@@ -4,7 +4,7 @@ package health
 // docs/i18n-glossary.md; config keys and rule syntax stay as mihomo
 // writes them.
 var enTexts = texts{
-	titleReport:      "duet health report",
+	titleReport:      "Twinnel health report",
 	labelOverall:     "Overall",
 	labelTime:        "Time",
 	labelPlatform:    "Platform",

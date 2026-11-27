@@ -14,15 +14,15 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // 设置 → 本地 Agent: the MCP switches (kept in the helper's settings, so
 // they hold for every client), the command line tool (a symlink to the
 // bundled CLI in a folder the person picks, removable, removed by 完全移除),
-// copyable client snippets (duet never edits another app's config), and
+// copyable client snippets (Twinnel never edits another app's config), and
 // the agents' recent actions (agent.activity). docs/agents.md.
 
 // agentView is the section's state. Main thread.
@@ -55,15 +55,15 @@ var cliTargets = func() []string {
 	return t
 }
 
-// isDuetLink reports whether path is a symlink duet made: it points to a
-// file named duet inside a duet app bundle or next to a duet-helper.
-func isDuetLink(path string) bool {
+// isTwinnelLink reports whether path is a symlink Twinnel made: it points to a
+// file named Twinnel inside a Twinnel app bundle or next to a twinnel-helper.
+func isTwinnelLink(path string) bool {
 	fi, err := os.Lstat(path)
 	if err != nil || fi.Mode()&os.ModeSymlink == 0 {
 		return false
 	}
 	dst, err := os.Readlink(path)
-	if err != nil || filepath.Base(dst) != "duet" {
+	if err != nil || filepath.Base(dst) != "twinnel" {
 		return false
 	}
 	if strings.Contains(dst, ".app/Contents/Resources/bin/") {
@@ -82,7 +82,7 @@ func (a *app) cliLinks() []string {
 	}
 	var out []string
 	for _, d := range cliTargets() {
-		if p := filepath.Join(d, "duet"); isDuetLink(p) {
+		if p := filepath.Join(d, "twinnel"); isTwinnelLink(p) {
 			out = append(out, p)
 		}
 	}
@@ -95,9 +95,9 @@ func installCLI(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dst := filepath.Join(dir, "duet")
+	dst := filepath.Join(dir, "twinnel")
 	if _, err := os.Lstat(dst); err == nil {
-		if !isDuetLink(dst) {
+		if !isTwinnelLink(dst) {
 			return "", errors.New(i18n.F(i18n.T.AgentCLIForeign, tildePath(dst)))
 		}
 		if err := os.Remove(dst); err != nil {
@@ -112,10 +112,10 @@ func installCLI(dir string) (string, error) {
 	return dst, os.Symlink(src, dst)
 }
 
-// removeCLILinks removes every link to the CLI duet made (停止使用 duet).
+// removeCLILinks removes every link to the CLI Twinnel made (停止使用 Twinnel).
 func removeCLILinks() {
 	for _, d := range cliTargets() {
-		if p := filepath.Join(d, "duet"); isDuetLink(p) {
+		if p := filepath.Join(d, "twinnel"); isTwinnelLink(p) {
 			os.Remove(p)
 		}
 	}
@@ -128,12 +128,12 @@ func (a *app) agentCommand() string {
 		return l[0]
 	}
 	if a.shotMode {
-		return "/usr/local/bin/duet"
+		return "/usr/local/bin/twinnel"
 	}
 	if p, err := cliPath(); err == nil {
 		return p
 	}
-	return "duet"
+	return "twinnel"
 }
 
 // agentSnippet is the setup text for client i (Claude Code, Codex,
@@ -142,14 +142,14 @@ func agentSnippet(i int, cmd string) string {
 	q, _ := json.Marshal(cmd)
 	switch i {
 	case 0:
-		return "claude mcp add duet -- " + shellQuote(cmd) + " mcp"
+		return "claude mcp add Twinnel -- " + shellQuote(cmd) + " mcp"
 	case 1:
-		return "codex mcp add duet -- " + shellQuote(cmd) + " mcp"
+		return "codex mcp add Twinnel -- " + shellQuote(cmd) + " mcp"
 	}
 	// Cursor (~/.cursor/mcp.json) and most others take this JSON.
 	return `{
   "mcpServers": {
-    "duet": { "command": ` + string(q) + `, "args": ["mcp"] }
+    "twinnel": { "command": ` + string(q) + `, "args": ["mcp"] }
   }
 }`
 }
@@ -211,7 +211,7 @@ func (a *app) runCLIInstall(dir string, remove []string) {
 		)
 		if remove != nil {
 			for _, p := range remove {
-				if isDuetLink(p) {
+				if isTwinnelLink(p) {
 					err = errors.Join(err, os.Remove(p))
 				}
 			}
@@ -373,7 +373,7 @@ func (a *app) agentActivityRows(c *ui.Context) {
 				l := ui.Text(c.Key("ag-act-more"), i18n.F(T.AgentActivityMore, n)).FontSize(plat.calloutSize).TextColor(t.Accent).
 					Focusable().Role(ui.RoleButton)
 				if l.Clicked() {
-					a.showDuetLog()
+					a.showTwinnelLog()
 				}
 			}
 		})

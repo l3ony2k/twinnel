@@ -5,12 +5,12 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// flyoutShots (DUET_SHOTS_FLOW=flyout) captures the menu bar flyout in
+// flyoutShots (TWINNEL_SHOTS_FLOW=flyout) captures the menu bar flyout in
 // its main states: everything fine, attention (health warnings and no
 // helper), mihomo down, Tailscale logged out. Each state is the live
 // (fake) snapshot with a few fields overridden in memory (shotSnap):

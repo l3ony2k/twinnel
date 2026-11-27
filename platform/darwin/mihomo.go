@@ -2,7 +2,7 @@
 
 package darwin
 
-import "github.com/l3ony2k/duet/platform/common"
+import "github.com/l3ony2k/twinnel/platform/common"
 
 // The parsers below are platform-neutral and live in platform/common; these
 // names stay so existing callers keep working.

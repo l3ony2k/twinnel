@@ -1,4 +1,4 @@
-# duet architecture
+# Twinnel architecture
 
 This describes the code as it is. Product goals are in `requirements.md`, the original technical plan in `tech.md` (both Chinese).
 
@@ -7,8 +7,8 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 ```
  user                                         root
 ┌──────────────────────────────┐            ┌──────────────────────────────────┐
-│ duet.app  (cmd/app, MyGo)    │  JSON-RPC  │ duet-helper  (cmd/helper)        │
-│ duet CLI  (cmd/cli)          │◀──────────▶│  core/engine: compose, apply,    │
+│ Twinnel.app  (cmd/app, MyGo)    │  JSON-RPC  │ twinnel-helper  (cmd/helper)        │
+│ Twinnel CLI  (cmd/cli)          │◀──────────▶│  core/engine: compose, apply,    │
 │                              │ unix socket│  subscriptions, layers, history, │
 │ read-only, direct:           │            │  tailnet poller, kernels, geo/UI │
 │  mihomo REST API             │            │  health scheduler (core/health)  │
@@ -24,7 +24,7 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | Path | Role |
 |---|---|
 | `cmd/app` | Menu bar app (MyGo native UI): tray icon, flyout panel, main window. Reads mihomo and Tailscale directly and runs the health checks in process; the subscriptions and overrides, history and kernel pages, and 重载配置 when the helper is connected, go through the helper. No business logic. |
-| `cmd/cli` | `duet`: local commands (`doctor`, `takeover plan`, `compose`, `status`) and the helper client commands (including `helper install`, `helper adopt`, `helper secure-controller`, `helper harden`). |
+| `cmd/cli` | `twinnel`: local commands (`doctor`, `takeover plan`, `compose`, `status`) and the helper client commands (including `helper install`, `helper adopt`, `helper secure-controller`, `helper harden`). |
 | `cmd/helper` | The root daemon. Thin: wires `core/engine` to `core/rpc`, the secret store, the platform service manager, the Tailscale interface lookup and the health scheduler (`platform_darwin.go`, `platform_linux.go`). |
 | `core/config` | YAML node-level merge, Clash Verge import, compose, Tailscale coexist generator, leak guard, `mihomo -t` validation, semantic diff. |
 | `core/engine` | The helper's logic, platform-free: apply pipeline, subscriptions, layers, settings, tailnet refresh, kernels, status, takeover plans and adopt, controller secret, harden. |
@@ -44,8 +44,8 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 
 ## Helper RPC
 
-- Transport: a Unix socket (`/var/run/duet/helper.sock` by default, `$DUET_SOCKET` to override), one JSON-RPC 2.0 object per line, messages up to 16 MiB. Requests on one connection run concurrently (up to 8) and are matched by id.
-- Access: the socket is mode 0660 and owned by a group (`--group`; `admin` on macOS; on Linux `admin` only if it exists, else `sudo`, else `wheel`, else `duet`, see [Linux](#linux)). Each connection's peer credentials come from the kernel (`LOCAL_PEERCRED` on macOS with all groups; `SO_PEERCRED` on Linux, which carries only the primary group). Allowed: root, the helper's own uid, and members of the group. On Linux a user whose *primary* group is not the socket group is refused today, even when they are a member.
+- Transport: a Unix socket (`/var/run/twinnel/helper.sock` by default, `$TWINNEL_SOCKET` to override), one JSON-RPC 2.0 object per line, messages up to 16 MiB. Requests on one connection run concurrently (up to 8) and are matched by id.
+- Access: the socket is mode 0660 and owned by a group (`--group`; `admin` on macOS; on Linux `admin` only if it exists, else `sudo`, else `wheel`, else `twinnel`, see [Linux](#linux)). Each connection's peer credentials come from the kernel (`LOCAL_PEERCRED` on macOS with all groups; `SO_PEERCRED` on Linux, which carries only the primary group). Allowed: root, the helper's own uid, and members of the group. On Linux a user whose *primary* group is not the socket group is refused today, even when they are a member.
 - Methods are a fixed allowlist (`core/rpc/api.go`); registering any other name panics, and unknown names get error -32601. Params are decoded with unknown fields rejected.
 
 | Group | Methods |
@@ -59,13 +59,13 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | tailnet | `tailnet.refresh` |
 | kernels | `kernel.list`, `kernel.check`, `kernel.install` (takes a channel and optionally the version that was shown, never a URL), `kernel.rollback` |
 | accessories | `geo.check`, `geo.update {force}`, `ui.check`, `ui.update {force}` |
-| services | `service.status`, `service.start`, `service.stop`, `service.restart` (`mihomo`, `tailscaled`), `service.install`, `service.uninstall` (`mihomo` only). The client passes a name; labels come from settings. The helper's own service is refused (use `duet helper install/uninstall`). Without root the helper returns the plan with `dry_run: true` and runs nothing. |
+| services | `service.status`, `service.start`, `service.stop`, `service.restart` (`mihomo`, `tailscaled`), `service.install`, `service.uninstall` (`mihomo` only). The client passes a name; labels come from settings. The helper's own service is refused (use `twinnel helper install/uninstall`). Without root the helper returns the plan with `dry_run: true` and runs nothing. |
 | health | `health.last` (the last report, no run), `health.run {reason}` (runs now, 2 min cap), `health.egress {lang}` (runs `leak-guard-egress` once now and keeps the result, see below) |
 | config | `config.get {source: live\|preview\|history, id}`: the config text with the top-level `secret` stripped |
 | info | `tailscale.info` |
 | controller | `controller.credentials` (the controller address and the secret mihomo loaded, for the app; any authorized peer can already reconfigure mihomo), `controller.secure` (generate a secret, store it, write it into the config and reload; it takes effect at mihomo's next start) |
 | takeover | `takeover.plan` (discover, plan and keep the plan under `<state>/takeover/<id>/`), `takeover.plans`, `takeover.discard`, `takeover.adopt {plan_id, confirm_hash}`, `takeover.undo {dry_run}` (write back the pre-takeover copy, remove what adopt imported) (see [Takeover](#takeover)) |
-| harden | `service.harden.plan`, `service.harden.plans`, `service.harden.apply`: move an adopted mihomo to the managed kernel, a root-owned config dir and duet's LaunchDaemon in one restart (macOS; see [Takeover](#takeover)) |
+| harden | `service.harden.plan`, `service.harden.plans`, `service.harden.apply`: move an adopted mihomo to the managed kernel, a root-owned config dir and Twinnel's LaunchDaemon in one restart (macOS; see [Takeover](#takeover)) |
 | events | `events.wait {after, timeout_ms}`: long-poll on a ring buffer. Types: `compose.applied/failed`, `state.changed`, `subscription.updated/failed`, `tailnet.changed`, `kernel.changed`, `check.changed`, `health.updated`, `accessory.changed`, `service.changed`, `takeover.changed`, `helper.started/stopping`, `events.truncated`. |
 
 No method takes a filesystem path or a command. Paths (mihomo binary, config dir and file, controller address, service labels) live only in the helper's `settings.json`. Error codes besides JSON-RPC's own: -32001 unauthorized, -32002 failed, -32003 not found, -32004 busy, -32005 not implemented.
@@ -135,7 +135,7 @@ A check implements `ID`, `Title`, `Platforms`, `Run(ctx, Env) Result`. `Env` is 
 
 Check titles name the subject, not the passing condition (`vpn-conflict` is "VPN 冲突" / "VPN conflicts"), so a red mark next to a title reads as a problem with that subject. The texts are in `core/health/strings.go` (zh, reference) and `strings_en.go`; zh uses the UI glossary terms (出口节点, 密钥, 后台助手), and a one-sentence fix hint has no final period. `TestChineseUsesGlossaryTerms` and `TestTitlesNameTheSubject` check both.
 
-There is no check for direct vs DERP-relayed peers: relaying usually comes from the network or NAT and cannot be fixed from duet, so it would be a warning nobody can clear. The Tailscale devices page shows the connection path per device instead. Likewise, outcomes that only depend on the network (no active network service, the egress echo unreachable on the direct path) are `skip`, not `warn`.
+There is no check for direct vs DERP-relayed peers: relaying usually comes from the network or NAT and cannot be fixed from Twinnel, so it would be a warning nobody can clear. The Tailscale devices page shows the connection path per device instead. Likewise, outcomes that only depend on the network (no active network service, the egress echo unreachable on the direct path) are `skip`, not `warn`.
 
 All checks are marked for every platform; what differs is the `Env`:
 
@@ -153,19 +153,19 @@ Linux differences, in the checks themselves:
 - `system-dns` labels each link's servers by origin. With NetworkManager it reads the connection's `ipv4.method`, `ipv4.dns`, `ipv4.ignore-auto-dns`, `ipv6.dns`, `ipv6.ignore-auto-dns`: 手动 (static only), 手动 + DHCP, DHCP/默认, or 系统全局 DNS when the link has no servers of its own. Without NetworkManager, per-link servers from resolved are labelled as of unknown origin. The fix hint names `nmcli connection modify … ipv4.dns … ipv4.ignore-auto-dns yes`, or `resolved.conf` (`DNS=`, `Domains=~.`) when there is only systemd-resolved, instead of `networksetup`.
 - `vpn-conflict` fails when any tunnel device that is neither mihomo's TUN (its `tun.device`, or `Meta*` when unset) nor `tailscale*` holds the default route (`tun*`, `tap*`, `wg*`, `ppp*`, `ipsec*`, `vti*`, `xfrm*` and common vendor names), whether or not mihomo's TUN is on. A physical link holding it is a warning only when mihomo's TUN is on. On macOS only another `utun*` fails.
 
-**Where checks run.** The helper runs them with `health.Scheduler`: every `--health-interval` (default 5 min), after an apply that wrote a file, after every service operation, and (macOS) on network changes from `darwin.NetWatcher`, debounced. `--no-health` turns it off. Only real status transitions publish `check.changed`; every run publishes `health.updated`. `duet helper health` reads `health.last`, `--run` calls `health.run`; `duet helper egress` calls `health.egress` (the egress test once; the helper logs every run's outcome, failures as warnings). While the helper is connected the app shows the helper's reports (`core/rpc/healthsrc`; a rerun calls `health.run`); without a helper it runs the checks in process. `duet doctor` runs them once, in process.
+**Where checks run.** The helper runs them with `health.Scheduler`: every `--health-interval` (default 5 min), after an apply that wrote a file, after every service operation, and (macOS) on network changes from `darwin.NetWatcher`, debounced. `--no-health` turns it off. Only real status transitions publish `check.changed`; every run publishes `health.updated`. `twinnel helper health` reads `health.last`, `--run` calls `health.run`; `twinnel helper egress` calls `health.egress` (the egress test once; the helper logs every run's outcome, failures as warnings). While the helper is connected the app shows the helper's reports (`core/rpc/healthsrc`; a rerun calls `health.run`); without a helper it runs the checks in process. `twinnel doctor` runs them once, in process.
 
 ## Takeover
 
-`duet takeover plan` turns a hand-made setup into duet's model without changing anything. It finds the mihomo and Tailscale services (launchd plists on macOS, systemd units on Linux), reads the live config, scores candidate subscription files next to it, and derives layers: a `base` layer with the settings that differ from the subscription, `user` layers for hand-added rules, and the coexist layer in place of the hand-written Tailscale parts. It then composes them, runs `mihomo -t` with the service's own binary, and compares the result with the live config using a semantic diff (settings as sets where order does not matter, proxies by content hash, rules under first-match semantics). The output directory holds the layers, the composed config, the diff and a `plan.json` without credentials.
+`twinnel takeover plan` turns a hand-made setup into Twinnel's model without changing anything. It finds the mihomo and Tailscale services (launchd plists on macOS, systemd units on Linux), reads the live config, scores candidate subscription files next to it, and derives layers: a `base` layer with the settings that differ from the subscription, `user` layers for hand-added rules, and the coexist layer in place of the hand-written Tailscale parts. It then composes them, runs `mihomo -t` with the service's own binary, and compares the result with the live config using a semantic diff (settings as sets where order does not matter, proxies by content hash, rules under first-match semantics). The output directory holds the layers, the composed config, the diff and a `plan.json` without credentials.
 
-**Adopt** (`duet takeover plan --via-helper`, then `duet helper adopt PLAN_ID`; `core/engine/takeover.go`). The helper makes the plan itself and keeps it under `<state>/takeover/<id>/` (0700). Adopt re-checks that the live config is byte-identical to the plan, copies it to `live-backup.yaml`, imports the subscription (URL into the secret store), the layers and the settings (live binary, config, controller, service labels marked adopted: their plists are never replaced), runs five health checks, applies through the normal pipeline, and runs the checks again. A check that is still worse after one re-check restores the backup byte for byte, reloads and undoes the import. The step-by-step procedure is `docs/runbook-adopt-macos.md`.
+**Adopt** (`twinnel takeover plan --via-helper`, then `twinnel helper adopt PLAN_ID`; `core/engine/takeover.go`). The helper makes the plan itself and keeps it under `<state>/takeover/<id>/` (0700). Adopt re-checks that the live config is byte-identical to the plan, copies it to `live-backup.yaml`, imports the subscription (URL into the secret store), the layers and the settings (live binary, config, controller, service labels marked adopted: their plists are never replaced), runs five health checks, applies through the normal pipeline, and runs the checks again. A check that is still worse after one re-check restores the backup byte for byte, reloads and undoes the import. The step-by-step procedure is `docs/runbook-adopt-macos.md`.
 
-**Harden** (`duet helper harden plan|apply`, `core/engine/harden.go`, macOS). After an adopt, mihomo still runs a binary and a config dir the user owns, as root (security review finding 5). Harden moves it, in one restart of mihomo, to the managed kernel, a root-owned config dir `<state>/mihomo` (the composed config, geo databases, `cache.db`, the dashboard) and the LaunchDaemon `com.l3ony2k.duet.mihomo`: bootout old, bootstrap new, wait for `/version`, compare health; on failure the old label is bootstrapped again. On success the old label is only disabled. Without root the helper prepares and validates, then reports the launchctl steps as a dry run.
+**Harden** (`twinnel helper harden plan|apply`, `core/engine/harden.go`, macOS). After an adopt, mihomo still runs a binary and a config dir the user owns, as root (security review finding 5). Harden moves it, in one restart of mihomo, to the managed kernel, a root-owned config dir `<state>/mihomo` (the composed config, geo databases, `cache.db`, the dashboard) and the LaunchDaemon `com.l3ony2k.twinnel.mihomo`: bootout old, bootstrap new, wait for `/version`, compare health; on failure the old label is bootstrapped again. On success the old label is only disabled. Without root the helper prepares and validates, then reports the launchctl steps as a dry run.
 
 ## Services
 
-`core/service.Manager` renders a definition and turns install / uninstall / start / stop / restart into a `Plan` of explicit steps (mkdir, write, copy, remove, run), which can be printed (`duet helper install --dry-run`) or applied with an executor; tests apply plans with fakes.
+`core/service.Manager` renders a definition and turns install / uninstall / start / stop / restart into a `Plan` of explicit steps (mkdir, write, copy, remove, run), which can be printed (`twinnel helper install --dry-run`) or applied with an executor; tests apply plans with fakes.
 
 | | macOS (`platform/darwin/launchd`) | Linux (`platform/linux/systemd`) |
 |---|---|---|
@@ -175,10 +175,10 @@ Linux differences, in the checks themselves:
 | status | `launchctl print system/<label>` | `systemctl show <unit> --property=...` |
 | keep alive | `KeepAlive`, `ThrottleInterval` | `Restart=always`, `RestartSec` |
 
-The helper uses launchd on macOS and systemd on Linux, for its service RPCs and for `duet helper install`. Real `launchctl`/`systemctl` calls and file writes happen only when the helper runs as root.
+The helper uses launchd on macOS and systemd on Linux, for its service RPCs and for `twinnel helper install`. Real `launchctl`/`systemctl` calls and file writes happen only when the helper runs as root.
 
-**`duet helper install` / `uninstall`.** The plan is printed first (with the full plist or unit file), then confirmed (`--yes` without a terminal); `--dry-run` only prints.
-- macOS: copy the binary to `/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper`, create the state, socket and log dirs, `bootout` (ignored), write `/Library/LaunchDaemons/com.l3ony2k.duet.helper.plist`, `enable` (a label disabled earlier cannot be bootstrapped), `bootstrap`. As a normal user duet re-runs itself as root through `osascript … with administrator privileges` (one password dialog; arguments quoted for the shell and for AppleScript, control characters refused).
+**`twinnel helper install` / `uninstall`.** The plan is printed first (with the full plist or unit file), then confirmed (`--yes` without a terminal); `--dry-run` only prints.
+- macOS: copy the binary to `/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper`, create the state, socket and log dirs, `bootout` (ignored), write `/Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist`, `enable` (a label disabled earlier cannot be bootstrapped), `bootstrap`. As a normal user Twinnel re-runs itself as root through `osascript … with administrator privileges` (one password dialog; arguments quoted for the shell and for AppleScript, control characters refused).
 - Linux: see [Linux](#linux). Run it with `sudo`; the non-root path tries macOS's `osascript` and fails.
 - Uninstall removes the service definition, the binary and the socket; the state dir is kept.
 
@@ -188,31 +188,31 @@ The helper and CLI pick these on Linux (`platform/linux/defaults.go`):
 
 | What | Value |
 |---|---|
-| State dir | `/var/lib/duet` (the CLI maps its macOS flag default to it; an explicit `--state-dir` is kept) |
-| Helper binary | `/usr/local/libexec/duet-helper` |
-| Units | `duet-helper`, `duet-mihomo`, and the distro's `tailscaled`. On start the helper rewrites service labels still at their macOS defaults in `settings.json` to these names; labels you set are kept. |
-| Socket group | `sudo` if it exists (Debian, Ubuntu), else `wheel` (Fedora, Arch, openSUSE), else `duet`, which the install plan creates with `groupadd --system`. The unit passes it as `--group`. A helper started by hand with the default `--group admin` falls back the same way when `admin` does not exist. |
-| Tailscale interface | `ip route get 100.100.100.100` (normally `tailscale0`), for the helper's coexist resolver and `duet compose --tailnet-iface auto` |
+| State dir | `/var/lib/twinnel` (the CLI maps its macOS flag default to it; an explicit `--state-dir` is kept) |
+| Helper binary | `/usr/local/libexec/twinnel-helper` |
+| Units | `twinnel-helper`, `twinnel-mihomo`, and the distro's `tailscaled`. On start the helper rewrites service labels still at their macOS defaults in `settings.json` to these names; labels you set are kept. |
+| Socket group | `sudo` if it exists (Debian, Ubuntu), else `wheel` (Fedora, Arch, openSUSE), else `twinnel`, which the install plan creates with `groupadd --system`. The unit passes it as `--group`. A helper started by hand with the default `--group admin` falls back the same way when `admin` does not exist. |
+| Tailscale interface | `ip route get 100.100.100.100` (normally `tailscale0`), for the helper's coexist resolver and `twinnel compose --tailnet-iface auto` |
 | Secrets | `<state>/secrets.json`, 0600 |
 
-`duet helper install` on Linux: create `/usr/local/libexec`, copy the binary, create the state and socket dirs, create the group if needed, write `/etc/systemd/system/duet-helper.service` (`Type=simple`, `Restart=always`, `RestartSec=5`, `WantedBy=multi-user.target`, no log files: stdout/stderr go to the journal), `systemctl daemon-reload`, `enable`, `restart`. Uninstall: `disable --now`, remove the unit, `daemon-reload`, remove the binary and the socket; the state dir and the group stay.
+`twinnel helper install` on Linux: create `/usr/local/libexec`, copy the binary, create the state and socket dirs, create the group if needed, write `/etc/systemd/system/twinnel-helper.service` (`Type=simple`, `Restart=always`, `RestartSec=5`, `WantedBy=multi-user.target`, no log files: stdout/stderr go to the journal), `systemctl daemon-reload`, `enable`, `restart`. Uninstall: `disable --now`, remove the unit, `daemon-reload`, remove the binary and the socket; the state dir and the group stay.
 
-Not on Linux yet: a network-change trigger for health and tailnet refresh (the helper relies on its interval and the 60 s tailnet poller), the egress test, a Secret Service store, a non-root elevation path for `duet helper install`, and the app. Nothing of this has run on a real Linux host so far; it is covered by fixture tests that run on every OS.
+Not on Linux yet: a network-change trigger for health and tailnet refresh (the helper relies on its interval and the 60 s tailnet poller), the egress test, a Secret Service store, a non-root elevation path for `twinnel helper install`, and the app. Nothing of this has run on a real Linux host so far; it is covered by fixture tests that run on every OS.
 
 ## Data locations
 
 | What | Where |
 |---|---|
-| Helper state (settings, subscriptions, layers, history, kernels, tailnet cache) | macOS `/Library/Application Support/duet`, Linux `/var/lib/duet` (`--state-dir`). Files 0600, directories 0700. |
-| Secrets (controller secret, subscription URLs) | macOS, helper as root: System keychain, generic passwords with account `duet` and service `duet.<key>` (e.g. `duet.controller-secret`). Otherwise (Linux, development helpers, `--secrets file`): `<state>/secrets.json`, 0600. Switching to the keychain moves the file's entries in and deletes the file. |
-| Helper socket | `/var/run/duet/helper.sock` |
-| Helper binary and service | macOS `/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper`, LaunchDaemon `com.l3ony2k.duet.helper`; Linux `/usr/local/libexec/duet-helper`, unit `duet-helper.service` |
+| Helper state (settings, subscriptions, layers, history, kernels, tailnet cache) | macOS `/Library/Application Support/twinnel`, Linux `/var/lib/twinnel` (`--state-dir`). Files 0600, directories 0700. |
+| Secrets (controller secret, subscription URLs) | macOS, helper as root: System keychain, generic passwords with account `twinnel` and service `twinnel.<key>` (e.g. `twinnel.controller-secret`). Otherwise (Linux, development helpers, `--secrets file`): `<state>/secrets.json`, 0600. Switching to the keychain moves the file's entries in and deletes the file. |
+| Helper socket | `/var/run/twinnel/helper.sock` |
+| Helper binary and service | macOS `/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper`, LaunchDaemon `com.l3ony2k.twinnel.helper`; Linux `/usr/local/libexec/twinnel-helper`, unit `twinnel-helper.service` |
 | Helper log | `<state>/logs/helper.log` (on Linux the helper's stdout/stderr also go to the journal) |
-| mihomo and tailscaled services | labels from settings: macOS `com.l3ony2k.duet.mihomo`, `com.tailscale.tailscaled`; Linux `duet-mihomo`, `tailscaled` |
+| mihomo and tailscaled services | labels from settings: macOS `com.l3ony2k.twinnel.mihomo`, `com.tailscale.tailscaled`; Linux `twinnel-mihomo`, `tailscaled` |
 | Managed mihomo kernels | `<state>/kernels/`, with `current` and `previous` symlinks |
 | Managed mihomo config dir (after harden) | `<state>/mihomo`, root-owned 0700; harden plans and the old plist copy in `<state>/harden/<id>/` |
-| App preferences | `<user config dir>/duet/app.json` |
-| Takeover plans | `duet takeover plan`: a new temp dir, or `--out`; `--via-helper`: `<state>/takeover/<id>/` (with `live-backup.yaml` after an adopt) |
+| App preferences | `<user config dir>/twinnel/app.json` |
+| Takeover plans | `twinnel takeover plan`: a new temp dir, or `--out`; `--via-helper`: `<state>/takeover/<id>/` (with `live-backup.yaml` after an adopt) |
 
 ## Security model
 

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
 // Register wires every allowlisted method to the engine.

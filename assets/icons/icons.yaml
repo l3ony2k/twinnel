@@ -1,4 +1,4 @@
-product: duet, a macOS menu bar app that runs mihomo (rule-based proxy) and Tailscale side by side, for one technical owner
+product: Twinnel, a macOS menu bar app that runs mihomo (rule-based proxy) and Tailscale side by side, for one technical owner
 personality: [calm, precise, native]
 sizes: [14, 16, 20, 24]
 dir: drawn

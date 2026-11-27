@@ -9,7 +9,7 @@
 //	<dir>/tailnet.json             last tailnet info used for the coexist layer
 //	<dir>/secrets.json             FileSecrets only (development / tests)
 //
-// The default dir is /Library/Application Support/duet on macOS. Files that
+// The default dir is /Library/Application Support/twinnel on macOS. Files that
 // can hold node credentials are 0600 in 0700 directories.
 package store
 
@@ -25,7 +25,7 @@ import (
 )
 
 // DefaultDir is the state dir of the installed helper on macOS.
-const DefaultDir = "/Library/Application Support/duet"
+const DefaultDir = "/Library/Application Support/twinnel"
 
 // Store gives typed access to the state dir. Safe for concurrent use.
 type Store struct {

@@ -18,7 +18,7 @@ var (
 )
 
 // PlainNetError returns a sentence for a network error in the UI
-// language, or "" when raw is not one duet knows (the caller then shows
+// language, or "" when raw is not one Twinnel knows (the caller then shows
 // raw as it is).
 func PlainNetError(raw string) string { return plainNetError(Cur(), raw) }
 
@@ -46,7 +46,7 @@ func plainNetError(T *Strings, raw string) string {
 	return s
 }
 
-// NetReason is why a connection failed, in the UI language ("" when duet
+// NetReason is why a connection failed, in the UI language ("" when Twinnel
 // does not know the error).
 func NetReason(raw string) string { return netReason(Cur(), raw) }
 

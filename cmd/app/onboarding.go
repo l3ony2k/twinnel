@@ -13,13 +13,13 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // The first-run view, shown in place of the helper pages while no helper
 // is installed: what the helper is for, what installing it does (the
-// output of `duet helper install --dry-run`) and a button that runs the
+// output of `twinnel helper install --dry-run`) and a button that runs the
 // real install (one administrator prompt, through the CLI). The preview
 // loads, then shows its steps, or a failed / timed-out state with 重试;
 // the button never waits on it (the administrator prompt is the real
@@ -42,38 +42,38 @@ type onboardingView struct {
 // bundle); a variable for tests.
 var resourcesDir = func() (string, error) { return mygo.App.Path(mygo.PathResources) }
 
-// cliPath finds the duet command line tool: $DUET_CLI, then the bundle's
-// Contents/Resources/bin/duet (scripts/build-release.sh puts duet and
-// duet-helper there; Contents/MacOS/duet is the app itself), then next to
+// cliPath finds the Twinnel command line tool: $TWINNEL_CLI, then the bundle's
+// Contents/Resources/bin/twinnel (scripts/build-release.sh puts Twinnel and
+// twinnel-helper there; Contents/MacOS/Twinnel is the app itself), then next to
 // the app's executable, then $PATH.
 func cliPath() (string, error) {
-	if p := os.Getenv("DUET_CLI"); p != "" {
+	if p := os.Getenv("TWINNEL_CLI"); p != "" {
 		return p, nil
 	}
 	if dir, err := resourcesDir(); err == nil && dir != "" {
-		p := filepath.Join(dir, "bin", "duet")
+		p := filepath.Join(dir, "bin", "twinnel")
 		if fi, err := os.Stat(p); err == nil && fi.Mode().IsRegular() {
 			return p, nil
 		}
 	}
 	if exe, err := os.Executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "duet")
+		p := filepath.Join(filepath.Dir(exe), "twinnel")
 		if fi, err := os.Stat(p); err == nil && !fi.IsDir() && p != exe {
 			return p, nil
 		}
 	}
-	if p, err := exec.LookPath("duet"); err == nil {
+	if p, err := exec.LookPath("twinnel"); err == nil {
 		return p, nil
 	}
 	return "", errors.New(i18n.T.CLINotFound)
 }
 
-// installArgs are the CLI arguments of `duet helper install`, naming the
-// helper binary shipped next to the CLI (duet-helper) when there is one.
+// installArgs are the CLI arguments of `twinnel helper install`, naming the
+// helper binary shipped next to the CLI (twinnel-helper) when there is one.
 func installArgs(extra ...string) []string {
 	args := []string{"helper", "install"}
 	if cli, err := cliPath(); err == nil {
-		if p := filepath.Join(filepath.Dir(cli), "duet-helper"); fileExists(p) {
+		if p := filepath.Join(filepath.Dir(cli), "twinnel-helper"); fileExists(p) {
 			args = append(args, "--helper-bin", p)
 		}
 	}
@@ -140,7 +140,7 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 	}
 	groupBox(c, t).Gap(12).Padding(20, 20).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconDuet).FontSize(iconHero).TextColor(t.Accent)
+			ui.Icon(c, iconTwinnel).FontSize(iconHero).TextColor(t.Accent)
 			ui.Text(c, T.OnboardTitle).FontSize(plat.titleSize - 3).FontWeight(plat.titleWeight)
 		})
 		ui.Text(c, T.OnboardIntro).Wrap().LineHeight(lineText)
@@ -180,7 +180,7 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 		})
 		if v.out != "" {
 			if v.outErr {
-				// The CLI's output is the plan plus one "duet: …" line
+				// The CLI's output is the plan plus one "twinnel: …" line
 				// saying what went wrong: show that line, and the rest
 				// only as the copyable detail (never parse the plan).
 				errorNote(c, cliFailure(v.out, nil))
@@ -283,9 +283,9 @@ func codeBlock(c *ui.Context, s string) ui.Element {
 	})
 }
 
-// installHelper runs `duet helper install`, which asks for the
+// installHelper runs `twinnel helper install`, which asks for the
 // administrator password (osascript) and sets up the LaunchDaemon. Does
-// nothing with DUET_READ_ONLY=1.
+// nothing with TWINNEL_READ_ONLY=1.
 func (a *app) installHelper() {
 	v := &a.hd.onb
 	if !a.cfg.AllowWrites || v.running {
