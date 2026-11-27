@@ -194,6 +194,7 @@ type Strings struct {
 	GeoTitle, UITitle, AccessoryDir, AccessoryForce                                                  string
 	AccessoryUpdate, AccessoryUpToDate, AccessoryCurrent, AccessoryError                             string
 	AccessoryMissing, AccessoryVerifiable, AccessoryUnverifiable, AccessoryLocal, AccessoryUnchecked string
+	AccessoryUnused                                                                                  string // the running config loads none of the GEO databases
 	AccessoryRemote, AccessoryNothing, AccessoryRolledBack                                           string
 	AccessoryUpdated, AccessorySkipped                                                               string // %s: names
 	AccessoryReloadNeeded, AccessoryApply, AccessoryApplyReason                                      string
@@ -207,6 +208,7 @@ type Strings struct {
 	TakeoverBinary, TakeoverSecretSet                                                 string
 	TakeoverTSSvc, TakeoverBase                                                       string
 	TakeoverUseBase                                                                   string
+	TakeoverManaged                                                                   string // Twinnel runs this setup already: nothing to take over
 	TakeoverCandScore                                                                 string // proxies same/total, groups same/total, tail/rules, head
 	TakeoverNoLayers                                                                  string
 	TakeoverRules                                                                     string // %d
@@ -699,6 +701,7 @@ var zh = Strings{
 	AccessoryCurrent:      "最新",
 	AccessoryError:        "出错",
 	AccessoryMissing:      "未安装",
+	AccessoryUnused:       "当前配置不使用",
 	AccessoryVerifiable:   "可校验",
 	AccessoryUnverifiable: "无校验值",
 	AccessoryUnchecked:    "未检查",
@@ -722,6 +725,7 @@ var zh = Strings{
 	TakeoverDiscardTitle:   "删除接管计划「%s」？",
 	TakeoverDiscardBody:    "不影响现在的配置。",
 	TakeoverFound:          "现有安装",
+	TakeoverManaged:        "已由 Twinnel 管理",
 	TakeoverLive:           "配置文件",
 	TakeoverMihomoSvc:      "mihomo 服务",
 	TakeoverBinary:         "mihomo 程序",

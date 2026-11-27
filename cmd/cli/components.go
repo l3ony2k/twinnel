@@ -171,6 +171,8 @@ func printComponent(w io.Writer, kind string, c rpc.AccessoryCheck) {
 		switch {
 		case f.Error != "":
 			upd = "error"
+		case !f.Installed && f.Unused:
+			upd = "not used by the config"
 		case f.UpdateAvailable && !f.Installed:
 			upd = "missing"
 		case f.UpdateAvailable:

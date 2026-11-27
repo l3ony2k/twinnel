@@ -737,6 +737,10 @@ type AccessoryFile struct {
 	// Source is where the installed copy came from (Twinnel's record);
 	// "" when it was put there by someone else (mihomo itself, by hand).
 	Source string `json:"source,omitempty"`
+	// Unused (geo): the config mihomo runs never makes it load this
+	// database, so an absent one is not missing and is not downloaded.
+	// False when that is unknown (no config yet, or an older helper).
+	Unused bool `json:"unused,omitempty"`
 }
 
 type AccessoryCheck struct {

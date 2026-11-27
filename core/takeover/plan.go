@@ -34,6 +34,10 @@ type Options struct {
 	Now        func() time.Time
 }
 
+// ErrOwnSetup: the setup discovery found is Twinnel's own (Own), so
+// there is nothing to take over.
+var ErrOwnSetup = errors.New("this mihomo is already managed by Twinnel; there is nothing to take over")
+
 // Coexist describes the managed Tailscale layer the plan uses.
 type Coexist struct {
 	MagicDNSSuffix string `json:"magicdns_suffix,omitempty"`
@@ -130,6 +134,9 @@ func BuildPlan(ctx context.Context, probe Probe, opt Options) (*Plan, error) {
 	disc, err := Discover(ctx, probe, opt.DiscoverOptions)
 	if err != nil {
 		return nil, err
+	}
+	if disc.Mihomo.Twinnel {
+		return nil, fmt.Errorf("%w (%s)", ErrOwnSetup, disc.Mihomo.Config)
 	}
 	p := &Plan{Version: PlanVersion, CreatedAt: now(), Discovery: disc, Live: disc.Mihomo.Config}
 	p.Warnings = append(p.Warnings, disc.Warnings...)

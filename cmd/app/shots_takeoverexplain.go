@@ -15,7 +15,7 @@ import (
 // takeoverExplainShots (TWINNEL_SHOTS_FLOW=takeoverexplain) captures the
 // takeover explanation from synthetic state: the 接管 page before any plan
 // (intro, the detected setup, 生成接管计划 with its note), the same with
-// nothing detected, a plan's cards with their ⓘ, 关于 at the top (mihomo
+// nothing detected, a setup Twinnel manages already, a plan's cards with their ⓘ, 关于 at the top (mihomo
 // 配置 row) and scrolled to 接管是什么 as 了解接管 does, and 内核 before
 // takeover. The helper is set, not connected: nothing is sent or written.
 func (a *app) takeoverExplainShots(save func(*mygo.Window, string)) {
@@ -51,6 +51,17 @@ func (a *app) takeoverExplainShots(save func(*mygo.Window, string)) {
 
 	shot("takeover-intro", pageTakeover, "", 820, func() { empty(); a.live = detected })
 	shot("takeover-notdetected", pageTakeover, "", 820, func() { empty(); a.live = liveSetup{loaded: true} })
+	// Set up by the wizard (a config of Twinnel's own, no takeover): the
+	// page says it is Twinnel's already and offers no plan.
+	shot("takeover-managed", pageTakeover, "", 820, func() {
+		empty()
+		a.live = liveSetup{loaded: true}
+		managed := connected
+		st := *connected.Status
+		st.ActiveSubscription = "sub-1"
+		managed.Status = &st
+		a.mon.SetHelper(managed)
+	})
 
 	fix := os.Getenv("TWINNEL_TAKEOVER_FIXTURE")
 	if fix == "" {

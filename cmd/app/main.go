@@ -95,6 +95,7 @@ type app struct {
 	hm          helperMgmtView             // 设置 → 后台助手 (helpermgmt.go)
 	setupV      setupView                  // 设置这台 Mac (setuppage.go)
 	wiz         wizardView                 // the first-run wizard (wizard.go)
+	launch      launchOpen                 // what this launch was asked to open (launch.go)
 	agent       agentView                  // 设置 → 本地 Agent (agentsection.go)
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
@@ -148,7 +149,7 @@ func main() {
 		if !mygo.App.RequestSingleInstanceLock() {
 			return
 		}
-		mygo.App.OnSecondInstance(func([]string, string) { mygo.RunOnMain(a.openMain) })
+		mygo.App.OnSecondInstance(func(args []string, _ string) { mygo.RunOnMain(func() { a.secondLaunch(args) }) })
 	}
 	// The flyout and the main window come and go; the tray keeps the app.
 	mygo.App.OnWindowAllClosed(func() {})
@@ -172,6 +173,9 @@ func newApp(getenv func(string) string) (*app, error) {
 	a := &app{page: pageOverview, groupsOpen: map[string]bool{}, tileCols: map[string]int{}, pageScroll: map[string]*ui.ScrollState{}, healthOpen: map[string]bool{}}
 	i18n.Namer = a.eventName // helper messages name subscriptions and overrides (R-unslop-21)
 	a.probes = probes
+	if a.launch, err = launchRequest(os.Args[1:], getenv); err != nil {
+		log.Printf("open: %v", err)
+	}
 	// Shot mode never takes the owner's focus: no tray, no notifications,
 	// windows created hidden and captured from memory (Window.CapturePage
 	// renders native content itself; it needs no pixels on screen).
@@ -282,12 +286,7 @@ func (a *app) ready() {
 			log.Printf("takeover fixture: %v", err)
 		}
 	}
-	if os.Getenv("TWINNEL_OPEN") != "" { // for development
-		a.openMain()
-		if os.Getenv("TWINNEL_OPEN") == "panel" {
-			a.togglePanel()
-		}
-	}
+	a.openAtLaunch() // TWINNEL_OPEN, --open (launch.go); else the icon, then wizardLaunchCheck
 }
 
 // start (re)builds the mihomo client and the monitor from a.cfg. Main thread.

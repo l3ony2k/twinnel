@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/l3ony2k/twinnel/core/legacy"
 	"io"
 	"io/fs"
 	"net"
@@ -34,6 +33,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/legacy"
 )
 
 // Default geo database URLs (mihomo's own defaults for geox-url).
@@ -73,20 +75,20 @@ type GeoItem struct {
 	Rel  string // File relative to the config dir (a plain file name)
 }
 
-// GeoItems lists the geo databases of a config dir with mihomo's file
-// naming: an existing file whose name matches case-insensitively is used
-// (Country.mmdb / geoip.db / geoip.metadb for mmdb, ASN.mmdb, GeoIP.dat,
-// GeoSite.dat), else mihomo's default name. urls are geox-url entries
-// (keys geoip, geosite, mmdb, asn); missing ones get the defaults.
+// GeoItems lists the geo databases of a config dir (mihomo's -d) under
+// the names mihomo itself loads: GeoIP.dat, GeoSite.dat and ASN.mmdb
+// matched case-insensitively; for the MMDB, Country.mmdb when the dir has
+// one (mihomo prefers it), else geoip.metadb. A file not there gets
+// mihomo's default name. urls are geox-url entries (keys geoip, geosite,
+// mmdb, asn); missing ones get the defaults.
 func GeoItems(confDir string, urls map[string]string) []GeoItem {
 	entries, _ := os.ReadDir(confDir)
+	// find returns the first of names (in that order of preference) the
+	// dir has, with the dir's spelling, else names[0]'s default.
 	find := func(def string, names ...string) string {
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
-			}
-			for _, n := range names {
-				if strings.EqualFold(e.Name(), n) {
+		for _, n := range names {
+			for _, e := range entries {
+				if !e.IsDir() && strings.EqualFold(e.Name(), n) {
 					return e.Name()
 				}
 			}
@@ -100,10 +102,10 @@ func GeoItems(confDir string, urls map[string]string) []GeoItem {
 		return def
 	}
 	items := []GeoItem{
-		{Name: "geoip", URL: u("geoip", DefaultGeoIPURL), Rel: find("GeoIP.dat", "GeoIP.dat")},
-		{Name: "geosite", URL: u("geosite", DefaultGeoSiteURL), Rel: find("GeoSite.dat", "GeoSite.dat")},
-		{Name: "mmdb", URL: u("mmdb", DefaultMMDBURL), Rel: find("geoip.metadb", "Country.mmdb", "geoip.db", "geoip.metadb")},
-		{Name: "asn", URL: u("asn", DefaultASNURL), Rel: find("ASN.mmdb", "ASN.mmdb")},
+		{Name: config.GeoIP, URL: u(config.GeoIP, DefaultGeoIPURL), Rel: find("GeoIP.dat", "GeoIP.dat")},
+		{Name: config.GeoSite, URL: u(config.GeoSite, DefaultGeoSiteURL), Rel: find("GeoSite.dat", "GeoSite.dat")},
+		{Name: config.GeoMMDB, URL: u(config.GeoMMDB, DefaultMMDBURL), Rel: find("geoip.metadb", "Country.mmdb", "geoip.metadb")},
+		{Name: config.GeoASN, URL: u(config.GeoASN, DefaultASNURL), Rel: find("ASN.mmdb", "ASN.mmdb")},
 	}
 	for i := range items {
 		items[i].File = filepath.Join(confDir, items[i].Rel)

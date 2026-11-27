@@ -329,6 +329,11 @@ func TestAdopt(t *testing.T) {
 	if err := h.e.TakeoverDiscard(rpc.TakeoverDiscardParams{PlanID: p.PlanID}); err == nil {
 		t.Fatal("discard of the adopted plan accepted")
 	}
+	// The live config is Twinnel's now: no plan against it (Windows QA
+	// round 1, I: 接管 offered one against Twinnel's own config).
+	if _, err := h.e.TakeoverPlan(ctx, rpc.TakeoverPlanParams{}); !errors.As(err, &re) || re.Code != rpc.CodeInvalidParams || !strings.Contains(err.Error(), "already managed by Twinnel") {
+		t.Fatalf("plan against the adopted setup: %v", err)
+	}
 
 	// controller.secure: a new secret, applied; then rotated again.
 	sr, err := h.e.SecureController(ctx)

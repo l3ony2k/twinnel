@@ -39,6 +39,19 @@ Keep two copies apart. The **daily** copy is `/Applications/Twinnel.app` plus th
 
 `登录时打开` (MyGo `SetOpenAtLogin`, SMAppService) needs an app bundle: a `go run` build shows it disabled with 需打包版. An ad-hoc-signed copy in `/Applications` registers; macOS may ask to allow it in System Settings › General › Login Items, which the app says when the call reports it.
 
+### What a launch opens (development, real-machine GUI QA)
+
+One decision for every platform (`cmd/app/launch.go`). A normal launch shows only the menu bar or tray icon; the first launch of a machine that is not set up opens the wizard once the helper's state is known (`launchOpensWizard`). A run against a scratch helper (`TWINNEL_SOCKET` set) never opens a window by itself, so a first-run test with a scratch socket shows nothing until it asks:
+
+| Ask | Opens |
+|---|---|
+| `TWINNEL_OPEN=1` | the main window as a real launch shows it: the wizard when the machine is not set up, else 总览 |
+| `TWINNEL_OPEN=panel` | the main window and the flyout |
+| `TWINNEL_OPEN=page:<id>` | the main window at that page and nothing over it; `page:wizard` is the wizard |
+| `TWINNEL_WIZARD=1` / `0` | forces the first-run wizard on or off, whatever else is set |
+
+Page ids: `overview proxies tailscale health logs config history kernel takeover settings about install leave wizard` (`allPages` in `cmd/app/window.go`; an unknown id is logged with the list and the main window opens at its default page). The same values work as an argument, `--open=page:kernel`; on Windows a second launch passes it to the running copy, which turns its window to that page, so a QA script can step through pages without restarting the app or clicking by coordinates: `Twinnel.exe --open=page:health`. These hooks show and focus a window: use them on a test machine, never on a machine someone is working at (use shots there).
+
 ### Screenshots (development)
 
 `TWINNEL_SHOTS=<dir> twinnel-app` renders every page and the flyout into PNGs, without showing a window or taking the focus, then quits (`cmd/app/shots*.go`; `TWINNEL_SHOTS_FLOW`, `TWINNEL_SHOTS_QUICK`, `TWINNEL_SHOTS_WIDTH` pick other passes; `TWINNEL_SHOTS_FLOW=toolbar` saves each page's toolbar idle, hovered and pressed; `TWINNEL_SHOTS_FLOW=helpermgmt` saves 设置 → 后台助手 in each state and the 需要更新后台助手 row). Shots are read-only by default (as `TWINNEL_READ_ONLY=1`); a flow that writes against a fake helper or controller sets `TWINNEL_READ_ONLY=0` and `TWINNEL_SHOTS_WRITE=1`. Run it against synthetic data only, so no real account, tailnet, device or node name ends up in a picture.

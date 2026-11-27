@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -286,5 +287,58 @@ func TestUIUpdate(t *testing.T) {
 	h.apply("bad ui")
 	if c, _ := h.e.UICheck(ctx, rpc.AccessoryCheckParams{}); !strings.Contains(c.Files[0].Error, "outside the config dir") {
 		t.Errorf("outside: %+v", c.Files[0])
+	}
+}
+
+// Windows QA round 1: a config with GEOIP rules and no geodata-mode loads
+// only the MMDB. GeoIP.dat, GeoSite.dat and ASN.mmdb are not missing, are
+// not asked about and are not downloaded; once a rule loads one, it is.
+func TestGeoOnlyWhatTheConfigLoads(t *testing.T) {
+	h, _ := accessoryHarness(t)
+	ctx := context.Background()
+	h.apply("geoip rules only")
+	st, err := h.e.GeoStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := func(files []rpc.AccessoryFile) map[string]rpc.AccessoryFile {
+		m := map[string]rpc.AccessoryFile{}
+		for _, f := range files {
+			m[f.Name] = f
+		}
+		return m
+	}
+	f := byName(st.Files)
+	if mm := f["mmdb"]; mm.Unused || !mm.UpdateAvailable {
+		t.Errorf("mmdb is loaded and absent: %+v", mm)
+	}
+	for _, n := range []string{"geoip", "geosite", "asn"} {
+		if x := f[n]; !x.Unused || x.UpdateAvailable {
+			t.Errorf("%s is not loaded: %+v", n, x)
+		}
+	}
+	c, err := h.e.GeoCheck(ctx, rpc.AccessoryCheckParams{})
+	if err != nil || !c.Checked {
+		t.Fatalf("check: %+v %v", c, err)
+	}
+	r, err := h.e.GeoUpdate(ctx, rpc.AccessoryUpdateParams{Force: true})
+	if err != nil || !slices.Equal(r.Updated, []string{"mmdb"}) {
+		t.Fatalf("update: %+v %v", r, err)
+	}
+	if _, err := os.Stat(filepath.Join(h.confDir, "GeoSite.dat")); err == nil {
+		t.Error("GeoSite.dat downloaded though no rule loads it")
+	}
+
+	// A GEOSITE rule: now GeoSite.dat is missing, and downloaded.
+	if _, err := h.e.PutLayer(rpc.LayerPutParams{ID: "geosite", Content: "+rules:\n  - GEOSITE,example,DIRECT\n"}); err != nil {
+		t.Fatal(err)
+	}
+	h.apply("a geosite rule")
+	st, _ = h.e.GeoStatus()
+	if gs := byName(st.Files)["geosite"]; gs.Unused || !gs.UpdateAvailable {
+		t.Errorf("geosite is loaded now: %+v", gs)
+	}
+	if r, err := h.e.GeoUpdate(ctx, rpc.AccessoryUpdateParams{}); err != nil || !slices.Equal(r.Updated, []string{"geosite"}) {
+		t.Fatalf("update: %+v %v", r, err)
 	}
 }
