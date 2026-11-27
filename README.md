@@ -83,7 +83,7 @@ The `.app` and the CLI and helper inside it are signed ad hoc (`SIGN_IDENTITY` a
 Everything below except the helper commands is read-only.
 
 ```sh
-twinnel doctor                      # run the health checks against the live setup
+twinnel doctor                      # the helper runs the health checks (the app's view); --local runs them here
 twinnel doctor --markdown           # a report to paste into an issue (it shows tailnet names: review it first)
 twinnel doctor --only magicdns,system-dns --json
 twinnel doctor --egress             # opt-in: one HTTPS request direct and one through mihomo, compared

@@ -52,6 +52,40 @@ type Report struct {
 	// Controller is who listened on the controller address during the
 	// run (nil when the Env does not know).
 	Controller *foreign.Owner `json:"controller,omitempty"`
+	// Source is where the checks ran (Source*), set by the client that
+	// shows the report; "" when it does not say.
+	Source string `json:"source,omitempty"`
+}
+
+// Where a report's checks ran (Report.Source). The helper's run is the
+// one the app shows; a local run lacks what only the helper knows (who
+// holds the controller when the helper is down, the competitors'
+// autostarts, the DNS it guards), so its verdicts can differ.
+const (
+	SourceHelper        = "helper"          // the helper ran them
+	SourceLocal         = "local"           // this process, as asked (--local)
+	SourceLocalNoHelper = "local-no-helper" // this process: the helper did not answer
+)
+
+// Only returns a copy of r with just the checks named in ids (all of
+// them when ids is empty) and Overall worked out again.
+func (r *Report) Only(ids []string) *Report {
+	if r == nil || len(ids) == 0 {
+		return r
+	}
+	keep := map[string]bool{}
+	for _, id := range ids {
+		keep[id] = true
+	}
+	out := *r
+	out.Checks, out.Overall = nil, StatusOK
+	for _, c := range r.Checks {
+		if keep[c.ID] {
+			out.Checks = append(out.Checks, c)
+			out.Overall = Worse(out.Overall, c.Status)
+		}
+	}
+	return &out
 }
 
 // Counts returns how many checks ended in each status.

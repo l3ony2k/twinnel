@@ -217,7 +217,7 @@ func writeVersions(w io.Writer, rep VersionReport) {
 			fmt.Fprintln(w, line)
 		}
 	}
-	for _, warn := range nonEmpty(helperWarning(rep), hostWarning(rep)) {
+	for _, warn := range nonEmpty(helperWarning(rep), hostWarning(rep), rep.Mihomo.Warning) {
 		fmt.Fprintln(w, "warning: "+warn)
 	}
 }

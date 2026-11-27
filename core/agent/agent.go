@@ -37,6 +37,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/mihomo"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/tailscale"
@@ -210,15 +211,20 @@ func (c *call) mihomo(write bool) (*mihomo.Client, error) {
 	if write {
 		var st rpc.Status
 		if err := c.rpc(rpc.MethodStatus, nil, &st); err == nil && st.Mihomo.Owner.IsForeign() {
-			o := st.Mihomo.Owner
-			who := o.Client.Name()
-			if who == "" {
-				who = "another program"
-			}
-			return nil, fmt.Errorf("%s is held by %s's mihomo, not Twinnel's; quit it or move Twinnel's controller (health_fix controller-owner) first", o.Addr, who)
+			return nil, foreignOwnerError(*st.Mihomo.Owner)
 		}
 	}
 	return mihomo.New(mihomo.Options{Address: addr, Secret: secret, AllowWrites: write, Transport: c.s.d.HTTPTransport, Timeout: 10 * time.Second})
+}
+
+// foreignOwnerError says that another program's mihomo holds the
+// controller address, and how to free it.
+func foreignOwnerError(o foreign.Owner) error {
+	who := o.Client.Name()
+	if who == "" {
+		who = "another program"
+	}
+	return fmt.Errorf("%s is held by %s's mihomo, not Twinnel's; quit it or move Twinnel's controller (health_fix controller-owner) first", o.Addr, who)
 }
 
 // tailscale returns the LocalAPI client.

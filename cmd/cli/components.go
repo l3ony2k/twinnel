@@ -300,6 +300,11 @@ func openDashboard(cf *clientFlags, printURL, printSecret bool) error {
 	if cr.Source == controllerFromApp {
 		return errors.New("the helper did not say where mihomo's controller is (an older helper?): twinnel helper upgrade")
 	}
+	// The dashboard at that address would be the other program's, and
+	// changes made in it would land there.
+	if err := cr.writable(); err != nil {
+		return err
+	}
 	u := mihomo.DashboardURL(cr.Controller, st.Path)
 	if printSecret && cr.Secret != "" {
 		fmt.Fprintf(stdout, "secret: %s\n", cr.Secret)

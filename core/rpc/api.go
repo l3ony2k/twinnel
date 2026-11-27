@@ -274,9 +274,10 @@ type ApplyResult struct {
 	// Impact: what the hot reload did to the running mihomo (set when a
 	// previous config file existed to compare with).
 	Impact *ReloadImpact `json:"impact,omitempty"`
-	// Foreign: the apply stopped before writing and reloading because the
-	// controller belongs to another program's mihomo (ErrorMsg
-	// "controller-foreign").
+	// Foreign: the controller belongs to another program's mihomo. With
+	// Error, the apply stopped before writing and reloading (ErrorMsg
+	// "controller-foreign"); without, nothing had changed and a warning
+	// says so ("controller-foreign-idle").
 	Foreign *foreign.Owner `json:"foreign,omitempty"`
 }
 

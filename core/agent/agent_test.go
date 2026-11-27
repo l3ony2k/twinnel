@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"tailscale.com/ipn"
 
 	"github.com/l3ony2k/twinnel/core/agent/agenttest"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/tailscale"
 )
@@ -247,6 +249,29 @@ func TestReadOnlyEnv(t *testing.T) {
 	e.fails("set_tun", map[string]any{"enabled": false}, "TWINNEL_READ_ONLY")
 	e.fails("apply", nil, "TWINNEL_READ_ONLY")
 	e.ok("status", nil)
+}
+
+// Another program's mihomo on the controller: status names it and leaves
+// out its mode, TUN and groups (they are not Twinnel's); version marks the
+// running version as its; writes refuse.
+func TestStatusForeignController(t *testing.T) {
+	e := newEnv(t, nil)
+	e.setAgent(rpc.AgentSettings{MCP: true, Operate: true})
+	e.h.Mu.Lock()
+	e.h.Owner = &foreign.Owner{Addr: e.h.Ctrl, Verdict: foreign.Foreign, Client: foreign.ClientClashParty, PID: 4321}
+	e.h.Mu.Unlock()
+	m := e.ok("status", nil)
+	mh := m["mihomo"].(map[string]any)
+	if mh["reachable"] == true || mh["mode"] != nil || mh["selector_groups"] != nil || !strings.Contains(fmt.Sprint(mh["error"]), "Clash Party") {
+		t.Fatalf("mihomo = %v", mh)
+	}
+	if o, _ := mh["controller_owner"].(map[string]any); o["verdict"] != "foreign" {
+		t.Fatalf("owner = %v", mh["controller_owner"])
+	}
+	if v := e.ok("version", nil); v["mihomo_running_owner"] == nil {
+		t.Errorf("version = %v", v)
+	}
+	e.fails("set_mode", map[string]any{"mode": "global"}, "Clash Party")
 }
 
 func TestHelperDown(t *testing.T) {
