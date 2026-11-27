@@ -614,6 +614,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 		}
 	}
 	title := layerTitle(l)
+	a.spotRing(c, col, "layer:"+l.ID) // a health fix's 去调整 points here
 	col.Children(func() {
 		if dropAt != 0 {
 			dropLine(c, t, dropAt == 2)

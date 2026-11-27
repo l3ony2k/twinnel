@@ -221,6 +221,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 		})
 	})
 	list(T.HealthPassed, "", rest, nil)
+	a.fixSheet(c, s)
 }
 
 // healthDemoted: the banner rates the checks' failures as warnings (a
@@ -250,7 +251,12 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 	off := egressOff(cr)
 	// The egress row's own fix (检测出口) is on the row, not in the fold.
 	fix := cr.Fix != nil && !(egress && cr.Fix.AutoFix == health.FixEgressProbe)
-	expandable := len(cr.Evidence) > 0 || fix ||
+	// Reasons with fixes (health-fixes) stand for the hint's text.
+	reasons := len(cr.Reasons) > 0 && (cr.Status == health.StatusWarn || cr.Status == health.StatusFail)
+	if reasons {
+		fix = false
+	}
+	expandable := len(cr.Evidence) > 0 || fix || reasons ||
 		cr.Summary != "" && cr.Status != health.StatusSkip && cr.Status != health.StatusAccepted ||
 		egress && !off && cr.Summary != ""
 	look := cr.Status
@@ -292,8 +298,13 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 				tag(c, T.HealthAccepted)
 			case !open:
 				// Cut to one line; the whole sentence on hover, as
-				// macOS shows a truncated cell's text.
-				ui.Text(c, cr.Summary).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(cr.Summary)
+				// macOS shows a truncated cell's text. A failing check
+				// says its first reason in plain words.
+				line := cr.Summary
+				if reasons {
+					line = rowFixLine(cr, reportPlatform(s))
+				}
+				ui.Text(c, line).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(line)
 			}
 			ui.Spacer(c)
 			if egress {
@@ -328,7 +339,14 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 			return
 		}
 		ui.Column(c).Gap(10).MarginStart(26).Children(func() {
-			if cr.Status != health.StatusSkip || egress {
+			if reasons {
+				a.reasonFixes(c, cr, s)
+				// The check's own words, for whoever wants them.
+				ui.Column(c).Gap(4).Children(func() {
+					small(c, T.FixDetails)
+					ui.Text(c, cr.Summary).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
+				})
+			} else if cr.Status != health.StatusSkip || egress {
 				ui.Text(c, cr.Summary).Wrap().LineHeight(lineText).Selectable()
 			}
 			if egress && cr.Egress != nil {

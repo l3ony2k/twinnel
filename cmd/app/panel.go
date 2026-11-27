@@ -215,6 +215,7 @@ func (a *app) panelAttention(c *ui.Context, s status.Snapshot) {
 		}
 		if health {
 			a.healthLine(c, s)
+			a.healthFixLine(c, s)
 		}
 		if helper {
 			a.helperLine(c, s)
@@ -265,6 +266,31 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 		a.page = pageHealth
 		a.openMain()
 		a.pageChanged(old)
+	}
+}
+
+// healthFixLine is the flyout's 修复 row under the health row: the first
+// problem with a one-click fix, in plain words. A click opens the health
+// page on that fix's preview.
+func (a *app) healthFixLine(c *ui.Context, s status.Snapshot) {
+	cr, rf, ok := a.firstAutoFix(s)
+	if !ok {
+		return
+	}
+	t := c.Theme()
+	T := i18n.T
+	row := panelRow(c.Key("health-fix"), T.FixDo+T.LabelSep+rf.text.Plain).Role(ui.RoleButton)
+	row.Children(func() {
+		ui.Box(c).Width(leadCol).Shrink(0)
+		ui.Text(c, rf.text.Plain).TextColor(t.TextMuted).Grow(1).Shrink(1).SingleLine().Tooltip(rf.text.Plain)
+		ui.Text(c, T.FixDo).TextColor(t.Accent).Shrink(0).SingleLine()
+	})
+	if row.Clicked() {
+		a.openPage(pageHealth)
+		a.healthOpen[cr.ID] = true
+		if act := a.fixButton(cr, rf, s); act != nil && !act.off {
+			act.run()
+		}
 	}
 }
 
