@@ -321,3 +321,40 @@ Windows Sandbox (Windows Pro, Enterprise or Education). Save as
 7. Uninstall (`twinnel helper uninstall --purge` in the admin prompt), check
    that the services and the `Meta` adapter are gone and the adapter DNS is as
    before, then close the Sandbox (or revert the VM snapshot).
+
+### A real Windows PC over SSH (the QA loop)
+
+Once the Sandbox run is clean, the rounds on a real Windows 11 PC run from a
+Mac over SSH. The PC needs OpenSSH Server with PowerShell 7 (`pwsh`) as the
+login shell, and an administrator account (an OpenSSH login gets an elevated
+token without a UAC prompt). The scripts never touch sshd, the firewall or
+the remote-access path (Tailscale, when that is how you reach the PC).
+
+| Script | Runs on | Does |
+|---|---|---|
+| `windows-deploy.sh HOST` | the Mac | builds the Windows app zip from main (refuses another branch), copies it to `%ProgramData%\TwinnelQA\deploy`, runs `install.ps1 -NoLaunch`, `twinnel helper upgrade`, prints `twinnel version` and `helper upgrade --check` |
+| `windows-snapshot.ps1 snapshot` / `verify -Dir` | the PC (elevated) | saves the state before a test (config.export zip, settings, layers, status, doctor, DNS of every adapter, service states) into `%ProgramData%\TwinnelQA\snap-<ts>`; `verify` compares and checks HTTPS to a DIRECT and a PROXY target through the TUN |
+| `windows-timebox.ps1 arm -Name N -Restore FILE -Seconds S` | the PC (elevated) | a one-shot SYSTEM scheduled task that runs the restore script after S seconds even when the SSH session dies; `run` restores early, `disarm` removes it |
+| `windows-usersession.ps1 -Script FILE -Arguments 'a;b'` | the PC (elevated) | runs a script in the signed-in user's desktop session (one-shot Interactive task, hidden console) and prints its output |
+| `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `windows`, `shot:NAME`, `winshot:NAME`, `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
+
+Rules that came out of round 1:
+
+- `%ProgramData%\TwinnelQA` is made Administrators/SYSTEM only: the snapshot's
+  export zip holds node credentials and subscription URLs. Screenshots name
+  the tailnet and nodes: keep them outside the repo.
+- An agent's `twinnel mcp` keeps `bin\twinnel.exe` open, and `install.ps1`
+  then fails half way. `windows-deploy.sh` renames locked exes aside
+  (`*.old-<ts>`, removed on the next deploy) instead of stopping someone's
+  agent session.
+- `install.ps1` stops a running Twinnel. Start it again in the user session
+  afterwards (`windows-gui.ps1 launch`) if it was running before.
+- Screenshots fail with "The handle is invalid" when the input desktop is not
+  `Default`: a running screensaver (desktop `Screen-saver`) or a locked
+  session. A non-secure screensaver can be ended (it comes back after the
+  idle timeout); a locked session needs the owner.
+- Tests that break traffic (mixed TUN stack, stopping mihomo, a foreign
+  controller on 9090) arm a time box first. The LAN and the tailnet are
+  excluded from the TUN, so SSH normally survives; plan for it not to.
+- Write the restore scripts so they are idempotent: the time box may run
+  after the test already restored.
