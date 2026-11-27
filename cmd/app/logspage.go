@@ -33,6 +33,12 @@ type logsView struct {
 	query  string // search text, both sources
 	evList ui.ListState
 	mark   uint64 // the event a toast pointed at (H7), highlighted
+
+	// The duet tab's own 暂停 / 清空: a frozen copy of the events, and the
+	// last event 清空 hid (the helper's buffer is not touched).
+	evPaused  bool
+	evFrozen  []rpc.Event
+	evCleared uint64
 }
 
 func (l *logsView) levelName() string {
@@ -93,26 +99,39 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 				a.mon.ClearLogs()
 				a.mon.SetLogLevel(v.levelName())
 			}
-			if v.source != logsMihomo {
-				return
-			}
 			// A toggle: 暂停 and 继续 are one width, so the bar does not
-			// shift as it flips; the state is also spoken (selected).
+			// shift as it flips; the state is also spoken (selected). Both
+			// tabs have both buttons, each with its own state.
+			paused := &v.paused
+			if v.source == logsDuet {
+				paused = &v.evPaused
+			}
 			pause := T.LogPause
-			if v.paused {
+			if *paused {
 				pause = T.LogResume
 			}
-			b := pushButton(c.Key("pause"), pause).Role(ui.RoleToggleButton).AccessSelected(v.paused).Label(T.LogPause)
-			if v.paused {
+			b := pushButton(c.Key("pause"), pause).Role(ui.RoleToggleButton).AccessSelected(*paused).Label(T.LogPause)
+			if *paused {
 				b.Tooltip(i18n.T.LogPaused)
 			}
 			if b.Clicked() {
-				v.paused = !v.paused
-				v.frozen = a.mon.Logs()
+				*paused = !*paused
+				if v.source == logsDuet {
+					v.evFrozen = append([]rpc.Event(nil), a.events.evs...)
+				} else {
+					v.frozen = a.mon.Logs()
+				}
 			}
 			if pushButton(c.Key("clear"), T.LogClear).Clicked() {
-				a.mon.ClearLogs()
-				v.frozen = nil
+				if v.source == logsDuet {
+					if n := len(a.events.evs); n > 0 {
+						v.evCleared = a.events.evs[n-1].Seq
+					}
+					v.evFrozen = nil
+				} else {
+					a.mon.ClearLogs()
+					v.frozen = nil
+				}
 			}
 		})
 		box := ui.Column(c).Grow(1).Radius(plat.groupRadius).Background(p.group).Border(1, p.groupLine).Clip()
@@ -186,6 +205,16 @@ func (a *app) eventsList(c *ui.Context) {
 	}
 	var rows []row
 	evs := a.events.evs
+	if v.evPaused {
+		evs = v.evFrozen
+	}
+	if v.evCleared != 0 {
+		k := 0
+		for k < len(evs) && evs[k].Seq <= v.evCleared {
+			k++
+		}
+		evs = evs[k:]
+	}
 	for i := len(evs) - 1; i >= 0; i-- {
 		r, ok := describeEvent(evs[i], a.subscriptionName)
 		if !ok {
