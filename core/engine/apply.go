@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/duet/core/config"
+	"github.com/l3ony2k/duet/core/msg"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/store"
 )
@@ -143,6 +144,7 @@ func (e *Engine) Preview(ctx context.Context) (rpc.ComposeResult, error) {
 	}
 	current, _ := readConfined(st.Mihomo.ConfigFile)
 	cr, _, err := e.check(ctx, st, res.Config, res.Applied, res.Warnings, current, layerSecret)
+	cr.Messages = msg.All(cr.Warnings)
 	return cr, err
 }
 
@@ -193,7 +195,7 @@ func (e *Engine) Apply(ctx context.Context, p rpc.ApplyParams) (*rpc.ApplyResult
 	e.applyMu.Lock()
 	defer e.applyMu.Unlock()
 	start := e.now()
-	res := &rpc.ApplyResult{Reason: p.Reason, Time: start.UTC()}
+	res := &rpc.ApplyResult{Reason: p.Reason, ReasonCode: p.ReasonCode, ReasonArgs: p.ReasonArgs, Time: start.UTC()}
 
 	st, err := e.Store.Settings()
 	if err != nil {
@@ -203,7 +205,21 @@ func (e *Engine) Apply(ctx context.Context, p rpc.ApplyParams) (*rpc.ApplyResult
 	if err != nil {
 		return e.fail(res, start, err)
 	}
-	return e.install(ctx, st, comp.Config, comp.Applied, comp.Warnings, layerSecret, store.HistoryApplied, p, res, start)
+	man, err := e.manifest(st, true)
+	if err != nil {
+		e.log().Warn("layer manifest", "err", err) // the entry is kept without one
+		man = nil
+	}
+	meta := store.HistoryMeta{Reason: p.Reason, Code: p.ReasonCode, Args: p.ReasonArgs, Layers: man}
+	if meta.Code == "" && meta.Reason == "" {
+		meta.Code, meta.Reason = store.ReasonApply, "apply"
+		res.ReasonCode = store.ReasonApply
+	}
+	out, err := e.install(ctx, st, comp.Config, comp.Applied, comp.Warnings, layerSecret, store.HistoryApplied, p, meta, res, start)
+	if err == nil {
+		e.setDrift(nil) // mihomo runs what the overrides compose
+	}
+	return out, err
 }
 
 // Rollback applies a history entry again through the same checks.
@@ -212,7 +228,7 @@ func (e *Engine) Rollback(ctx context.Context, id string) (*rpc.ApplyResult, err
 	defer e.applyMu.Unlock()
 	start := e.now()
 	res := &rpc.ApplyResult{Reason: "rollback to " + id, Time: start.UTC()}
-	data, _, err := e.Store.ReadHistory(id)
+	data, target, err := e.Store.ReadHistory(id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotExist) {
 			return nil, rpc.ErrNotFound("history entry", id)
@@ -223,10 +239,26 @@ func (e *Engine) Rollback(ctx context.Context, id string) (*rpc.ApplyResult, err
 	if err != nil {
 		return e.fail(res, start, err)
 	}
-	return e.install(ctx, st, data, []string{"history:" + id}, nil, "", store.HistoryRollback, rpc.ApplyParams{Reason: res.Reason, Force: true}, res, start)
+	p := rpc.ApplyParams{Reason: res.Reason, ReasonCode: store.ReasonRollback, ReasonArgs: []string{id}, Force: true}
+	res.ReasonCode, res.ReasonArgs = p.ReasonCode, p.ReasonArgs
+	meta := store.HistoryMeta{Reason: p.Reason, Code: p.ReasonCode, Args: p.ReasonArgs, Layers: target.Layers}
+	out, err := e.install(ctx, st, data, []string{"history:" + id}, nil, "", store.HistoryRollback, p, meta, res, start)
+	if err != nil {
+		return out, err
+	}
+	// Does mihomo now run what the overrides compose? Only when the entry
+	// was composed from the very same overrides; otherwise the config page
+	// says so, and automatic re-compose waits (it would undo the rollback).
+	cur, merr := e.manifest(st, false)
+	if merr == nil && target.Layers != nil && target.Layers.Equal(cur) {
+		e.setDrift(nil)
+	} else {
+		e.setDrift(&store.Drift{Since: e.now().UTC().Truncate(time.Second), HistoryID: id, Manifest: target.Layers != nil})
+	}
+	return out, nil
 }
 
-func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, applied, warnings []string, layerSecret, kind string, p rpc.ApplyParams, res *rpc.ApplyResult, start time.Time) (*rpc.ApplyResult, error) {
+func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, applied, warnings []string, layerSecret, kind string, p rpc.ApplyParams, meta store.HistoryMeta, res *rpc.ApplyResult, start time.Time) (*rpc.ApplyResult, error) {
 	cfgPath := st.Mihomo.ConfigFile
 	current, err := readConfined(cfgPath)
 	hadCurrent := err == nil
@@ -278,7 +310,9 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 		stripped := stripSecretBytes(current)
 		latest, ok, _ := e.Store.LatestHistory()
 		if !ok || (latest.Hash != store.Hash(stripped) && !sameComposed(current, latest)) {
-			if _, err := e.Store.AddHistory(store.HistoryBackup, "file on disk before apply", stripped, e.now(), st.HistoryKeep); err != nil {
+			bm := store.HistoryMeta{Reason: "file on disk before apply", Code: store.ReasonBackup,
+				BeforeDuet: !ok || p.ReasonCode == store.ReasonAdopt}
+			if _, err := e.Store.AddHistoryMeta(store.HistoryBackup, bm, stripped, e.now(), st.HistoryKeep); err != nil {
 				return e.fail(res, start, fmt.Errorf("backup: %w", err))
 			}
 		}
@@ -313,7 +347,7 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 		res.Warnings = append(res.Warnings, "mihomo is not running ("+verr.Error()+"); the config was written and will be used at the next start")
 	}
 
-	h, err := e.Store.AddHistory(kind, p.Reason, cfg, e.now(), st.HistoryKeep)
+	h, err := e.Store.AddHistoryMeta(kind, meta, cfg, e.now(), st.HistoryKeep)
 	if err != nil {
 		e.log().Warn("history", "err", err)
 	} else {
@@ -426,6 +460,7 @@ func (e *Engine) restore(ctx context.Context, ctrl Controller, cd *confDir, name
 
 func (e *Engine) done(res *rpc.ApplyResult, start time.Time) *rpc.ApplyResult {
 	res.Duration = e.now().Sub(start).Round(time.Millisecond).String()
+	res.Messages = msg.All(res.Warnings)
 	e.mu.Lock()
 	la := *res
 	e.lastApply = &la
@@ -438,6 +473,10 @@ func (e *Engine) done(res *rpc.ApplyResult, start time.Time) *rpc.ApplyResult {
 func (e *Engine) fail(res *rpc.ApplyResult, start time.Time, err error) (*rpc.ApplyResult, error) {
 	res.Error = err.Error()
 	res.Duration = e.now().Sub(start).Round(time.Millisecond).String()
+	res.Messages = msg.All(res.Warnings)
+	if m := msg.Parse(res.Error); m.Code != "" {
+		res.ErrorMsg = &m
+	}
 	e.mu.Lock()
 	la := *res
 	e.lastApply = &la
@@ -462,7 +501,8 @@ func (e *Engine) History() ([]rpc.HistoryEntry, error) {
 	}
 	out := make([]rpc.HistoryEntry, 0, len(idx))
 	for _, h := range idx {
-		out = append(out, rpc.HistoryEntry{ID: h.ID, Time: h.Time, Hash: h.Hash, Size: h.Size, Kind: h.Kind, Reason: h.Reason})
+		out = append(out, rpc.HistoryEntry{ID: h.ID, Time: h.Time, Hash: h.Hash, Size: h.Size, Kind: h.Kind, Reason: h.Reason,
+			ReasonCode: h.ReasonCode, ReasonArgs: h.ReasonArgs, BeforeDuet: h.BeforeDuet, Layers: toRPCManifest(h.Layers)})
 	}
 	return out, nil
 }

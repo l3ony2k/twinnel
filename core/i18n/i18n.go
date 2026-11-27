@@ -241,6 +241,7 @@ type Strings struct {
 	AboutStrings      // about.go
 	TakeoverStrings   // takeover.go
 	HelperMgmtStrings // helpermgmt.go
+	ConfigUIStrings   // configui.go
 	LifecycleStrings  // lifecycle.go
 	StatusStrings     // status.go
 	SidebarStrings    // sidebar.go
@@ -489,8 +490,8 @@ var zh = Strings{
 	LayerName:        "名称",
 	LayerStage:       "阶段",
 	LayerFormat:      "格式",
-	FormatMerge:      "Clash Party",
-	FormatVerge:      "Verge Merge",
+	FormatMerge:      "Clash Party（+key / key+）",
+	FormatVerge:      "Clash Verge（prepend-rules…）",
 	MoveUp:           "上移",
 	MoveDown:         "下移",
 	LayerReorder:     "调整顺序",
@@ -682,7 +683,7 @@ var zh = Strings{
 	TakeoverBase:           "订阅原文",
 	TakeoverUseBase:        "改用这个",
 	TakeoverCandScore:      "节点 %d/%d · 策略组 %d/%d · 规则尾部 %d/%d（前面另有 %d 条）",
-	TakeoverNoLayers:       "没有分层",
+	TakeoverNoLayers:       "没有覆写",
 	TakeoverRules:          "%d 条规则",
 	TakeoverVerdict:        "对比结果",
 	TakeoverEquivalent:     "合成结果与现在的配置行为一致（除下面列出的有意修改）",
@@ -776,6 +777,7 @@ var zh = Strings{
 	AboutStrings:      zhAbout,
 	TakeoverStrings:   zhTakeover,
 	HelperMgmtStrings: zhHelperMgmt,
+	ConfigUIStrings:   zhConfigUI,
 	LifecycleStrings:  zhLifecycle,
 	StatusStrings:     zhStatus,
 	SidebarStrings:    zhSidebar,

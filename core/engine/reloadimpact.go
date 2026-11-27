@@ -67,7 +67,7 @@ func ReloadImpact(oldCfg, newCfg []byte) rpc.ReloadImpact {
 	errA := yaml.Unmarshal(oldCfg, &a)
 	errB := yaml.Unmarshal(newCfg, &b)
 	if errA != nil || errB != nil || a == nil || b == nil {
-		im := rpc.ReloadImpact{Force: true, TUNRebuild: true, DNSListener: true, Disruptive: true}
+		im := rpc.ReloadImpact{Force: true, TUNRebuild: true, DNSListener: true, Disruptive: true, Unknown: true}
 		im.Notes = append(im.Notes, "could not compare the old and the new config; assuming the worst")
 		return im
 	}
@@ -83,9 +83,11 @@ func reloadImpactMaps(a, b map[string]any) rpc.ReloadImpact {
 		var why []string
 		if !reflect.DeepEqual(normTun(ta), normTun(tb)) {
 			why = append(why, "tun section")
+			im.TUNWhy = append(im.TUNWhy, "tun")
 		}
 		if fakeIPAddr(a) != fakeIPAddr(b) {
 			why = append(why, "dns.fake-ip-range (the TUN address comes from it)")
+			im.TUNWhy = append(im.TUNWhy, "fake-ip-range")
 		}
 		if len(why) > 0 {
 			im.TUNRebuild = true

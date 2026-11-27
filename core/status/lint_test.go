@@ -29,9 +29,9 @@ dns-extra:
 		"+rules":      LevelOK,
 		"proxies+":    LevelOK,
 		"dns!":        LevelOK,
-		"+.lan":       LevelWarn, // needs a list, and looks like a domain
-		"*.corp!":     LevelWarn, // domain-like
-		"+nameserver": LevelWarn, // needs a list
+		"+.lan":       LevelError, // needs a list (refused), and looks like a domain
+		"*.corp!":     LevelWarn,  // domain-like
+		"+nameserver": LevelError, // needs a list (refused)
 	}
 	if len(got) != len(want) {
 		t.Fatalf("notes = %+v", notes)
