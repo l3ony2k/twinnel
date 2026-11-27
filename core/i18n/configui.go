@@ -150,6 +150,19 @@ type ConfigUIStrings struct {
 	EvService, EvTakeover            string
 	EvHelperStarted, EvHelperStop    string
 	EvShow                           string // toast action: open the event in 日志 → duet
+
+	// Round 3 (config-pages): the layer editor's format choice and its ⓘ,
+	// the marks on a layer row, the undo toasts of reversible actions,
+	// the editor's line notes, and the 现有安装 card's ⓘ.
+	FormatPartyName, FormatVergeName string
+	LayerFormatInfo                  string
+	RowUnapplied, RowApplyFailed     string
+	Undo, UndoOp, Undone             string
+	DoneLayerDeleted                 string // %s: override
+	DoneLayerReverted                string // %s: override
+	DoneDiscarded, DoneRestored      string
+	LintGoTo                         string // %d: line
+	TkFoundTip                       string
 }
 
 var zhConfigUI = ConfigUIStrings{
@@ -349,6 +362,21 @@ var zhConfigUI = ConfigUIStrings{
 	EvHelperStarted: "已启动",
 	EvHelperStop:    "正在停止",
 	EvShow:          "查看",
+
+	FormatPartyName:   "Clash Party",
+	FormatVergeName:   "Clash Verge",
+	LayerFormatInfo:   "Clash Party 用 +key 放到列表前面、key+ 放到后面。Clash Verge 用 prepend-rules、append-proxies 这类键。",
+	RowUnapplied:      "未应用",
+	RowApplyFailed:    "应用失败",
+	Undo:              "撤销",
+	UndoOp:            "撤销上一步",
+	Undone:            "已撤销",
+	DoneLayerDeleted:  "已删除覆写「%s」",
+	DoneLayerReverted: "已还原「%s」",
+	DoneDiscarded:     "已放弃未应用的改动",
+	DoneRestored:      "已恢复覆写的状态",
+	LintGoTo:          "跳到第 %d 行",
+	TkFoundTip:        "mihomo 的系统服务正在用的程序和配置文件。接管只改写这个配置文件；生成接管计划不会改动任何东西。",
 }
 
 var enConfigUI = ConfigUIStrings{
@@ -548,6 +576,21 @@ var enConfigUI = ConfigUIStrings{
 	EvHelperStarted: "Started",
 	EvHelperStop:    "Stopping",
 	EvShow:          "Show",
+
+	FormatPartyName:   "Clash Party",
+	FormatVergeName:   "Clash Verge",
+	LayerFormatInfo:   "Clash Party puts +key items at the front of a list and key+ items at the end. Clash Verge uses keys such as prepend-rules and append-proxies.",
+	RowUnapplied:      "Not applied",
+	RowApplyFailed:    "Failed to apply",
+	Undo:              "Undo",
+	UndoOp:            "Undo last change",
+	Undone:            "Undone",
+	DoneLayerDeleted:  "Deleted override “%s”",
+	DoneLayerReverted: "Reverted “%s”",
+	DoneDiscarded:     "Discarded unapplied changes",
+	DoneRestored:      "Overrides restored",
+	LintGoTo:          "Go to line %d",
+	TkFoundTip:        "The binary and config file your mihomo service runs. Takeover rewrites only this config file; making a takeover plan changes nothing.",
 }
 
 // Count words n with one (n == 1, with or without a %d) or many (with
