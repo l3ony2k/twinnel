@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"context"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -99,9 +100,9 @@ func appInventory(bundle, prefs string, loginItem bool) []rpc.InventoryItem {
 func helperFilesOnDisk() []rpc.InventoryItem {
 	var out []rpc.InventoryItem
 	kinds := []string{rpc.InvHelperBinary, rpc.InvHelperService}
-	for i, p := range helperInstalledPaths {
+	for i, p := range helperInstalledPaths { // binary, plist; then the old name's
 		if fi, err := os.Stat(p); err == nil {
-			out = append(out, rpc.InventoryItem{Kind: kinds[i], Path: p, Size: fi.Size()})
+			out = append(out, rpc.InventoryItem{Kind: kinds[i%len(kinds)], Path: p, Size: fi.Size()})
 		}
 	}
 	return out
@@ -636,6 +637,9 @@ func removeAppExtras() {
 		os.Remove(p)
 	}
 	removeCLILinks() // 设置 → 本地 Agent → 命令行工具
+	if d := legacyPrefsDir(); d != "" {
+		removeLegacyPrefs(d) // the app from before the rename
+	}
 }
 
 // appExtraItems words the app-side extras that exist, for the 完全移除
@@ -644,15 +648,17 @@ func appExtraItems() []string {
 	T := i18n.T
 	var out []string
 	if d := appBackupsDir(); d != "" {
-		if _, err := os.Stat(d); err == nil {
+		if _, err := os.Stat(d); err == nil || legacyLeftovers() {
 			out = append(out, T.ItemAppBackups)
 		}
+	} else if legacyLeftovers() {
+		out = append(out, T.ItemAppBackups)
 	}
 	if len(launchAgents()) > 0 {
 		out = append(out, T.ItemLaunchAgent)
 	}
 	for _, d := range cliTargets() {
-		if isTwinnelLink(filepath.Join(d, "twinnel")) {
+		if isTwinnelLink(filepath.Join(d, "twinnel")) || isLegacyLink(filepath.Join(d, legacy.CLI)) {
 			out = append(out, T.AgentCLI)
 			break
 		}

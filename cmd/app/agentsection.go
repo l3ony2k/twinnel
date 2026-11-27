@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -117,6 +118,9 @@ func removeCLILinks() {
 	for _, d := range cliTargets() {
 		if p := filepath.Join(d, "twinnel"); isTwinnelLink(p) {
 			os.Remove(p)
+		}
+		if p := filepath.Join(d, legacy.CLI); isLegacyLink(p) {
+			os.Remove(p) // made by the app before the rename
 		}
 	}
 }

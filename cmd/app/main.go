@@ -127,6 +127,9 @@ func main() {
 	a.theme = os.Getenv("TWINNEL_THEME")
 	initLang()
 	mygo.App.SetName(i18n.T.AppName)
+	// MyGo's own files (window-state.json) go next to app.json, whatever
+	// the display name's case.
+	mygo.App.SetPath(mygo.PathUserData, filepath.Dir(a.cfgPath))
 	a.initDock() // accessory, or regular for 在程序坞中显示 → 始终
 	// The flyout and the main window come and go; the tray keeps the app.
 	mygo.App.OnWindowAllClosed(func() {})
@@ -157,6 +160,14 @@ func newApp(getenv func(string) string) (*app, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return nil, err
+	}
+	if !a.shotMode {
+		// The prefs of the app from before the rename move over once.
+		if moved, err := migratePrefs(dir); err != nil {
+			log.Printf("moving the old app's prefs: %v", err)
+		} else if len(moved) > 0 {
+			log.Printf("moved %v from the old app's prefs folder", moved)
+		}
 	}
 	a.cfgPath = filepath.Join(dir, "twinnel", "app.json")
 	a.cfg, err = status.LoadConfig(a.cfgPath, getenv)
