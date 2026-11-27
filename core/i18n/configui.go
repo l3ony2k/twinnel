@@ -1,5 +1,7 @@
 package i18n
 
+import "strings"
+
 // Texts of batch C (design review 2026-11-27): the 订阅与覆写 page's
 // compose groups, drift and pending rows, the 历史 page's reasons, the
 // 日志 page's duet events, and the helper messages coded by core/msg.
@@ -18,6 +20,42 @@ package i18n
 type ConfigUIStrings struct {
 	// Compose groups of the 覆写 list, in compose order (U33).
 	GroupSubscription, GroupBase, GroupUser, GroupManaged string
+
+	// The 订阅与覆写 page's structure (config-polish, 2026-11-27): the
+	// apply card's states, the empty page, the managed layers' own views,
+	// and the ⓘ texts that replace subtitles (AGENTS.md).
+	ManagedTitle               string // the managed layers' section
+	OverridesInfo, ManagedInfo string // ⓘ of the two sections
+	CoexistInfo, LeakGuardInfo string // ⓘ of the managed rows
+	DriftInfo                  string // ⓘ of the drift state
+	ConfigEmptyTitle           string // the page with no subscription
+	ConfigEmptyHint            string
+	ConfigEmptyTakeover        string // button: to 接管
+	StateInSync                string // the apply card: nothing to apply
+	StateUnknown               string // the check failed
+	NothingToApply             string // tooltip of the disabled 应用
+	PreviewHide                string
+	CoexistRanges, CoexistDNS  string // kv labels of the coexist view
+	CoexistDevices             string
+	CoexistDevicesN            string // %d: devices (row meta)
+	CoexistNoTailnet           string
+	GuardGroups, GuardPick     string
+	GuardNone, GuardNoGroups   string
+	GuardMeta                  string // %s: the groups
+	GuardNoCandidates          string
+	ShowGenerated              string
+
+	// An override's row meta: what it does (config-polish2). The singular
+	// forms are for 1 (English); %d: count, %s: keys.
+	SumRule, SumRules       string
+	SumProxy, SumProxies    string
+	SumGroup, SumGroups     string
+	SumChanges, SumMoreKeys string
+	SumEmpty                string
+	// A subscription's update interval in human units.
+	SubDaily, SubEveryDays   string // %d: days
+	SubHourly, SubEveryHours string // %d: hours
+	SubEveryMins             string // %d: minutes
 
 	// Subscription row (U32).
 	SubSourceAdopted     string // %s: the base file, or "" (then SubSourceAdoptedBare)
@@ -112,6 +150,47 @@ var zhConfigUI = ConfigUIStrings{
 	GroupBase:         "基础",
 	GroupUser:         "用户覆写",
 	GroupManaged:      "托管",
+
+	ManagedTitle:        "duet 托管",
+	OverridesInfo:       "覆写按从上到下的顺序改写订阅，后面的可以覆盖前面的。拖动一行可以调整顺序。",
+	ManagedInfo:         "这些覆写由 duet 按 Tailscale 和设置生成并保持最新，只能开关。它们总排在你的覆写之后。",
+	CoexistInfo:         "让 mihomo 的 TUN 和 Tailscale 同时工作：tailnet 网段和设备名直连，MagicDNS 名称交给 Tailscale 解析。",
+	LeakGuardInfo:       "从所选策略组中去掉 DIRECT，这些组的流量就不会绕过代理。组里没有别的节点时改为 REJECT。",
+	DriftInfo:           "回滚后，mihomo 运行的是历史版本，不是这些覆写合成的结果。重新应用之前，订阅和 Tailscale 变化不会自动应用。",
+	ConfigEmptyTitle:    "还没有订阅",
+	ConfigEmptyHint:     "添加订阅链接或文件，或者接管这台 Mac 上已有的 mihomo 配置",
+	ConfigEmptyTakeover: "接管现有配置",
+	StateInSync:         "与运行中的配置一致",
+	StateUnknown:        "没能比较运行中的配置",
+	NothingToApply:      "没有未应用的改动",
+	PreviewHide:         "收起预览",
+	CoexistRanges:       "直连网段",
+	CoexistDNS:          "MagicDNS",
+	CoexistDevices:      "设备",
+	CoexistDevicesN:     "%d 台设备",
+	CoexistNoTailnet:    "还没有读到 Tailscale 的设备",
+	GuardGroups:         "受保护的策略组",
+	GuardPick:           "选择策略组",
+	GuardNone:           "还没有受保护的策略组",
+	GuardNoGroups:       "未选择策略组",
+	GuardMeta:           "保护 %s",
+	GuardNoCandidates:   "没有含 DIRECT 的策略组",
+	ShowGenerated:       "查看生成内容",
+
+	SumRule:       "%d 条规则",
+	SumRules:      "%d 条规则",
+	SumProxy:      "%d 个节点",
+	SumProxies:    "%d 个节点",
+	SumGroup:      "%d 个策略组",
+	SumGroups:     "%d 个策略组",
+	SumChanges:    "改 %s",
+	SumMoreKeys:   " 等 %d 项",
+	SumEmpty:      "空",
+	SubDaily:      "每天更新",
+	SubEveryDays:  "每 %d 天更新",
+	SubHourly:     "每小时更新",
+	SubEveryHours: "每 %d 小时更新",
+	SubEveryMins:  "每 %d 分钟更新",
 
 	SubSourceAdopted:     "来源：接管时的配置（%s）",
 	SubSourceAdoptedBare: "来源：接管时的配置",
@@ -249,6 +328,47 @@ var enConfigUI = ConfigUIStrings{
 	GroupUser:         "User overrides",
 	GroupManaged:      "Managed",
 
+	ManagedTitle:        "Managed by duet",
+	OverridesInfo:       "Overrides change the subscription in order, top to bottom; a later one can override an earlier one. Drag a row to reorder.",
+	ManagedInfo:         "duet generates these from Tailscale and your settings and keeps them current. You can only turn them on or off. They always come after your own.",
+	CoexistInfo:         "Lets mihomo's TUN and Tailscale work together: tailnet addresses and device names go direct, and Tailscale resolves MagicDNS names.",
+	LeakGuardInfo:       "Removes DIRECT from the groups you choose, so their traffic never bypasses the proxy. A group left with no other node becomes REJECT.",
+	DriftInfo:           "After a rollback mihomo runs a history version, not what these overrides compose. Until you apply again, subscription and Tailscale changes are not applied on their own.",
+	ConfigEmptyTitle:    "No subscription yet",
+	ConfigEmptyHint:     "Add a subscription link or file, or take over the mihomo config already on this Mac",
+	ConfigEmptyTakeover: "Take Over Existing Config",
+	StateInSync:         "Matches the running config",
+	StateUnknown:        "Couldn't compare with the running config",
+	NothingToApply:      "Nothing to apply",
+	PreviewHide:         "Hide Preview",
+	CoexistRanges:       "Direct ranges",
+	CoexistDNS:          "MagicDNS",
+	CoexistDevices:      "Devices",
+	CoexistDevicesN:     "%d devices",
+	CoexistNoTailnet:    "No Tailscale devices read yet",
+	GuardGroups:         "Protected groups",
+	GuardPick:           "Choose Groups",
+	GuardNone:           "No protected groups yet",
+	GuardNoGroups:       "No groups chosen",
+	GuardMeta:           "Protects %s",
+	GuardNoCandidates:   "No group has DIRECT",
+	ShowGenerated:       "Show Generated Config",
+
+	SumRule:       "%d rule",
+	SumRules:      "%d rules",
+	SumProxy:      "%d proxy",
+	SumProxies:    "%d proxies",
+	SumGroup:      "%d group",
+	SumGroups:     "%d groups",
+	SumChanges:    "changes %s",
+	SumMoreKeys:   " +%d more",
+	SumEmpty:      "Empty",
+	SubDaily:      "Updates daily",
+	SubEveryDays:  "Updates every %d days",
+	SubHourly:     "Updates hourly",
+	SubEveryHours: "Updates every %d hours",
+	SubEveryMins:  "Updates every %d min",
+
 	SubSourceAdopted:     "Source: the config at takeover (%s)",
 	SubSourceAdoptedBare: "Source: the config at takeover",
 	SubUpdated:           "Updated %s · %s",
@@ -377,4 +497,28 @@ var enConfigUI = ConfigUIStrings{
 	EvHelperStarted:  "Started",
 	EvHelperStop:     "Stopping",
 	EvShow:           "Show",
+}
+
+// Count words n with one (n == 1, with or without a %d) or many (with
+// a %d).
+func Count(n int, one, many string) string {
+	if n == 1 {
+		if !strings.Contains(one, "%d") {
+			return one
+		}
+		return F(one, n)
+	}
+	return F(many, n)
+}
+
+// Interval words a subscription's update interval in minutes (> 0) in
+// the largest whole unit: 每天, 每 6 小时, 每 30 分钟.
+func (s *Strings) Interval(mins int) string {
+	switch {
+	case mins%1440 == 0:
+		return Count(mins/1440, s.SubDaily, s.SubEveryDays)
+	case mins%60 == 0:
+		return Count(mins/60, s.SubHourly, s.SubEveryHours)
+	}
+	return F(s.SubEveryMins, mins)
 }

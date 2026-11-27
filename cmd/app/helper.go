@@ -128,6 +128,7 @@ type helperData struct {
 	unapplied      bool
 	unappliedCheck bool // a check runs
 	unappliedAgain bool // something changed during it: check again
+	unappliedErr   bool // the last check failed: whether 应用 has work is unknown
 
 	cfg   configView
 	hist  historyView
@@ -276,6 +277,7 @@ func (a *app) checkUnapplied() {
 		mygo.RunOnMain(func() {
 			d.unappliedCheck = false
 			d.unapplied = err == nil && r.Changed // unknown reads as nothing to apply
+			d.unappliedErr = err != nil
 			if d.unappliedAgain {
 				d.unappliedAgain = false
 				a.checkUnapplied()

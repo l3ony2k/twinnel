@@ -27,7 +27,7 @@ func hardenedPlan(purge bool) *uninstall.Plan {
 }
 
 func TestPlanText(t *testing.T) {
-	t.Setenv("HOME", t.TempDir()) // app extras (old backups, login item) come from $HOME; not the owner's
+	t.Setenv("HOME", t.TempDir()) // the real ~/Library/Application Support/duet/backups must not leak in
 	got := planText(hardenedPlan(false), false)
 	want := "移除：后台助手、duet 的 mihomo 服务（切回 com.mihomo.proxy，断网几秒）\n" +
 		"保留：mihomo 原来的服务、数据（1 个订阅、3 个覆写、历史、日志）、钥匙串项目、Tailscale、duet.app"

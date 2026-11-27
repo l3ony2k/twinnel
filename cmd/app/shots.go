@@ -81,8 +81,18 @@ func (a *app) shots(dir string) {
 			mygo.App.Quit()
 			return
 		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "configpolish" { // shots_configpolish.go
+			a.configPolishShots(save)
+			mygo.App.Quit()
+			return
+		}
 		if os.Getenv("DUET_SHOTS_FLOW") == "configui" { // shots_configui.go
 			a.configUIShots(save)
+			mygo.App.Quit()
+			return
+		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "takeoverexplain" { // shots_takeoverexplain.go
+			a.takeoverExplainShots(save)
 			mygo.App.Quit()
 			return
 		}
@@ -93,6 +103,21 @@ func (a *app) shots(dir string) {
 		}
 		if os.Getenv("DUET_SHOTS_FLOW") == "status" { // shots_status.go
 			a.statusShots(save)
+			mygo.App.Quit()
+			return
+		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "trayspeed" { // shots_trayspeed.go
+			a.trayspeedShots(save)
+			mygo.App.Quit()
+			return
+		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "infotips" { // shots_infotips.go
+			a.infoTipShots(save)
+			mygo.App.Quit()
+			return
+		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "flyout" { // shots_flyout.go
+			a.flyoutShots(save)
 			mygo.App.Quit()
 			return
 		}

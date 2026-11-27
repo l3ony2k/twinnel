@@ -116,7 +116,9 @@ func (a *app) exitNodeAcceptedRow(c *ui.Context, s status.Snapshot) {
 	groupBox(c, t).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, iconSkip).FontSize(iconNav).TextColor(t.TextMuted).Shrink(0)
-			ui.Text(c, fmt.Sprintf(T.ExitNodeAcceptedRow, name)).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
+			ui.Text(c, fmt.Sprintf(T.ExitNodeAcceptedRow, name)).Shrink(1).Wrap().LineHeight(lineText)
+			infoTipAbout(c, T.ExitNode, T.TipExitAccepted, nil)
+			ui.Spacer(c)
 			if pushButton(c.Key("exit-off"), T.ExitNodeTurnOff).Disabled(!s.Can().Tailscale).Clicked() {
 				a.turnOffExitNode()
 			}
@@ -161,20 +163,24 @@ func (a *app) mihomoServiceItems(m *ui.Menu, s status.Snapshot) {
 // Restarting mihomo goes through the helper; the exit node through
 // Tailscale's LocalAPI; the connectivity test reads only.
 func (a *app) recoveryMenu(c *ui.Context, s status.Snapshot) ui.Element {
+	return ui.MenuButton(c.Key("recovery"), i18n.T.Recovery, func(m *ui.Menu) { a.recoveryItems(m, s) })
+}
+
+// recoveryItems are 应急恢复's items (the overview's button, the flyout's
+// row).
+func (a *app) recoveryItems(m *ui.Menu, s status.Snapshot) {
 	T := i18n.T
-	return ui.MenuButton(c.Key("recovery"), T.Recovery, func(m *ui.Menu) {
-		if m.Item(T.RestartMihomo).Disabled(!s.Can().Helper || a.hd.busy != "").Chosen() {
-			a.mihomoService(rpc.MethodServiceRestart, T.RestartMihomo)
-		}
-		hasExit := s.Tailscale.Reachable && s.Tailscale.State.ExitNode != nil
-		if m.Item(T.ExitNodeTurnOff).Disabled(!s.Can().Tailscale || !hasExit).Chosen() {
-			a.turnOffExitNode()
-		}
-		m.Separator()
-		if m.Item(T.RecoveryConnectivity).Chosen() {
-			a.connectivityTest(s)
-		}
-	})
+	if m.Item(T.RestartMihomo).Disabled(!s.Can().Helper || a.hd.busy != "").Chosen() {
+		a.mihomoService(rpc.MethodServiceRestart, T.RestartMihomo)
+	}
+	hasExit := s.Tailscale.Reachable && s.Tailscale.State.ExitNode != nil
+	if m.Item(T.ExitNodeTurnOff).Disabled(!s.Can().Tailscale || !hasExit).Chosen() {
+		a.turnOffExitNode()
+	}
+	m.Separator()
+	if m.Item(T.RecoveryConnectivity).Chosen() {
+		a.connectivityTest(s)
+	}
 }
 
 // connectivityTest reruns the health checks and tests the main group's

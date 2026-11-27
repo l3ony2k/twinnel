@@ -81,37 +81,48 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 			if st := s.Helper.Status; st != nil {
 				running = st.Mihomo.Version
 			}
-			kvWith(c, T.State, func() {
+			// Before the takeover the running mihomo is the user's own:
+			// duet's kernel (k.Active) is not what runs.
+			own := !s.TakenOver()
+			kvTipWith(c, T.State, T.TipKernelState, nil, func() {
 				state := T.KernelStateManaged
-				if k.External {
+				switch {
+				case own:
+					state = T.KernelStateOwn
+				case k.External:
 					state = T.KernelStateExternal
 				}
 				tag(c, state)
-				if !k.External && pendingRestart(running, k.Current) {
+				if !own && !k.External && pendingRestart(running, k.Current) {
 					effectChip(c, T.KernelPendingRestart, "", true, false)
 				}
 			})
-			kvWith(c, T.KernelActive, func() {
-				ui.Text(c, filepath.Base(orDash(k.Active))).SingleLine().Shrink(1).Selectable().Tooltip(k.Active)
-			})
+			if own {
+				a.liveFileRow(c, "active", T.KernelActive, a.live.Binary)
+			} else {
+				kvWith(c, T.KernelActive, func() {
+					ui.Text(c, filepath.Base(orDash(k.Active))).SingleLine().Shrink(1).Selectable().Tooltip(k.Active)
+				})
+			}
 			if running != "" {
 				kv(c, T.KernelRunning, running)
 			}
-			if !k.External { // 当前/上一个 only mean something for duet's kernels
+			if !own && !k.External { // 当前/上一个 only mean something for duet's kernels
 				kv(c, T.KernelCurrent, orDash(k.Current))
 				if k.Previous != "" {
 					kv(c, T.KernelPrevious, k.Previous)
 				}
 			}
 		})
+		own := !s.TakenOver() // duet's kernels: none of them runs yet
 		for _, kv := range k.Installed {
 			listRow(c.Key(kv.Version)).Children(func() {
 				ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Children(func() {
 					num(ui.Text(c, kv.Version).Font("monospace").FontSize(plat.calloutSize).SingleLine().Shrink(0))
-					if kv.Current {
+					if kv.Current && !own {
 						tag(c, T.KernelCurrent)
 					}
-					if kv.Previous {
+					if kv.Previous && !own {
 						tag(c, T.KernelPrevious)
 					}
 					ui.Spacer(c)

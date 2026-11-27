@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
+	"github.com/l3ony2k/duet/core/config"
 	"github.com/l3ony2k/duet/core/i18n"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/status"
@@ -64,9 +65,17 @@ type configView struct {
 	saveErrBuf uint64   // the buffer version it was for
 	baseIDs    []string // the stored base layers, in order (reorder sends them first)
 
+	// Managed layers' views.
+	showGen bool // the open managed layer shows its generated YAML
+	// What each stored layer does, by content hash (layersummary.go).
+	sums        map[string]layerSummary
+	sumsLoading map[string]bool
+	guardLast   []string // leak guard's groups before it was switched off (this session)
+
 	// Preview and apply.
 	reason  string
 	preview *rpc.ComposeResult
+	prevFor string // the pending state the preview was made for
 	applied *rpc.ApplyResult
 	diff    *editor.DiffState
 	diffErr string
@@ -91,10 +100,51 @@ func (a *app) configPage(c *ui.Context, s status.Snapshot) {
 		return
 	}
 	a.opNotes(c, s)
-	a.driftRow(c, s)
+	d := &a.hd
+	// Nothing to compose yet: one empty state for the page, with the two
+	// ways in, instead of three empty sections (022, page size).
+	if d.loaded && len(d.subs) == 0 && !d.cfg.subOpen && !hasStoredLayers(d.layers) {
+		a.configEmpty(c, s)
+		return
+	}
+	// The page reads as the compose stack: where it stands against what
+	// mihomo runs, then the subscription, your overrides, and duet's.
+	a.applyCard(c, s)
 	a.subscriptionsCard(c, s)
-	a.layersCard(c, s)
-	a.previewCard(c, s)
+	a.overridesCard(c, s)
+	a.managedCard(c, s)
+}
+
+// hasStoredLayers reports whether the person has overrides of their own
+// (or takeover's base ones).
+func hasStoredLayers(ls []rpc.Layer) bool {
+	return slices.ContainsFunc(ls, func(l rpc.Layer) bool { return !l.Managed })
+}
+
+// configEmpty is the page before there is anything to compose: what is
+// missing and the two ways to start, a subscription or taking over the
+// config this Mac already runs.
+func (a *app) configEmpty(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	T := i18n.T
+	w := a.helperWrites(s)
+	ui.Column(c.Key("config-empty")).Gap(8).AlignItems(ui.Center).PaddingY(72).Transition(fadeMotion).Children(func() {
+		ui.Box(c).Size(56, 56).Radius(plat.groupRadius).Background(t.TextMuted.Alpha(0.12)).
+			AlignItems(ui.Center).Justify(ui.Center).AccessHidden(true).Children(func() {
+			ui.Icon(c, iconConfig).FontSize(iconHero).TextColor(t.TextMuted)
+		})
+		ui.Text(c, T.ConfigEmptyTitle).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Margin(8, 0, 0)
+		ui.Text(c, T.ConfigEmptyHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).TextAlign(ui.Center).
+			Wrap().LineHeight(lineText).MaxWidth(360)
+		ui.Row(c).Gap(8).Margin(8, 0, 0).Children(func() {
+			if ui.PrimaryButton(c.Key("empty-add"), T.SubAdd).Disabled(!w).Clicked() {
+				a.hd.cfg.subOpen, a.hd.cfg.subMins = true, "1440"
+			}
+			if pushButton(c.Key("empty-takeover"), T.ConfigEmptyTakeover).Clicked() {
+				a.openPage(pageTakeover)
+			}
+		})
+	})
 }
 
 // --- subscriptions ---
@@ -110,11 +160,20 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 			v.subOpen, v.subMins = true, "1440"
 		}
 	}), func() {
-		if a.helperListsLoading(c, 2) {
+		if a.helperListsLoading(c, 1) {
 			return // no false 还没有订阅 before the first load
 		}
-		if len(d.subs) == 0 {
-			listRow(c).Children(func() { ui.Text(c, T.SubNone).TextColor(t.TextMuted) })
+		if len(d.subs) == 0 && !v.subOpen {
+			// Overrides exist but nothing to apply them to: the row size
+			// of the page's empty state, with the other way in.
+			listRow(c).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).Children(func() {
+					ui.Text(c, T.SubNone).TextColor(t.TextMuted).Grow(1)
+					if pushButton(c.Key("sub-takeover"), T.ConfigEmptyTakeover).Clicked() {
+						a.openPage(pageTakeover)
+					}
+				})
+			})
 		}
 		for _, sub := range d.subs {
 			a.subscriptionRow(c.Key("sub:"+sub.ID), sub, s, w)
@@ -191,7 +250,7 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 		}
 		interval := T.SubManual
 		if sub.IntervalMinutes > 0 {
-			interval = fmt.Sprintf(T.SubEvery, sub.IntervalMinutes)
+			interval = T.Interval(sub.IntervalMinutes)
 		}
 		// Where the content comes from, and when it last did (U32): an
 		// adopted subscription runs on the file takeover used until its
@@ -324,27 +383,22 @@ func shortHash(h string) string {
 // layerDrag is a stored layer's ID being dragged to another place.
 type layerDrag string
 
-// layersCard lists the layers in compose order. The stored (user) layers
-// reorder by dragging, as macOS lists do (an accent drop line, the rows
-// move on drop; review-a 005), by ⌥⌘↑ / ⌥⌘↓ on the open layer, and
-// from each row's context menu. The managed layers (coexist, leak guard)
-// follow, pinned. A layer opens its editor inline, under its row, with
-// a disclosure motion (review-b 015 #1).
-func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
+// overridesCard lists the person's overrides in compose order: the base
+// ones takeover made (pinned first), then their own. Those reorder by
+// dragging, as macOS lists do (an accent drop line, the rows move on
+// drop; 005), by ⌥⌘↑ / ⌥⌘↓ on the open one, and from each row's context
+// menu. A row opens its editor inline, under it, with a disclosure
+// motion (015).
+func (a *app) overridesCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	d := &a.hd
 	v := &d.cfg
 	w := a.helperWrites(s)
-	// The list is in compose order, grouped by stage (U33): the
-	// subscription, base, the user's overrides (the only ones that move),
-	// then the managed ones. Compose sorts by stage, so a user layer never
-	// goes above the base ones.
-	var base, user, managed []rpc.Layer
+	var base, user []rpc.Layer
 	for _, l := range d.layers {
 		switch {
 		case l.Managed:
-			managed = append(managed, l)
 		case l.Stage == stageBase:
 			base = append(base, l)
 		default:
@@ -361,8 +415,7 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 	}
 	v.baseIDs = baseIDs
 	listCard(c, func() {
-		ui.Text(c, T.Layers).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Shrink(0)
-		ui.Spacer(c)
+		sectionHead(c, T.Layers, T.OverridesInfo)
 		if !v.isNew && pushButton(c.Key("layer-new"), T.LayerNew).Disabled(!w).Clicked() {
 			a.newLayer()
 		}
@@ -370,24 +423,16 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 		if a.helperListsLoading(c, 2) {
 			return
 		}
-		groupLabel(c.Key("g-sub"), T.GroupSubscription)
-		ui.Row(c.Key("sub-chain")).Gap(10).AlignItems(ui.Center).Padding(8).MarginX(-8).Children(func() {
-			ui.Icon(c, iconConfig).FontSize(iconInline).TextColor(t.TextMuted).Width(14)
-			name := a.activeSubscriptionName()
-			if name == "" {
-				name = T.SubNone
-			}
-			ui.Text(c, name).FontWeight(600).SingleLine().Shrink(1)
-		})
-		if len(base) > 0 {
-			groupLabel(c.Key("g-base"), T.GroupBase)
-			for _, l := range base {
-				a.layerRow(c.Key("layer:"+l.ID), l, nil, s, w, -1)
-			}
+		for _, l := range base {
+			a.layerRow(c.Key("layer:"+l.ID), l, nil, s, w, -1)
 		}
-		groupLabel(c.Key("g-user"), T.GroupUser)
-		if len(user) == 0 && !v.isNew {
-			listRow(c).Children(func() { ui.Text(c, T.LayersNone).TextColor(t.TextMuted) })
+		if len(base)+len(user) == 0 && !v.isNew {
+			// Row size (022): the heading's 新建覆写 is the way in.
+			listRow(c.Key("layers-none")).Children(func() {
+				ui.Row(c).MinHeight(28).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, T.LayersNone).TextColor(t.TextMuted)
+				})
+			})
 		}
 		for i, l := range user {
 			a.layerRow(c.Key("layer:"+l.ID), l, ids, s, w, i)
@@ -395,15 +440,43 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 		if v.isNew {
 			a.newLayerRow(c.Key("layer-new-row"), s, w)
 		}
-		groupLabel(c.Key("g-managed"), T.GroupManaged)
-		for _, l := range managed {
-			a.layerRow(c.Key("layer:"+l.ID), l, nil, s, w, -1)
-		}
 	})
 	if i := slices.Index(ids, v.sel); i >= 0 && w && !v.isNew {
 		c.OnWindowShortcut(ui.Alt|ui.Cmd, ui.KeyUp, func() { a.moveLayer(ids, i, -1) })
 		c.OnWindowShortcut(ui.Alt|ui.Cmd, ui.KeyDown, func() { a.moveLayer(ids, i, 1) })
 	}
+}
+
+// managedCard lists the layers duet generates (Tailscale coexistence,
+// leak guard). They come after the person's, pinned; 托管 is said once,
+// by the section, not on every row.
+func (a *app) managedCard(c *ui.Context, s status.Snapshot) {
+	T := i18n.T
+	d := &a.hd
+	w := a.helperWrites(s)
+	listCard(c, func() {
+		sectionHead(c, T.ManagedTitle, T.ManagedInfo)
+	}, func() {
+		if a.helperListsLoading(c, 2) {
+			return
+		}
+		for _, l := range d.layers {
+			if l.Managed {
+				a.layerRow(c.Key("layer:"+l.ID), l, nil, s, w, -1)
+			}
+		}
+	})
+}
+
+// sectionHead is a listCard heading with its ⓘ (AGENTS.md: the ⓘ says
+// what a section is for, the page does not), then a spacer for the
+// heading's actions.
+func sectionHead(c *ui.Context, title, info string) {
+	ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine().Shrink(0)
+	if info != "" {
+		infoTip(c, "", info, nil)
+	}
+	ui.Spacer(c)
 }
 
 // reorderIDs moves the rows (indices into ids, in order) to before row
@@ -429,17 +502,23 @@ func reorderIDs(ids []string, rows []int, to int) []string {
 	return out
 }
 
-// layerRow is one layer: its head (disclosure, switch, name, meta), and
-// its editor under it while it is open. ids are the stored layers' IDs
-// in order and at the row's place among them (-1 for a managed layer,
-// which neither drags nor takes drops).
+// Layer rows share one anatomy (every row of both sections): the
+// disclosure, the name over one line of state, and the switch at the
+// trailing edge, as System Settings' rows. Identifiers stay in the
+// context menu (复制 ID) and the editor.
+const layerRowH = 52
+
+// layerRow is one layer: its head, and under it while it is open the
+// editor (a stored layer) or what the layer does (a managed one). ids
+// are the stored layers' IDs in order and at the row's place among them
+// (-1 for a base or managed layer, which neither drags nor takes drops).
 func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapshot, w bool, at int) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.cfg
 	open := v.sel == l.ID && !v.isNew
-	// Pulled out 8 past the box's padding, so the open row's tint has
-	// room around its text (r = 10 − 4 = 6, review-a 004).
+	// Pulled out 8 past the box's padding, so the hover fill has room
+	// around the text (r = 10 − 4 = 6, 004).
 	col := ui.Column(c).Transition(rowMotion).Clip().MarginX(-8)
 	if at >= 0 && w {
 		// A drop on this row puts the dragged layer at its place: the line
@@ -460,12 +539,12 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 	}
 	title := layerTitle(l)
 	col.Children(func() {
-		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).Padding(8).MarginY(4).Radius(plat.controlRadius).
+		// Open is not selected: the chevron turns and the body shows; the
+		// row takes no fill (never the accent, AGENTS.md).
+		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).Padding(0, 8).MinHeight(layerRowH).
+			Radius(plat.controlRadius).Transition(colorMotion).
 			Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(title)
-		switch {
-		case open:
-			head.Background(pal(t).accentSoft)
-		case head.Hovered():
+		if head.Hovered() || head.Pressed() {
 			head.Background(t.Text.Alpha(0.04))
 		}
 		head.ContextMenu(func(m *ui.Menu) { a.layerMenu(c, m, l, ids, w) })
@@ -477,45 +556,22 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 		}
 		head.Children(func() {
 			disclosure(c, open).Shrink(0)
-			on := l.Enabled
-			sw := ui.Switch(c.Key("on"), &on).Label(T.LayerEnabled + " " + title)
-			switch {
-			case l.ID == coexistLayerID:
-				sw.Disabled(!w)
-			case l.Managed: // leak guard: on while groups are set (settings)
-				sw.Disabled(true)
-			default:
-				sw.Disabled(!w)
-			}
-			if sw.Changed() {
-				a.setLayerEnabled(l, on)
-			}
 			ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).Children(func() {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					if l.Managed {
-						icon := iconManaged
-						if l.Stage == "guard" {
-							icon = iconLeakGuard
-						}
-						ui.Icon(c, icon).FontSize(iconInline).TextColor(t.TextMuted).Tooltip(T.LayerManagedFixed)
-					}
-					ui.Text(c, title).FontWeight(600).SingleLine().Shrink(1).Tooltip(title)
-					if stage := T.StageName(l.Stage); stage != title {
-						tag(c, stage)
-					}
-					if l.Managed {
-						tag(c, T.LayerManaged)
+				ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, title).FontWeight(500).SingleLine().Shrink(1).Tooltip(title)
+					switch {
+					case l.ID == coexistLayerID:
+						infoTip(c, "", T.CoexistInfo, nil)
+					case l.Managed:
+						infoTip(c, "", T.LeakGuardInfo, nil)
 					}
 				})
-				// The ID is an identifier (mono, copyable from the menu);
-				// the rest is sans meta with even digits (review-a 007-8).
-				ui.Row(c).Gap(0).AlignItems(ui.Baseline).Children(func() {
-					ui.Text(c, l.ID).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1)
-					if !l.Managed {
-						num(meta(c, " · "+status.Bytes(int64(l.Size))))
-					}
-				})
+				m := num(meta(c, a.layerMeta(l, s)).Shrink(1))
+				if !l.Managed {
+					m.Tooltip(status.Bytes(int64(l.Size)))
+				}
 			})
+			a.layerSwitch(c, l, w)
 		})
 		if head.Clicked() {
 			if open {
@@ -525,9 +581,93 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 			}
 		}
 		if open {
-			a.layerEditor(c.Key("editor"), s, w)
+			if l.Managed {
+				a.managedBody(c.Key("managed"), l, s, w)
+			} else {
+				a.layerEditor(c.Key("editor"), s, w)
+			}
 		}
 	})
+}
+
+// layerMeta is the line under a layer's name: its state, never its ID.
+// A stored layer says its size (and 基础 for takeover's base ones);
+// coexistence, the tailnet it follows; leak guard, the groups it
+// protects, or that none are chosen (which is why its switch is off).
+func (a *app) layerMeta(l rpc.Layer, s status.Snapshot) string {
+	T := i18n.T
+	switch {
+	case l.ID == coexistLayerID:
+		tn := tailnetOf(s)
+		if tn == nil || len(tn.Peers) == 0 {
+			if tn != nil && tn.Suffix != "" {
+				return tn.Suffix
+			}
+			return T.CoexistNoTailnet
+		}
+		text := i18n.F(T.CoexistDevicesN, len(tn.Peers))
+		if tn.Suffix != "" {
+			text += " · " + tn.Suffix
+		}
+		return text
+	case l.Managed:
+		groups := a.guardGroups()
+		if len(groups) == 0 {
+			return T.GuardNoGroups
+		}
+		return i18n.F(T.GuardMeta, strings.Join(groups, T.ListSep))
+	}
+	// What it does (3 条规则 · 改 dns), once its content is read; the size
+	// is only the line's tooltip.
+	text := " " // holds the line while the content loads
+	if sum, ok := a.hd.cfg.sums[summaryKey(l)]; ok {
+		text = sum.text()
+	}
+	if l.Stage == stageBase {
+		text = T.GroupBase + " · " + strings.TrimSpace(text)
+	}
+	return text
+}
+
+// layerSwitch is a layer's switch, at the row's trailing edge. Leak
+// guard is on while groups are chosen: it turns off by clearing them
+// (kept for this session, so turning it on again brings them back), and
+// stays off and disabled while there is nothing to protect (its row says
+// so: 未选择策略组).
+func (a *app) layerSwitch(c *ui.Context, l rpc.Layer, w bool) {
+	T := i18n.T
+	v := &a.hd.cfg
+	on := l.Enabled
+	sw := ui.Switch(c.Key("on"), &on).Label(T.LayerEnabled + " " + layerTitle(l)).Shrink(0)
+	isGuard := l.Managed && l.ID != coexistLayerID
+	switch {
+	case isGuard:
+		sw.Disabled(!w || (!l.Enabled && len(v.guardLast) == 0))
+	default:
+		sw.Disabled(!w)
+	}
+	if !sw.Changed() {
+		return
+	}
+	if isGuard {
+		groups := []string{}
+		if on {
+			groups = v.guardLast
+		} else {
+			v.guardLast = slices.Clone(a.guardGroups())
+		}
+		a.setGuardGroups(groups)
+		return
+	}
+	a.setLayerEnabled(l, on)
+}
+
+// tailnetOf is the tailnet the helper last read, nil when it has none.
+func tailnetOf(s status.Snapshot) *rpc.TailnetStatus {
+	if st := s.Helper.Status; st != nil {
+		return &st.Tailnet
+	}
+	return nil
 }
 
 // layerMenu is a layer row's context menu: what its row and editor do.
@@ -578,14 +718,12 @@ func (a *app) layerMenu(c *ui.Context, m *ui.Menu, l rpc.Layer, ids []string, w 
 // newLayerRow is the row of a layer being made: its title and the editor,
 // at the end of the list, coming in as a new row does.
 func (a *app) newLayerRow(c *ui.Context, s status.Snapshot, w bool) {
-	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.cfg
 	ui.Column(c).Transition(rowMotion).Clip().MarginX(-8).Children(func() {
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8).MarginY(4).Radius(plat.controlRadius).
-			Background(pal(t).accentSoft).Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(0, 8).MinHeight(layerRowH).Children(func() {
 			disclosure(c, true).Shrink(0)
-			ui.Text(c, T.LayerNew).FontWeight(600).Grow(1).SingleLine()
+			ui.Text(c, T.LayerNew).FontWeight(500).Grow(1).SingleLine()
 			if pushButton(c.Key("ed-cancel"), T.Cancel).Clicked() {
 				v.isNew, v.ed = false, nil
 			}
@@ -698,7 +836,11 @@ func (a *app) loadLayerContent(id string) {
 			if v.ed != nil && v.ed.Buffer.Modified() {
 				return // keep the user's unsaved edits
 			}
-			v.ed = &editor.State{Buffer: yamlBuffer(lc.Content), ReadOnly: lc.Managed, Label: lc.Name}
+			text := lc.Content
+			if lc.Managed {
+				text = generatedText(text)
+			}
+			v.ed = &editor.State{Buffer: yamlBuffer(text), ReadOnly: lc.Managed, Label: lc.Name}
 			a.invalidate()
 		})
 	}()
@@ -706,6 +848,7 @@ func (a *app) loadLayerContent(id string) {
 
 // layersLoaded keeps the editor in step with a reloaded layer list.
 func (a *app) layersLoaded() {
+	a.loadLayerSummaries()
 	v := &a.hd.cfg
 	if v.sel == "" || v.isNew {
 		return
@@ -737,15 +880,13 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.cfg
-	ed := ui.Column(c).Gap(gapRow).Padding(4, 8, 12)
+	ed := rowBody(c)
 	if v.reveal {
 		v.reveal = false
 		ed.ScrollIntoView(ui.ScrollIntoViewOptions{Animation: &rowMove})
 	}
 	ed.Children(func() {
-		if v.managed {
-			ui.Text(c, T.LayerManagedHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
-		} else {
+		{
 			ui.Row(c).Gap(12).AlignItems(ui.End).Children(func() {
 				ui.Column(c).Gap(4).Basis(0).Grow(1).Children(func() {
 					ui.Text(c, T.LayerID).FontSize(plat.calloutSize).TextColor(t.TextMuted)
@@ -782,9 +923,6 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 			return
 		}
 		codeFrame(c, 320, func() { editor.View(c.Key("ed:"+v.sel), v.ed).Grow(1) })
-		if v.managed {
-			return
-		}
 		blocked := a.lintNotes(c)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			id := strings.TrimSpace(v.edID)
@@ -813,6 +951,155 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 			}
 		})
 	})
+}
+
+// rowBody is the part of an open layer row under its head: indented to
+// the name's column (8 + the chevron's 14 + the gap's 10), so the body
+// lines up with the text above it.
+func rowBody(c *ui.Context) ui.Element {
+	return ui.Column(c).Gap(gapRow).Padding(4, 8, 16, 32)
+}
+
+// managedBody is what an open managed layer does, in words and lists:
+// what coexistence adds for the tailnet, which groups leak guard
+// protects (and where to choose them). The generated YAML is one click
+// away, sized to its text, without duet's English header comment.
+func (a *app) managedBody(c *ui.Context, l rpc.Layer, s status.Snapshot, w bool) {
+	t := c.Theme()
+	T := i18n.T
+	v := &a.hd.cfg
+	body := rowBody(c)
+	if v.reveal {
+		v.reveal = false
+		body.ScrollIntoView(ui.ScrollIntoViewOptions{Animation: &rowMove})
+	}
+	body.Children(func() {
+		if l.ID != coexistLayerID {
+			a.guardBody(c, s, w)
+			return
+		}
+		tn := tailnetOf(s)
+		if tn == nil || (len(tn.Peers) == 0 && tn.Suffix == "") {
+			ui.Text(c, T.CoexistNoTailnet).TextColor(t.TextMuted)
+		} else {
+			kv(c, T.CoexistRanges, config.DefaultTailnetIPv4+T.ListSep+config.DefaultTailnetIPv6)
+			if tn.Suffix != "" {
+				kv(c, T.CoexistDNS, tn.Suffix)
+			}
+			if len(tn.Peers) > 0 {
+				kvWith(c, T.CoexistDevices, func() {
+					ui.Text(c, strings.Join(tn.Peers, T.ListSep)).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
+				})
+			}
+		}
+		gen := linkDisclosure(c.Key("gen"), v.showGen, T.ShowGenerated)
+		if gen.Clicked() {
+			v.showGen = !v.showGen
+		}
+		if !v.showGen {
+			return
+		}
+		if v.ed == nil {
+			a.loadingBox(c, "managed-gen", 120)
+			return
+		}
+		codeFrame(c, generatedHeight(v.ed.Buffer.String()), func() { editor.View(c.Key("gen:"+v.sel), v.ed).Grow(1) })
+	})
+}
+
+// guardBody is leak guard's view: the protected groups as tags, or the
+// empty row, and the menu that chooses them (the groups that have DIRECT
+// to remove, ticked when protected; each pick takes effect at once).
+func (a *app) guardBody(c *ui.Context, s status.Snapshot, w bool) {
+	t := c.Theme()
+	T := i18n.T
+	groups := a.guardGroups()
+	ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).Children(func() {
+		ui.Text(c, T.GuardGroups).FontSize(plat.calloutSize).TextColor(t.TextMuted).Shrink(0)
+		ui.Spacer(c)
+		cands := guardCandidates(s.Mihomo.Groups, groups)
+		pushFace(c, ui.MenuButton(c.Key("guard-pick"), T.GuardPick, func(m *ui.Menu) {
+			if len(cands) == 0 {
+				m.Item(T.GuardNoCandidates).Disabled(true)
+				return
+			}
+			for _, g := range cands {
+				on := slices.Contains(groups, g)
+				if m.Item(g).Checked(on).Disabled(!w).Chosen() {
+					next := slices.DeleteFunc(slices.Clone(groups), func(x string) bool { return x == g })
+					if !on {
+						next = append(next, g)
+					}
+					a.setGuardGroups(next)
+				}
+			}
+		})).Disabled(!w)
+	})
+	if len(groups) == 0 {
+		ui.Text(c, T.GuardNone).TextColor(t.TextMuted)
+		return
+	}
+	ui.Row(c).Gap(6).Wrap().Children(func() {
+		for _, g := range groups {
+			tag(c, g)
+		}
+	})
+}
+
+// guardCandidates are the groups leak guard can protect: those of the
+// running config that have DIRECT as a member, in config order, and the
+// ones already protected (even when the running config lost them).
+func guardCandidates(all []status.Group, protected []string) []string {
+	var out []string
+	for _, g := range all {
+		if g.Hidden || g.Name == "GLOBAL" {
+			continue
+		}
+		if slices.ContainsFunc(g.Members, func(m status.Member) bool { return m.Name == "DIRECT" }) || slices.Contains(protected, g.Name) {
+			out = append(out, g.Name)
+		}
+	}
+	for _, p := range protected {
+		if !slices.Contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// guardGroups are the groups leak guard protects now (settings).
+func (a *app) guardGroups() []string {
+	if set := a.hd.settings; set != nil {
+		return set.LeakGuardGroups
+	}
+	return nil
+}
+
+// setGuardGroups saves leak guard's groups (settings.update). It reads
+// as the layer's switch: quiet, the row shows it.
+func (a *app) setGuardGroups(groups []string) {
+	label := fmt.Sprintf(i18n.T.LayerToggle, i18n.T.TakeoverLayerName("leak-guard", nil, "Leak guard"))
+	a.helperOp(label, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
+		return hc.Call(ctx, rpc.MethodSettingsUpdate, rpc.SettingsUpdate{LeakGuardGroups: &groups}, nil)
+	}, nil)
+}
+
+// generatedHeight is a read-only YAML view's height for text: its lines
+// at the editor's 13 × 1.5, plus its insets, at most 360.
+func generatedHeight(text string) float32 {
+	lines := strings.Count(strings.TrimRight(text, "\n"), "\n") + 1
+	return min(float32(lines)*19.5+16, 360)
+}
+
+// generatedText is a managed layer's YAML as shown: duet's header
+// comment (English, for the file) is left out.
+func generatedText(content string) string {
+	lines := strings.Split(content, "\n")
+	i := 0
+	for i < len(lines) && (strings.HasPrefix(strings.TrimSpace(lines[i]), "#") || strings.TrimSpace(lines[i]) == "") {
+		i++
+	}
+	return strings.Join(lines[i:], "\n")
 }
 
 // removeLayer asks, then deletes a stored layer; its content is gone for
@@ -921,98 +1208,115 @@ func (a *app) saveLayer() {
 
 // --- preview and apply ---
 
-func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
+// applyCard is the top of the page: where the overrides stand against
+// what mihomo runs, and the one place to act on it. Its first row is the
+// state (与运行中的配置一致 / N 处改动未应用 / the drift after a
+// rollback) with its actions at the right: 应用 is the primary button
+// only when there is something to apply, and disabled otherwise (the
+// state says why). 预览 opens the check and the diff inline, under it.
+func (a *app) applyCard(c *ui.Context, s status.Snapshot) {
+	d := &a.hd
+	v := &d.cfg
+	dr := driftOf(d)
+	if dr == nil && a.activeSubscription() == "" && v.preview == nil && v.applied == nil {
+		return // nothing composes yet: the subscription card says what is missing
+	}
 	t := c.Theme()
 	T := i18n.T
-	v := &a.hd.cfg
 	w := a.helperWrites(s)
-	headedCard(c, func() {
-		ui.Text(c, T.PreviewApply).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
-		ui.Spacer(c)
-		if a.opButton(c.Key("preview"), iconPreview, T.Preview, false, T.Preview).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {
-			a.runPreview(s)
-		}
-	}, func() {
-		// What is pending, by name, with 放弃改动 (U39).
-		a.pendingRow(c, s, w)
-		if p := v.preview; p != nil {
-			a.composeSummary(c, *p)
-		}
-		if v.diffErr != "" {
-			ui.Text(c, v.diffErr).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
-		}
-		if v.diff != nil {
-			add, del := v.diff.Stats()
-			ui.Text(c, fmt.Sprintf(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted)
-			if add+del > 0 {
-				codeFrame(c, 380, func() { editor.DiffView(c.Key("preview-diff"), v.diff).Grow(1) })
+	busy := d.busy != ""
+	groupBox(c, t).Key("apply").Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(28).Children(func() {
+			switch {
+			case dr != nil:
+				a.driftState(c, s, *dr, w)
+				return
+			case d.unapplied:
+				text, last, ch, sub := a.pendingText()
+				if v.preview != nil && v.prevFor != text {
+					// The changes moved on: the preview no longer shows them.
+					v.preview, v.diff, v.diffErr = nil, nil, ""
+				}
+				dot(c, t.Accent, 8).Shrink(0)
+				ui.Text(c, text).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
+				if last != nil && last.Layers != nil && (len(ch) > 0 || sub) &&
+					pushButton(c.Key("discard"), T.Discard+"…").Disabled(!w || busy).Clicked() {
+					a.discardChanges(*last, ch)
+				}
+			case d.unappliedErr:
+				ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText).Shrink(0)
+				ui.Text(c, T.StateUnknown).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
+			default:
+				ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.TextMuted).Shrink(0)
+				ui.Text(c, T.StateInSync).TextColor(t.TextMuted).Grow(1).Shrink(1).SingleLine()
 			}
-		}
-		if v.preview != nil || v.diffErr != "" || v.diff != nil {
-			ui.Divider(c) // only between a preview and the apply row
-		}
-		ui.Row(c).Gap(8).AlignItems(ui.End).Children(func() {
-			// 说明 belongs to a previewed change (H6): optional, filled
-			// from what changed, and only there once there is a preview.
-			if v.preview != nil {
-				ui.Column(c).Gap(4).Grow(1).Children(func() {
-					ui.Text(c, T.ApplyReason).FontSize(plat.calloutSize).TextColor(t.TextMuted)
-					ui.TextInput(c.Key("reason"), &v.reason).Label(T.ApplyReason).Placeholder(T.ReasonOptional)
-				})
-			} else {
-				ui.Spacer(c)
+			work := d.unapplied || d.unappliedErr
+			if work || v.preview != nil {
+				label := T.Preview
+				if v.preview != nil {
+					label = T.PreviewHide
+				}
+				if a.opButton(c.Key("preview"), iconPreview, label, false, T.Preview).Disabled(!s.Helper.Connected() || busy).Clicked() {
+					if v.preview != nil {
+						v.preview, v.diff, v.diffErr = nil, nil, ""
+					} else {
+						a.runPreview(s)
+					}
+				}
 			}
-			if a.opButton(c.Key("apply"), iconOK, T.Apply, a.hd.unapplied, T.Apply).Disabled(!w).Clicked() {
+			ap := a.opButton(c.Key("apply"), iconOK, T.Apply, work, T.Apply).Disabled(!w || !work)
+			if !work {
+				ap.Tooltip(T.NothingToApply)
+			}
+			if ap.Clicked() {
 				a.runApply()
 			}
 		})
-		if r := v.applied; r != nil {
+		if v.preview != nil || v.diffErr != "" || v.diff != nil {
+			ui.Divider(c)
+			a.previewBody(c)
+		}
+		if r := v.applied; r != nil && dr == nil { // a rollback since: the drift says what runs
+			ui.Divider(c)
 			a.applySummary(c, *r)
 		}
 	})
 }
 
-// composeChain is the compose order in names (U33): the subscription,
-// then each applied layer by its display name.
-func (a *app) composeChain(applied []string) string {
-	names := []string{}
-	if n := a.activeSubscriptionName(); n != "" {
-		names = append(names, n)
-	}
-	for _, id := range applied {
-		name := id
-		if i := indexLayer(a.hd.layers, id); i >= 0 {
-			name = layerTitle(a.hd.layers[i])
-		} else if hid, ok := strings.CutPrefix(id, "history:"); ok {
-			if e := historyByID(a.hd.history, hid); e != nil {
-				name = e.Time.Local().Format("01-02 15:04:05")
-			}
-		}
-		names = append(names, name)
-	}
-	return strings.Join(names, " → ")
-}
-
-// composeSummary shows a compose.preview result.
-func (a *app) composeSummary(c *ui.Context, r rpc.ComposeResult) {
+// previewBody is a preview, under the apply card's state: what failed
+// when the check did not pass, the diff against what mihomo runs, and
+// the 说明 the apply records (H6), filled from what changed.
+func (a *app) previewBody(c *ui.Context) {
 	t := c.Theme()
 	T := i18n.T
-	kvWith(c, T.ComposeOrder, func() {
-		ui.Text(c, a.composeChain(r.Applied)).Grow(1).Wrap().LineHeight(lineText)
-	})
-	valid, col := T.ValidOK, t.Success
-	if !r.Valid {
-		valid, col = T.ValidFail, t.Danger
+	v := &a.hd.cfg
+	if p := v.preview; p != nil {
+		if !p.Valid {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, iconError).FontSize(iconInline).TextColor(t.Danger)
+				ui.Text(c, T.ValidFail).TextColor(pal(t).badText)
+			})
+			validateErrors(c, p.ValidateErrors)
+		}
+		for i, m := range resultMessages(*p, nil) {
+			msgNote(c.Key(fmt.Sprint("cw", i)), m, true)
+		}
 	}
-	kvWith(c, T.ComposeValid, func() { ui.Text(c, valid).FontSize(plat.bodySize).TextColor(col) })
-	changed := T.No
-	if r.Changed {
-		changed = T.Yes
+	if v.diffErr != "" {
+		ui.Text(c, v.diffErr).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 	}
-	kv(c, T.ComposeChanged, changed)
-	validateErrors(c, r.ValidateErrors)
-	for i, m := range resultMessages(r, nil) {
-		msgNote(c.Key(fmt.Sprint("cw", i)), m, true)
+	if v.diff != nil {
+		add, del := v.diff.Stats()
+		num(ui.Text(c, fmt.Sprintf(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted))
+		if add+del > 0 {
+			codeFrame(c, 380, func() { editor.DiffView(c.Key("preview-diff"), v.diff).Grow(1) })
+		}
+	}
+	if v.preview != nil {
+		ui.Column(c).Gap(4).Children(func() {
+			ui.Text(c, T.ApplyReason).FontSize(plat.calloutSize).TextColor(t.TextMuted)
+			ui.TextInput(c.Key("reason"), &v.reason).Label(T.ApplyReason).Placeholder(T.ReasonOptional)
+		})
 	}
 }
 
@@ -1152,6 +1456,7 @@ func (a *app) runPreview(s status.Snapshot) {
 			return
 		}
 		v.preview = &res
+		v.prevFor, _, _, _ = a.pendingText()
 		if strings.TrimSpace(v.reason) == "" { // H6: the change says what it is
 			if last := lastApplied(a.hd.history); last != nil {
 				ch, _ := pendingChanges(last.Layers, a.hd.layers, a.hd.settings, a.activeSubscription())
@@ -1175,6 +1480,7 @@ func (a *app) runApply() {
 	a.helperOp(T.Apply, 2*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
 		return hc.Call(ctx, rpc.MethodComposeApply, p, &res)
 	}, func(err error) {
+		v.preview, v.diff, v.diffErr = nil, nil, "" // what it showed is applied, or what failed says why
 		if err != nil {
 			// The failed result travels with the error (U53): show it in
 			// the card, in words, instead of the raw line at the top.
@@ -1185,7 +1491,6 @@ func (a *app) runApply() {
 			return
 		}
 		v.applied, v.reason = &res, ""
-		v.preview, v.diff, v.diffErr = nil, nil, ""
 	})
 }
 

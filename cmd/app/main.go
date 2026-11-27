@@ -56,8 +56,8 @@ type app struct {
 
 	// main thread
 	tray      *mygo.Tray
-	trayTitle string
-	trayShape status.TrayIcon
+	trayLook  trayLook // what the status item shows (trayspeed.go)
+	trayShown bool     // trayLook has been set once
 	panel     *mygo.Window
 	win       *mygo.Window
 	page      string
@@ -69,6 +69,9 @@ type app struct {
 	// panelShotH is the content height shot mode's panel was last sized
 	// to (fitShotPanel).
 	panelShotH int
+	// shotSnap overrides the snapshot of the flyout and the main window in
+	// shot mode (shots_flyout.go, shots_infotips.go).
+	shotSnap func(*status.Snapshot)
 	// shotSection limits a long page to one section in shot mode (MyGo
 	// captures only the top of a page); "" draws everything.
 	shotSection string
@@ -83,6 +86,7 @@ type app struct {
 	exitPick    string                     // exit node select value (peer name or ExitNodeNone)
 	hd          helperData                 // what the helper pages show
 	about       aboutView                  // the 关于 page (aboutpage.go)
+	live        liveSetup                  // the running mihomo before takeover (livesetup.go)
 	hm          helperMgmtView             // 设置 → 后台助手 (helpermgmt.go)
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
@@ -282,23 +286,11 @@ func (a *app) syncHealthVisible() {
 // changed runs on a monitor goroutine after every change.
 func (a *app) changed(mon *status.Monitor) {
 	s := mon.Snapshot()
-	title := ""
-	if s.Mihomo.Reachable {
-		title = status.TrayTitle(s.Mihomo.Traffic)
-	}
 	mygo.RunOnMain(func() {
 		if mon != a.mon {
 			return // replaced by start
 		}
-		if a.tray == nil { // shot mode
-		} else if title != a.trayTitle {
-			a.trayTitle = title
-			a.tray.SetTitle(title)
-		}
-		if shape := status.TrayIconFor(s); a.tray != nil && shape != a.trayShape {
-			a.trayShape = shape
-			a.tray.SetIcon(trayIcon(shape), true)
-		}
+		a.syncTray(s)
 		if tip := status.TrayToolTip(s); a.tray != nil && tip != a.trayTip {
 			a.trayTip = tip
 			a.tray.SetToolTip(tip)

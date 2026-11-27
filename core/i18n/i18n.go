@@ -78,6 +78,7 @@ type Strings struct {
 	HealthLastRun                       string // %s: time, %s: duration
 	HealthRunning, HealthRerun          string
 	HealthCopyReport, Copied            string
+	LearnMore                           string // the link in an ⓘ popover (infoTip)
 	HealthEvidence, HealthFix, CopyCmd  string
 	HealthNever, HealthUnavailable      string
 	HealthError                         string // %s
@@ -85,6 +86,9 @@ type Strings struct {
 	HealthSkip                          string
 	PanelHealthOK, PanelHealthWarn      string // %d
 	PanelHealthFail, PanelHealthPending string // %d
+	PanelPeers                          string // %d online, %d in all
+	// ⓘ of the flyout (infoTip): one to three short sentences each.
+	InfoTun, InfoExitNode, InfoRecovery string
 	Seconds                             string // %.1f
 
 	// Controls (v0.2).
@@ -230,21 +234,26 @@ type Strings struct {
 	ImpactRestart, ImpactLabel         string
 	ReadOnlyShort, TSConnect, Devices  string
 	SecretFromEnv, NotificationsSwitch string
+	MenuBar, TraySpeedSwitch           string
+	TraySpeedLayout                    string
+	TraySpeedOneLine, TraySpeedTwo     string
 	AboutApp                           string
 	HealthProblems, HealthPassed       string
 
 	// Texts kept in their own files (one per area, so parallel work does
 	// not collide here). Fields are promoted: T.X reads them.
-	ControlStrings    // controls.go
-	ConfigStrings     // config.go
-	WindowStrings     // window.go
-	AboutStrings      // about.go
-	TakeoverStrings   // takeover.go
-	HelperMgmtStrings // helpermgmt.go
-	ConfigUIStrings   // configui.go
-	LifecycleStrings  // lifecycle.go
-	StatusStrings     // status.go
-	SidebarStrings    // sidebar.go
+	ControlStrings         // controls.go
+	ConfigStrings          // config.go
+	WindowStrings          // window.go
+	AboutStrings           // about.go
+	TakeoverStrings        // takeover.go
+	HelperMgmtStrings      // helpermgmt.go
+	ConfigUIStrings        // configui.go
+	LifecycleStrings       // lifecycle.go
+	TakeoverExplainStrings // takeoverexplain.go
+	InfoTipStrings         // infotips.go
+	StatusStrings          // status.go
+	SidebarStrings         // sidebar.go
 }
 
 // zh is the Chinese text.
@@ -379,6 +388,7 @@ var zh = Strings{
 	HealthRerun:        "重新检查",
 	HealthCopyReport:   "复制报告",
 	Copied:             "已复制",
+	LearnMore:          "了解更多",
 	HealthEvidence:     "依据",
 	HealthFix:          "修复建议",
 	CopyCmd:            "复制命令",
@@ -393,6 +403,10 @@ var zh = Strings{
 	PanelHealthWarn:    "健康检查：%d 项警告",
 	PanelHealthFail:    "健康检查：%d 项失败",
 	PanelHealthPending: "健康检查：正在检查",
+	PanelPeers:         "%d / %d 台在线",
+	InfoTun:            "TUN 让 mihomo 接管本机所有流量，包括不认系统代理的程序。关闭后只有走系统代理的程序经过 mihomo。",
+	InfoExitNode:       "让这台 Mac 的流量从 Tailscale 里的另一台设备出去。mihomo 的 TUN 开着时，两者都要接管默认路由，会互相冲突。",
+	InfoRecovery:       "网络出问题时的几个快捷操作：重启 mihomo、停用出口节点、重新测试连通性。",
 	Seconds:            "%.1f 秒",
 
 	Actions:               "操作",
@@ -768,19 +782,26 @@ var zh = Strings{
 	Devices:             "设备",
 	SecretFromEnv:       "来自环境变量 DUET_MIHOMO_SECRET",
 	NotificationsSwitch: "出现故障时发通知",
+	MenuBar:             "菜单栏",
+	TraySpeedSwitch:     "在菜单栏显示网速",
+	TraySpeedLayout:     "网速显示方式",
+	TraySpeedOneLine:    "单行",
+	TraySpeedTwo:        "双行",
 	AboutApp:            "关于 duet",
 	HealthProblems:      "需要处理",
 	HealthPassed:        "其他检查",
 
-	ConfigStrings:     zhConfig,
-	WindowStrings:     zhWindow,
-	AboutStrings:      zhAbout,
-	TakeoverStrings:   zhTakeover,
-	HelperMgmtStrings: zhHelperMgmt,
-	ConfigUIStrings:   zhConfigUI,
-	LifecycleStrings:  zhLifecycle,
-	StatusStrings:     zhStatus,
-	SidebarStrings:    zhSidebar,
+	ConfigStrings:          zhConfig,
+	WindowStrings:          zhWindow,
+	AboutStrings:           zhAbout,
+	TakeoverStrings:        zhTakeover,
+	HelperMgmtStrings:      zhHelperMgmt,
+	ConfigUIStrings:        zhConfigUI,
+	LifecycleStrings:       zhLifecycle,
+	TakeoverExplainStrings: zhTakeoverExplain,
+	InfoTipStrings:         zhInfoTips,
+	StatusStrings:          zhStatus,
+	SidebarStrings:         zhSidebar,
 }
 
 // F formats one of the strings.
