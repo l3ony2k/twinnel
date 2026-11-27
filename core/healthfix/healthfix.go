@@ -80,6 +80,8 @@ type Undo struct {
 	Mode      string              `json:"mode,omitempty"`
 	ExitNode  string              `json:"exit_node,omitempty"`
 	DNS       bool                `json:"dns,omitempty"` // dns.restore
+	// Autostart enables again the entries a disable-autostart turned off.
+	Autostart *rpc.AutostartChangeParams `json:"autostart,omitempty"`
 }
 
 // Outcome is what Apply did.
@@ -196,7 +198,9 @@ func (f *Fixer) Plan(ctx context.Context, cr health.CheckReport, reason string) 
 		need(f.Helper != nil, L.blockedHelper)
 		p.Steps = []string{L.stepRestartTailscaled}
 	default:
-		return p, fmt.Errorf("unknown fix action %q", p.Action)
+		if !f.planExtra(ctx, &p) {
+			return p, fmt.Errorf("unknown fix action %q", p.Action)
+		}
 	}
 	return p, nil
 }
@@ -266,7 +270,10 @@ func (f *Fixer) Apply(ctx context.Context, p Plan) (*Outcome, error) {
 		var r rpc.ServiceOpResult
 		err = f.Helper.Call(ctx, rpc.MethodServiceRestart, rpc.ServiceParams{Name: name}, &r)
 	default:
-		return nil, fmt.Errorf("unknown fix action %q", p.Action)
+		var ok bool
+		if out.Undo, ok, err = f.applyExtra(ctx, p); !ok {
+			return nil, fmt.Errorf("unknown fix action %q", p.Action)
+		}
 	}
 	if err != nil {
 		return out, err
@@ -294,6 +301,8 @@ func (f *Fixer) Undo(ctx context.Context, u *Undo) (*health.Report, error) {
 	}
 	var err error
 	switch {
+	case u.Autostart != nil:
+		err = f.undoAutostart(ctx, u.Autostart)
 	case u.DNS:
 		err = f.helper().Call(ctx, rpc.MethodDNSRestore, rpc.Empty{}, &rpc.DNSStatus{})
 	case u.Mode != "":

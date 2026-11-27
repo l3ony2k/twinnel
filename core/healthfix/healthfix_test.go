@@ -62,6 +62,16 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 		set(h.dns)
 	case rpc.MethodHistoryList:
 		set([]rpc.HistoryEntry{{ID: "h1", Time: time.Unix(100, 0), Kind: "applied"}, {ID: "h2", Time: time.Unix(200, 0), Kind: "applied"}})
+	case rpc.MethodAutostartChange:
+		p := params.(rpc.AutostartChangeParams)
+		r := rpc.AutostartChangeResult{Steps: []string{`C:\Windows\System32\schtasks.exe /Change /TN \synthetic /Disable`}}
+		if !p.Preview {
+			h.fixed = p.Op == "disable"
+			r.Undo = &rpc.AutostartChangeParams{IDs: p.IDs, Op: "enable"}
+		}
+		set(r)
+	case rpc.MethodTailscaleInstall, rpc.MethodKernelInstall:
+		h.fixed = true
 	case rpc.MethodComposeApply, rpc.MethodControllerSecure, rpc.MethodDNSPoint, rpc.MethodServiceRestart, rpc.MethodHealthEgress:
 		h.fixed = true
 		if method == rpc.MethodHealthEgress {

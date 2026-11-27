@@ -27,6 +27,9 @@
 | `restart-mihomo` / `restart-tailscaled` | service.restart（网络/tailnet 断几秒，预览里说明） | 无需撤销 |
 | `egress-probe` | health.egress 再测一次出口 | 无需撤销 |
 | `rerun` | 重新运行检查 | 无需撤销 |
+| `disable-autostart` | autostart.change disable：Windows 计划任务 `schtasks /Change /TN … /Disable`、Run 键写 StartupApproved（值不删）、macOS `launchctl disable` + `bootout`、Linux 系统单元 `systemctl disable --now`；预览逐条列出命令 | autostart.change enable（`/Enable`、StartupApproved 02…、`launchctl enable`、`systemctl enable`） |
+| `repair-tailscale` | tailscale.install repair：Windows 用官方 MSI `msiexec /fa`，失败再全新安装；Twinnel 解包的版本重新解包；装完检查文件头、清零和签名 | 无需撤销 |
+| `repair-mihomo` | kernel.install repair：重新下载当前版本（sha256 校验）替换文件，再 service.restart mihomo | 无需撤销 |
 
 ## 原因 → 修法 → 用户看到什么
 
@@ -34,8 +37,12 @@
 
 | 原因 | 问题（行上显示） | 修法 | 怎么办（预览 / 提示 / 解释） | 平台 |
 |---|---|---|---|---|
+| `binary-integrity/mihomo-damaged` | Twinnel 下载的 mihomo 程序文件坏了（被截断、清零或被替换），代理随时会起不来。 | 一键修复 `repair-mihomo` | 重新下载同一版本的 mihomo（校验 sha256）替换它，再重启 mihomo。期间会断网几秒。 |  |
+| `binary-integrity/tailscale-damaged` | Tailscale 的程序文件坏了，常见于安装被中断：服务还在跑，但 tailscale 命令用不了。 | 一键修复 `repair-tailscale` | 重新安装 Tailscale 覆盖坏掉的文件，账号和设备不受影响。期间 tailnet 会断几秒。 | windows 另有措辞（msiexec /fa，Authenticode） |
 | `check-panicked` | 这项检查自己出错了，不代表你的网络有问题。 | 无法自动修复 `rerun` | 这是 Twinnel 的问题，不是设置能修的。重新检查一次；仍然出错就复制报告反馈给我们。 |  |
 | `check-timeout` | 检查用了太久，没等到结果。 | 一键修复 `rerun` | 重新检查一次。网络刚切换或 mihomo 正忙时常见，多半下次就好。 |  |
+| `competitor-autostart/enabled` | 另一个代理软件登记了自启动，登录或开机后会再起来，抢走默认路由和 9090 端口。 | 一键修复 `disable-autostart` | 由后台助手关掉这些自启动项：只是停用，不删除，可以撤销。软件本身不动。 | windows 另有措辞（计划任务、Run 键，以 SYSTEM 停用） |
+| `competitor-autostart/manual` | 另一个代理软件把自己加进了登录项，登录后会再起来。 | 无法自动修复 `` | 在「系统设置 → 通用 → 登录项与扩展」里关掉它，或在那个软件自己的设置里关掉「开机启动」。 | linux：给出用户自己运行的命令；windows：任务管理器 → 启动应用 |
 | `controller-security/exposed` | mihomo 的控制接口对局域网开放，别的设备可能控制它。 | 一键修复 `controller-loopback` | 加一个覆写把控制接口只绑定到本机（127.0.0.1）并应用。可以撤销。 |  |
 | `controller-security/no-secret` | mihomo 的控制接口没有密钥，本机任何程序都能控制它。 | 一键修复 `controller-secret` | 生成随机密钥并应用，密钥存在后台助手里。网页面板等其他工具之后需要新密钥。 |  |
 | `fake-ip-filter-mode/wildcard-mode` | fake-ip 过滤的模式不是 blacklist，单标签名字会拿到假地址。 | 去调整 `config/overrides` | 在设置 fake-ip-filter-mode 的覆写里，把它改回 blacklist（或删掉这一行），保存并应用。 |  |

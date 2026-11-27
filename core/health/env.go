@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/netip"
 	"time"
+
+	"github.com/l3ony2k/twinnel/core/autostart"
 )
 
 // Env gives checks the facts they need. Implementations are read-only.
@@ -57,6 +59,12 @@ type Settings struct {
 	Egress bool `json:"egress,omitempty"`
 	// EgressURL is a neutral IP-echo endpoint. Default DefaultEgressURL.
 	EgressURL string `json:"egressURL,omitempty"`
+	// Binaries are the programs Twinnel installed or runs, checked by
+	// binary-integrity (empty: that check skips).
+	Binaries []BinaryRef `json:"binaries,omitempty"`
+	// Autostarts reads the competing clients' autostart entries
+	// (competitor-autostart; nil: that check skips). The helper sets it.
+	Autostarts func(ctx context.Context) ([]autostart.Entry, error) `json:"-"`
 }
 
 // DefaultEgressURL is Cloudflare's trace endpoint on an IP literal: it
