@@ -211,20 +211,29 @@ func (a *app) ready() {
 		ToolTip:         i18n.T.AppName,
 	})
 	if err != nil {
-		log.Fatal("tray: ", err)
+		if !plat.panelWindow {
+			log.Fatal("tray: ", err)
+		}
+		// Linux without libayatana-appindicator3: the window stands in
+		// for the icon (trayMissing, after start).
+		log.Printf("tray: %v", err)
+		a.tray = nil
 	}
 	if runtime.GOOS == "darwin" {
 		mygo.App.SetMenu(a.appMenu())
 	}
 	a.readyDock()
-	if plat.panelWindow {
+	switch {
+	case a.tray == nil:
+		defer a.trayMissing() // after start: the window stands in for the icon
+	case plat.panelWindow:
 		// Linux: AppIndicator always has a menu (a right click; KDE's left
 		// click); the icon's activation (a left click on quickshell and
 		// others, a double click on GNOME) opens the panel.
 		a.tray.SetMenu(a.trayMenu())
 		a.tray.OnClick(a.togglePanel)
 		a.checkTrayHost() // no tray to show the icon: open the window instead
-	} else {
+	default:
 		a.tray.OnClick(a.togglePanel)
 		a.tray.OnRightClick(func() {
 			if a.panel != nil {

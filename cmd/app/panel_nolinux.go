@@ -8,3 +8,5 @@ package main
 func (a *app) openPanelWindow() {}
 
 func (a *app) checkTrayHost() {}
+
+func (a *app) trayMissing() {}

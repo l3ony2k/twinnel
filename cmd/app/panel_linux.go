@@ -137,15 +137,23 @@ func (a *app) checkTrayHost() {
 		}
 		hint := linux.TrayHintFor(present, known, os.Getenv("XDG_CURRENT_DESKTOP"))
 		log.Printf("tray: no StatusNotifierWatcher on the session bus (hint %d); opening the window", hint)
-		mygo.RunOnMain(func() {
-			msg := i18n.T.TrayHostMissing
-			if hint == linux.TrayHintGNOME {
-				msg = i18n.T.TrayHostMissingGNOME
-			}
-			a.openMain()
-			a.toastErr = msg
-			mygo.App.OnWindowAllClosed(func() { mygo.App.Quit() })
-			a.invalidate()
-		})
+		mygo.RunOnMain(func() { a.trayless(hint) })
 	}()
+}
+
+// trayMissing: the tray icon could not be made (no AppIndicator library).
+func (a *app) trayMissing() { a.trayless(linux.TrayHintOther) }
+
+// trayless opens the main window in place of an icon nobody can see,
+// says why once, and makes closing the window quit Twinnel, which would
+// otherwise run on with no way back in. Main thread.
+func (a *app) trayless(hint linux.TrayHint) {
+	msg := i18n.T.TrayHostMissing
+	if hint == linux.TrayHintGNOME {
+		msg = i18n.T.TrayHostMissingGNOME
+	}
+	a.openMain()
+	a.toastErr = msg
+	mygo.App.OnWindowAllClosed(func() { mygo.App.Quit() })
+	a.invalidate()
 }
