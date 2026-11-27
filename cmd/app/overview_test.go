@@ -45,15 +45,23 @@ func TestPortsAndDNSText(t *testing.T) {
 	}
 }
 
-// The health row says the banner's one number at the banner's level
-// (R-kubai-6): findings rated a warning are 个问题, never 项失败.
+// The health row says the banner's one number (R-kubai-6): findings
+// before takeover are 个问题, never 项失败; both kinds are split.
 func TestHealthReasonShort(t *testing.T) {
 	i18n.Set("zh-Hans")
-	if got := healthReasonShort(status.Reason{Level: status.LevelWarn, Count: 1, Code: status.ReasonHealth}); got != "1 个问题" {
-		t.Errorf("warn %q", got)
-	}
-	if got := healthReasonShort(status.Reason{Level: status.LevelError, Count: 2, Code: status.ReasonHealth}); got != "2 项失败" {
-		t.Errorf("error %q", got)
+	for _, c := range []struct {
+		r    status.Reason
+		want string
+	}{
+		{status.Reason{Level: status.LevelWarn, Count: 1, Fail: 1, Found: true}, "1 个问题"},
+		{status.Reason{Level: status.LevelWarn, Count: 4, Fail: 2, Warn: 2, Found: true}, "发现 4 个问题：2 项失败、2 项警告"},
+		{status.Reason{Level: status.LevelError, Count: 2, Fail: 2}, "2 项失败"},
+		{status.Reason{Level: status.LevelWarn, Count: 3, Warn: 3}, "3 项警告"},
+		{status.Reason{Level: status.LevelError, Count: 4, Fail: 2, Warn: 2}, "4 项需要处理：2 项失败、2 项警告"},
+	} {
+		if got := healthReasonShort(c.r); got != c.want {
+			t.Errorf("%+v: %q, want %q", c.r, got, c.want)
+		}
 	}
 	if levelIcon(status.LevelWarn) != iconWarning || levelIcon(status.LevelError) != iconError || levelIcon(status.LevelOK) != iconOK {
 		t.Error("level glyphs")

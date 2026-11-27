@@ -558,6 +558,7 @@ var en = Strings{
 	WizardStrings:          enWizard,
 	ConfigUIStrings:        enConfigUI,
 	ProgressStrings:        enProgress,
+	HealthFixStrings:       enHealthFix,
 	LifecycleStrings:       enLifecycle,
 	TakeoverExplainStrings: enTakeoverExplain,
 	InfoTipStrings:         enInfoTips,

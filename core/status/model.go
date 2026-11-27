@@ -150,7 +150,11 @@ type Reason struct {
 	Text   string
 	Health bool // comes from the health checks (the panel shows those on a line of their own)
 	Code   string
-	Count  int // ReasonHealth: the number the text says
+	Count  int // ReasonHealth: the number the text says (failures + warnings)
+	// ReasonHealth: how Count splits, and whether it is what was found
+	// before takeover (a warning, not a fault).
+	Fail, Warn int
+	Found      bool
 	// Raw is the error behind a reason as the system said it (English),
 	// for a secondary line and 复制; Text says it in the UI language.
 	Raw string
@@ -380,13 +384,21 @@ func Evaluate(s *Snapshot) {
 		c := health.Accept(s.Health.Report, health.CauseExitNode).Counts()
 		exitOnly = c[health.StatusFail] == 0
 	}
+	// The number is everything that needs attention, failures and
+	// warnings alike, split in the words when both are in it: the page's
+	// list, the sidebar badge, the overview and the flyout show the same.
+	hr := Reason{Health: true, Code: ReasonHealth, Count: fail + warn, Fail: fail, Warn: warn}
 	switch {
 	case fail > 0 && (!s.TakenOver() || exitOnly):
-		rs = append(rs, Reason{Level: LevelWarn, Text: i18n.F(t.ReasonHealthFound, fail), Health: true, Code: ReasonHealth, Count: fail})
+		hr.Level, hr.Found = LevelWarn, true
+		hr.Text = t.HealthCount(fail, warn, true)
 	case fail > 0:
-		rs = append(rs, Reason{Level: LevelError, Text: fmt.Sprintf(t.ReasonHealthFail, fail), Health: true, Code: ReasonHealth, Count: fail})
+		hr.Level, hr.Text = LevelError, fmt.Sprintf(t.HealthLine, t.HealthCount(fail, warn, false))
 	case warn > 0:
-		rs = append(rs, Reason{Level: LevelWarn, Text: i18n.F(t.ReasonHealthWarn, warn), Health: true, Code: ReasonHealth, Count: warn})
+		hr.Level, hr.Text = LevelWarn, fmt.Sprintf(t.HealthLine, t.HealthCount(0, warn, false))
+	}
+	if hr.Count > 0 {
+		rs = append(rs, hr)
 	}
 	s.Reasons = rs
 	switch {
