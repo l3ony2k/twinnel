@@ -49,6 +49,7 @@ what it stands for in duet. **New** = added in the design pass and not yet wired
 | `list.svg` | 日志 | stock |
 | `settings.svg` | 设置 | stock |
 | `info.svg` | 关于 (sidebar, last row) | drawn |
+| `sidebar.svg` | 切换侧边栏 (the title bar toggle: expanded / icons only / hidden) | stock |
 | `rss.svg` **new** | 订阅 (a subscription: a remote feed fetched on a schedule) | stock |
 | `square-pen.svg` **new** | 覆写层 (an override layer the user edits) | stock |
 | `file-lock.svg` **new** | 托管层 (the managed layer duet owns; not hand-edited) | stock |
