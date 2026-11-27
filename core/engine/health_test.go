@@ -3,8 +3,10 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"net/netip"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -224,5 +226,61 @@ func TestHealthEgressKeepsResult(t *testing.T) {
 	}
 	if c := s.RunNow(ctx, "interval").Checks[0]; !c.At.IsZero() {
 		t.Fatalf("switch on, the stored result replaced the run's: %+v", c)
+	}
+}
+
+// The egress test's unmasked addresses reach only a caller that asks
+// (the app); the report and its file keep them out, and a restarted
+// helper still has them for the stored result.
+func TestHealthEgressIPs(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	reg := health.NewRegistry()
+	reg.Register(egressOff{})
+	newSched := func(e *Engine) *health.Scheduler {
+		s := &health.Scheduler{Runner: &health.Runner{Registry: reg}, Env: stubEnv{}, Interval: time.Hour, SkipInitial: true}
+		e.SetHealth(s)
+		return s
+	}
+	s := newSched(h.e)
+	const via, direct = "203.0.113.50", "198.51.100.7"
+	h.e.EgressProbe = func(context.Context) health.CheckReport {
+		return health.CheckReport{ID: health.LeakEgress{}.ID(), Title: "egress", Result: health.Result{
+			Status: health.StatusOK, Summary: "differs",
+			Egress: &health.EgressIPs{Proxied: netip.MustParseAddr(via), Direct: netip.MustParseAddr(direct), Node: "node-a"},
+		}}
+	}
+	now := time.Date(2026, 11, 27, 10, 0, 0, 0, time.UTC)
+	h.e.Now = func() time.Time { return now }
+	s.RunNow(ctx, "start")
+
+	hr, err := h.e.withEgressIPs(h.e.HealthEgress(ctx, ""))(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hr.Egress == nil || hr.Egress.Proxied != via || hr.Egress.Direct != direct || hr.Egress.Node != "node-a" {
+		t.Fatalf("asked: %+v", hr.Egress)
+	}
+	if strings.Contains(string(hr.Report), via) {
+		t.Errorf("unmasked address in the report: %s", hr.Report)
+	}
+	if hr, _ := h.e.withEgressIPs(h.e.HealthLast(""))(false); hr.Egress != nil {
+		t.Errorf("not asked, got %+v", hr.Egress)
+	}
+	b, err := os.ReadFile(filepath.Join(h.e.Store.Dir, egressFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), via) {
+		t.Errorf("unmasked address in %s", egressFile)
+	}
+
+	// A restarted helper: the stored result comes back with its addresses.
+	again := New(h.e.Store, h.e.Secrets)
+	again.Now = h.e.Now
+	newSched(again).RunNow(ctx, "start")
+	hr, _ = again.withEgressIPs(again.HealthLast(""))(true)
+	if hr.Egress == nil || hr.Egress.Proxied != via {
+		t.Fatalf("after restart: %+v", hr.Egress)
 	}
 }

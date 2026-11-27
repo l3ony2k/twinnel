@@ -9,7 +9,10 @@ type OverviewStrings struct {
 	OvDashboard     string // quick action: open the external UI in the browser
 	OvRestartTitle  string // confirm before restarting mihomo
 	OvRestartBody   string
-	OvTileExit      string // tile: the exit's delay
+	OvTileExit      string // tile: the exit: its delay, node and public IP
+	OvEgressCheck   string // tile: run the egress test to learn the exit IP
+	OvEgressVia     string // health row: the public IP through mihomo
+	OvEgressDirect  string // health row: the public IP without mihomo
 	OvTileMemory    string // tile: mihomo's memory
 	OvTileTotal     string // %s %s: ↓ total, ↑ total
 	OvCPU           string // %s: "CPU 1.8%"
@@ -44,7 +47,10 @@ var zhOverview = OverviewStrings{
 	OvDashboard:     "控制面板",
 	OvRestartTitle:  "重启 mihomo？",
 	OvRestartBody:   "现有连接会断开，几秒内没有网络。",
-	OvTileExit:      "出口延迟",
+	OvTileExit:      "出口",
+	OvEgressCheck:   "检测出口 IP",
+	OvEgressVia:     "经 mihomo",
+	OvEgressDirect:  "直连",
 	OvTileMemory:    "mihomo 内存",
 	OvTileTotal:     "↓ %s ↑ %s",
 	OvCPU:           "CPU %s",
@@ -79,7 +85,10 @@ var enOverview = OverviewStrings{
 	OvDashboard:     "Dashboard",
 	OvRestartTitle:  "Restart mihomo?",
 	OvRestartBody:   "Open connections drop and the network is down for a few seconds.",
-	OvTileExit:      "Exit latency",
+	OvTileExit:      "Exit",
+	OvEgressCheck:   "Check Exit IP",
+	OvEgressVia:     "Via mihomo",
+	OvEgressDirect:  "Direct",
 	OvTileMemory:    "mihomo memory",
 	OvTileTotal:     "↓ %s ↑ %s",
 	OvCPU:           "CPU %s",

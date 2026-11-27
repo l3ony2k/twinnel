@@ -244,9 +244,12 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	// public endpoints tailscaled found by STUN (tailscaled goes DIRECT, and
 	// this costs no traffic). Either is enough.
 	direct := map[netip.Addr]bool{}
+	ips := &EgressIPs{}
+	res.Egress = ips
 	d, derr := ee.DirectEgress(ctx, url)
 	if derr == nil {
 		direct[d] = true
+		ips.Direct = d
 		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressDirect, MaskIP(d)))
 	} else {
 		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressDirectErr, derr))
@@ -276,6 +279,10 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	if len(chain) > 0 {
 		leaf = chain[0]
 	}
+	ips.Proxied, ips.Node = prox, leaf
+	if len(chain) == 0 {
+		ips.Node = ""
+	}
 	path := make([]string, len(chain))
 	for i, c := range chain {
 		path[len(chain)-1-i] = c
@@ -293,7 +300,9 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	}
 	rt, err := env.MihomoRuntime(ctx)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		r := skipErr(L.msgMihomoUnavailable, err)
+		r.Egress = ips
+		return r
 	}
 	var measured []string
 	for _, g := range s.SensitiveGroups {

@@ -338,11 +338,17 @@ func (s *server) handler() http.Handler {
 func main() {
 	listen := flag.String("listen", "127.0.0.1:19290", "controller address")
 	lang := flag.String("lang", "zh", "node and group names: zh or en")
+	noHistory := flag.Bool("no-history", false, "start with no delay history (every node untested)")
 	flag.Parse()
 	if *lang == "en" {
 		useEnglish()
 	}
 	s := newServer()
+	if *noHistory {
+		for _, p := range s.proxies {
+			p.History = nil
+		}
+	}
 	h := s.handler()
 	fmt.Println("fake mihomo controller on", *listen)
 	log.Fatal(http.ListenAndServe(*listen, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

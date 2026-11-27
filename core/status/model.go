@@ -61,13 +61,16 @@ func (m Member) DelayText() string { return delayLabel(m.Delay, m.Tested, m.Buil
 
 // Group is a proxy group with its members resolved.
 type Group struct {
-	Name    string
-	Type    string
-	Now     string
-	Chain   []string // Now, then what nested groups selected, to the node
-	Node    string   // last of Chain: the node carrying the traffic
-	Delay   int      // delay of Node
-	Tested  bool
+	Name   string
+	Type   string
+	Now    string
+	Chain  []string // Now, then what nested groups selected, to the node
+	Node   string   // last of Chain: the node carrying the traffic
+	Delay  int      // delay of Node
+	Tested bool
+	// DelayAt is when Delay was measured (mihomo's history or the
+	// monitor's own test); zero when untested.
+	DelayAt time.Time
 	Builtin bool // Node is DIRECT, REJECT or another built-in (no delay)
 	Members []Member
 	Hidden  bool
@@ -246,7 +249,7 @@ func buildGroups(all map[string]mihomo.Proxy, cache map[string]delayResult) []Gr
 		g.Chain = mihomo.Resolve(all, p.Name)
 		if len(g.Chain) > 0 {
 			g.Node = g.Chain[len(g.Chain)-1]
-			g.Delay, g.Tested, g.Builtin = delayOf(all, cache, g.Node)
+			g.Delay, g.Tested, g.Builtin, g.DelayAt = delayOf(all, cache, g.Node)
 		}
 		for _, name := range p.All {
 			m := Member{Name: name}
@@ -258,7 +261,7 @@ func buildGroups(all map[string]mihomo.Proxy, cache map[string]delayResult) []Gr
 						target = ch[len(ch)-1]
 					}
 				}
-				m.Delay, m.Tested, m.Builtin = delayOf(all, cache, target)
+				m.Delay, m.Tested, m.Builtin, _ = delayOf(all, cache, target)
 			} else {
 				m.Builtin = mihomo.IsBuiltin(name, "")
 			}
@@ -270,21 +273,20 @@ func buildGroups(all map[string]mihomo.Proxy, cache map[string]delayResult) []Gr
 }
 
 // delayOf is the delay of the node name: the newer of mihomo's last test
-// and the monitor's own result. Built-ins have none.
-func delayOf(all map[string]mihomo.Proxy, cache map[string]delayResult, name string) (ms int, tested, builtin bool) {
+// and the monitor's own result, with its time. Built-ins have none.
+func delayOf(all map[string]mihomo.Proxy, cache map[string]delayResult, name string) (ms int, tested, builtin bool, at time.Time) {
 	p := all[name]
 	if mihomo.IsBuiltin(name, p.Type) {
-		return 0, false, true
+		return 0, false, true, time.Time{}
 	}
 	ms, tested = p.LastDelay()
-	var at time.Time
 	if n := len(p.History); n > 0 {
 		at = p.History[n-1].Time
 	}
 	if r, ok := cache[name]; ok && (!tested || !r.at.Before(at)) {
-		ms, tested = r.ms, true
+		ms, tested, at = r.ms, true, r.at
 	}
-	return ms, tested, false
+	return ms, tested, false, at
 }
 
 // PickPrimary returns the group named name, else the first Selector that
