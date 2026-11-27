@@ -75,6 +75,9 @@ func (s *Strings) Msg(m rpc.Msg) (string, bool) {
 var Namer func(kind, id string) string
 
 func nameOf(kind, id string) string {
+	if kind == "path" {
+		return HomePath(id)
+	}
 	if Namer == nil || id == "" {
 		return id
 	}
@@ -89,8 +92,9 @@ var msgSubjects = map[string]struct {
 	arg  int
 	kind string
 }{
-	"subscription-empty": {0, "subscription"},
-	"sub-no-url":         {0, "subscription"},
+	"subscription-empty":  {0, "subscription"},
+	"sub-no-url":          {0, "subscription"},
+	"live-config-missing": {0, "path"},
 }
 
 // reasonOf is why a system call or a connection failed, in words; "" when

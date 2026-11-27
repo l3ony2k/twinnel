@@ -44,6 +44,26 @@ var enErrors = ErrorStrings{
 	ErrNotFound:   "This item no longer exists. Refresh and try again.",
 }
 
+// PlainError words an error text the helper, mihomo, Tailscale or the
+// system returned, in the current UI language (Cur): the one mapper every
+// error line goes through (R-unslop-20, R-kubai-4). The raw text is for
+// 复制详情 only.
+func PlainError(raw string) string { return Cur().ErrorText(raw) }
+
+// HomePath shortens a path in someone's home folder to ~/…: messages
+// never carry the account name.
+func HomePath(p string) string {
+	for _, root := range []string{"/Users/", "/home/"} {
+		if rest, ok := strings.CutPrefix(p, root); ok {
+			if _, tail, ok := strings.Cut(rest, "/"); ok {
+				return "~/" + tail
+			}
+			return "~"
+		}
+	}
+	return p
+}
+
 // ErrorText words an error text in the UI language: a coded helper
 // message, a network error, or the generic line (with the system's reason
 // when duet knows it). Never the English text itself.

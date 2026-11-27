@@ -57,7 +57,7 @@ var patterns = []pattern{
 
 	// Helper errors without a code of their own (core/engine, core/takeover).
 	// Not anchored: they come wrapped ("takeover plan: live config: …").
-	{code: "live-config-missing", re: regexp.MustCompile(`live config(?: \S+)?: open \S+: no such file or directory$`)},
+	{code: "live-config-missing", re: regexp.MustCompile(`live config(?: \S+)?: open (\S+): no such file or directory$`)},
 	{code: "replan", re: regexp.MustCompile(`; re-plan$`)},
 	{code: "sub-no-url", re: regexp.MustCompile(`^subscription "?([^"\s]+)"? has no URL$`)},
 	{code: "mihomo-no-answer", re: regexp.MustCompile(`^the running mihomo does not answer`)},
