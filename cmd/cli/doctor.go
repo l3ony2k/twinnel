@@ -1,8 +1,10 @@
 package main
 
-// twinnel doctor: the helper's health run, the one the app shows. A local
-// run (newHealthEnv, doctor_<os>.go: the platform's health.Env) only with
-// --local, a flag that changes the checks' inputs, or without a helper.
+// twinnel doctor: the helper's health report, the one the app shows: its
+// last one when that is recent and covers what was asked (doctorMaxAge),
+// else a run now (--fresh always). A local run (newHealthEnv,
+// doctor_<os>.go: the platform's health.Env) only with --local, a flag
+// that changes the checks' inputs, or without a helper.
 
 import (
 	"context"
@@ -42,6 +44,9 @@ type doctorRequest struct {
 	// local runs the checks here (--local, or a flag that changes their
 	// inputs: the helper's run has its own).
 	local bool
+	// fresh asks the helper for a run now even when its last report would
+	// do (--fresh).
+	fresh bool
 	only  []string
 	// egress also runs the egress test now when the helper's 定期检测
 	// does not (--egress).
@@ -57,7 +62,16 @@ type doctorRequest struct {
 	adjust     func(*health.Settings) error
 	// warn gets a line about falling back to a local run (stderr).
 	warn func(string)
+	// now is the clock the last report's age is measured with (nil:
+	// time.Now; tests).
+	now func() time.Time
 }
+
+// doctorMaxAge is how old the helper's last report may be for doctor to
+// show it instead of asking for a run (about 5 s on a real machine). The
+// helper runs the checks itself on a timer, on network changes and after
+// every apply, so a recent report is what a run would say.
+const doctorMaxAge = 60 * time.Second
 
 // doctorReport runs the checks as q asks.
 func doctorReport(ctx context.Context, q doctorRequest) (*health.Report, error) {
@@ -89,10 +103,16 @@ func (s helperCaller) Call(ctx context.Context, method string, params, result an
 	return helperRPC(ctx, string(s), method, params, result)
 }
 
-// helperHealth asks the helper to run every check now (health.run) and,
-// with q.egress, the egress test too (health.egress) unless its runs
-// include it already.
+// helperHealth returns the helper's last report when it answers q
+// (recentHelperReport); else it asks the helper to run every check now
+// (health.run) and, with q.egress, the egress test too (health.egress)
+// unless its runs include it already.
 func helperHealth(ctx context.Context, q doctorRequest) (*health.Report, error) {
+	if !q.fresh {
+		if rep := recentHelperReport(ctx, q); rep != nil {
+			return rep, nil
+		}
+	}
 	src := healthsrc.Source{Client: helperCaller(q.socket), Reason: "cli", Lang: q.lang}
 	rep, err := src.RunNow(ctx)
 	if err != nil || !q.egress {
@@ -110,6 +130,64 @@ func helperHealth(ctx context.Context, q doctorRequest) (*health.Report, error) 
 		err = healthsrc.ErrNoReport
 	}
 	return rep, err
+}
+
+// recentHelperReport is the helper's last report (health.last) with its
+// Age set, when it is what a run now would be asked for: at most
+// doctorMaxAge old, in q's language, with every check q.only names and,
+// with q.egress, an egress result measured within doctorMaxAge too. nil
+// otherwise, and on any error (the run that follows reports it).
+func recentHelperReport(ctx context.Context, q doctorRequest) *health.Report {
+	var hr rpc.HealthReport
+	// No lang: health.last with another language would start a run in
+	// it; a report in the wrong language is not used.
+	if err := helperRPC(ctx, q.socket, rpc.MethodHealthLast, nil, &hr); err != nil {
+		return nil
+	}
+	rep, err := healthsrc.Decode(hr)
+	if err != nil || rep == nil {
+		return nil
+	}
+	now := time.Now
+	if q.now != nil {
+		now = q.now
+	}
+	t := now()
+	ended := hr.At
+	if ended.IsZero() {
+		ended = rep.Started.Add(rep.Duration)
+	}
+	age := t.Sub(ended)
+	if age > doctorMaxAge {
+		return nil
+	}
+	if q.lang != "" && health.MatchLang(q.lang) != health.MatchLang(rep.Lang) {
+		return nil
+	}
+	have := map[string]*health.CheckReport{}
+	for i := range rep.Checks {
+		have[rep.Checks[i].ID] = &rep.Checks[i]
+	}
+	for _, id := range q.only {
+		if have[id] == nil {
+			return nil
+		}
+	}
+	if q.egress {
+		c := have[health.LeakEgress{}.ID()]
+		if c == nil || c.Status == health.StatusSkip {
+			return nil // not measured (定期检测 off): health.egress measures it
+		}
+		measured := rep.Started
+		if !c.At.IsZero() {
+			measured = c.At // an on-demand result carried into this report
+		}
+		if t.Sub(measured) > doctorMaxAge {
+			return nil
+		}
+	}
+	rep.Age = max(time.Second, age.Round(time.Second))
+	return rep
 }
 
 // localHealth runs the checks in this process: the helper's settings
@@ -161,6 +239,7 @@ func runDoctor(args []string) error {
 	only := fs.String("only", "", "comma-separated check IDs to show (a local run runs only those)")
 	timeout := fs.Duration("timeout", 15*time.Second, "per-check timeout of a local run")
 	strict := fs.Bool("strict", false, "exit with status 1 when any check fails")
+	fresh := fs.Bool("fresh", false, fmt.Sprintf("ask the helper to run the checks now; without it, its last report is shown when under %d s old and covers --only, --egress and --lang", int(doctorMaxAge/time.Second)))
 	egress := fs.Bool("egress", false, "also run the egress test now: one HTTPS GET to an IP-echo URL directly and one through mihomo, compared (opt-in, sends no personal data; default: on when the helper's 定期检测 is)")
 	var egressURLs []string
 	fs.Func("egress-url", "local run: IP-echo `URL`s for --egress, tried in order until one answers (comma-separated or repeated; default: the helper's list, else "+strings.Join(health.DefaultEgressURLs, ",")+")", func(s string) error {
@@ -202,7 +281,7 @@ func runDoctor(args []string) error {
 		return err
 	}
 
-	q := doctorRequest{socket: *socket, local: *local, only: onlyIDs, egress: *egress, lang: *lang,
+	q := doctorRequest{socket: *socket, local: *local, fresh: *fresh, only: onlyIDs, egress: *egress, lang: *lang,
 		timeout: *timeout, controller: *controller, configPath: *configPath,
 		warn: func(s string) { fmt.Fprintln(os.Stderr, "twinnel: "+s) }}
 	for _, f := range localOnlyFlags {

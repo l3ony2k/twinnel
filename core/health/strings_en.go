@@ -20,6 +20,9 @@ var enTexts = texts{
 	msgCheckTimeout:   "The check timed out (%s)",
 	msgSourceLocal:    "Local run, not the helper's: results can differ from what the app shows",
 	msgSourceNoHelper: "The helper did not answer, so this is a local run: results can differ from what the app shows",
+	msgSourceLast:     "The helper's last run, %s ago",
+	msgAgeSeconds:     "%d s",
+	msgAgeMinutes:     "%d min",
 
 	// Check titles.
 	titleTailnetRoute:   "Tailnet route",

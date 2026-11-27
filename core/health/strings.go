@@ -29,6 +29,9 @@ type texts struct {
 	msgCheckTimeout   string
 	msgSourceLocal    string // Report.Source SourceLocal
 	msgSourceNoHelper string // SourceLocalNoHelper
+	msgSourceLast     string // Report.Age set; %s: ageText
+	msgAgeSeconds     string // %d: seconds
+	msgAgeMinutes     string // %d: minutes
 
 	// Check titles.
 	titleTailnetRoute   string
@@ -230,6 +233,9 @@ var zhTexts = texts{
 	msgCheckTimeout:   "检查超时（%s）",
 	msgSourceLocal:    "本机检查，不是后台助手的结果：可能和应用里看到的不同",
 	msgSourceNoHelper: "后台助手没有回应，这是本机检查：可能和应用里看到的不同",
+	msgSourceLast:     "后台助手 %s前的检查结果",
+	msgAgeSeconds:     "%d 秒",
+	msgAgeMinutes:     "%d 分钟",
 
 	// Check titles.
 	titleTailnetRoute:   "tailnet 路由",
@@ -433,10 +439,16 @@ func WithLang(ctx context.Context, tag string) context.Context {
 
 // LangOf returns the language WithLang set, or DefaultLang.
 func LangOf(ctx context.Context) string {
-	if tag, ok := ctx.Value(langKey{}).(string); ok {
-		if m := i18n.Match(tag); textTables[m] != nil {
-			return m
-		}
+	tag, _ := ctx.Value(langKey{}).(string)
+	return MatchLang(tag)
+}
+
+// MatchLang is the language a report asked for in tag is worded in: a
+// language health has texts for, else DefaultLang ("" too). Compare a
+// Report.Lang with it ("" there is DefaultLang as well).
+func MatchLang(tag string) string {
+	if m := i18n.Match(tag); textTables[m] != nil {
+		return m
 	}
 	return DefaultLang
 }

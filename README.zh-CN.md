@@ -83,7 +83,7 @@ scripts/build-release.sh --no-app   # 只构建 CLI 和 helper（任何系统都
 除了 helper 相关的命令，下面的都是只读的。
 
 ```sh
-twinnel doctor                      # 由后台助手跑健康检查（和应用里一样）；--local 在本进程里跑
+twinnel doctor                      # 后台助手的健康检查结果（和应用里一样；一分钟内的直接用，--fresh 立即重跑）；--local 在本进程里跑
 twinnel doctor --markdown           # 生成可以贴进 issue 的报告（里面有 tailnet 设备名，贴之前看一眼）
 twinnel doctor --only magicdns,system-dns --json
 twinnel doctor --egress             # 可选：直连和经 mihomo 各发一次 HTTPS 请求，对比出口

@@ -77,7 +77,8 @@ func TestDoctorRunsThroughHelper(t *testing.T) {
 	if rep.Source != health.SourceHelper || len(rep.Checks) != 2 || rep.Overall != health.StatusFail || len(*local) != 0 {
 		t.Fatalf("report %+v, local runs %d", rep, len(*local))
 	}
-	if !slices.Equal(*asked, []string{rpc.MethodHealthRun}) {
+	// health.last first: the fake has none, so the helper runs them.
+	if !slices.Equal(*asked, []string{rpc.MethodHealthLast, rpc.MethodHealthRun}) {
 		t.Errorf("asked %v", *asked)
 	}
 	if strings.Contains(rep.Text(), "Local run") {
@@ -87,6 +88,93 @@ func TestDoctorRunsThroughHelper(t *testing.T) {
 	rep, err = doctorReport(context.Background(), doctorRequest{socket: "/x.sock", only: []string{"system-dns"}})
 	if err != nil || len(rep.Checks) != 1 || rep.Checks[0].ID != "system-dns" || rep.Overall != health.StatusOK {
 		t.Fatalf("--only: %+v %v", rep, err)
+	}
+}
+
+// lastReport is a synthetic health.last answer: a run of 5 s that ended
+// at end, worded in lang.
+func lastReport(t *testing.T, end time.Time, lang string, checks ...health.CheckReport) rpc.HealthReport {
+	t.Helper()
+	rep := health.Report{Platform: "windows", Started: end.Add(-5 * time.Second), Duration: 5 * time.Second,
+		Overall: health.StatusOK, Checks: checks, Lang: lang}
+	for _, c := range checks {
+		rep.Overall = health.Worse(rep.Overall, c.Status)
+	}
+	b, err := json.Marshal(rep)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rpc.HealthReport{Report: b, Reason: "timer", At: end}
+}
+
+// The helper's last report stands in for a run when it is recent and
+// covers what was asked; the report says how old it is. Anything it does
+// not cover, or --fresh, asks for a run.
+func TestDoctorReusesRecentReport(t *testing.T) {
+	fakeLocalEnv(t)
+	end := time.Date(2026, 11, 28, 10, 0, 0, 0, time.UTC)
+	egressOK := check(health.LeakEgress{}.ID(), health.StatusOK)
+	egressOff := check(health.LeakEgress{}.ID(), health.StatusSkip)
+	egressOld := egressOK
+	egressOld.At = end.Add(-10 * time.Minute)
+	dns := check("system-dns", health.StatusOK)
+	for _, tc := range []struct {
+		name  string
+		age   time.Duration
+		last  rpc.HealthReport
+		q     doctorRequest
+		reuse bool
+	}{
+		{"recent", 20 * time.Second, lastReport(t, end, "en", dns), doctorRequest{}, true},
+		{"just now", 0, lastReport(t, end, "en", dns), doctorRequest{}, true},
+		{"too old", 2 * time.Minute, lastReport(t, end, "en", dns), doctorRequest{}, false},
+		{"--fresh", time.Second, lastReport(t, end, "en", dns), doctorRequest{fresh: true}, false},
+		{"--lang same", time.Second, lastReport(t, end, "en", dns), doctorRequest{lang: "en-GB"}, true},
+		{"--lang other", time.Second, lastReport(t, end, "en", dns), doctorRequest{lang: "zh"}, false},
+		{"--lang default", time.Second, lastReport(t, end, "", dns), doctorRequest{lang: "zh-Hans"}, true},
+		{"--only covered", time.Second, lastReport(t, end, "en", dns), doctorRequest{only: []string{"system-dns"}}, true},
+		{"--only missing", time.Second, lastReport(t, end, "en", dns), doctorRequest{only: []string{"tun-dataplane"}}, false},
+		{"--egress measured", time.Second, lastReport(t, end, "en", dns, egressOK), doctorRequest{egress: true}, true},
+		{"--egress off", time.Second, lastReport(t, end, "en", dns, egressOff), doctorRequest{egress: true}, false},
+		{"--egress carried, old", time.Second, lastReport(t, end, "en", dns, egressOld), doctorRequest{egress: true}, false},
+		{"none yet", time.Second, rpc.HealthReport{}, doctorRequest{}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			asked := fakeHelperRPC(t, map[string]any{
+				rpc.MethodHealthLast:   tc.last,
+				rpc.MethodHealthRun:    helperReport(t, dns, egressOK),
+				rpc.MethodSettingsGet:  rpc.Settings{HealthEgress: true},
+				rpc.MethodHealthEgress: helperReport(t, dns, egressOK),
+			})
+			q := tc.q
+			q.socket = "/x.sock"
+			q.now = func() time.Time { return end.Add(tc.age) }
+			rep, err := doctorReport(context.Background(), q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ran := slices.Contains(*asked, rpc.MethodHealthRun)
+			if ran == tc.reuse || rep.Source != health.SourceHelper {
+				t.Fatalf("reuse %v: asked %v, source %q", tc.reuse, *asked, rep.Source)
+			}
+			if tc.q.fresh && slices.Contains(*asked, rpc.MethodHealthLast) {
+				t.Errorf("--fresh asked for the last report: %v", *asked)
+			}
+			if !tc.reuse {
+				if rep.Age != 0 || strings.Contains(rep.Text(), "last run") {
+					t.Errorf("a run now has an age: %v", rep.Age)
+				}
+				return
+			}
+			want := max(time.Second, tc.age)
+			if rep.Age != want {
+				t.Errorf("age %v, want %v", rep.Age, want)
+			}
+			b, _ := rep.JSON()
+			if !strings.Contains(string(b), `"ageNs"`) {
+				t.Errorf("JSON has no age: %s", b)
+			}
+		})
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -61,7 +62,7 @@ func newEnv(t *testing.T, mod func(*Deps)) *env {
 		Tailscale: ts,
 		Version:   "0.9.0-test",
 		LogWindow: 300 * time.Millisecond,
-		Doctor: func(context.Context) (json.RawMessage, error) {
+		Doctor: func(context.Context, bool) (json.RawMessage, error) {
 			return json.RawMessage(`{"overall":"ok","note":"controller secret ` + agenttest.ControllerSecret + `"}`), nil
 		},
 	}
@@ -497,5 +498,23 @@ func TestComponentTools(t *testing.T) {
 	out, _ := e.call("version", nil)
 	if !strings.Contains(out, `"geo"`) || !strings.Contains(out, `"dashboard"`) {
 		t.Errorf("version has no components: %s", out)
+	}
+}
+
+// doctor hands fresh to `twinnel doctor` (default false: the helper's
+// last report may stand in for a run).
+func TestDoctorFresh(t *testing.T) {
+	var got []bool
+	e := newEnv(t, func(d *Deps) {
+		d.Doctor = func(_ context.Context, fresh bool) (json.RawMessage, error) {
+			got = append(got, fresh)
+			return json.RawMessage(`{"overall":"ok","ageNs":20000000000}`), nil
+		}
+	})
+	e.setAgent(rpc.AgentSettings{MCP: true})
+	e.ok("doctor", nil)
+	e.ok("doctor", map[string]any{"fresh": true})
+	if !slices.Equal(got, []bool{false, true}) {
+		t.Fatalf("fresh %v", got)
 	}
 }
