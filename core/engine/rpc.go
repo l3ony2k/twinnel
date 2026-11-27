@@ -19,6 +19,7 @@ func (e *Engine) Register(s *rpc.Server) {
 		return e.RestartHelper()
 	})
 
+	rpc.Typed(s, rpc.MethodComposeStatus, func(ctx context.Context, _ rpc.Empty) (rpc.ComposeStatus, error) { return e.ComposeStatus(ctx) })
 	rpc.Typed(s, rpc.MethodComposePreview, func(ctx context.Context, _ rpc.Empty) (rpc.ComposeResult, error) { return e.Preview(ctx) })
 	rpc.Typed(s, rpc.MethodComposeApply, func(ctx context.Context, p rpc.ApplyParams) (*rpc.ApplyResult, error) {
 		// No reason: Apply records the code "apply" (a client words it).
