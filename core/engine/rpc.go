@@ -151,6 +151,10 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodTailscaleLogin, func(ctx context.Context, p rpc.TailscaleLoginParams) (rpc.TailscaleLoginResult, error) {
 		return e.TailscaleLogin(ctx, p)
 	})
+	rpc.Typed(s, rpc.MethodAutostartList, func(ctx context.Context, _ rpc.Empty) (rpc.AutostartList, error) { return e.AutostartList(ctx), nil })
+	rpc.Typed(s, rpc.MethodAutostartChange, func(ctx context.Context, p rpc.AutostartChangeParams) (rpc.AutostartChangeResult, error) {
+		return e.AutostartChange(ctx, p)
+	})
 	e.registerCredentials(s)
 	e.registerAgent(s)
 	e.registerImport(s)

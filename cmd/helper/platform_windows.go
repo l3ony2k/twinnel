@@ -142,6 +142,7 @@ func tailnetInterface(ctx context.Context) (string, error) {
 // after applies and service operations.
 func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	windowsSettings(e)
+	e.Autostarts = autostartSource(o)
 	if d := systemDNS(o); d != nil {
 		e.SystemDNS = d
 	}

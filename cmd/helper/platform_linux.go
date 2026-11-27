@@ -46,6 +46,7 @@ func tailnetInterface(ctx context.Context) (string, error) {
 //     the interval and after applies and service operations.
 func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	linuxSettings(e)
+	e.Autostarts = autostartSource(o)
 	o.group = linuxGroup(o.group)
 
 	switch o.tailnetIface {

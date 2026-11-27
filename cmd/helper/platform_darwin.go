@@ -54,6 +54,7 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 		e.TailnetInterface = func(context.Context) (string, error) { return name, nil }
 	}
 	setupTakeover(e, o)
+	e.Autostarts = autostartSource(o)
 	if d := systemDNS(o); d != nil {
 		e.SystemDNS = d
 	}
