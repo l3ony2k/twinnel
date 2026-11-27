@@ -346,6 +346,15 @@ type TailscaleControl interface {
 	StartLogin(ctx context.Context) error
 }
 
+// loginPoll is how often TailscaleLogin re-reads the state after Up.
+var loginPoll = 250 * time.Millisecond
+
+// loginUndecided: the node has not said yet whether it runs or needs a
+// login.
+func loginUndecided(backend string) bool {
+	return backend == "Stopped" || backend == "NoState"
+}
+
 // TailscaleLogin reads the login state and, with Start, connects and starts
 // an interactive login unless the node already runs.
 func (e *Engine) TailscaleLogin(ctx context.Context, p rpc.TailscaleLoginParams) (rpc.TailscaleLoginResult, error) {
@@ -357,17 +366,37 @@ func (e *Engine) TailscaleLogin(ctx context.Context, p rpc.TailscaleLoginParams)
 	if err != nil {
 		return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", err)
 	}
-	if p.Start && backend != "Running" {
-		if err := e.TSControl.Up(ctx); err != nil {
-			return out, rpc.Errorf(rpc.CodeFailed, "tailscale up: %v", err)
+	if p.Start && (backend != "Running" || p.Reauth) {
+		if backend != "Running" {
+			if err := e.TSControl.Up(ctx); err != nil {
+				return out, rpc.Errorf(rpc.CodeFailed, "tailscale up: %v", err)
+			}
+			// A node that was only stopped connects now; one that is
+			// logged out (or new) says NeedsLogin. Wait a moment to know.
+			for i := 0; i < 8 && loginUndecided(backend); i++ {
+				if i > 0 || backend == "Stopped" {
+					select {
+					case <-ctx.Done():
+						return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", ctx.Err())
+					case <-time.After(loginPoll):
+					}
+				}
+				if backend, authURL, tailnet, err = e.TSControl.LoginState(ctx); err != nil {
+					return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", err)
+				}
+			}
 		}
-		if err := e.TSControl.StartLogin(ctx); err != nil {
-			return out, rpc.Errorf(rpc.CodeFailed, "tailscale login: %v", err)
-		}
-		out.Started = true
-		e.log().Info("tailscale login started")
-		if backend, authURL, tailnet, err = e.TSControl.LoginState(ctx); err != nil {
-			return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", err)
+		// A login already pending keeps its URL (another client may have
+		// opened it); otherwise ask for one.
+		if p.Reauth || backend == "NeedsLogin" && authURL == "" || backend == "NoState" {
+			if err := e.TSControl.StartLogin(ctx); err != nil {
+				return out, rpc.Errorf(rpc.CodeFailed, "tailscale login: %v", err)
+			}
+			out.Started = true
+			e.log().Info("tailscale login started", "reauth", p.Reauth)
+			if backend, authURL, tailnet, err = e.TSControl.LoginState(ctx); err != nil {
+				return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", err)
+			}
 		}
 	}
 	out.BackendState, out.AuthURL, out.Tailnet = backend, authURL, tailnet
