@@ -51,6 +51,11 @@ func (a *app) shots(dir string) {
 			mygo.App.Quit()
 			return
 		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "toolbar" { // shots_toolbar.go
+			a.toolbarShots(save)
+			mygo.App.Quit()
+			return
+		}
 		if os.Getenv("DUET_SHOTS_FLOW") == "takeover" {
 			a.takeoverE2E(save)
 			mygo.App.Quit()
