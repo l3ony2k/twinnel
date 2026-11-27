@@ -121,17 +121,17 @@ func (e *Engine) compose(ctx context.Context, st *store.Settings) (*config.Resul
 }
 
 func (e *Engine) validateOpts(st *store.Settings) []config.ValidateOption {
-	var opts []config.ValidateOption
+	// The geo databases are linked from a copy in the state dir, not
+	// copied on every check (tens of MB; on Windows each copy is scanned
+	// again). A fresh install has no config dir yet: mihomo -t then
+	// downloads them, once, into that copy.
+	opts := []config.ValidateOption{config.WithGeoCache(e.Store.Path("validate", "geo"))}
 	if st.Mihomo.ConfigDir == "" {
-		return nil
+		return opts
 	}
 	opts = append(opts, config.WithSafePaths(st.Mihomo.ConfigDir))
-	// A fresh install has no config dir yet; mihomo -t then downloads the
-	// geo databases into its temp dir.
 	if fi, err := os.Stat(st.Mihomo.ConfigDir); err == nil && fi.IsDir() {
-		// Linked from a copy in the state dir, not copied on every
-		// check (tens of MB; on Windows each copy is scanned again).
-		opts = append(opts, config.WithGeoDir(st.Mihomo.ConfigDir), config.WithGeoCache(e.Store.Path("validate", "geo")))
+		opts = append(opts, config.WithGeoDir(st.Mihomo.ConfigDir))
 	}
 	return opts
 }

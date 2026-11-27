@@ -54,6 +54,11 @@ func WithGeoDir(dir string) ValidateOption { return func(o *validateOpts) { o.ge
 // a link cannot be made the file is copied as before. The cached files
 // are read-only, and a cached file whose size or time no longer matches
 // its source (something wrote to it) is copied again.
+//
+// Databases mihomo had to download during a passing run (the config dir
+// has none yet, as on a fresh install) are kept in cache too, and given
+// to later runs, so each check does not download them again. Not when
+// mihomo runs as another user (WithRunAs): its work dir is that user's.
 func WithGeoCache(cache string) ValidateOption { return func(o *validateOpts) { o.geoCache = cache } }
 
 // WithSafePaths adds directories to mihomo's SAFE_PATHS. mihomo only accepts
@@ -88,7 +93,7 @@ func Validate(ctx context.Context, mihomoBin string, config []byte, opts ...Vali
 	case o.runAs != nil:
 		// The helper's own TMPDIR may not be reachable by that user.
 		tmpRoot = "/tmp"
-	case o.geoDir != "" && o.geoCache != "":
+	case o.geoCache != "":
 		// Next to the cache: hard links need one volume.
 		tmpRoot = filepath.Dir(o.geoCache)
 		if err := os.MkdirAll(tmpRoot, 0o700); err != nil {
@@ -101,9 +106,9 @@ func Validate(ctx context.Context, mihomoBin string, config []byte, opts ...Vali
 	}
 	defer os.RemoveAll(dir)
 
-	var linked map[string]bool
-	if o.geoDir != "" {
-		if linked, err = copyGeo(o.geoDir, o.geoCache, dir); err != nil {
+	var linked, placed map[string]bool
+	if o.geoDir != "" || o.geoCache != "" {
+		if linked, placed, err = copyGeo(o.geoDir, o.geoCache, dir); err != nil {
 			return nil, fmt.Errorf("geo files: %w", err)
 		}
 	}
@@ -146,6 +151,9 @@ func Validate(ctx context.Context, mihomoBin string, config []byte, opts ...Vali
 	}
 	v := parseTestOutput(out.String())
 	v.OK = runErr == nil && len(v.Errors) == 0 && strings.Contains(v.Output, "test is successful")
+	if v.OK && o.geoCache != "" && o.runAs == nil {
+		keepDownloads(dir, o.geoCache, placed)
+	}
 	if !v.OK && len(v.Errors) == 0 {
 		v.Errors = []string{lastLine(v.Output)}
 	}
@@ -183,36 +191,75 @@ func isGeoFile(name string) bool {
 	return false
 }
 
-// copyGeo puts src's geo databases into dst: hard links to cache's copies
-// when cache is set and a link can be made, else copies. It returns the
-// names it linked.
-func copyGeo(src, cache, dst string) (map[string]bool, error) {
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return nil, err
+// copyGeo puts the geo databases into dst: src's (when set), as hard
+// links to cache's copies when cache is set and a link can be made, else
+// copied; then any others cache holds (kept from downloads). It returns
+// the names it linked and all it placed.
+func copyGeo(src, cache, dst string) (linked, placed map[string]bool, err error) {
+	linked, placed = map[string]bool{}, map[string]bool{}
+	if src != "" {
+		entries, err := os.ReadDir(src)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, e := range entries {
+			if !isGeoFile(e.Name()) {
+				continue
+			}
+			info, err := os.Stat(filepath.Join(src, e.Name()))
+			if err != nil || !info.Mode().IsRegular() {
+				continue
+			}
+			placed[e.Name()] = true
+			if cache != "" {
+				if c, err := cachedGeo(filepath.Join(src, e.Name()), info, cache); err == nil {
+					if os.Link(c, filepath.Join(dst, e.Name())) == nil {
+						linked[e.Name()] = true
+						continue
+					}
+				}
+			}
+			if err := copyFile(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+				return nil, nil, err
+			}
+		}
 	}
-	linked := map[string]bool{}
+	if cache == "" {
+		return linked, placed, nil
+	}
+	entries, _ := os.ReadDir(cache) // none yet: nothing kept
 	for _, e := range entries {
-		if !isGeoFile(e.Name()) {
+		if !isGeoFile(e.Name()) || strings.HasPrefix(e.Name(), ".") || placed[e.Name()] || !e.Type().IsRegular() {
 			continue
 		}
-		info, err := os.Stat(filepath.Join(src, e.Name()))
+		c := filepath.Join(cache, e.Name())
+		if os.Link(c, filepath.Join(dst, e.Name())) == nil {
+			linked[e.Name()] = true
+		} else if err := copyFile(c, filepath.Join(dst, e.Name())); err != nil {
+			continue // only a download saved: mihomo fetches it again
+		}
+		placed[e.Name()] = true
+	}
+	return linked, placed, nil
+}
+
+// keepDownloads copies into cache the geo databases mihomo downloaded
+// into the work dir dir (those not placed there). Regular files only.
+func keepDownloads(dir, cache string, placed map[string]bool) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !isGeoFile(e.Name()) || placed[e.Name()] {
+			continue
+		}
+		info, err := os.Lstat(filepath.Join(dir, e.Name()))
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		if cache != "" {
-			if c, err := cachedGeo(filepath.Join(src, e.Name()), info, cache); err == nil {
-				if os.Link(c, filepath.Join(dst, e.Name())) == nil {
-					linked[e.Name()] = true
-					continue
-				}
-			}
-		}
-		if err := copyFile(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
-			return nil, err
-		}
+		cachedGeo(filepath.Join(dir, e.Name()), info, cache)
 	}
-	return linked, nil
 }
 
 // cachedGeo returns cache's read-only copy of src (whose info is given),

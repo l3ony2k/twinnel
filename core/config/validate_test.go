@@ -251,3 +251,46 @@ func TestValidateGeoCache(t *testing.T) {
 		t.Errorf("source = %q, changed", b)
 	}
 }
+
+// TestValidateKeepsDownloads: a geo database mihomo downloaded in a
+// passing run (no geo dir, as on a fresh install) is kept in the cache
+// and given to the next run, which then need not download it; a failing
+// run's downloads are not kept.
+func TestValidateKeepsDownloads(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script fake")
+	}
+	d := t.TempDir()
+	log := filepath.Join(d, "log")
+	// Downloads GeoSite.dat when the work dir lacks it; fails when the
+	// config says so.
+	script := `#!/bin/sh
+if [ -f "$3/GeoSite.dat" ]; then echo had >> ` + log + `; else echo downloaded >> ` + log + `; printf geo > "$3/GeoSite.dat"; fi
+grep -q fail "$5" && { echo 'level=error msg="bad"'; exit 1; }
+echo "configuration file $5 test is successful"
+`
+	bin := filepath.Join(d, "mihomo")
+	os.WriteFile(bin, []byte(script), 0o755)
+	cache := filepath.Join(d, "validate", "geo")
+	run := func(cfg string) bool {
+		t.Helper()
+		v, err := Validate(context.Background(), bin, []byte(cfg), WithGeoCache(cache))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v.OK
+	}
+	if run("mode: fail\n") {
+		t.Fatal("failing run passed")
+	}
+	if !run("mode: rule\n") || !run("mode: rule\n") {
+		t.Fatal("run failed")
+	}
+	b, _ := os.ReadFile(log)
+	if got := strings.Fields(string(b)); !slices.Equal(got, []string{"downloaded", "downloaded", "had"}) {
+		t.Errorf("runs = %v, want a download kept after the first passing run only", got)
+	}
+	if c, _ := os.ReadFile(filepath.Join(cache, "GeoSite.dat")); string(c) != "geo" {
+		t.Errorf("cache holds %q", c)
+	}
+}
