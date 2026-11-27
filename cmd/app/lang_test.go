@@ -42,6 +42,10 @@ func TestLabelColumnGrows(t *testing.T) {
 	if !growLabel(999) || labelCol() != labelMax {
 		t.Fatalf("column %v, want the cap", labelCol())
 	}
+	// Past the cap a label wraps instead of being cut; up to it, never.
+	if !labelWraps(999, 0) || labelWraps(labelMax, 0) || labelWraps(labelMax+20, 20) {
+		t.Fatal("labelWraps")
+	}
 	setLayout("en")
 	if labelCol() != langLayouts["en"].label {
 		t.Fatalf("setLayout kept the grown column: %v", labelCol())
