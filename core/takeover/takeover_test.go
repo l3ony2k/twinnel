@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/privfile/privfiletest"
 	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
@@ -219,14 +220,10 @@ func TestBuildPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range []string{"plan.json", "composed.yaml", "semdiff.txt", "summary.txt", "layers/00-base.yaml", "layers/04-tailscale-coexist.yaml"} {
-		fi, err := os.Stat(filepath.Join(out, f))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if fi.Mode().Perm() != 0o600 {
-			t.Errorf("%s mode %v", f, fi.Mode())
-		}
+		privfiletest.AssertPrivate(t, filepath.Join(out, f), false)
 	}
+	privfiletest.AssertPrivate(t, out, true)
+	privfiletest.AssertPrivate(t, filepath.Join(out, "layers"), true)
 	for _, f := range []string{"plan.json", "semdiff.txt", "summary.txt"} {
 		b, _ := os.ReadFile(filepath.Join(out, f))
 		for _, s := range []string{"pw-secret-1", "11111111-2222", "tok-SECRET", "192.0.2.1"} {

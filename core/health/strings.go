@@ -13,20 +13,25 @@ import (
 
 // texts holds them.
 type texts struct {
-	titleReport      string
-	labelOverall     string
-	labelTime        string
-	labelPlatform    string
-	labelEvidence    string
-	labelFix         string
-	labelOK          string
-	labelWarn        string
-	labelFail        string
-	labelSkip        string
-	msgCounts        string
-	msgNotOnPlatform string
-	msgCheckPanicked string
-	msgCheckTimeout  string
+	titleReport       string
+	labelOverall      string
+	labelTime         string
+	labelPlatform     string
+	labelEvidence     string
+	labelFix          string
+	labelOK           string
+	labelWarn         string
+	labelFail         string
+	labelSkip         string
+	msgCounts         string
+	msgNotOnPlatform  string
+	msgCheckPanicked  string
+	msgCheckTimeout   string
+	msgSourceLocal    string // Report.Source SourceLocal
+	msgSourceNoHelper string // SourceLocalNoHelper
+	msgSourceLast     string // Report.Age set; %s: ageText
+	msgAgeSeconds     string // %d: seconds
+	msgAgeMinutes     string // %d: minutes
 
 	// Check titles.
 	titleTailnetRoute   string
@@ -212,20 +217,25 @@ type texts struct {
 }
 
 var zhTexts = texts{
-	titleReport:      "Twinnel 健康检查报告",
-	labelOverall:     "总体",
-	labelTime:        "时间",
-	labelPlatform:    "平台",
-	labelEvidence:    "证据",
-	labelFix:         "修复建议",
-	labelOK:          "通过",
-	labelWarn:        "警告",
-	labelFail:        "失败",
-	labelSkip:        "跳过",
-	msgCounts:        "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
-	msgNotOnPlatform: "不适用于 %s",
-	msgCheckPanicked: "检查自身出错",
-	msgCheckTimeout:  "检查超时（%s）",
+	titleReport:       "Twinnel 健康检查报告",
+	labelOverall:      "总体",
+	labelTime:         "时间",
+	labelPlatform:     "平台",
+	labelEvidence:     "证据",
+	labelFix:          "修复建议",
+	labelOK:           "通过",
+	labelWarn:         "警告",
+	labelFail:         "失败",
+	labelSkip:         "跳过",
+	msgCounts:         "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
+	msgNotOnPlatform:  "在 %s 上做不了这项检查",
+	msgCheckPanicked:  "检查自身出错",
+	msgCheckTimeout:   "检查超时（%s）",
+	msgSourceLocal:    "本机检查，不是后台助手的结果：可能和应用里看到的不同",
+	msgSourceNoHelper: "后台助手没有回应，这是本机检查：可能和应用里看到的不同",
+	msgSourceLast:     "后台助手 %s前的检查结果",
+	msgAgeSeconds:     "%d 秒",
+	msgAgeMinutes:     "%d 分钟",
 
 	// Check titles.
 	titleTailnetRoute:   "tailnet 路由",
@@ -270,12 +280,12 @@ var zhTexts = texts{
 	msgEgressSame:        "经 mihomo 代理（%s）的出口 IP 和本机直连出口相同",
 	msgEgressNotMeasured: "测试请求走的是 %s，敏感策略组当前用别的节点，没测到它们的出口",
 	msgEgressDirectPath:  "测试请求本身被规则送去了 DIRECT，测不到代理出口",
-	evEgressDirect:       "直连出口：%s",
+	evEgressDirect:       "直连出口：%s（%s 回答）",
 	evEgressDirectErr:    "直连请求失败：%v（改用 tailscaled 的 STUN 结果）",
 	evEgressSTUN:         "直连出口（tailscaled STUN）：%s",
-	evEgressProxied:      "经 mihomo 出口：%s（链路：%s）",
+	evEgressProxied:      "经 mihomo 出口：%s（链路：%s · %s 回答）",
 	evEgressGroup:        "%s 当前节点：%s",
-	evEgressURL:          "测试地址：%s（只发一次 GET，不带任何个人数据）",
+	evEgressURL:          "测试地址（按顺序试，每条路径一个回答即止，只发 GET，不带任何个人数据）：%s",
 	fixEgressProbe:       "检测一次出口：直连和经 mihomo 各请求一次 IP 回显地址",
 	fixEgress:            "检查敏感策略组当前节点：节点的出口和本机相同，说明它没有真正代理（例如本地转发或 DIRECT 类节点）",
 
@@ -367,7 +377,7 @@ var zhTexts = texts{
 	evExcludedDNS:     "该 DNS 在 route-exclude-address 内，dns-hijack 管不到",
 	evDefaultResolver: "系统默认 resolver：%s",
 	fixDNS:            "把这些网络服务的 DNS 设为 %s（networksetup -setdnsservers <服务名> <地址>）",
-	fixDNSWindows:     "把这些网络适配器的 DNS 设为 %s：设置 → 网络和 Internet → <适配器> → DNS 服务器分配 → 编辑 → 手动；或在管理员 PowerShell 运行 Set-DnsClientServerAddress -InterfaceAlias <适配器> -ServerAddresses %s",
+	fixDNSWindows:     "把这些网络适配器的 DNS 设为 %s（IPv6 设为 ::1）：设置 → 网络和 Internet → <适配器> → DNS 服务器分配 → 编辑 → 手动；或在管理员 PowerShell 运行 Set-DnsClientServerAddress -InterfaceAlias <适配器> -ServerAddresses %s,::1",
 	fixDNSLinux:       "把这些连接的 DNS 设为 %s。NetworkManager：nmcli connection modify <连接名> ipv4.dns %s ipv4.ignore-auto-dns yes，再 nmcli connection up <连接名>；只有 systemd-resolved 时：在 /etc/systemd/resolved.conf 写 DNS=%s 和 Domains=~.，再 systemctl restart systemd-resolved（resolvectl dns <网卡> <地址> 只到重启为止）。",
 
 	// vpn-conflict
@@ -407,7 +417,7 @@ var zhTexts = texts{
 	evSecretSet:    "已设置",
 	evSecretEmpty:  "空",
 	evCtlNoAuth:    "不带密钥的请求被接受",
-	fixCtl:         "external-controller 只绑定 127.0.0.1，并设置随机密钥（由后台助手生成并存入钥匙串）",
+	fixCtl:         "external-controller 只绑定 127.0.0.1，并设置随机密钥（由后台助手生成并保存）",
 }
 
 // textTables maps a language tag (core/i18n's) to its texts.
@@ -429,10 +439,16 @@ func WithLang(ctx context.Context, tag string) context.Context {
 
 // LangOf returns the language WithLang set, or DefaultLang.
 func LangOf(ctx context.Context) string {
-	if tag, ok := ctx.Value(langKey{}).(string); ok {
-		if m := i18n.Match(tag); textTables[m] != nil {
-			return m
-		}
+	tag, _ := ctx.Value(langKey{}).(string)
+	return MatchLang(tag)
+}
+
+// MatchLang is the language a report asked for in tag is worded in: a
+// language health has texts for, else DefaultLang ("" too). Compare a
+// Report.Lang with it ("" there is DefaultLang as well).
+func MatchLang(tag string) string {
+	if m := i18n.Match(tag); textTables[m] != nil {
+		return m
 	}
 	return DefaultLang
 }

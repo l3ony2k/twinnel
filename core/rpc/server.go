@@ -13,31 +13,6 @@ import (
 	"time"
 )
 
-// AllMethods is the allowlist. Server.Handle panics for any other name.
-var AllMethods = []string{
-	MethodStatus,
-	MethodComposePreview, MethodComposeApply,
-	MethodHistoryList, MethodHistoryRollback,
-	MethodLayerList, MethodLayerGet, MethodLayerPut, MethodLayerDelete, MethodLayerSetEnabled, MethodLayerReorder, MethodLayerRestore,
-	MethodSubList, MethodSubPut, MethodSubDelete, MethodSubActivate, MethodSubRefresh,
-	MethodSettingsGet, MethodSettingsUpdate,
-	MethodTailnetRefresh,
-	MethodKernelList, MethodKernelCheck, MethodKernelInstall, MethodKernelRollback,
-	MethodTailscaleInfo,
-	MethodServiceStatus, MethodServiceStart, MethodServiceStop, MethodServiceRestart,
-	MethodServiceInstall, MethodServiceUninstall,
-	MethodHealthLast, MethodHealthRun, MethodHealthEgress,
-	MethodConfigGet,
-	MethodConfigExport, MethodConfigImport,
-	MethodGeoCheck, MethodGeoUpdate, MethodUICheck, MethodUIUpdate,
-	MethodTakeoverPlan, MethodTakeoverPlans, MethodTakeoverDiscard, MethodTakeoverAdopt, MethodTakeoverUndo,
-	MethodControllerSecure, MethodControllerCredentials,
-	MethodAgentRecord, MethodAgentActivity,
-	MethodHardenPlan, MethodHardenPlans, MethodHardenApply,
-	MethodHelperInfo, MethodHelperInventory, MethodHelperRestart, MethodEventsWait,
-	MethodDNSStatus, MethodDNSPoint, MethodDNSRestore, MethodTailscaleInstall, MethodTailscaleLogin,
-}
-
 // HandlerFunc serves one method. params is the raw JSON (may be empty).
 // Returning an *Error picks the error code; any other error is CodeFailed.
 type HandlerFunc func(ctx context.Context, peer Peer, params json.RawMessage) (any, error)
@@ -65,17 +40,9 @@ func NewServer(t Transport, auth Authorizer, log *slog.Logger) *Server {
 	return &Server{Transport: t, Auth: auth, Log: log, handlers: map[string]HandlerFunc{}, conns: map[net.Conn]struct{}{}}
 }
 
-var allowed = func() map[string]bool {
-	m := map[string]bool{}
-	for _, n := range AllMethods {
-		m[n] = true
-	}
-	return m
-}()
-
 // Handle registers a handler. Only names from AllMethods are accepted.
 func (s *Server) Handle(method string, h HandlerFunc) {
-	if !allowed[method] {
+	if ClassOf(method) == 0 {
 		panic("rpc: method not in allowlist: " + method)
 	}
 	s.mu.Lock()
@@ -175,7 +142,7 @@ func (s *Server) serveConn(c net.Conn) {
 		err = s.Auth.Authorize(peer)
 	}
 	if err != nil {
-		s.Log.Warn("rpc: refused connection", "uid", peer.UID, "sid", peer.SID, "pid", peer.PID, "err", err)
+		s.Log.Warn("rpc: refused connection", "peer", peer, "err", err)
 		write(Response{Error: Errorf(CodeUnauthorized, "not allowed: %v", err)})
 		lingerRefused(c)
 		return
@@ -240,25 +207,26 @@ func (s *Server) serveConn(c net.Conn) {
 	}
 }
 
+// call runs a handler with the peer in its context (PeerFrom) and logs
+// the call at its class's level (ClassOfCall: per method, or per params
+// for a method with a read mode): reads at DEBUG, changes
+// at INFO, long polls not at all. A panic is an error whatever the class.
 func (s *Server) call(ctx context.Context, h HandlerFunc, peer Peer, req Request) (res any, err error) {
 	start := time.Now()
 	defer func() {
 		if r := recover(); r != nil {
 			err = Errorf(CodeInternal, "internal error: %v", r)
-			s.Log.Error("rpc: handler panic", "method", req.Method, "panic", r)
+			s.Log.Error("rpc: handler panic", "method", req.Method, "peer", peer, "panic", r)
 		}
-		if req.Method != MethodEventsWait {
-			s.Log.Info("rpc", "method", req.Method, "uid", peer.UID, "pid", peer.PID, "dur", time.Since(start).Round(time.Millisecond), "err", errString(err))
+		if level, ok := ClassOfCall(req.Method, req.Params).LogLevel(); ok {
+			args := []any{"method", req.Method, "peer", peer, "dur", time.Since(start).Round(time.Millisecond)}
+			if err != nil {
+				args = append(args, "err", err.Error())
+			}
+			s.Log.Log(context.Background(), level, "rpc", args...)
 		}
 	}()
-	return h(ctx, peer, req.Params)
-}
-
-func errString(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
+	return h(WithPeer(ctx, peer), peer, req.Params)
 }
 
 func toRPCError(err error) *Error {

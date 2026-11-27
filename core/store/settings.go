@@ -27,6 +27,17 @@ type Settings struct {
 	// health run: one HTTPS request direct and one through mihomo to an
 	// IP-echo address. Off: it runs only when asked (health.egress).
 	HealthEgress bool `json:"health_egress,omitempty"`
+	// HealthEgressURLs replace the egress test's IP-echo endpoints (tried
+	// in order on each path). Empty: health.DefaultEgressURLs.
+	HealthEgressURLs []string `json:"health_egress_urls,omitempty"`
+
+	// GeoAutoUpdate updates the geo databases on a schedule: "weekly",
+	// or "" / "off" (the default: Twinnel shows a newer release but does
+	// not install it by itself).
+	GeoAutoUpdate string `json:"geo_auto_update,omitempty"`
+	// Dashboard: the person installed the web dashboard from Twinnel, so
+	// composing adds `external-ui: ui` when nothing else sets external-ui.
+	Dashboard bool `json:"dashboard,omitempty"`
 
 	// Subscriptions; at most one is Active.
 	Subscriptions []Subscription `json:"subscriptions,omitempty"`

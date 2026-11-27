@@ -99,7 +99,7 @@ func TestTailscaleWindowsKind(t *testing.T) {
 		w.Write([]byte(`{"TarballsVersion":"1.104.7","MacZipsVersion":"1.104.6","MSIsVersion":"1.104.8","Version":"1.104.5"}`))
 	}))
 	defer srv.Close()
-	p := &TailscaleProbe{PkgsURL: srv.URL, HTTP: srv.Client(), EvalSymlinks: func(s string) (string, error) { return s, nil }}
+	p := &TailscaleProbe{GOOS: "windows", PkgsURL: srv.URL, HTTP: srv.Client(), EvalSymlinks: func(s string) (string, error) { return s, nil }}
 	if k := p.Kind(`C:\Program Files\Tailscale\tailscale.exe`); k != TSWindows {
 		t.Fatalf("kind %s", k)
 	}

@@ -36,6 +36,29 @@ func countsLine(L *texts, r *Report) string {
 	return fmt.Sprintf(L.msgCounts, c[StatusOK], c[StatusWarn], c[StatusFail], c[StatusSkip])
 }
 
+// sourceNote says that a report is not the helper's ("" when it is, or
+// does not say).
+func sourceNote(L *texts, r *Report) string {
+	switch r.Source {
+	case SourceLocal:
+		return L.msgSourceLocal
+	case SourceLocalNoHelper:
+		return L.msgSourceNoHelper
+	}
+	if r.Age > 0 {
+		return fmt.Sprintf(L.msgSourceLast, ageText(L, r.Age))
+	}
+	return ""
+}
+
+// ageText words a report's age: seconds under a minute, else minutes.
+func ageText(L *texts, d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf(L.msgAgeSeconds, max(1, int(d.Round(time.Second)/time.Second)))
+	}
+	return fmt.Sprintf(L.msgAgeMinutes, int(d/time.Minute))
+}
+
 // Markdown renders the report as Markdown, for pasting into an issue or a
 // chat with an AI.
 func (r *Report) Markdown() string {
@@ -45,13 +68,20 @@ func (r *Report) Markdown() string {
 	fmt.Fprintf(&b, "- %s: %s %s\n", L.labelOverall, statusIcon(r.Overall), statusLabel(L, r.Overall))
 	fmt.Fprintf(&b, "- %s: %s\n", L.labelTime, r.Started.Format(time.RFC3339))
 	fmt.Fprintf(&b, "- %s: %s\n", L.labelPlatform, r.Platform)
-	fmt.Fprintf(&b, "- %s\n\n", countsLine(L, r))
+	fmt.Fprintf(&b, "- %s\n", countsLine(L, r))
+	if note := sourceNote(L, r); note != "" {
+		fmt.Fprintf(&b, "- %s\n", note)
+	}
+	b.WriteByte('\n')
 	for _, c := range r.Checks {
 		fmt.Fprintf(&b, "## %s %s (`%s`)\n\n", statusIcon(c.Status), c.Title, c.ID)
 		fmt.Fprintf(&b, "**%s**: %s\n\n", statusLabel(L, c.Status), c.Summary)
-		if len(c.Evidence) > 0 {
+		if c.Controller != "" {
+			fmt.Fprintf(&b, "%s: %s\n\n", otx(L).labelController, c.Controller)
+		}
+		if ev := TidyEvidence(c.Evidence); len(ev) > 0 {
 			fmt.Fprintf(&b, "%s:\n\n```\n", L.labelEvidence)
-			for _, e := range c.Evidence {
+			for _, e := range ev {
 				b.WriteString(e)
 				b.WriteByte('\n')
 			}
@@ -72,11 +102,18 @@ func (r *Report) Text() string {
 	L := textFor(r.Lang)
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s  %s: %s  (%s)\n", L.titleReport, L.labelOverall, statusLabel(L, r.Overall), countsLine(L, r))
-	fmt.Fprintf(&b, "%s: %s  %s: %s\n\n", L.labelTime, r.Started.Format("2006-01-02 15:04:05"), L.labelPlatform, r.Platform)
+	fmt.Fprintf(&b, "%s: %s  %s: %s\n", L.labelTime, r.Started.Format("2006-01-02 15:04:05"), L.labelPlatform, r.Platform)
+	if note := sourceNote(L, r); note != "" {
+		fmt.Fprintf(&b, "%s\n", note)
+	}
+	b.WriteByte('\n')
 	for _, c := range r.Checks {
 		fmt.Fprintf(&b, "[%-4s] %s (%s)\n", strings.ToUpper(string(c.Status)), c.Title, c.ID)
 		fmt.Fprintf(&b, "       %s\n", c.Summary)
-		for _, e := range c.Evidence {
+		if c.Controller != "" {
+			fmt.Fprintf(&b, "       %s: %s\n", otx(L).labelController, c.Controller)
+		}
+		for _, e := range TidyEvidence(c.Evidence) {
 			for _, line := range strings.Split(e, "\n") {
 				fmt.Fprintf(&b, "         · %s\n", line)
 			}

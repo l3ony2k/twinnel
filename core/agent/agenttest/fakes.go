@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/bundle"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
@@ -84,18 +85,22 @@ rules+:
 
 // Helper is the fake helper's state. Lock mu to read the recorded calls.
 type Helper struct {
-	Mu       sync.Mutex
-	Socket   string
-	Agent    rpc.AgentSettings
-	Calls    []string // methods, in order
-	Records  []rpc.AgentAction
-	Updates  []rpc.SettingsUpdate
-	Applied  int
-	Layers   map[string]rpc.LayerContent
-	Order    []string
-	Hash     string // compose.preview hash
-	Mode     string
-	Ctrl     string // controller address for controller.credentials
+	Mu      sync.Mutex
+	Socket  string
+	Agent   rpc.AgentSettings
+	Calls   []string // methods, in order
+	Records []rpc.AgentAction
+	// AccessoryUpdates: "geo:<proxy>" / "ui:<proxy>" for each geo.update / ui.update.
+	AccessoryUpdates []string
+	Updates          []rpc.SettingsUpdate
+	Applied          int
+	Layers           map[string]rpc.LayerContent
+	Order            []string
+	Hash             string // compose.preview hash
+	Mode             string
+	Ctrl             string // controller address for controller.credentials
+	// Owner is status.get's controller owner (nil: not known).
+	Owner    *foreign.Owner
 	Imports  []rpc.ConfigImportParams
 	bus      *rpc.Bus
 	srv      *rpc.Server
@@ -174,19 +179,29 @@ func (h *Helper) register() {
 		return rpc.Settings{Agent: h.Agent, HistoryKeep: 30}, nil
 	})
 	typed(h, rpc.MethodStatus, func(rpc.Empty) (rpc.Status, error) {
+		defer lock()()
 		return rpc.Status{HelperVersion: "0.9.0-test", ActiveSubscription: "main", Layers: 2,
-			Mihomo:    rpc.MihomoStatus{Controller: h.Ctrl, Reachable: true, Version: "v1.19.34"},
+			Mihomo:    rpc.MihomoStatus{Controller: h.Ctrl, Reachable: true, Version: "v1.19.34", Owner: h.Owner},
 			LastApply: &rpc.ApplyResult{Reason: "subscription " + SubURL, HistoryID: "h-1", Time: time.Unix(1_800_000_000, 0)}}, nil
 	})
 	typed(h, rpc.MethodControllerCredentials, func(rpc.Empty) (rpc.ControllerCredentials, error) {
 		return rpc.ControllerCredentials{Controller: h.Ctrl, Secret: ControllerSecret, Source: "store"}, nil
 	})
-	report := json.RawMessage(`{"overall":"warn","checks":[{"id":"dns.tailnet","title":"Tailnet names","status":"warn","summary":"resolver at https://u:` + QueryToken + `@dns.example.com/q?key=` + QueryToken + `"},{"id":"mihomo.up","status":"ok","summary":"ok"}]}`)
+	report := json.RawMessage(`{"overall":"warn","checks":[{"id":"dns.tailnet","title":"Tailnet names","status":"warn","reasons":["vpn-conflict/exit-node"],"summary":"resolver at https://u:` + QueryToken + `@dns.example.com/q?key=` + QueryToken + `"},{"id":"mihomo.up","status":"ok","summary":"ok"}]}`)
 	typed(h, rpc.MethodHealthLast, func(rpc.HealthLastParams) (rpc.HealthReport, error) {
 		return rpc.HealthReport{Report: report, Reason: "scheduled", At: time.Unix(1_800_000_000, 0)}, nil
 	})
 	typed(h, rpc.MethodHealthEgress, func(rpc.HealthEgressParams) (rpc.HealthReport, error) {
 		return rpc.HealthReport{Report: json.RawMessage(`{"overall":"ok","checks":[{"id":"leak-guard-egress","status":"ok","summary":"egress differs"}]}`), Reason: "egress"}, nil
+	})
+	typed(h, rpc.MethodServiceLog, func(p rpc.ServiceLogParams) (rpc.ServiceLog, error) {
+		if p.Name == rpc.ServiceLogHelper {
+			return rpc.ServiceLog{Name: p.Name, Files: []rpc.ServiceLogFile{{File: "helper.log", Lines: []string{
+				`time=2026-01-02T03:04:05.000Z level=INFO msg=rpc method=compose.apply peer.uid=501 peer.user=alice`,
+				`time=2026-01-02T03:04:06.000Z level=WARN msg="subscription fetch" err="GET ` + SubURL + `: 502"`}}}}, nil
+		}
+		return rpc.ServiceLog{Name: "mihomo", Files: []rpc.ServiceLogFile{{File: "mihomo.out.log", Lines: []string{
+			`time="2026-01-02T03:04:05Z" level=fatal msg="Parse config error: pull ` + SubURL + `"`}}}}, nil
 	})
 	typed(h, rpc.MethodHealthRun, func(rpc.HealthRunParams) (rpc.HealthReport, error) {
 		return rpc.HealthReport{Report: report, Reason: "agent"}, nil
@@ -330,6 +345,30 @@ func (h *Helper) register() {
 		h.Records = append(h.Records, a)
 		h.bus.Publish(rpc.EventAgentAction, a)
 		return rpc.Empty{}, nil
+	})
+	geo := func() rpc.AccessoryCheck {
+		return rpc.AccessoryCheck{Dir: "/tmp/conf", AutoUpdate: rpc.GeoAutoOff, Files: []rpc.AccessoryFile{
+			{Name: "geoip", File: "/tmp/conf/GeoIP.dat", Installed: true, Size: 10},
+			{Name: "geosite", File: "/tmp/conf/GeoSite.dat", UpdateAvailable: true},
+		}}
+	}
+	typed(h, rpc.MethodGeoStatus, func(rpc.Empty) (rpc.AccessoryCheck, error) { return geo(), nil })
+	typed(h, rpc.MethodGeoCheck, func(rpc.AccessoryCheckParams) (rpc.AccessoryCheck, error) { return geo(), nil })
+	typed(h, rpc.MethodUIStatus, func(rpc.Empty) (rpc.AccessoryCheck, error) {
+		return rpc.AccessoryCheck{Dir: "/tmp/conf", Path: "/ui/", Files: []rpc.AccessoryFile{{Name: "ui", File: "/tmp/conf/ui", UpdateAvailable: true}}}, nil
+	})
+	typed(h, rpc.MethodUICheck, func(rpc.AccessoryCheckParams) (rpc.AccessoryCheck, error) {
+		return rpc.AccessoryCheck{Dir: "/tmp/conf", Path: "/ui/", Files: []rpc.AccessoryFile{{Name: "ui", File: "/tmp/conf/ui", UpdateAvailable: true}}}, nil
+	})
+	typed(h, rpc.MethodGeoUpdate, func(p rpc.AccessoryUpdateParams) (rpc.AccessoryUpdateResult, error) {
+		defer lock()()
+		h.AccessoryUpdates = append(h.AccessoryUpdates, "geo:"+p.Proxy)
+		return rpc.AccessoryUpdateResult{Updated: []string{"geosite"}, Reloaded: p.Reload, Via: "direct", Files: geo().Files}, nil
+	})
+	typed(h, rpc.MethodUIUpdate, func(p rpc.AccessoryUpdateParams) (rpc.AccessoryUpdateResult, error) {
+		defer lock()()
+		h.AccessoryUpdates = append(h.AccessoryUpdates, "ui:"+p.Proxy)
+		return rpc.AccessoryUpdateResult{Updated: []string{"ui"}, Configured: true, Via: "direct"}, nil
 	})
 	typed(h, rpc.MethodAgentActivity, func(rpc.AgentActivityParams) ([]rpc.AgentAction, error) {
 		defer lock()()

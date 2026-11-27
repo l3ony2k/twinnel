@@ -14,7 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/privfile/privfiletest"
+	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
@@ -164,6 +167,11 @@ func TestEvaluate(t *testing.T) {
 		{"mihomo down", func(s *Snapshot) { s.Mihomo = Mihomo{Err: "connection refused"} }, LevelError, "对方拒绝了连接"},
 		{"mihomo auth", func(s *Snapshot) { s.Mihomo = Mihomo{Unauthorized: true, Err: "x"} }, LevelError, "密钥"},
 		{"tun off", func(s *Snapshot) { s.Mihomo.Config.Tun.Enable = false }, LevelWarn, "TUN"},
+		{"controller held by Clash Party", func(s *Snapshot) {
+			s.Mihomo.Config.Tun.Enable = false // the other client's state is not reported
+			s.Helper = Helper{State: HelperConnected, Status: &rpc.Status{Mihomo: rpc.MihomoStatus{Owner: &foreign.Owner{
+				Addr: "127.0.0.1:9090", Verdict: foreign.Foreign, Client: foreign.ClientClashParty}}}}
+		}, LevelError, "127.0.0.1:9090 被另一个 mihomo 占用（看起来是 Clash Party）"},
 		{"primary dead", func(s *Snapshot) {
 			gs := BuildGroups(proxies())
 			s.Mihomo.Primary = &gs[0]
@@ -273,9 +281,7 @@ func TestConfig(t *testing.T) {
 	if err := SaveConfig(path, c); err != nil {
 		t.Fatal(err)
 	}
-	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o600 {
-		t.Errorf("mode %v", fi.Mode())
-	}
+	privfiletest.AssertPrivate(t, path, false) // it can hold the controller secret
 	env[EnvSecret], env[EnvReadOnly] = "env-secret", "1"
 	c, _ = LoadConfig(path, getenv)
 	if c.Controller != "127.0.0.1:9999" || c.Secret != "env-secret" || !c.SecretFromEnv || c.AllowWrites {
@@ -407,4 +413,17 @@ func TestMonitorWithoutTailscale(t *testing.T) {
 	defer cancel()
 	m.Run(ctx)
 	waitFor(t, m, "ok", func(s Snapshot) bool { return s.Level == LevelOK })
+}
+
+// While another program's mihomo holds the controller, the app does not
+// change it (mode, node, TUN would change that program's state).
+func TestCanWithForeignController(t *testing.T) {
+	s := Snapshot{WritesAllowed: true, Mihomo: Mihomo{Reachable: true}}
+	if !s.Can().Mihomo {
+		t.Fatal("managed controller not writable")
+	}
+	s.Helper = Helper{State: HelperConnected, Status: &rpc.Status{Mihomo: rpc.MihomoStatus{Owner: &foreign.Owner{Addr: "127.0.0.1:9090", Verdict: foreign.Foreign}}}}
+	if s.Can().Mihomo || s.ForeignController() == nil {
+		t.Error("foreign controller writable")
+	}
 }

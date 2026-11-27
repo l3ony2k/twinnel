@@ -9,8 +9,6 @@ import (
 	"github.com/l3ony2k/twinnel/core/health"
 )
 
-const configDiscovery = "none on this platform"
-
-func newHealthEnv(healthEnvOptions) (health.Env, error) {
+func platformHealthEnv(healthEnvOptions) (health.Env, error) {
 	return nil, fmt.Errorf("twinnel doctor is not available on %s yet", runtime.GOOS)
 }

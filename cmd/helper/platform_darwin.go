@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/engine"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/legacy"
 	"github.com/l3ony2k/twinnel/core/service"
@@ -54,6 +55,11 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 		e.TailnetInterface = func(context.Context) (string, error) { return name, nil }
 	}
 	setupTakeover(e, o)
+	e.Autostarts = autostartSource(o)
+	ownerRun := takeoverprobe.SafeRunner(5 * time.Second)
+	e.PortOwner = func(ctx context.Context, port int) (*foreign.Process, error) {
+		return foreign.LsofPortOwner(ctx, foreign.Runner(ownerRun), port)
+	}
 	if d := systemDNS(o); d != nil {
 		e.SystemDNS = d
 	}
@@ -85,14 +91,16 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 func healthOptions(e *engine.Engine, opts *options) darwin.Options {
 	// The checks run the tailscale CLI, which Homebrew installs owned by
 	// the user: never as root.
-	o := darwin.Options{Run: takeoverprobe.SafeRunner(8 * time.Second), TailscaleStatus: devTailnetStatus(e, opts)}
+	o := darwin.Options{Run: takeoverprobe.SafeRunner(8 * time.Second), TailscaleStatus: devTailnetStatus(e, opts), Dataplane: health.NetProbes{}}
 	settings := health.DefaultSettings()
 	o.Settings = &settings
+	healthExtras(e, &settings)
 	st, err := e.Store.Settings()
 	if err != nil {
 		return o
 	}
-	settings.Egress = st.HealthEgress // 定期检测
+	// 防泄漏's groups and 定期检测: the same rule the CLI doctor uses.
+	settings.ApplyUserChoices(st.LeakGuardGroups, st.HealthEgress)
 	o.Controller = st.Mihomo.Controller
 	o.ConfigPath = st.Mihomo.ConfigFile
 	o.TailscaleBin = st.Tailscale.Binary

@@ -3,8 +3,10 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +16,7 @@ import (
 	"tailscale.com/ipn"
 
 	"github.com/l3ony2k/twinnel/core/agent/agenttest"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/tailscale"
 )
@@ -59,7 +62,7 @@ func newEnv(t *testing.T, mod func(*Deps)) *env {
 		Tailscale: ts,
 		Version:   "0.9.0-test",
 		LogWindow: 300 * time.Millisecond,
-		Doctor: func(context.Context) (json.RawMessage, error) {
+		Doctor: func(context.Context, bool) (json.RawMessage, error) {
 			return json.RawMessage(`{"overall":"ok","note":"controller secret ` + agenttest.ControllerSecret + `"}`), nil
 		},
 	}
@@ -162,11 +165,13 @@ func TestEveryToolRedacts(t *testing.T) {
 		"set_mode": {"mode": "global"}, "select_node": {"group": "Proxy", "node": "US 1"},
 		"delay_test": {"group": "Proxy"}, "health_egress_run": nil, "set_tun": {"enabled": false}, "tailscale_up": nil, "tailscale_down": nil,
 		"set_exit_node": {"peer": "exit-jp"}, "clear_exit_node": nil, "refresh_subscription": nil, "flush_fakeip": nil,
+		"geo_update": {"proxy": "direct"}, "dashboard_install": nil,
 		"layer_put":    {"id": "extra", "content": "proxies:\n  - {name: X, type: ss, password: " + agenttest.NodePassword + "}\n"},
 		"layer_remove": {"id": "nodes"}, "layer_enable": {"id": "extra", "enabled": false},
 		"layer_order": {"ids": []string{"extra"}}, "sub_put": {"id": "main", "url": agenttest.SubURL},
 		"sub_activate": {"id": "spare"}, "sub_remove": {"id": "spare"}, "apply": nil,
 		"history_rollback": {"id": "h-1"}, "settings_update": {"history_keep": 40},
+		"health_fixes": nil, "health_fix": {"check": "dns.tailnet"}, "health_fix_config": {"check": "dns.tailnet"},
 		"config_import": {"path": importFile(t, "subs.txt", "Main "+agenttest.SubURL+"\n"), "confirm": true},
 	}
 	for _, ti := range e.srv.Tools() {
@@ -180,6 +185,7 @@ func TestEveryToolRedacts(t *testing.T) {
 	// Errors carry secrets too: a failed sub_put quotes its URL.
 	e.call("sub_put", map[string]any{"id": "x", "url": "https://bad.example.com/" + agenttest.SubToken})
 	e.call("logs", map[string]any{"source": "mihomo"})
+	e.call("logs", map[string]any{"source": "mihomo-output"})
 	for _, uri := range []string{resStatus, resHealth, resConfig} {
 		r, err := e.cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri})
 		if err != nil {
@@ -244,6 +250,29 @@ func TestReadOnlyEnv(t *testing.T) {
 	e.fails("set_tun", map[string]any{"enabled": false}, "TWINNEL_READ_ONLY")
 	e.fails("apply", nil, "TWINNEL_READ_ONLY")
 	e.ok("status", nil)
+}
+
+// Another program's mihomo on the controller: status names it and leaves
+// out its mode, TUN and groups (they are not Twinnel's); version marks the
+// running version as its; writes refuse.
+func TestStatusForeignController(t *testing.T) {
+	e := newEnv(t, nil)
+	e.setAgent(rpc.AgentSettings{MCP: true, Operate: true})
+	e.h.Mu.Lock()
+	e.h.Owner = &foreign.Owner{Addr: e.h.Ctrl, Verdict: foreign.Foreign, Client: foreign.ClientClashParty, PID: 4321}
+	e.h.Mu.Unlock()
+	m := e.ok("status", nil)
+	mh := m["mihomo"].(map[string]any)
+	if mh["reachable"] == true || mh["mode"] != nil || mh["selector_groups"] != nil || !strings.Contains(fmt.Sprint(mh["error"]), "Clash Party") {
+		t.Fatalf("mihomo = %v", mh)
+	}
+	if o, _ := mh["controller_owner"].(map[string]any); o["verdict"] != "foreign" {
+		t.Fatalf("owner = %v", mh["controller_owner"])
+	}
+	if v := e.ok("version", nil); v["mihomo_running_owner"] == nil {
+		t.Errorf("version = %v", v)
+	}
+	e.fails("set_mode", map[string]any{"mode": "global"}, "Clash Party")
 }
 
 func TestHelperDown(t *testing.T) {
@@ -450,4 +479,42 @@ func TestConfigImportPlansFirst(t *testing.T) {
 		t.Fatalf("import: %v", m)
 	}
 	e.noSecrets()
+}
+
+func TestComponentTools(t *testing.T) {
+	e := newEnv(t, nil)
+	e.setAgent(rpc.AgentSettings{MCP: true, Operate: false})
+	e.fails("geo_update", nil, "operate tool")
+	e.fails("dashboard_install", nil, "operate tool")
+	e.setAgent(rpc.AgentSettings{MCP: true, Operate: true})
+	e.call("geo_update", map[string]any{"proxy": "subscription"})
+	e.call("dashboard_install", map[string]any{"proxy": "auto"})
+	e.h.Mu.Lock()
+	got := strings.Join(e.h.AccessoryUpdates, ",")
+	e.h.Mu.Unlock()
+	if got != "geo:subscription,ui:" {
+		t.Errorf("updates %q", got)
+	}
+	out, _ := e.call("version", nil)
+	if !strings.Contains(out, `"geo"`) || !strings.Contains(out, `"dashboard"`) {
+		t.Errorf("version has no components: %s", out)
+	}
+}
+
+// doctor hands fresh to `twinnel doctor` (default false: the helper's
+// last report may stand in for a run).
+func TestDoctorFresh(t *testing.T) {
+	var got []bool
+	e := newEnv(t, func(d *Deps) {
+		d.Doctor = func(_ context.Context, fresh bool) (json.RawMessage, error) {
+			got = append(got, fresh)
+			return json.RawMessage(`{"overall":"ok","ageNs":20000000000}`), nil
+		}
+	})
+	e.setAgent(rpc.AgentSettings{MCP: true})
+	e.ok("doctor", nil)
+	e.ok("doctor", map[string]any{"fresh": true})
+	if !slices.Equal(got, []bool{false, true}) {
+		t.Fatalf("fresh %v", got)
+	}
 }

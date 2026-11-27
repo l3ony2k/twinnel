@@ -7,11 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // Config is the app's own settings. Until the Keychain lands, the
 // controller secret may come from the environment (preferred) or from this
-// file, which is written 0600.
+// file, which only its owner can read (core/privfile).
 type Config struct {
 	Controller   string `json:"controller"`
 	Secret       string `json:"secret,omitempty"`
@@ -115,8 +117,10 @@ func LoadConfig(path string, getenv func(string) string) (Config, error) {
 	return c, nil
 }
 
-// SaveConfig writes c to path with mode 0600. A secret that came from the
-// environment is not written.
+// SaveConfig writes c to path atomically, readable by its owner only
+// (core/privfile: 0600, an owner-only DACL on Windows); it may hold the
+// controller secret. A secret that came from the environment is not
+// written.
 func SaveConfig(path string, c Config) error {
 	if c.SecretFromEnv {
 		old, _ := LoadConfig(path, func(string) string { return "" })
@@ -126,12 +130,53 @@ func SaveConfig(path string, c Config) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	if err := privfile.MkdirAll(filepath.Dir(path)); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
-		return err
+	return privfile.WriteFile(path, append(b, '\n'))
+}
+
+// SecureAppFiles makes the app's prefs folder (app.json's dir) and
+// app.json private, as SaveConfig writes them. One written before that,
+// or moved in from the old app's folder, keeps the folder's ACL on Windows
+// (readable by other local accounts) until its next write; the app runs
+// this once when it starts. Idempotent, and a missing file is no error.
+func SecureAppFiles(cfgPath string) error {
+	if cfgPath == "" {
+		return nil
 	}
-	return os.Rename(tmp, path)
+	return errors.Join(privfile.Secure(filepath.Dir(cfgPath)), privfile.Secure(cfgPath))
+}
+
+// AppConfigPath is the app's settings file (app.json) under the user's
+// config directory; "" when there is none. The CLI reads it as the
+// fallback for the controller when the helper is not reachable.
+func AppConfigPath() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "twinnel", "app.json")
+}
+
+// WithHelperCredentials returns c with the controller address and secret
+// the helper reported (controller.credentials). The helper knows the
+// secret mihomo actually loaded, so it wins over what app.json or the
+// environment hold (app.json goes stale after controller.secure); an empty
+// address keeps c's. One exception, for development: TWINNEL_CONTROLLER
+// pins the controller (its secret comes from the environment too), so a
+// dev or shot run against a scratch helper never reaches the live mihomo
+// through the helper's default settings.
+//
+// The app and every CLI command that talks to mihomo go through this, so
+// they always agree on where mihomo is and how to authenticate.
+func (c Config) WithHelperCredentials(controller, secret string, getenv func(string) string) Config {
+	if strings.TrimSpace(getenv(EnvController)) != "" {
+		return c
+	}
+	if controller != "" {
+		c.Controller = controller
+	}
+	c.Secret = secret
+	return c
 }

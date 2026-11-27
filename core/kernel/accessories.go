@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/l3ony2k/twinnel/core/legacy"
 	"io"
 	"io/fs"
 	"net"
@@ -34,6 +33,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/legacy"
 )
 
 // Default geo database URLs (mihomo's own defaults for geox-url).
@@ -73,20 +75,20 @@ type GeoItem struct {
 	Rel  string // File relative to the config dir (a plain file name)
 }
 
-// GeoItems lists the geo databases of a config dir with mihomo's file
-// naming: an existing file whose name matches case-insensitively is used
-// (Country.mmdb / geoip.db / geoip.metadb for mmdb, ASN.mmdb, GeoIP.dat,
-// GeoSite.dat), else mihomo's default name. urls are geox-url entries
-// (keys geoip, geosite, mmdb, asn); missing ones get the defaults.
+// GeoItems lists the geo databases of a config dir (mihomo's -d) under
+// the names mihomo itself loads: GeoIP.dat, GeoSite.dat and ASN.mmdb
+// matched case-insensitively; for the MMDB, Country.mmdb when the dir has
+// one (mihomo prefers it), else geoip.metadb. A file not there gets
+// mihomo's default name. urls are geox-url entries (keys geoip, geosite,
+// mmdb, asn); missing ones get the defaults.
 func GeoItems(confDir string, urls map[string]string) []GeoItem {
 	entries, _ := os.ReadDir(confDir)
+	// find returns the first of names (in that order of preference) the
+	// dir has, with the dir's spelling, else names[0]'s default.
 	find := func(def string, names ...string) string {
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
-			}
-			for _, n := range names {
-				if strings.EqualFold(e.Name(), n) {
+		for _, n := range names {
+			for _, e := range entries {
+				if !e.IsDir() && strings.EqualFold(e.Name(), n) {
 					return e.Name()
 				}
 			}
@@ -100,10 +102,10 @@ func GeoItems(confDir string, urls map[string]string) []GeoItem {
 		return def
 	}
 	items := []GeoItem{
-		{Name: "geoip", URL: u("geoip", DefaultGeoIPURL), Rel: find("GeoIP.dat", "GeoIP.dat")},
-		{Name: "geosite", URL: u("geosite", DefaultGeoSiteURL), Rel: find("GeoSite.dat", "GeoSite.dat")},
-		{Name: "mmdb", URL: u("mmdb", DefaultMMDBURL), Rel: find("geoip.metadb", "Country.mmdb", "geoip.db", "geoip.metadb")},
-		{Name: "asn", URL: u("asn", DefaultASNURL), Rel: find("ASN.mmdb", "ASN.mmdb")},
+		{Name: config.GeoIP, URL: u(config.GeoIP, DefaultGeoIPURL), Rel: find("GeoIP.dat", "GeoIP.dat")},
+		{Name: config.GeoSite, URL: u(config.GeoSite, DefaultGeoSiteURL), Rel: find("GeoSite.dat", "GeoSite.dat")},
+		{Name: config.GeoMMDB, URL: u(config.GeoMMDB, DefaultMMDBURL), Rel: find("geoip.metadb", "Country.mmdb", "geoip.metadb")},
+		{Name: config.GeoASN, URL: u(config.GeoASN, DefaultASNURL), Rel: find("ASN.mmdb", "ASN.mmdb")},
 	}
 	for i := range items {
 		items[i].File = filepath.Join(confDir, items[i].Rel)
@@ -117,12 +119,17 @@ type Remote struct {
 	Tag    string // release tag, for GitHub release assets
 	Size   int64  // 0 if unknown
 	SHA256 string // hex; "" if unknown (unverifiable)
+	// Published is when the asset was uploaded (zero if unknown).
+	Published time.Time
 }
 
 // Fetcher downloads accessories.
 type Fetcher struct {
 	HTTP *http.Client
 	API  string // GitHub API base, default https://api.github.com
+	// OnBytes, when set, is called as a download writes n more bytes
+	// (progress; from the downloading goroutine).
+	OnBytes func(n int64)
 
 	// Release lookups are cached for the life of the Fetcher: the four
 	// geo databases share one release, and the unauthenticated GitHub API
@@ -217,7 +224,10 @@ func (f *Fetcher) Resolve(ctx context.Context, raw string) (Remote, error) {
 		if a.Name != name {
 			continue
 		}
-		r.Tag, r.Size = rel.TagName, a.Size
+		r.Tag, r.Size, r.Published = rel.TagName, a.Size, a.UpdatedAt
+		if r.Published.IsZero() {
+			r.Published = rel.PublishedAt
+		}
 		if h, ok := strings.CutPrefix(a.Digest, "sha256:"); ok && len(h) == 64 {
 			r.SHA256 = strings.ToLower(h)
 		}
@@ -302,7 +312,11 @@ func (f *Fetcher) download(ctx context.Context, r Remote, root *os.Root, name st
 		return "", err
 	}
 	h := sha256.New()
-	n, err := io.Copy(io.MultiWriter(out, h), io.LimitReader(resp.Body, limit+1))
+	var w io.Writer = io.MultiWriter(out, h)
+	if f.OnBytes != nil {
+		w = progressWriter{w, f.OnBytes}
+	}
+	n, err := io.Copy(w, io.LimitReader(resp.Body, limit+1))
 	if cerr := out.Close(); err == nil {
 		err = cerr
 	}
@@ -326,6 +340,19 @@ func (f *Fetcher) download(ctx context.Context, r Remote, root *os.Root, name st
 		return "", err
 	}
 	return sum, nil
+}
+
+type progressWriter struct {
+	w  io.Writer
+	on func(int64)
+}
+
+func (p progressWriter) Write(b []byte) (int, error) {
+	n, err := p.w.Write(b)
+	if n > 0 {
+		p.on(int64(n))
+	}
+	return n, err
 }
 
 // FileSHA256 returns the hex sha256 and size of a file.
@@ -615,4 +642,46 @@ func commonTopDir(files []*zip.File) string {
 		return ""
 	}
 	return top + "/"
+}
+
+// PrepareGeoFrom copies a local copy of a database (src, outside root:
+// e.g. one mihomo -t downloaded into the validation cache) next to its
+// target instead of downloading it again. It must match sha256 want and
+// pass the format check.
+func PrepareGeoFrom(root *os.Root, it GeoItem, src, want string) (*Swap, error) {
+	if !filepath.IsLocal(it.Rel) {
+		return nil, fmt.Errorf("%s: bad file name %q", it.Name, it.Rel)
+	}
+	if want == "" {
+		return nil, fmt.Errorf("%s: no published digest to check a local copy against", it.Name)
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return nil, err
+	}
+	defer in.Close()
+	tmp := it.Rel + NewSuffix
+	if err := root.RemoveAll(tmp); err != nil {
+		return nil, err
+	}
+	out, err := root.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	h := sha256.New()
+	_, err = io.Copy(io.MultiWriter(out, h), io.LimitReader(in, maxGeoSize+1))
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil && hex.EncodeToString(h.Sum(nil)) != want {
+		err = fmt.Errorf("%s: local copy does not match the published digest", it.Name)
+	}
+	if err == nil {
+		err = checkGeoFormat(it.Name, root, tmp)
+	}
+	if err != nil {
+		root.Remove(tmp)
+		return nil, err
+	}
+	return &Swap{Root: root, Dst: it.Rel, New: tmp}, nil
 }

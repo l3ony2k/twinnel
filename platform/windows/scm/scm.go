@@ -179,6 +179,14 @@ func run(ignore bool, args ...string) service.Step {
 	return service.Step{Kind: service.StepRun, Argv: sc(args...), IgnoreError: ignore}
 }
 
+// startAgain starts a service the plan stopped, whatever failed in
+// between: never leave mihomo (the network) or the helper down.
+func startAgain(name string) service.Step {
+	s := run(false, "start", name)
+	s.Always = true
+	return s
+}
+
 // stopSteps stops a service and waits until the SCM reports it stopped
 // (or reports that it does not exist): Windows keeps a running .exe
 // locked, so nothing may replace the binary before.
@@ -224,7 +232,7 @@ func (m *Manager) Plan(op service.Op, s service.Spec) ([]service.Step, error) {
 			)
 		}
 		if s.RunAtLoad {
-			steps = append(steps, run(false, "start", name))
+			steps = append(steps, startAgain(name))
 		}
 		return steps, nil
 	case service.OpUninstall:
@@ -240,7 +248,7 @@ func (m *Manager) Plan(op service.Op, s service.Spec) ([]service.Step, error) {
 	case service.OpStop:
 		return m.stopSteps(name, false), nil
 	case service.OpRestart:
-		return append(m.stopSteps(name, true), run(false, "start", name)), nil
+		return append(m.stopSteps(name, true), startAgain(name)), nil
 	case service.OpDisable:
 		return []service.Step{run(false, "config", name, "start=", "disabled")}, nil
 	case service.OpEnable:

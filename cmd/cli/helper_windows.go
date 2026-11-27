@@ -10,7 +10,9 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/priv"
 	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
 	"github.com/l3ony2k/twinnel/platform/windows/scm"
+	"github.com/l3ony2k/twinnel/platform/windows/svchost"
 	"github.com/l3ony2k/twinnel/platform/windows/winpath"
 )
 
@@ -19,7 +21,29 @@ func init() {
 	applyPlan = func(ctx context.Context, steps []service.Step) error {
 		return service.Apply(ctx, steps, scm.Executor{Fallback: service.ExecExecutor{Timeout: time.Minute}}, service.OSFiles{})
 	}
+	serviceHostCheck = windowsHostCheck
+	serviceHostPath = func() string { return winpath.SvcHostBin() }
 }
+
+// windowsHostCheck: the service host against the helper binary src, and
+// its refresh when it is stale (scm.Host). The mihomo service is the one
+// Twinnel installs under its default name; the helper also refreshes the
+// host when it starts, with the name in its settings.
+func windowsHostCheck(ctx context.Context, src string) (*HostCheck, []service.Step) {
+	h := hostReader.Read(ctx, "", src, []string{store.DefaultMihomoLabel})
+	if !h.Present {
+		return nil, nil
+	}
+	hc := &HostCheck{Path: h.Path, Version: h.Version, Action: HostNone}
+	if !h.Stale(svchost.Revision) {
+		return hc, nil
+	}
+	hc.Action, hc.Restarts = HostRefresh, h.Restarts(svchost.Revision)
+	return hc, h.RefreshPlan(src, svchost.Revision, time.Now())
+}
+
+// hostReader reads the service host (replaced in tests).
+var hostReader = scm.DefaultHostReader()
 
 // planHelperInstall: the TwinnelHelper service (scm.HelperInstallPlan). The
 // pipe allows the --allow-sid users; without any (the copy that prints the

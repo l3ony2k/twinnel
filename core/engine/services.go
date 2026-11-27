@@ -129,6 +129,9 @@ func (e *Engine) ServiceOp(ctx context.Context, name string, op service.Op) (rpc
 			return out, rpc.Errorf(rpc.CodeFailed, "%s %s: %v", op, name, err)
 		}
 	}
+	if !out.DryRun {
+		e.tidyServiceHost(ctx)
+	}
 	out.Status, _ = e.ServiceStatus(ctx, name)
 	e.publish(rpc.EventServiceChanged, map[string]any{"name": name, "op": op, "dry_run": out.DryRun})
 	e.triggerHealth("service " + string(op) + " " + name)

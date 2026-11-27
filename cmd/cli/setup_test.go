@@ -72,3 +72,27 @@ func TestSetupImportRefusesGarbage(t *testing.T) {
 		t.Fatal("imported a missing file")
 	}
 }
+
+func TestURLOpener(t *testing.T) {
+	u := "https://login.tailscale.com/a/synthetic&x=1"
+	for goos, want := range map[string]string{
+		"darwin":  "open " + u,
+		"linux":   "xdg-open " + u,
+		"windows": "rundll32.exe url.dll,FileProtocolHandler " + u,
+	} {
+		name, args := urlOpener(goos, u)
+		if got := name + " " + strings.Join(args, " "); got != want {
+			t.Errorf("%s: %q", goos, got)
+		}
+	}
+}
+
+func TestSetupStatusNeverClaimsComplete(t *testing.T) {
+	buf, _ := setupFakes(t)
+	if err := runSetup([]string{"status"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "Setup complete") || !strings.Contains(buf.String(), "Setup not finished") {
+		t.Fatalf("%s", buf)
+	}
+}

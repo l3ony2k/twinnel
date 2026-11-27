@@ -42,16 +42,23 @@ var patterns = []pattern{
 	{code: "adopt-differs", re: regexp.MustCompile(`^the applied config differs from the plan's composed\.yaml`)},
 	{code: "binary-writable", re: regexp.MustCompile(`^the mihomo binary (.+) can be replaced without root \((.*)\), and the service runs it as root`)},
 	{code: "plain-http", re: regexp.MustCompile(`^the subscription URL uses plain http: `)},
+	{code: "controller-foreign-idle", re: regexp.MustCompile(`^the config did not change, but (\S+) is held by another program's mihomo; Twinnel's mihomo is not the one running$`)},
+	{code: "controller-foreign-idle-app", re: regexp.MustCompile(`^the config did not change, but (\S+) is held by (.+)'s mihomo; Twinnel's mihomo is not the one running$`)},
 	{code: "secret-clients", re: regexp.MustCompile(`^clients of the controller \(the web dashboard, the app, scripts\) need the new secret; .*?(sudo security find-generic-password .*?)\)?$`)},
 
 	// Apply errors (core/engine apply.go).
 	{code: "no-active-subscription", re: regexp.MustCompile(`^no active subscription`)},
 	{code: "subscription-empty", re: regexp.MustCompile(`^subscription (\S+) has no content yet`)},
 	{code: "validate-failed", re: regexp.MustCompile(`^mihomo -t rejected the config`)},
-	{code: "refuses-exposed", re: regexp.MustCompile(`^Twinnel refuses (\S+): (\S+) listens beyond this Mac and the controller has no secret`)},
+	{code: "refuses-exposed", re: regexp.MustCompile(`^Twinnel refuses (\S+): (\S+) listens beyond this (?:Mac|machine) and the controller has no secret`)},
 	{code: "refuses-socket", re: regexp.MustCompile(`^Twinnel refuses (\S+): (.+) is outside the config dir (.+) \(mihomo, as root`)},
 	{code: "backup-failed", re: regexp.MustCompile(`^backup: (.*)$`)},
 	{code: "write-failed", re: regexp.MustCompile(`^write (\S+): (.*)$`)},
+	{code: "controller-foreign", re: regexp.MustCompile(`^the controller belongs to another mihomo: (\S+) is held by another program; Twinnel did not reload it$`)},
+	{code: "controller-foreign-app", re: regexp.MustCompile(`^the controller belongs to another mihomo: (\S+) is held by (.+); Twinnel did not reload it$`)},
+	// An older helper's raw refusal (never shown as is: SAFE_PATHS means
+	// another mihomo answered).
+	{code: "reload-safe-paths", re: regexp.MustCompile(`^reload: .*path is not subpath of home directory or SAFE_PATHS`)},
 	{code: "reload-failed", re: regexp.MustCompile(`^reload: (.*)$`)},
 	{code: "verify-failed", re: regexp.MustCompile(`^mihomo did not answer after reload: (.*)$`)},
 
@@ -64,6 +71,22 @@ var patterns = []pattern{
 	{code: "no-service-manager", re: regexp.MustCompile(`no service manager on this platform$`)},
 	{code: "health-unavailable", re: regexp.MustCompile(`^health checks are not available in this helper$`)},
 	{code: "takeover-unsupported", re: regexp.MustCompile(`^takeover is not supported by this helper`)},
+
+	// Install errors of kernel.install and tailscale.install (core/kernel,
+	// core/engine setup.go). Not anchored: they come wrapped.
+	{code: "msi-busy", re: regexp.MustCompile(`another installation is in progress \(Windows Installer is busy\)`)},
+	{code: "msi-canceled", re: regexp.MustCompile(`the Tailscale installation was canceled`)},
+	{code: "msi-blocked", re: regexp.MustCompile(`a system policy blocks installing Tailscale`)},
+	{code: "msi-other-version", re: regexp.MustCompile(`a different version of Tailscale is already installed`)},
+	{code: "msi-failed", re: regexp.MustCompile(`the Tailscale installer failed \(msiexec exit code (-?\d+)\); its log is (.+)$`)},
+	{code: "ts-service-down", re: regexp.MustCompile(`Tailscale was installed but its service did not start`)},
+	{code: "ts-damaged", re: regexp.MustCompile(`Tailscale is installed but its files are damaged: (.+); repair it`)},
+	{code: "ts-cli-no-run", re: regexp.MustCompile(`Tailscale was installed but (.+) does not run`)},
+	{code: "ts-no-installer", re: regexp.MustCompile(`pkgs\.tailscale\.com has no Windows installer for (\S+)$`)},
+	{code: "mihomo-no-run", re: regexp.MustCompile(`the downloaded mihomo does not run on this computer`)},
+	{code: "mihomo-no-build", re: regexp.MustCompile(`release (\S+) has no asset for (\S+)$`)},
+	{code: "ts-login-session", re: regexp.MustCompile(`Tailscale logs in from the signed-in user's session on this system`)},
+	{code: "download-damaged", re: regexp.MustCompile(`checksum mismatch: got sha256:`)},
 
 	// Layer errors (core/config merge, layer.put, compose). Args: layer,
 	// line ("" when unknown), then the rest.

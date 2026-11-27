@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // History kinds.
@@ -33,12 +35,14 @@ const (
 	ReasonAdoptFailed  = "adopt-failed"        // args: plan ID; the live file written back
 	ReasonTakeoverUndo = "takeover-undo"       // args: plan ID
 	ReasonSecure       = "controller-secure"
+	ReasonCtlMove      = "controller-move"      // args: the new controller address
 	ReasonHarden       = "harden"               // args: plan ID
 	ReasonSubUpdated   = "subscription-updated" // args: subscription ID
 	ReasonTailnet      = "tailnet-changed"
 	ReasonRestore      = "restore-layers" // args: the history ID the overrides came from
 	ReasonCLI          = "cli-apply"      // twinnel compose --apply without --reason
 	ReasonSetup        = "setup"          // the first apply of a fresh setup (core/setup)
+	ReasonDashboard    = "dashboard"      // external-ui added when the dashboard was installed
 )
 
 // HistoryEntry is one line of history/index.json.
@@ -117,7 +121,7 @@ func (s *Store) SaveLayerBlob(data []byte) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 		return "", err
 	}
-	return h, WriteFileAtomic(p, data, 0o600)
+	return h, privfile.WriteFile(p, data)
 }
 
 // ReadLayerBlob returns a layer content kept for a manifest.
@@ -180,7 +184,7 @@ func (s *Store) AddHistoryMeta(kind string, meta HistoryMeta, data []byte, at ti
 		}
 		id = fmt.Sprintf("%s-%d", base, n)
 	}
-	if err := WriteFileAtomic(s.Path("history", id+".yaml"), data, 0o600); err != nil {
+	if err := privfile.WriteFile(s.Path("history", id+".yaml"), data); err != nil {
 		return HistoryEntry{}, err
 	}
 	e := HistoryEntry{ID: id, Time: at, Hash: h, Size: len(data), Kind: kind, Reason: meta.Reason,

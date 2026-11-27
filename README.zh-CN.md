@@ -83,7 +83,7 @@ scripts/build-release.sh --no-app   # 只构建 CLI 和 helper（任何系统都
 除了 helper 相关的命令，下面的都是只读的。
 
 ```sh
-twinnel doctor                      # 对当前机器跑健康检查
+twinnel doctor                      # 后台助手的健康检查结果（和应用里一样；一分钟内的直接用，--fresh 立即重跑）；--local 在本进程里跑
 twinnel doctor --markdown           # 生成可以贴进 issue 的报告（里面有 tailnet 设备名，贴之前看一眼）
 twinnel doctor --only magicdns,system-dns --json
 twinnel doctor --egress             # 可选：直连和经 mihomo 各发一次 HTTPS 请求，对比出口
@@ -115,7 +115,8 @@ twinnel compose --preview           # 在 helper 里合成并校验，不写入
 twinnel compose --apply             # 校验、备份、写入、重载、验证（失败自动回滚）
 twinnel history                     # 合成历史；twinnel history rollback ID 回滚
 twinnel kernel check                # mihomo 内核：list | check | install | rollback
-twinnel kernel geo check            # geo 数据库：check | update；面板用 twinnel kernel ui check|update
+twinnel geo status                  # GEO 数据库：status | check | update [--proxy subscription] | auto weekly|off
+twinnel dashboard install           # 控制面板：status | check | install | update | open
 twinnel service restart mihomo      # 服务：status | start | stop | restart（mihomo、tailscaled）| install | uninstall（仅 mihomo）
 twinnel settings                    # 防泄漏组、共存开关、tailnet 解析器、历史条数、内核通道、自动应用
 twinnel tailnet refresh             # 立刻重读 tailnet 设备（helper 也会每 60 秒查一次）

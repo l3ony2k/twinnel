@@ -15,6 +15,59 @@ type Report struct {
 	Helper    Entry `json:"helper"`
 	Mihomo    Entry `json:"mihomo"`
 	Tailscale Entry `json:"tailscale"`
+	// HelperBinaries are the helper's two copies on disk (nil when neither
+	// is found): the one shipped beside the CLI and the installed one the
+	// service runs.
+	HelperBinaries *HelperBinaries `json:"helper_binaries,omitempty"`
+	// ServiceHost is Windows' service host (twinnel-svchost.exe), the
+	// copy of the helper that runs mihomo as a service; nil elsewhere.
+	// Detail: its path.
+	ServiceHost *Entry `json:"service_host,omitempty"`
+}
+
+// HelperBinaries compares the helper binary shipped with Twinnel with the
+// installed one. On Windows they are %LOCALAPPDATA%\Programs\Twinnel\bin
+// and C:\Program Files\Twinnel; `twinnel helper upgrade` (设置 → 后台助手 →
+// 更新) copies the first over the second.
+type HelperBinaries struct {
+	Bundled   Entry  `json:"bundled"`           // Detail: its path
+	Installed Entry  `json:"installed"`         // Detail: its path
+	Warning   string `json:"warning,omitempty"` // they, or the running helper, differ
+}
+
+// HelperDrift says what is out of step between the bundled helper binary,
+// the installed one and the running helper ("" when nothing is, or when
+// a version is unknown).
+func HelperDrift(bundled, installed, running string) string {
+	if bundled != "" && installed != "" && bundled != installed {
+		cmp, ok := Compare(bundled, installed)
+		switch {
+		case ok && cmp > 0:
+			return "the installed helper (" + installed + ") is older than the one shipped with this Twinnel (" + bundled + "): run `twinnel helper upgrade` (or Twinnel → 设置 → 后台助手 → 更新)"
+		case ok && cmp < 0:
+			return "the installed helper (" + installed + ") is newer than the one shipped with this Twinnel (" + bundled + "): update Twinnel"
+		case !ok:
+			return "the installed helper (" + installed + ") is not the one shipped with this Twinnel (" + bundled + "): run `twinnel helper upgrade`"
+		}
+	}
+	if running != "" && installed != "" && running != installed {
+		return "the running helper (" + running + ") is not the installed binary (" + installed + "): run `twinnel helper upgrade` to restart it"
+	}
+	return ""
+}
+
+// ServiceHostDrift says when the service host is out of step with the
+// helper ("" when it is not, or a version is unknown): its version
+// differs from the installed helper's, or the helper reports it stale
+// (mihomo runs an older host).
+func ServiceHostDrift(host, helper string, stale bool) string {
+	if host == "" {
+		return ""
+	}
+	if stale || helper != "" && host != helper {
+		return "the service host that runs mihomo (" + host + ") is not up to date with the helper: run `twinnel helper upgrade` (or Twinnel → 设置 → 后台助手 → 更新)"
+	}
+	return ""
 }
 
 // Entry is one component. Version is empty when it could not be read.
@@ -22,6 +75,7 @@ type Entry struct {
 	Version string `json:"version,omitempty"`
 	Detail  string `json:"detail,omitempty"` // where it was read, build info
 	Error   string `json:"error,omitempty"`
+	Warning string `json:"warning,omitempty"` // out of step with another component
 }
 
 // Sources read the components; each may be nil (then it reads as not
@@ -73,6 +127,10 @@ func Collect(ctx context.Context, timeout time.Duration, self Entry, src Sources
 
 	if hasHelp {
 		rep.Helper = Entry{Version: hst.HelperVersion, Detail: src.Socket}
+		if h := hst.ServiceHost; h != nil {
+			rep.ServiceHost = &Entry{Version: h.Version, Detail: h.Path, Error: h.Error,
+				Warning: ServiceHostDrift(h.Version, "", h.Stale)}
+		}
 	} else {
 		rep.Helper = Entry{Detail: src.Socket, Error: herr.Error()}
 	}
@@ -98,6 +156,12 @@ func Collect(ctx context.Context, timeout time.Duration, self Entry, src Sources
 			k = "managed kernel " + hst.Kernel.Current
 		}
 		rep.Mihomo.Detail = joinDetail(rep.Mihomo.Detail, k)
+	}
+	// Another program's mihomo on the controller address: the version
+	// that answered is its, not Twinnel's.
+	if hasHelp && hst.Mihomo.Owner.IsForeign() && rep.Mihomo.Version != "" {
+		o := hst.Mihomo.Owner
+		rep.Mihomo.Warning = o.Addr + " is held by " + o.Who() + "'s mihomo: this is its version, not Twinnel's"
 	}
 
 	switch {

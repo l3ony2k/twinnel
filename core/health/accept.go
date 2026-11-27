@@ -106,7 +106,7 @@ type EvidenceLine struct {
 func DedupeEvidence(lines []string) []EvidenceLine {
 	var out []EvidenceLine
 	at := map[string]int{}
-	for _, l := range lines {
+	for _, l := range TidyEvidence(lines) {
 		if i, seen := at[l]; seen {
 			out[i].Count++
 			continue

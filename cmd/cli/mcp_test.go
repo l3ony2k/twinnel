@@ -23,6 +23,12 @@ func TestMain(m *testing.M) {
 		main()
 		os.Exit(0)
 	}
+	// No test may reach the machine's real helper through the default
+	// socket (status, version and doctor now ask it for the controller
+	// and the settings): tests that need one start a fake and set it.
+	if os.Getenv("TWINNEL_SOCKET") == "" {
+		os.Setenv("TWINNEL_SOCKET", filepath.Join(os.TempDir(), "twinnel-cli-test-no-helper.sock"))
+	}
 	// The machine running the tests may have a real helper from before
 	// the rename: no test may see it (tests that need one set their own).
 	legacyHelper = migrateSide{Label: "test.legacy.helper", StateDir: "/nonexistent/twinnel-test/old",

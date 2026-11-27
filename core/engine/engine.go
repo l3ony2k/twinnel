@@ -19,7 +19,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/autostart"
 	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/dnswatch"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/kernel"
 	"github.com/l3ony2k/twinnel/core/rpc"
@@ -61,6 +64,10 @@ type Engine struct {
 	// NetChanges delivers network change reasons (darwin.NetWatcher). Run
 	// turns each into a health trigger and a tailnet refresh.
 	NetChanges <-chan string
+	// RotateServiceLogs: the helper rotates mihomo's output files
+	// (servicelog.go); macOS and Linux, where launchd/systemd write them.
+	// Its own log it rotates either way.
+	RotateServiceLogs bool
 
 	// NewController builds the controller client for an address and secret
 	// (default *HTTPController).
@@ -102,17 +109,44 @@ type Engine struct {
 	// (nil: not supported on this platform).
 	SystemDNS sysdns.Platform
 	// DNSProbe checks that a DNS server answers at addr before dns.point
-	// (default: one UDP query).
+	// and for the DNS watchdog (default: one UDP query).
 	DNSProbe func(ctx context.Context, addr string) error
+	// DNSWatchConfig tunes the DNS watchdog (core/dnswatch); DNSWatchOff
+	// keeps Run from starting it (development helpers).
+	DNSWatchConfig dnswatch.Config
+	DNSWatchOff    bool
 	// TSControl is tailscaled's LocalAPI for tailscale.login (nil: not
 	// supported).
 	TSControl TailscaleControl
+	// TSLoginInSession: tailscale.login does not start logins, the
+	// signed-in user's process does (Windows: tailscaled never gives a
+	// profile to SYSTEM; see tailscale.Client.LoginInSession). Reading the
+	// login state still works.
+	TSLoginInSession bool
+	// Autostarts reads the competing clients' autostart entries
+	// (autostart.list/change, the competitor-autostart check); nil: not on
+	// this platform.
+	Autostarts autostart.Source
 	// TSInstaller is the template of tailscale.install's installer (nil:
 	// <state>/tailscale with the public sources).
 	TSInstaller *kernel.TailscaleInstaller
 	// TempProxy starts the temporary mihomo of the "subscription" download
 	// proxy and returns its stop function (default: the real binary).
 	TempProxy func(ctx context.Context, bin string, cfg []byte, port int) (stop func(), err error)
+
+	// Sleep waits between polls (tailscale.install's service wait);
+	// replaceable in tests.
+	Sleep func(ctx context.Context, d time.Duration) error
+
+	// PortOwner finds the process listening on a TCP port, for the
+	// foreign-controller preflight (foreign.LsofPortOwner, /proc,
+	// iphlpapi). nil: only a reload refused with SAFE_PATHS reveals another
+	// program's mihomo.
+	PortOwner func(ctx context.Context, port int) (*foreign.Process, error)
+
+	// ServiceHost keeps Windows' service host (the copy of the helper that
+	// runs mihomo as a service) up to date; nil elsewhere.
+	ServiceHost ServiceHostKeeper
 
 	// EgressProbe runs the egress test (health.LeakEgress with the test
 	// on) once, for health.egress; nil where there is none.
@@ -128,12 +162,21 @@ type Engine struct {
 	tailnetMu sync.Mutex
 	mu        sync.Mutex
 	lastApply *rpc.ApplyResult
+	// validOK are the keys (validKey) of the last passing mihomo -t runs.
+	validOK []string
 	// goodSecret is the controller secret the running mihomo last
 	// accepted (in memory only; see secretFallback).
 	goodSecret *string
 	tailnet    rpc.TailnetStatus
-	started    time.Time
-	health     healthState
+	// owner is the last answer of the controller preflight; pendingAuto
+	// the newest auto-apply held back while the controller was another
+	// program's (foreign.go).
+	owner       *foreign.Owner
+	pendingAuto *rpc.ApplyParams
+	resumed     sync.WaitGroup // a held-back auto-apply running
+	started     time.Time
+	health      healthState
+	dnsWatch    dnsWatchState
 }
 
 // New returns an engine with defaults for everything optional.
@@ -154,6 +197,20 @@ func (e *Engine) now() time.Time {
 		return e.Now()
 	}
 	return time.Now()
+}
+
+func (e *Engine) sleep(ctx context.Context, d time.Duration) error {
+	if e.Sleep != nil {
+		return e.Sleep(ctx, d)
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 func (e *Engine) log() *slog.Logger {
@@ -318,13 +375,16 @@ func (e *Engine) mihomoBinary(st *store.Settings) (string, error) {
 }
 
 // Run starts the background loops (subscription schedule, tailnet poll,
-// network changes, health schedule)
+// network changes, health schedule, DNS watchdog, service log rotation)
 // and blocks until ctx ends.
 func (e *Engine) Run(ctx context.Context) {
 	e.RecoverHarden(ctx)
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(6)
+	go func() { defer wg.Done(); e.serviceLogLoop(ctx) }()
+	go func() { defer wg.Done(); e.dnsWatchLoop(ctx) }()
 	go func() { defer wg.Done(); e.subscriptionLoop(ctx) }()
+	go func() { defer wg.Done(); e.geoAutoLoop(ctx) }()
 	go func() { defer wg.Done(); e.tailnetLoop(ctx) }()
 	go func() { defer wg.Done(); e.netLoop(ctx) }()
 	if s := e.healthSched(); s != nil {
@@ -367,7 +427,7 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 		return rpc.Status{}, err
 	}
 	out := rpc.Status{
-		HelperVersion: HelperVersion, PID: os.Getpid(), UID: os.Getuid(),
+		HelperVersion: HelperVersion, PID: os.Getpid(), UID: os.Getuid(), RunsAs: rpc.Self().Caller(),
 		StateDir: e.Store.Dir, StartedAt: e.started.UTC(), Layers: len(st.Layers),
 	}
 	out.Mihomo.ConfigPath = st.Mihomo.ConfigFile
@@ -382,6 +442,9 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 		out.Mihomo.Error = err.Error()
 	} else {
 		out.Mihomo.Reachable, out.Mihomo.Version = true, v
+	}
+	if o := e.recentOwner(ctx); o.Verdict != foreign.Unknown {
+		out.Mihomo.Owner = &o
 	}
 	if s, ok := st.ActiveSubscription(); ok {
 		out.ActiveSubscription = s.ID
@@ -404,6 +467,10 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 		}
 	}
 	out.Kernel, _ = e.KernelList()
+	out.DNSWatch = e.DNSWatch()
+	if e.ServiceHost != nil {
+		out.ServiceHost = e.ServiceHost.State(ctx)
+	}
 	return out, nil
 }
 

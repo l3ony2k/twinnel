@@ -67,9 +67,10 @@ func (a *app) mihomoMenu(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	off := !s.Can().Mihomo
 	pushMenu(c.Key("mihomo-actions"), T.Actions, func(m *ui.Menu) {
-		if !s.Mihomo.Reachable {
-			// Down: start it through the helper, which knows the
-			// service (an adopted one included).
+		if !s.MihomoLive() {
+			// Down, or another program's mihomo on the controller:
+			// Twinnel's own service through the helper, which knows it
+			// (an adopted one included).
 			a.mihomoServiceItems(m, s)
 			return
 		}
@@ -140,7 +141,7 @@ func (a *app) exitNodePicker(c *ui.Context, s status.Snapshot) ui.Element {
 	e := ui.Select(c.Key("exit-node"), &sel, opts).Label(T.ExitNode).
 		Disabled(!s.Can().Tailscale || len(opts) < 2)
 	if e.Changed() {
-		a.chooseExitNode(st, sel, s.Mihomo.Reachable && s.Mihomo.Config.Tun.Enable)
+		a.chooseExitNode(st, sel, s.MihomoLive() && s.Mihomo.Config.Tun.Enable)
 	}
 	return e
 }

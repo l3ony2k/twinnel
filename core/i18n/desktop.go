@@ -35,6 +35,9 @@ var linuxWording = map[string]func(s *Strings){
 		s.MenuBar = "系统托盘"
 		s.TraySpeedSwitch = "在系统托盘显示网速"
 		s.HelperDeniedHint = "只有后台助手所用组（sudo 或 wheel）里的用户可以管理网络配置"
+		s.SetupTitle = "设置这台电脑"
+		s.StepSetUpMac = "设置这台电脑"
+		s.SetupDone = "这台电脑已设置好"
 	},
 	"en": func(s *Strings) {
 		s.ShowInFinder = "Show in File Manager"
@@ -64,24 +67,54 @@ var linuxWording = map[string]func(s *Strings){
 		s.MenuBar = "System tray"
 		s.TraySpeedSwitch = "Show network speed in the system tray"
 		s.HelperDeniedHint = "Only users in the helper's group (sudo or wheel) can manage the network setup"
+		s.SetupTitle = "Set Up This Computer"
+		s.StepSetUpMac = "Set up this computer"
+		s.SetupDone = "This computer is set up"
+		cloneMaps(s)
+		s.HistReasons["setup"] = "Set up this computer"
 		if t, ok := s.MsgTexts["refuses-exposed"]; ok {
-			m := make(map[string]string, len(s.MsgTexts))
-			for k, v := range s.MsgTexts {
-				m[k] = v
-			}
-			m["refuses-exposed"] = strings.ReplaceAll(t, "this Mac", "this computer")
-			s.MsgTexts = m
+			s.MsgTexts["refuses-exposed"] = strings.ReplaceAll(t, "this Mac", "this computer")
 		}
 	},
 }
 
-// applyDesktop rewrites every language's table for goos: Linux's words
-// (linuxWording) or Windows' (windowsWording, platform.go).
-func applyDesktop(goos string) {
-	w := map[string]map[string]func(*Strings){"linux": linuxWording, "windows": windowsWording}[goos]
+// written are the tables as written, for macOS, copied before any init
+// rewords them (package variables are set before init runs). Every
+// system's table is made from these, so what one system shows never
+// depends on the system the code runs on.
+var written = func() map[string]Strings {
+	m := map[string]Strings{}
 	for _, l := range langs {
-		if fn := w[l.Tag]; fn != nil {
-			fn(l.S)
-		}
+		c := *l.S
+		cloneMaps(&c)
+		m[l.Tag] = c
+	}
+	return m
+}()
+
+// WordedFor returns a copy of the table of language tag (an exact tag of
+// Langs) as goos shows it: the table as written, with goos's wording
+// (linuxWording, windowsWording) on top. nil for an unknown tag.
+func WordedFor(tag, goos string) *Strings {
+	w, ok := written[tag]
+	if !ok {
+		return nil
+	}
+	c := w
+	cloneMaps(&c)
+	if fn := platformWording[goos][tag]; fn != nil {
+		fn(&c)
+	}
+	return &c
+}
+
+// platformWording is each non-macOS system's wording, per language tag.
+var platformWording = map[string]map[string]func(*Strings){Linux: linuxWording, Windows: windowsWording}
+
+// applyDesktop words every language's table for goos, the system this
+// runs on (desktop_linux.go, desktop_windows.go), at init.
+func applyDesktop(goos string) {
+	for _, l := range langs {
+		*l.S = *WordedFor(l.Tag, goos)
 	}
 }

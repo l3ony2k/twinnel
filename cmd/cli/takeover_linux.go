@@ -15,12 +15,14 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/privfile"
 	"github.com/l3ony2k/twinnel/core/takeover"
 	"github.com/l3ony2k/twinnel/platform/linux"
 )
 
 func init() {
-	register("takeover", "inspect a hand-made mihomo + Tailscale setup and write a takeover plan (read-only)", runTakeover)
+	registerOn(i18n.Linux, "takeover", "inspect a hand-made mihomo + Tailscale setup and write a takeover plan (read-only)", runTakeover)
 }
 
 const takeoverUsage = `usage: twinnel takeover plan [--base FILE] [--out DIR] [flags]
@@ -40,11 +42,7 @@ func runTakeover(args []string) error {
 		fmt.Fprint(os.Stderr, takeoverUsage)
 		return errors.New("takeover: only the \"plan\" subcommand exists")
 	}
-	fs := flag.NewFlagSet("takeover plan", flag.ContinueOnError)
-	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), takeoverUsage)
-		fs.PrintDefaults()
-	}
+	fs := newFlags("takeover plan", takeoverUsage)
 	var opt takeover.Options
 	var out string
 	var asJSON bool
@@ -70,7 +68,7 @@ func runTakeover(args []string) error {
 		return err
 	}
 	if out == "" {
-		if out, err = os.MkdirTemp("", "twinnel-takeover-"); err != nil {
+		if out, err = privfile.MkdirTemp("", "twinnel-takeover-"); err != nil {
 			return err
 		}
 	} else if entries, err := os.ReadDir(out); err == nil && len(entries) > 0 {

@@ -94,23 +94,33 @@ type app struct {
 	live        liveSetup                  // the running mihomo before takeover (livesetup.go)
 	hm          helperMgmtView             // 设置 → 后台助手 (helpermgmt.go)
 	setupV      setupView                  // 设置这台 Mac (setuppage.go)
+	wiz         wizardView                 // the first-run wizard (wizard.go)
+	launch      launchOpen                 // what this launch was asked to open (launch.go)
 	agent       agentView                  // 设置 → 本地 Agent (agentsection.go)
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
 	toastOp     bool                       // toast is an operation's outcome: it links to 日志 → Twinnel (H7)
 	toastErr    string                     // a failed operation's outcome, shown until dismissed (H7)
+	toastHint   string                     // an instruction (a health fix's 去调整): no outcome glyph
 	pend        pendingState               // optimistic control values and their errors (pending.go)
 	retry       busySpan                   // the unreachable states' 重试 press (states.go)
 	loadingSeen map[string][2]time.Time    // loadingBox: first and last frame per key
 	langShown   bool                       // applyLang ran once
 	trayTip     string                     // the tray's tooltip as last set
 	egress      egressState                // the on-demand egress test (statusui.go)
-	egressProbe func(context.Context) *health.CheckReport
-	onMain      func(func())          // runs on the UI thread (mygo.RunOnMain; tests run it inline)
-	evidenceAll map[string]bool       // health check ID → all evidence lines shown
-	side        sidebarState          // the sidebar's mode and width (sidebar.go)
-	dockPol     mygo.ActivationPolicy // the activation policy as last set (dock.go)
-	shotNav     struct {              // shot mode: force the sidebar's key/hover looks
+	fx          fixState                   // the health checks' fixes (healthfix.go)
+	tsl         tsLoginFlow                // the Tailscale login under way (tslogin.go)
+	// tsInstallHook, when set (the onboarding wizard), is what the
+	// Tailscale panel's 安装 Tailscale opens instead of 设置这台 Mac.
+	tsInstallHook func()
+	tsLoginBE     tsLoginBackend // tests: replaces the helper / LocalAPI login
+	openURL       func(string)   // tests: replaces the browser
+	egressProbe   func(context.Context) *health.CheckReport
+	onMain        func(func())          // runs on the UI thread (mygo.RunOnMain; tests run it inline)
+	evidenceAll   map[string]bool       // health check ID → all evidence lines shown
+	side          sidebarState          // the sidebar's mode and width (sidebar.go)
+	dockPol       mygo.ActivationPolicy // the activation policy as last set (dock.go)
+	shotNav       struct {              // shot mode: force the sidebar's key/hover looks
 		active *bool
 		hover  string
 	}
@@ -139,7 +149,7 @@ func main() {
 		if !mygo.App.RequestSingleInstanceLock() {
 			return
 		}
-		mygo.App.OnSecondInstance(func([]string, string) { mygo.RunOnMain(a.openMain) })
+		mygo.App.OnSecondInstance(func(args []string, _ string) { mygo.RunOnMain(func() { a.secondLaunch(args) }) })
 	}
 	// The flyout and the main window come and go; the tray keeps the app.
 	mygo.App.OnWindowAllClosed(func() {})
@@ -163,6 +173,9 @@ func newApp(getenv func(string) string) (*app, error) {
 	a := &app{page: pageOverview, groupsOpen: map[string]bool{}, tileCols: map[string]int{}, pageScroll: map[string]*ui.ScrollState{}, healthOpen: map[string]bool{}}
 	i18n.Namer = a.eventName // helper messages name subscriptions and overrides (R-unslop-21)
 	a.probes = probes
+	if a.launch, err = launchRequest(os.Args[1:], getenv); err != nil {
+		log.Printf("open: %v", err)
+	}
 	// Shot mode never takes the owner's focus: no tray, no notifications,
 	// windows created hidden and captured from memory (Window.CapturePage
 	// renders native content itself; it needs no pixels on screen).
@@ -180,6 +193,15 @@ func newApp(getenv func(string) string) (*app, error) {
 		}
 	}
 	a.cfgPath = filepath.Join(dir, "twinnel", "app.json")
+	if !a.shotMode { // shots never read or write the person's setup state
+		// Once per start: an app.json from before it was protected keeps
+		// its folder's ACL on Windows until its next write otherwise.
+		if err := status.SecureAppFiles(a.cfgPath); err != nil {
+			log.Printf("protecting %s: %v", a.cfgPath, err)
+		}
+		a.wiz.path = wizardStatePath(a.cfgPath)
+		a.wiz.state = loadWizardState(a.wiz.path)
+	}
 	a.cfg, err = status.LoadConfig(a.cfgPath, getenv)
 	if err != nil {
 		log.Printf("config %s: %v (using defaults)", a.cfgPath, err)
@@ -269,12 +291,7 @@ func (a *app) ready() {
 			log.Printf("takeover fixture: %v", err)
 		}
 	}
-	if os.Getenv("TWINNEL_OPEN") != "" { // for development
-		a.openMain()
-		if os.Getenv("TWINNEL_OPEN") == "panel" {
-			a.togglePanel()
-		}
-	}
+	a.openAtLaunch() // TWINNEL_OPEN, --open (launch.go); else the icon, then wizardLaunchCheck
 }
 
 // start (re)builds the mihomo client and the monitor from a.cfg. Main thread.
@@ -362,6 +379,7 @@ func (a *app) changed(mon *status.Monitor) {
 			a.tray.SetToolTip(tip)
 		}
 		a.syncExitNodeAcceptance(s)
+		a.wizardLaunchCheck(s) // the first launch of a machine not set up opens the wizard
 		if a.panel != nil {
 			a.panel.Invalidate()
 		}

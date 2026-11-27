@@ -37,6 +37,14 @@ const (
 	pageInstall = "install"
 )
 
+// allPages are the main window's pages: every id pageBody and the wizard
+// draw. TWINNEL_OPEN=page:<id> accepts these (launch.go); a page added
+// without its id here fails TestAllPagesListed.
+var allPages = []string{
+	pageOverview, pageProxies, pageTailscale, pageHealth, pageLogs, pageConfig, pageHistory,
+	pageKernel, pageTakeover, pageSettings, pageAbout, pageInstall, pageLeave, pageWizard,
+}
+
 func (a *app) mainView(c *ui.Context) {
 	a.applyTheme(c)
 	t := c.Theme()
@@ -53,6 +61,11 @@ func (a *app) mainView(c *ui.Context) {
 		a.shotSnap(&s)
 	}
 	helperOutdatedNow = helperOutdated(s)
+	if a.page == pageWizard { // the first-run wizard: the whole window (wizard.go)
+		a.wizardWindow(c, s)
+		a.toasts(c)
+		return
+	}
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
 	}
@@ -236,8 +249,6 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 		a.installPage(c, s)
 	case pageLeave:
 		a.leavePage(c, s)
-	case pageSetup:
-		a.setupPage(c, s)
 	}
 }
 
@@ -375,7 +386,7 @@ func (a *app) pageChanged(old string) {
 	case pageTakeover, pageAbout, pageKernel:
 		a.detectLiveSetup() // again on each visit: the service may have changed
 	}
-	if a.page == pageSetup && old != pageSetup {
+	if a.page == pageWizard && old != pageWizard {
 		a.setupV.detected = false // find what is done again on each visit
 	}
 	if a.page == pageHealth && old != pageHealth {
@@ -390,6 +401,7 @@ func (a *app) pageChanged(old string) {
 			a.tailscaleCheck()
 		}
 		a.loadServices()
+		a.loadAccessories()
 	case pageTakeover:
 		a.loadTakeover()
 	}
@@ -421,7 +433,14 @@ func (a *app) verdict(c *ui.Context, s status.Snapshot) {
 				head, reasons := levelHeadline(s)
 				ui.Text(c, head).FontSize(plat.leadSize).FontWeight(600)
 				for _, r := range reasons {
-					ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
+					if tip := reasonTip(r); tip != "" {
+						ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable().Shrink(1)
+							infoTip(c, "", tip, nil)
+						})
+					} else {
+						ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
+					}
 					if r.Raw != "" {
 						// The system's own words, secondary (as errorNote).
 						ui.Text(c, r.Raw).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().
@@ -464,6 +483,10 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot, height float32) {
 	t := c.Theme()
 	T := i18n.T
 	hist := a.mon.TrafficHistory()
+	traffic := s.Mihomo.Traffic
+	if !s.MihomoLive() { // another program's traffic is not Twinnel's
+		hist, traffic = nil, status.TrafficSample{}
+	}
 	up := t.TextMuted
 	// Room under the figures: the plot's top tick label sits at its top
 	// edge and would touch the 累计 line otherwise.
@@ -477,8 +500,8 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot, height float32) {
 				num(ui.Text(c, status.Rate(rate)).FontSize(plat.figureSize).FontWeight(500))
 			})
 		}
-		figure(T.Download, t.Accent, s.Mihomo.Traffic.Down)
-		figure(T.Upload, up, s.Mihomo.Traffic.Up)
+		figure(T.Download, t.Accent, traffic.Down)
+		figure(T.Upload, up, traffic.Up)
 	})
 	const n = 120
 	var hi float64 = 1024
@@ -616,8 +639,9 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	m := s.Mihomo
+	live := s.MihomoLive()
 	pageHeader(c, T.PageProxies, func() {
-		if !m.Reachable || len(m.Groups) == 0 {
+		if !live || len(m.Groups) == 0 {
 			return
 		}
 		// One batch tests every node once (status.Monitor.TestAll); the
@@ -644,7 +668,11 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 			}()
 		}
 	})
-	if !m.Reachable {
+	if s.MihomoView().Foreign() { // another program's groups are not Twinnel's
+		a.foreignPageState(c, s)
+		return
+	}
+	if !live {
 		a.unreachableState(c, svcMihomo, m.Err)
 		return
 	}
@@ -697,7 +725,9 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	open := a.groupsOpen[g.Name]
 	sel := pendingValue(a, nodeKey(g.Name), g.Now) // the pick shows at once
 	chain := strings.Join(g.Chain, " → ")
-	ui.Column(c).Gap(8).PaddingY(listRowPadY).Clip().Transition(expandFor(open)).Children(func() {
+	box := ui.Column(c).Gap(8).PaddingY(listRowPadY).Clip().Transition(expandFor(open))
+	a.spotRing(c, box, "group:"+g.Name) // a health fix's 去调整 points here
+	box.Children(func() {
 		// The head is a disclosure the keyboard reaches: Tab stops on it,
 		// Return or Space opens and closes the group.
 		head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).
@@ -907,14 +937,21 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	ts := s.Tailscale
+	ph := tsPhaseOf(s)
 	pageHeader(c, T.PageTailscale, func() {
-		if ts.Reachable {
+		if ph == tsRunning || ph == tsStarting {
 			small(c, T.TSState(ts.State.BackendState))
 			a.tsPowerSwitch(c, s)
 		}
 	})
-	if !ts.Reachable {
-		a.unreachableState(c, svcTailscale, ts.Err)
+	if a.tsPanelShown(s) {
+		// Every state but running is the state and its action, page-size
+		// (tslogin.go): install, start, connect, log in, wait for the
+		// admin, or the login under way with its link and QR code.
+		a.controlError(c, pendTS)
+		groupBox(c, t).MinHeight(unreachablePageH).Justify(ui.Center).Children(func() {
+			a.tsLoginPanel(c, s, tsPanelOpts{})
+		})
 		return
 	}
 	a.actionNotes(c, s)
@@ -924,6 +961,16 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 		ui.Row(c).Gap(24).Children(func() {
 			ui.Column(c).Gap(gapRow).Basis(0).Grow(1).Children(func() {
 				kv(c, T.Account, st.User)
+				if st.Tailnet != "" {
+					kv(c, T.OvTailnet, st.Tailnet)
+				}
+				kv(c, T.OvThisDevice, st.Self.Name)
+				if st.KeyExpiry != nil && st.KeyExpiresWithin(s.Time, status.KeyExpiryWarning) {
+					kvWith(c, T.KeyExpiry, func() {
+						num(ui.Text(c, status.Until(s.Time, *st.KeyExpiry))).TextColor(pal(t).warnText).SingleLine().Shrink(1)
+						a.tsReauthButton(c, s)
+					})
+				}
 				kvMono(c, T.Version, st.Version)
 				kv(c, T.Install, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source))
 			})
@@ -1245,7 +1292,7 @@ func (a *app) mihomoSettingsCard(c *ui.Context, s status.Snapshot) {
 // selectorGroups are mihomo's groups a node can be chosen in, by name.
 func selectorGroups(s status.Snapshot) []string {
 	var out []string
-	if !s.Mihomo.Reachable {
+	if !s.MihomoLive() {
 		return nil
 	}
 	for _, g := range s.Mihomo.Groups {
@@ -1325,14 +1372,7 @@ func levelHeadline(s status.Snapshot) (string, []status.Reason) {
 // settingsLabel is the label column of a 设置 field row (the agent
 // card's), with an ⓘ after the label when tip is not empty.
 func settingsLabel(c *ui.Context, label, tip string) ui.Element {
-	t := c.Theme()
-	if tip == "" {
-		return ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth + 24).Shrink(0)
-	}
-	return ui.Row(c).Gap(4).AlignItems(ui.Center).Width(labelWidth + 24).Shrink(0).Children(func() {
-		ui.Text(c, label).TextColor(t.TextMuted).SingleLine().Shrink(1)
-		infoTipAbout(c, label, tip, nil)
-	})
+	return kvLabel(c, label, tip, nil, 24)
 }
 
 // switchLabel is the label of a 设置 switch row, taking the room before

@@ -32,8 +32,11 @@ type fakeHelper struct {
 	dns       rpc.DNSStatus
 	tsInst    bool
 	tsErr     error
+	tsRes     *rpc.TailscaleInstallResult // nil: the open-source tailscaled installed by Twinnel
 	health    []health.CheckReport
+	lastRun   bool         // health.last has a report (the helper ran the checks)
 	login     *fakeTailnet // tailscaled behind the helper
+	inSession bool         // Windows: tailscale.login refuses Start
 }
 
 func newFakeHelper() *fakeHelper {
@@ -161,6 +164,7 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 		return out(h.dns)
 	case rpc.MethodDNSPoint:
 		h.dns.Pointed = true
+		h.dns.Recorded, h.dns.Unprotected = h.dns.Unprotected, nil
 		return out(h.dns)
 	case rpc.MethodTailscaleInfo:
 		return out(rpc.TailscaleInfo{Installed: h.tsInst})
@@ -169,6 +173,9 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 			return h.tsErr
 		}
 		h.tsInst = true
+		if h.tsRes != nil {
+			return out(*h.tsRes)
+		}
 		return out(rpc.TailscaleInstallResult{Version: "1.104.7", Kind: "twinnel", Path: "/S/twinnel/tailscale/current/tailscale"})
 	case rpc.MethodTailscaleLogin:
 		if h.login == nil {
@@ -178,6 +185,9 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 		if err != nil {
 			return err
 		}
+		if params.(rpc.TailscaleLoginParams).Start && ls.Backend != "Running" && h.inSession {
+			return &rpc.Error{Code: rpc.CodeNotImplemented, Message: "Tailscale logs in from the signed-in user's session"}
+		}
 		if params.(rpc.TailscaleLoginParams).Start && ls.Backend != "Running" {
 			h.login.StartLogin(context.Background())
 			ls, _ = h.login.LoginState(context.Background())
@@ -186,6 +196,13 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 	case rpc.MethodTailnetRefresh:
 		return nil
 	case rpc.MethodHealthRun:
+		h.lastRun = true
+		b, _ := json.Marshal(health.Report{Checks: h.health})
+		return out(rpc.HealthReport{Report: b})
+	case rpc.MethodHealthLast:
+		if !h.lastRun {
+			return out(rpc.HealthReport{})
+		}
 		b, _ := json.Marshal(health.Report{Checks: h.health})
 		return out(rpc.HealthReport{Report: b})
 	}
@@ -275,14 +292,45 @@ func TestFlowFromNothing(t *testing.T) {
 		t.Fatalf("order %v", h.calls)
 	}
 
-	// A second flow on the same machine finds everything done but health.
+	// A second flow on the same machine finds everything done, health too
+	// (the helper's last report has no failure): `setup status` on a set
+	// up, working machine says complete.
 	g, _, _ := newTestFlow(h, &installed, Options{})
 	h.login = &fakeTailnet{backend: "Running"}
 	g.Detect(context.Background())
 	for _, s := range g.Steps() {
-		if s.ID != StepHealth && s.State != Done {
+		if s.State != Done {
 			t.Errorf("re-run: %s is %s", s.ID, s.State)
 		}
+	}
+	if !g.AllDone() {
+		t.Fatalf("not complete: %+v", g.Remaining())
+	}
+
+	// The last report has a failed check: the health step says so (not
+	// "pending"), naming it.
+	h.health = append(h.health, health.CheckReport{ID: "system-dns", Title: "System DNS", Result: health.Result{Status: health.StatusFail}})
+	k, _, _ := newTestFlow(h, &installed, Options{})
+	h.login = &fakeTailnet{backend: "Running"}
+	k.Detect(context.Background())
+	if s := k.Step(StepHealth); s.State != Failed || s.Code != CodeHealthFail || !strings.Contains(s.Error, "System DNS") {
+		t.Fatalf("health after a failed report: %+v", s)
+	}
+}
+
+// Health is judged from the last report only once every other step is
+// done: while one is still to do, the flow runs the checks at its end.
+func TestDetectHealthWaitsForTheOtherSteps(t *testing.T) {
+	h := newFakeHelper()
+	h.lastRun = true
+	installed := true
+	f, _, _ := newTestFlow(h, &installed, Options{})
+	f.Detect(context.Background())
+	if s := f.Step(StepHealth); s.State != Pending {
+		t.Fatalf("health detected with steps left: %+v", s)
+	}
+	if slices.Contains(h.calls, rpc.MethodHealthLast) {
+		t.Fatal("asked for the last report with steps left")
 	}
 }
 
@@ -395,5 +443,153 @@ func TestFlowLinksTailscale(t *testing.T) {
 	ws := f.Step(StepTailscale).Warnings
 	if len(linked) != 1 || linked[0] != "/S/twinnel/tailscale/current/tailscale" || len(ws) != 1 || ws[0].Code != WarnTSOnPath {
 		t.Fatalf("linked %v warnings %+v", linked, ws)
+	}
+}
+
+// Windows: the official client from its MSI. A failed install is not a
+// download failure (another proxy would not help); a pending restart is a
+// warning; nothing is linked onto PATH (the MSI does that itself).
+func TestFlowWindowsTailscale(t *testing.T) {
+	h := newFakeHelper()
+	h.tsErr = &rpc.Error{Code: rpc.CodeFailed, Message: "another installation is in progress (Windows Installer is busy); wait for it to finish and try again"}
+	installed := true
+	f, _, _ := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	linked := 0
+	f.Env.LinkTailscale = func(string) (string, error) { linked++; return "", nil }
+	err := f.Run(context.Background())
+	var se *StepError
+	if !errors.As(err, &se) || se.Step != StepTailscale || se.Code != CodeInstallFailed {
+		t.Fatalf("err = %v", err)
+	}
+	// A download failure still offers a proxy.
+	h.tsErr = &rpc.Error{Code: rpc.CodeFailed, Message: `Get "https://pkgs.tailscale.com/stable/?mode=json": dial tcp: i/o timeout`}
+	if err := f.RunStep(context.Background(), StepTailscale); !errors.As(err, &se) || se.Code != CodeDownload {
+		t.Fatalf("err = %v", err)
+	}
+	h.tsErr = nil
+	h.tsRes = &rpc.TailscaleInstallResult{Kind: "windows", Version: "1.104.7", Path: `C:\Program Files\Tailscale\tailscale.exe`, RestartNeeded: true}
+	if err := f.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ws := f.Step(StepTailscale).Warnings
+	if len(ws) != 1 || ws[0].Code != WarnRestart || linked != 0 || f.Step(StepTailscale).Detail != "1.104.7" {
+		t.Fatalf("warnings %+v linked %d", ws, linked)
+	}
+}
+
+// mihomo that does not run on this CPU is an install failure.
+func TestFlowKernelDoesNotRun(t *testing.T) {
+	h := newFakeHelper()
+	h.kernelErr = &rpc.Error{Code: rpc.CodeFailed, Message: "the downloaded mihomo does not run on this computer: exit status 1"}
+	installed := true
+	f, _, _ := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	var se *StepError
+	if err := f.Run(context.Background()); !errors.As(err, &se) || se.Step != StepMihomo || se.Code != CodeInstallFailed {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// Windows: the helper refuses to start the login; the flow starts it from
+// its own process (the signed-in user) and follows it through the helper.
+func TestFlowSessionLogin(t *testing.T) {
+	h := newFakeHelper()
+	h.inSession = true
+	installed := true
+	f, tn, opened := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	// Without the hook the step fails.
+	err := f.Run(context.Background())
+	var se *StepError
+	if !errors.As(err, &se) || se.Step != StepLogin {
+		t.Fatalf("no hook: %v", err)
+	}
+	sessions := 0
+	tn.polls = 0
+	f.Env.SessionLogin = func(ctx context.Context) error {
+		sessions++
+		return tn.StartLogin(ctx)
+	}
+	if err := f.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if sessions != 1 || len(*opened) != 1 || f.Step(StepLogin).Detail != "example.ts.net" {
+		t.Fatalf("sessions %d opened %v step %+v", sessions, *opened, f.Step(StepLogin))
+	}
+}
+
+// A setup with skipped steps is not complete: Summary never says so, and
+// Remaining names each step with what to do.
+func TestSummaryIsHonest(t *testing.T) {
+	h := newFakeHelper()
+	h.dns.Supported = false
+	installed := true
+	f, _, _ := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x", NoTailscale: true})
+	f.Detect(context.Background())
+	if f.Step(StepDNS).State != Skipped || f.Step(StepDNS).Code != CodeUnsupported {
+		t.Fatalf("detect: dns %+v", f.Step(StepDNS))
+	}
+	if err := f.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !f.Complete() || f.AllDone() {
+		t.Fatalf("complete %v all done %v", f.Complete(), f.AllDone())
+	}
+	sum := f.Summary()
+	if strings.Contains(sum, "Setup complete") || !strings.Contains(sum, "3 steps left") {
+		t.Fatalf("summary:\n%s", sum)
+	}
+	left := f.Remaining()
+	want := map[Step]string{StepDNS: LeftUnsupported, StepTailscale: LeftUserSkipped, StepLogin: LeftUserSkipped}
+	if len(left) != len(want) {
+		t.Fatalf("left %+v", left)
+	}
+	for _, l := range left {
+		if want[l.Step] != l.Why || l.Do == "" {
+			t.Errorf("%+v", l)
+		}
+	}
+
+	// Everything done: complete.
+	g, _, _ := newTestFlow(newFakeHelper(), &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	if err := g.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !g.AllDone() || g.Summary() != "Setup complete." {
+		t.Fatalf("%v %q", g.AllDone(), g.Summary())
+	}
+
+	// A failed health step is left, with doctor as the way on.
+	k := newFakeHelper()
+	k.health = append(k.health, health.CheckReport{ID: "system-dns", Title: "System DNS", Result: health.Result{Status: health.StatusFail}})
+	m, _, _ := newTestFlow(k, &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	_ = m.Run(context.Background())
+	if l := m.Remaining(); len(l) != 1 || l[0].Why != LeftHealth || !strings.Contains(l[0].Do, "doctor") {
+		t.Fatalf("%+v", l)
+	}
+}
+
+// DNS pointed at mihomo by hand before Twinnel (no backup): the DNS step
+// is not done, and running it calls dns.point, which records automatic
+// for it so the watchdog can protect it.
+func TestDNSStepPointedWithoutBackup(t *testing.T) {
+	h := newFakeHelper()
+	h.dns.Pointed, h.dns.Unprotected = true, []string{"Wi-Fi"}
+	installed := true
+	f, _, _ := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x", NoTailscale: true})
+	f.Detect(context.Background())
+	if f.Step(StepDNS).State == Done {
+		t.Fatalf("detect: %+v", f.Step(StepDNS))
+	}
+	if _, err := f.runDNS(context.Background(), h); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(h.calls, rpc.MethodDNSPoint) || len(h.dns.Unprotected) != 0 {
+		t.Fatalf("calls %v dns %+v", h.calls, h.dns)
+	}
+	// Pointed with a backup: done, nothing called.
+	h = newFakeHelper()
+	h.dns.Pointed = true
+	f, _, _ = newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x", NoTailscale: true})
+	if _, err := f.runDNS(context.Background(), h); err != nil || slices.Contains(h.calls, rpc.MethodDNSPoint) {
+		t.Fatalf("calls %v %v", h.calls, err)
 	}
 }

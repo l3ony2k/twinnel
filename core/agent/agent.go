@@ -37,9 +37,11 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/mihomo"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/version"
 )
 
 // Caller is a connection to the helper (*rpc.Client).
@@ -59,9 +61,13 @@ type Deps struct {
 	HTTPTransport http.RoundTripper
 	// Tailscale is the LocalAPI (nil: Tailscale tools report it missing).
 	Tailscale tailscale.API
-	// Doctor runs the local health checks (`twinnel doctor --json`); nil: the
+	// Doctor is `twinnel doctor --json` (with fresh: --fresh); nil: the
 	// doctor tool is not offered.
-	Doctor func(ctx context.Context) (json.RawMessage, error)
+	Doctor func(ctx context.Context, fresh bool) (json.RawMessage, error)
+	// HelperBinaries compares the helper binary shipped with Twinnel with
+	// the installed one, given the running helper's version ("" unknown);
+	// nil: the version tool leaves it out.
+	HelperBinaries func(ctx context.Context, running string) *version.HelperBinaries
 	// ReadOnly refuses every operate and configure tool (TWINNEL_READ_ONLY).
 	ReadOnly bool
 	// Version is Twinnel's version.
@@ -110,6 +116,7 @@ func New(d Deps) *Server {
 	s.registerRead()
 	s.registerOperate()
 	s.registerConfigure()
+	s.registerHealthFix()
 	s.registerAdminOnly()
 	s.registerResources()
 	s.registerPrompts()
@@ -199,7 +206,21 @@ func (c *call) mihomo(write bool) (*mihomo.Client, error) {
 		addr, secret = cr.Controller, cr.Secret
 	}
 	c.s.addSecret(secret)
+	// Never change another program's mihomo (Clash Party, Clash Verge
+	// Rev…) that holds the controller address.
+	if write {
+		var st rpc.Status
+		if err := c.rpc(rpc.MethodStatus, nil, &st); err == nil && st.Mihomo.Owner.IsForeign() {
+			return nil, foreignOwnerError(*st.Mihomo.Owner)
+		}
+	}
 	return mihomo.New(mihomo.Options{Address: addr, Secret: secret, AllowWrites: write, Transport: c.s.d.HTTPTransport, Timeout: 10 * time.Second})
+}
+
+// foreignOwnerError says that another program's mihomo holds the
+// controller address, and how to free it.
+func foreignOwnerError(o foreign.Owner) error {
+	return fmt.Errorf("%s is held by %s's mihomo, not Twinnel's; quit it or move Twinnel's controller (health_fix controller-owner) first", o.Addr, o.Who())
 }
 
 // tailscale returns the LocalAPI client.
@@ -216,6 +237,9 @@ type toolOpts struct {
 	destructive bool
 	idempotent  bool
 	openWorld   bool
+	// enums are the allowed values of string arguments, by name; they go
+	// into the input schema and into the error for a wrong value.
+	enums map[string][]string
 }
 
 // handler is a typed tool body.
@@ -237,9 +261,22 @@ func addTool[In any](s *Server, tier, name, title, desc string, o toolOpts, h ha
 		desc += fmt.Sprintf("\nTier: %s (Twinnel → 设置 → 本地 Agent).", tier)
 	}
 	s.tools = append(s.tools, ToolInfo{Name: name, Tier: tier, Title: title})
-	mcp.AddTool(s.MCP, &mcp.Tool{Name: name, Title: title, Description: desc, Annotations: ann},
-		func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
-			return s.run(ctx, req, tier, name, o, in, func(c *call) (any, error) { return h(c, in) }), nil, nil
+	// The arguments are checked here (args.go), not by mcp.AddTool, so that
+	// a mistake gets an answer an agent can act on.
+	ts := newToolSchema[In](o.enums)
+	s.MCP.AddTool(&mcp.Tool{Name: name, Title: title, Description: desc, Annotations: ann, InputSchema: ts.s},
+		func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			raw, err := ts.check(name, req.Params.Arguments)
+			var in In
+			if err == nil {
+				if err = json.Unmarshal(raw, &in); err != nil {
+					err = fmt.Errorf("%s: %v", name, err)
+				}
+			}
+			if err != nil {
+				return s.errorResult(err), nil
+			}
+			return s.run(ctx, req, tier, name, o, in, func(c *call) (any, error) { return h(c, in) }), nil
 		})
 }
 

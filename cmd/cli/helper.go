@@ -16,7 +16,9 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/config"
 	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 	"github.com/l3ony2k/twinnel/core/store"
 )
 
@@ -29,12 +31,12 @@ func init() {
 	register("tailnet", "tailnet: refresh (re-read peers, re-apply if they changed)", runTailnet)
 	register("service", "services: status | start | stop | restart | install | uninstall NAME", runService)
 	register("events", "print helper events (--follow to keep waiting)", runEvents)
-	register("helper", "helper status | install | uninstall | upgrade | restart | health | plans | adopt | discard | secure-controller | harden", runHelper)
+	registerCommand("helper", command{summary: helperSummary, run: runHelper})
 
 	// `twinnel compose` composes locally; with --apply/--preview it asks the
 	// helper to compose from its own state instead.
 	local := commands["compose"]
-	commands["compose"] = command{local.summary + " (--apply / --preview: through the helper)", func(args []string) error {
+	commands["compose"] = command{summary: func() string { return local.summary() + " (--apply / --preview: through the helper)" }, run: func(args []string) error {
 		if slices.ContainsFunc(args, func(a string) bool {
 			a = strings.TrimLeft(a, "-")
 			return a == "apply" || a == "preview" || strings.HasPrefix(a, "apply=") || strings.HasPrefix(a, "preview=")
@@ -54,15 +56,11 @@ type clientFlags struct {
 }
 
 func newFlagSet(name, usage string) (*flag.FlagSet, *clientFlags) {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs := newFlags(name, usage)
 	cf := &clientFlags{}
 	fs.StringVar(&cf.socket, "socket", rpc.SocketFromEnv(), "helper socket `PATH` (env TWINNEL_SOCKET)")
 	fs.BoolVar(&cf.json, "json", false, "print the raw JSON result")
 	fs.DurationVar(&cf.timeout, "timeout", 3*time.Minute, "give up after `DURATION`")
-	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), usage)
-		fs.PrintDefaults()
-	}
 	return fs, cf
 }
 
@@ -89,9 +87,9 @@ func parse(fs *flag.FlagSet, args []string) (pos []string, done bool, err error)
 func (cf *clientFlags) call(method string, params, result any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), cf.timeout)
 	defer cancel()
-	c, err := rpc.Dial(ctx, nil, cf.socket)
+	c, err := dialHelper(ctx, cf.socket)
 	if err != nil {
-		return fmt.Errorf("cannot reach the helper at %s: %w", cf.socket, err)
+		return err
 	}
 	defer c.Close()
 	return c.Call(ctx, method, params, result)
@@ -153,19 +151,37 @@ func needArgs(pos []string, n int, usage string) error {
 // ---- status ----
 
 func runHelperStatus(args []string) error {
-	fs, cf := newFlagSet("status", "usage: twinnel status [--json]\n\n")
+	fs, cf := newFlagSet("helper status", "usage: twinnel helper status [--json]\n\n")
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
 	}
 	var s rpc.Status
 	return cf.callPrint(rpc.MethodStatus, nil, &s, func() {
 		w := tw()
-		fmt.Fprintf(w, "helper\t%s (pid %d, uid %d), up since %s\n", s.HelperVersion, s.PID, s.UID, s.StartedAt.Local().Format("15:04:05"))
+		runsAs := s.RunsAs
+		if runsAs == "" { // an older helper
+			runsAs = fmt.Sprintf("uid %d", s.UID)
+		}
+		fmt.Fprintf(w, "helper\t%s (pid %d, %s), up since %s\n", s.HelperVersion, s.PID, runsAs, s.StartedAt.Local().Format("15:04:05"))
 		fmt.Fprintf(w, "state dir\t%s\n", s.StateDir)
-		if s.Mihomo.Reachable {
+		switch v := status.HelperMihomoView(s.Mihomo); {
+		case v.Live():
 			fmt.Fprintf(w, "mihomo\trunning %s, controller %s\n", s.Mihomo.Version, s.Mihomo.Controller)
-		} else {
+		case v.Foreign():
+			// Another program's: its version is not Twinnel's.
+			fmt.Fprintf(w, "mihomo\t%s\n", v.Text())
+			for _, f := range v.Facts() {
+				fmt.Fprintf(w, "\t%s: %s\n", f.Label, f.Value)
+			}
+			if o := s.Mihomo.Owner; o.WorkDir != "" {
+				fmt.Fprintf(w, "\twork dir: %s\n", o.WorkDir)
+			}
+			fmt.Fprintf(w, "\ttwinnel doctor --fix controller-owner\n")
+		default:
 			fmt.Fprintf(w, "mihomo\tnot reachable at %s: %s\n", s.Mihomo.Controller, s.Mihomo.Error)
+		}
+		if o := s.Mihomo.Owner; o != nil && !o.IsForeign() {
+			fmt.Fprintf(w, "controller owner\t%s: %s\n", o.Verdict, o.Label())
 		}
 		fmt.Fprintf(w, "binary\t%s\n", orNone(s.Mihomo.Binary))
 		fmt.Fprintf(w, "config\t%s\n", s.Mihomo.ConfigPath)
@@ -196,8 +212,31 @@ func runHelperStatus(args []string) error {
 			k = "external " + s.Kernel.Active
 		}
 		fmt.Fprintf(w, "kernel\t%s\n", k)
+		if h := s.ServiceHost; h != nil {
+			fmt.Fprintf(w, "service host\t%s\n", serviceHostLine(*h))
+		}
 		w.Flush()
 	})
+}
+
+// serviceHostLine is Windows' service host in `helper status`: its
+// version and path, and what is pending (a refresh, old copies waiting
+// for mihomo to restart).
+func serviceHostLine(h rpc.ServiceHost) string {
+	line := orDash(h.Version) + " (" + h.Path + ")"
+	if h.Stale {
+		line += "; out of date: twinnel helper upgrade"
+	}
+	switch {
+	case h.Aside == 1:
+		line += "; 1 old copy waiting: mihomo still runs it, deleted when mihomo restarts"
+	case h.Aside > 1:
+		line += fmt.Sprintf("; %d old copies waiting: mihomo still runs one, deleted when mihomo restarts", h.Aside)
+	}
+	if h.Error != "" {
+		line += "; last refresh failed: " + h.Error
+	}
+	return line
 }
 
 func orNone(s string) string {
@@ -211,16 +250,19 @@ func orNone(s string) string {
 
 func runComposeHelper(args []string) error {
 	fs, cf := newFlagSet("compose", `usage: twinnel compose --apply [--reason TEXT] [--force]
-       twinnel compose --preview
+       twinnel compose --preview [--verbose]
 
 --apply asks the helper to compose its subscription and layers, check the
 result with mihomo -t, back up the current config, write it and reload
 mihomo; any failure keeps the running config. --preview only composes and
-checks.
+checks, and prints what would change against the running config: a summary
+and the setting changes first; shadowed rules that are the same in both are
+folded into a count (--verbose lists them all).
 
 `)
-	var apply, preview, force bool
+	var apply, preview, force, verbose bool
 	var reason string
+	fs.BoolVar(&verbose, "verbose", false, "with --preview: list every shadowed or redundant rule in the diff")
 	fs.BoolVar(&apply, "apply", false, "compose, check, write and reload through the helper")
 	fs.BoolVar(&preview, "preview", false, "compose and check through the helper; write nothing")
 	fs.BoolVar(&force, "force", false, "reload even if the config did not change")
@@ -234,7 +276,10 @@ checks.
 	}
 	if preview {
 		var r rpc.ComposeResult
-		return cf.callPrint(rpc.MethodComposePreview, nil, &r, func() { printCompose(os.Stdout, r) })
+		return cf.callPrint(rpc.MethodComposePreview, nil, &r, func() {
+			printCompose(stdout, r)
+			printPreviewDiff(stdout, cf, verbose)
+		})
 	}
 	var r rpc.ApplyResult
 	p := rpc.ApplyParams{Reason: reason, Force: force}
@@ -252,6 +297,25 @@ checks.
 	}
 	printApply(os.Stdout, r)
 	return nil
+}
+
+// printPreviewDiff prints the semantic diff of the running config and the
+// preview (config.get of both; nothing is written).
+func printPreviewDiff(w io.Writer, cf *clientFlags, verbose bool) {
+	var live, next rpc.ConfigText
+	err := cf.call(rpc.MethodConfigGet, rpc.ConfigGetParams{Source: rpc.ConfigLive}, &live)
+	if err == nil {
+		err = cf.call(rpc.MethodConfigGet, rpc.ConfigGetParams{Source: rpc.ConfigPreview}, &next)
+	}
+	var d *config.SemDiff
+	if err == nil {
+		d, err = config.SemanticDiff([]byte(live.Content), []byte(next.Content))
+	}
+	if err != nil {
+		fmt.Fprintf(w, "\ndiff unavailable: %v\n", err)
+		return
+	}
+	fmt.Fprint(w, "\n"+d.Render(config.TextOptions{Limit: 200, Verbose: verbose, More: "--verbose lists them all"}))
 }
 
 func printCompose(w io.Writer, r rpc.ComposeResult) {
@@ -600,6 +664,14 @@ func runSettings(args []string) error {
 		return nil
 	})
 	fs.Func("channel", "kernel channel stable|alpha", func(s string) error { u.KernelChannel = &s; return nil })
+	fs.Func("egress-urls", "IP-echo `URLS` of the egress test, comma-separated, tried in order (\"\" = built-in list)", func(s string) error {
+		us := splitList(s)
+		if us == nil {
+			us = []string{}
+		}
+		u.HealthEgressURLs = &us
+		return nil
+	})
 	var ag rpc.AgentSettingsUpdate
 	fs.Func("mcp", "local agents may use `twinnel mcp` `on|off`", boolFlag(&ag.MCP))
 	fs.Func("agent-operate", "agents may operate (mode, node, TUN, exit node...) `on|off`", boolFlag(&ag.Operate))
@@ -626,6 +698,7 @@ func runSettings(args []string) error {
 		fmt.Fprintf(w, "auto apply\t%v\n", s.AutoApply)
 		fmt.Fprintf(w, "history keep\t%d\n", s.HistoryKeep)
 		fmt.Fprintf(w, "kernel channel\t%s\n", s.KernelChannel)
+		fmt.Fprintf(w, "egress test URLs\t%s\n", orDefault(strings.Join(s.HealthEgressURLs, ", "), "built-in"))
 		fmt.Fprintf(w, "agents (mcp)\t%v (operate %v, configure %v)\n", s.Agent.MCP, s.Agent.Operate, s.Agent.Configure)
 		w.Flush()
 	})
@@ -676,9 +749,13 @@ func runTailnet(args []string) error {
 func runService(args []string) error {
 	fs, cf := newFlagSet("service", `usage: twinnel service status mihomo|tailscaled|helper
        twinnel service start|stop|restart mihomo|tailscaled
-       twinnel service install|uninstall mihomo   (LaunchDaemon generated from the helper's settings)
+       twinnel service install|uninstall mihomo   (a system service generated from the helper's settings)
+       twinnel service log mihomo|helper [--lines N] [--since 10m|TIME]   (through the helper, redacted)
 
 `)
+	var lf logFlags
+	fs.IntVar(&lf.lines, "lines", 0, "log: the last `N` lines of each file (default 300, at most 2000)")
+	fs.StringVar(&lf.since, "since", "", "log: only lines from `WHEN` on, a duration back (10m, 2h) or an RFC 3339 time")
 	pos, done, err := parse(fs, args)
 	if done || err != nil {
 		return err
@@ -686,6 +763,9 @@ func runService(args []string) error {
 	if len(pos) != 2 {
 		fs.Usage()
 		return errors.New("service: want `OP NAME`")
+	}
+	if pos[0] == "log" {
+		return serviceLog(cf, pos[1], lf, time.Now())
 	}
 	if pos[0] != "status" {
 		return serviceOp(cf, pos[0], pos[1])
@@ -721,9 +801,9 @@ func runEvents(args []string) error {
 		return err
 	}
 	ctx := context.Background()
-	c, err := rpc.Dial(ctx, nil, cf.socket)
+	c, err := dialHelper(ctx, cf.socket)
 	if err != nil {
-		return fmt.Errorf("cannot reach the helper at %s: %w", cf.socket, err)
+		return err
 	}
 	defer c.Close()
 	wait := 25 * time.Second
@@ -759,50 +839,65 @@ func truncate(s string, n int) string {
 
 // ---- helper ----
 
+// helperSubs are the helper subcommands with their usage lines, in the
+// order help lists them.
+var helperSubs = []struct {
+	name, usage string
+	run         func([]string) error
+}{
+	{"status", "status [--json]", runHelperStatus},
+	{"install", "install [--dry-run] [--yes] [flags]   (asks for administrator approval)", runHelperInstall},
+	{"uninstall", "uninstall [--purge] [--dry-run] [--yes] [--json]", runHelperUninstall},
+	{"upgrade", "upgrade [--check] [--force] [--dry-run] [--yes] [--json]   (the helper next to this Twinnel)", runHelperUpgrade},
+	{"restart", "restart [--yes]", runHelperRestart},
+	{"health", "health [--run] [--json]", runHelperHealth},
+	{"egress", "egress [--json]   (the egress test once: two HTTPS requests to an IP-echo address)", runHelperEgress},
+	{"plans", "plans [PLAN_ID] [--json]", runHelperPlans},
+	{"adopt", "adopt PLAN_ID [--yes] [--skip-health]", runHelperAdopt},
+	{"discard", "discard PLAN_ID [--force]", runHelperDiscard},
+	{"secure-controller", "secure-controller [--yes]", runHelperSecure},
+	{"harden", "harden plan [--kernel VERSION] [--new-secret] [--json]\nharden apply [PLAN_ID] [--yes] [--skip-health]", runHelperHarden},
+}
+
+// helperSummary is the helper's line in the command list: its subcommands
+// on the system the help is worded for.
+func helperSummary() string {
+	var names []string
+	for _, s := range helperSubs {
+		if shownOn([]string{"helper", s.name}, helpOS) {
+			names = append(names, s.name)
+		}
+	}
+	return "helper " + strings.Join(names, " | ")
+}
+
 func runHelper(args []string) error {
 	sub := ""
 	if len(args) > 0 {
 		sub, args = args[0], args[1:]
 	}
-	switch sub {
-	case "status":
-		return runHelperStatus(args)
-	case "install":
-		return runHelperInstall(args)
-	case "uninstall":
-		return runHelperUninstall(args)
-	case "upgrade":
-		return runHelperUpgrade(args)
-	case "restart":
-		return runHelperRestart(args)
-	case "health":
-		return runHelperHealth(args)
-	case "egress":
-		return runHelperEgress(args)
-	case "adopt":
-		return runHelperAdopt(args)
-	case "plans":
-		return runHelperPlans(args)
-	case "discard":
-		return runHelperDiscard(args)
-	case "secure-controller":
-		return runHelperSecure(args)
-	case "harden":
-		return runHelperHarden(args)
+	var names []string
+	var u strings.Builder
+	for _, s := range helperSubs {
+		if !shownOn([]string{"helper", s.name}, helpOS) {
+			if s.name == sub {
+				return fmt.Errorf("twinnel helper %s is not available on this system", sub)
+			}
+			continue
+		}
+		if s.name == sub {
+			return s.run(args)
+		}
+		names = append(names, s.name)
+		for _, line := range strings.Split(s.usage, "\n") {
+			if u.Len() == 0 {
+				u.WriteString("usage: ")
+			} else {
+				u.WriteString("       ")
+			}
+			u.WriteString("twinnel helper " + line + "\n")
+		}
 	}
-	fmt.Fprint(os.Stderr, `usage: twinnel helper status [--json]
-       twinnel helper install [--dry-run] [--yes] [flags]   (asks for the administrator password)
-       twinnel helper uninstall [--purge] [--restore-mihomo | --keep-mihomo] [--dry-run] [--yes] [--json]
-       twinnel helper upgrade [--check] [--force] [--dry-run] [--yes] [--json]   (the helper next to this Twinnel)
-       twinnel helper restart [--yes]
-       twinnel helper health [--run] [--json]
-       twinnel helper egress [--json]   (the egress test once: two HTTPS requests to an IP-echo address)
-       twinnel helper plans [PLAN_ID] [--json]
-       twinnel helper adopt PLAN_ID [--yes] [--skip-health]
-       twinnel helper discard PLAN_ID [--force]
-       twinnel helper secure-controller [--yes]
-       twinnel helper harden plan [--kernel VERSION] [--new-secret] [--json]
-       twinnel helper harden apply [PLAN_ID] [--yes] [--skip-health]
-`)
-	return errors.New("helper: want status, install, uninstall, upgrade, restart, health, plans, adopt, discard, secure-controller or harden")
+	fmt.Fprint(os.Stderr, u.String())
+	return fmt.Errorf("helper: want %s or %s", strings.Join(names[:len(names)-1], ", "), names[len(names)-1])
 }

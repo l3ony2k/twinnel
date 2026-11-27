@@ -38,6 +38,11 @@ type Machine struct {
 	EgressProxied netip.Addr `json:"egressProxied,omitempty"`
 	EgressChain   []string   `json:"egressChain,omitempty"`
 
+	// TUNTCPDead makes the tun-dataplane probe time out through the TUN
+	// (ICMP and the proxy port still answer), as on the Windows machine
+	// of docs/tun-dataplane.md.
+	TUNTCPDead bool `json:"tunTCPDead,omitempty"`
+
 	// TailnetIface and TunIface answer route lookups not in Routes:
 	// tailnet addresses go to TailnetIface, everything else to TunIface.
 	TailnetIface string `json:"tailnetIface,omitempty"`

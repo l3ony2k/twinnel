@@ -74,6 +74,24 @@ helper composes and applies the new config (a hot reload of mihomo; the result h
 history id). Undo an unwanted apply: history_rollback (configure tier) or in the app.`,
 		toolOpts{openWorld: true}, s.refreshSubscription)
 
+	addTool(s, rpc.TierOperate, "geo_update", "Update GEO databases",
+		`Downloads the GEO databases (geoip, geosite, mmdb, asn) that are missing or newer than the installed ones,
+from the config's geox-url (default: MetaCubeX/meta-rules-dat), checks each against its published sha256,
+swaps them in as a set (mihomo -t must still pass, else the old files are put back) and has mihomo reload
+so it uses them. proxy picks the download route: auto (default), direct, subscription (a temporary mihomo
+with the subscription's nodes, when GitHub can't be reached) or a proxy URL. The previous files stay as
+<file>.twinnel-bak. Undo: not needed for a newer release; restore the .twinnel-bak files by hand if one
+misbehaves.`,
+		toolOpts{openWorld: true}, s.geoUpdate)
+
+	addTool(s, rpc.TierOperate, "dashboard_install", "Install or update the dashboard",
+		`Downloads mihomo's web dashboard (zashboard unless the config names another external-ui-url), checks it
+against its published sha256 and swaps it in; the old one stays as <dir>.twinnel-bak. When the config
+has no external-ui, Twinnel adds external-ui: ui to the config it composes and applies it (a hot
+reload). Twinnel itself does not need the dashboard. proxy as in geo_update. Undo: nothing needed; the
+dashboard is only served, never used by Twinnel.`,
+		toolOpts{openWorld: true}, s.dashboardInstall)
+
 	addTool(s, rpc.TierOperate, "flush_fakeip", "Flush fake-ip cache",
 		`Clears mihomo's fake-ip cache, so names resolve to new fake addresses. Use after rule or DNS changes
 when apps still reach the old destination. Apps holding old fake IPs reconnect. Nothing to undo.`,
@@ -403,4 +421,55 @@ func (s *Server) healthEgressRun(c *call, _ noArgs) (any, error) {
 		}
 	}
 	return map[string]any{"report": hr.Report}, nil
+}
+
+// ---- geo databases and the dashboard ----
+
+type accessoryIn struct {
+	Proxy string `json:"proxy,omitempty" jsonschema:"download route: auto (default), direct, subscription or a proxy URL"`
+	Force bool   `json:"force,omitempty" jsonschema:"download even files that look up to date"`
+}
+
+func (in accessoryIn) params(reload bool) rpc.AccessoryUpdateParams {
+	p := in.Proxy
+	if p == "auto" {
+		p = rpc.ProxyAuto
+	}
+	return rpc.AccessoryUpdateParams{Proxy: p, Force: in.Force, Reload: reload}
+}
+
+func accessorySummary(r rpc.AccessoryUpdateResult) map[string]any {
+	out := map[string]any{"updated": r.Updated, "via": r.Via}
+	if len(r.Skipped) > 0 {
+		out["up_to_date"] = r.Skipped
+	}
+	if r.Reloaded {
+		out["reloaded"] = true
+	}
+	if r.ReloadNeeded {
+		out["reload_needed"] = true
+		if r.ReloadError != "" {
+			out["reload_error"] = r.ReloadError
+		}
+	}
+	if r.Configured {
+		out["external_ui_added"] = true
+	}
+	return out
+}
+
+func (s *Server) geoUpdate(c *call, in accessoryIn) (any, error) {
+	var r rpc.AccessoryUpdateResult
+	if err := c.rpc(rpc.MethodGeoUpdate, in.params(true), &r); err != nil {
+		return nil, err
+	}
+	return accessorySummary(r), nil
+}
+
+func (s *Server) dashboardInstall(c *call, in accessoryIn) (any, error) {
+	var r rpc.AccessoryUpdateResult
+	if err := c.rpc(rpc.MethodUIUpdate, in.params(false), &r); err != nil {
+		return nil, err
+	}
+	return accessorySummary(r), nil
 }

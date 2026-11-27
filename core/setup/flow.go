@@ -21,7 +21,8 @@
 //	              and start the mihomo LaunchDaemon, wait until it answers
 //	dns           point every active network service's DNS at 127.0.0.1
 //	              (the old values are kept and restored on uninstall)
-//	tailscale     install the open-source tailscaled (kept when one exists)
+//	tailscale     install the open-source tailscaled (macOS, Linux) or the
+//	              official client from its MSI (Windows); kept when one exists
 //	login         interactive login: open the URL, wait until Running
 //	health        run the health checks
 package setup
@@ -31,14 +32,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/clilink"
 	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/msg"
 	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 	"github.com/l3ony2k/twinnel/overrides"
 )
 
@@ -90,6 +95,15 @@ const (
 	CodeHealthFail = "health-fail"
 	// CodeUnsupported: the platform lacks this step (marked Skipped).
 	CodeUnsupported = "unsupported"
+	// CodeInstallFailed: the download worked but installing did not (the
+	// Windows installer failed, the new binary does not run, the service
+	// did not start). Another proxy does not help; the error is a coded
+	// message (core/msg) a client words.
+	CodeInstallFailed = "install-failed"
+	// CodeDamaged: an installed program's files are damaged (zeroed by an
+	// interrupted installer, a bad signature). The client offers a repair:
+	// Options.RepairTailscale, then the step again.
+	CodeDamaged = "damaged"
 )
 
 // StepState is a step's progress.
@@ -121,6 +135,9 @@ const (
 	WarnTSOnPath = "tailscale-on-path"
 	// WarnTSLink: the tailscale command could not be linked (Text: why).
 	WarnTSLink = "tailscale-link"
+	// WarnRestart: the Windows installer needs a restart to finish
+	// installing Tailscale.
+	WarnRestart = "restart-needed"
 )
 
 // Options are the user's choices.
@@ -138,6 +155,12 @@ type Options struct {
 	KernelChannel string
 	NoDNS         bool // leave the system DNS alone (mihomo's TUN still hijacks DNS)
 	NoTailscale   bool // no Tailscale install or login
+	// TailscaleInstallOnly installs Tailscale and leaves its service
+	// stopped (the Windows installer starts it); the login is left out.
+	TailscaleInstallOnly bool
+	// RepairTailscale reinstalls a Tailscale install whose files are
+	// damaged (CodeDamaged).
+	RepairTailscale bool
 	// LoginTimeout bounds the wait for the browser login (default 10 min).
 	LoginTimeout time.Duration
 }
@@ -162,6 +185,10 @@ type Env struct {
 	// user's PATH (core/clilink: never over another tailscale) and returns
 	// the link. nil: no link.
 	LinkTailscale func(cli string) (string, error)
+	// SessionLogin starts the Tailscale login from the client's own
+	// process when the helper answers that logins run in the user's
+	// session (Windows; LocalSessionLogin). nil: that login step fails.
+	SessionLogin func(ctx context.Context) error
 	// ImportConfig restores Options.ImportZip: ImportConfig (importcfg.go,
 	// the helper's config.import). nil: an import fails with ErrNoImport.
 	// It reports whether the zip brought a subscription that is now
@@ -245,7 +272,9 @@ func (f *Flow) set(id Step, fn func(*StepState)) {
 	}
 }
 
-// Complete reports whether every step is done or skipped.
+// Complete reports whether every step is done or skipped: nothing is left
+// to run. It does not mean the machine is set up: a skipped step is still
+// missing (AllDone, Remaining).
 func (f *Flow) Complete() bool {
 	for _, s := range f.Steps() {
 		if s.State != Done && s.State != Skipped {
@@ -306,12 +335,48 @@ func (f *Flow) Detect(ctx context.Context) {
 		}
 	}
 	if f.Opts.NoDNS {
-		f.skip(StepDNS, "")
+		f.skip(StepDNS, CodeUserSkipped)
+	} else if f.dnsUnsupported(ctx, hc) {
+		f.skip(StepDNS, CodeUnsupported)
 	}
 	if f.Opts.NoTailscale {
-		f.skip(StepTailscale, "")
-		f.skip(StepLogin, "")
+		f.skip(StepTailscale, CodeUserSkipped)
+		f.skip(StepLogin, CodeUserSkipped)
 	}
+	f.detectHealth(ctx, hc)
+}
+
+// detectHealth judges the health step from the helper's last report
+// (health.last: the helper runs the checks on a timer and after every
+// change), once every other step is done or skipped: a machine that is
+// set up and healthy reads as complete without running the checks again.
+// A report with failed checks marks the step failed, naming them, as a
+// run would; no report yet leaves it pending. While an earlier step is
+// still to do, the flow runs the checks itself at the end.
+func (f *Flow) detectHealth(ctx context.Context, hc Caller) {
+	for _, s := range f.Steps() {
+		if s.ID != StepHealth && s.State != Done && s.State != Skipped {
+			return
+		}
+	}
+	var hr rpc.HealthReport
+	if hc.Call(ctx, rpc.MethodHealthLast, rpc.HealthLastParams{Lang: f.Env.Lang}, &hr) != nil || len(hr.Report) == 0 {
+		return
+	}
+	detail, err := healthOutcome(hr)
+	var se *StepError
+	switch {
+	case err == nil:
+		f.set(StepHealth, func(s *StepState) { s.State, s.Detail, s.Error, s.Code = Done, detail, "", "" })
+	case errors.As(err, &se):
+		f.set(StepHealth, func(s *StepState) { s.State, s.Detail, s.Error, s.Code = Failed, detail, cleanErr(se.Err), se.Code })
+	}
+}
+
+// dnsUnsupported: the helper says this platform cannot set the system DNS.
+func (f *Flow) dnsUnsupported(ctx context.Context, hc Caller) bool {
+	var d rpc.DNSStatus
+	return hc.Call(ctx, rpc.MethodDNSStatus, nil, &d) == nil && !d.Supported
 }
 
 func (f *Flow) skip(id Step, code string) {
@@ -352,7 +417,9 @@ func (f *Flow) detect(ctx context.Context, hc Caller, id Step) (bool, string) {
 			if !d.Supported {
 				return false, ""
 			}
-			return d.Pointed, ""
+			// Pointed by hand before Twinnel (nothing recorded to restore)
+			// is not done: dns.point records automatic for it.
+			return d.Pointed && len(d.Unprotected) == 0, ""
 		}
 	case StepTailscale:
 		var ti rpc.TailscaleInfo
@@ -416,7 +483,7 @@ func (f *Flow) RunStep(ctx context.Context, id Step) error {
 		switch se.Code {
 		case CodeNeedsSubscription:
 			state = Waiting
-		case CodeUnsupported:
+		case CodeUnsupported, CodeUserSkipped:
 			state = Skipped
 		}
 		f.set(id, func(s *StepState) { s.State, s.Error, s.Code, s.Detail = state, cleanErr(se.Err), se.Code, detail })
@@ -548,6 +615,26 @@ func downloadErr(err error) error {
 	return &StepError{Code: CodeDownload, Err: err}
 }
 
+// installCodes are the core/msg codes of failures after the download.
+var installCodes = map[string]bool{
+	"msi-busy": true, "msi-canceled": true, "msi-blocked": true, "msi-other-version": true, "msi-failed": true,
+	"ts-service-down": true, "ts-cli-no-run": true, "mihomo-no-run": true,
+}
+
+// installErr codes a failed kernel.install or tailscale.install: a failure
+// after the download is CodeInstallFailed, anything else a download
+// failure (the client offers another proxy).
+func installErr(err error) error {
+	code := msg.Parse(cleanErr(err)).Code
+	if code == "ts-damaged" {
+		return &StepError{Code: CodeDamaged, Err: err}
+	}
+	if installCodes[code] {
+		return &StepError{Code: CodeInstallFailed, Err: err}
+	}
+	return downloadErr(err)
+}
+
 func (f *Flow) runMihomo(ctx context.Context, hc Caller) (string, error) {
 	var k rpc.KernelList
 	if err := hc.Call(ctx, rpc.MethodKernelList, nil, &k); err == nil && (k.Current != "" || k.External) {
@@ -558,7 +645,7 @@ func (f *Flow) runMihomo(ctx context.Context, hc Caller) (string, error) {
 		if errors.As(err, &re) && re.Code == rpc.CodeInvalidParams {
 			return "", err
 		}
-		return "", downloadErr(err)
+		return "", installErr(err)
 	}
 	// The geo databases: mihomo -t and mihomo itself load them for
 	// GEOIP/GEOSITE rules, and would otherwise download them at start.
@@ -572,9 +659,10 @@ func (f *Flow) runMihomo(ctx context.Context, hc Caller) (string, error) {
 // BaseLayerID is the built-in base settings' override id.
 const BaseLayerID = "base"
 
-// BaseSettings is the built-in base layer (overrides/base-tun-fakeip.yaml).
+// BaseSettings is the built-in base layer (overrides/base-tun-fakeip.yaml)
+// for this OS: tun.stack gvisor on Windows (overrides.Base).
 func BaseSettings() ([]byte, error) {
-	return overrides.Templates.ReadFile("base-tun-fakeip.yaml")
+	return overrides.Base(runtime.GOOS)
 }
 
 func (f *Flow) runConfig(ctx context.Context, hc Caller) (string, error) {
@@ -641,7 +729,7 @@ func (f *Flow) runApply(ctx context.Context, hc Caller) (string, error) {
 			return "", err
 		}
 		if op.DryRun {
-			return "", fail(CodeNotRoot, "the helper is not running as root: the mihomo service was only planned")
+			return "", fail(CodeNotRoot, "the helper is not running %s: the mihomo service was only planned", service.Current().AsAdmin())
 		}
 	} else if !svc.Running {
 		if err := hc.Call(ctx, rpc.MethodServiceStart, rpc.ServiceParams{Name: "mihomo"}, nil); err != nil {
@@ -661,7 +749,7 @@ func (f *Flow) runApply(ctx context.Context, hc Caller) (string, error) {
 
 func (f *Flow) runDNS(ctx context.Context, hc Caller) (string, error) {
 	if f.Opts.NoDNS {
-		return "", &StepError{Code: CodeUnsupported, Err: errors.New("left alone (--no-dns)")}
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("left alone (--no-dns)")}
 	}
 	var d rpc.DNSStatus
 	if err := hc.Call(ctx, rpc.MethodDNSStatus, nil, &d); err != nil {
@@ -670,7 +758,7 @@ func (f *Flow) runDNS(ctx context.Context, hc Caller) (string, error) {
 	if !d.Supported {
 		return "", &StepError{Code: CodeUnsupported, Err: errors.New("setting the system DNS is not supported on this platform yet")}
 	}
-	if d.Pointed {
+	if d.Pointed && len(d.Unprotected) == 0 {
 		return strings.Join(d.Target, ", "), nil
 	}
 	if err := hc.Call(ctx, rpc.MethodDNSPoint, nil, &d); err != nil {
@@ -681,21 +769,30 @@ func (f *Flow) runDNS(ctx context.Context, hc Caller) (string, error) {
 
 func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 	if f.Opts.NoTailscale {
-		return "", &StepError{Code: CodeUnsupported, Err: errors.New("skipped (--no-tailscale)")}
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("skipped (--no-tailscale)")}
 	}
 	var r rpc.TailscaleInstallResult
-	if err := hc.Call(ctx, rpc.MethodTailscaleInstall, rpc.TailscaleInstallParams{Proxy: f.Opts.Proxy}, &r); err != nil {
+	p := rpc.TailscaleInstallParams{Proxy: f.Opts.Proxy, NoStart: f.Opts.TailscaleInstallOnly, Repair: f.Opts.RepairTailscale}
+	if err := hc.Call(ctx, rpc.MethodTailscaleInstall, p, &r); err != nil {
 		var re *rpc.Error
 		if errors.As(err, &re) && (re.Code == rpc.CodeFailed) {
-			return "", downloadErr(err)
+			return "", installErr(err)
 		}
 		return "", err
+	}
+	if r.Repaired {
+		f.mu.Lock()
+		f.Opts.RepairTailscale = false
+		f.mu.Unlock()
+	}
+	if r.RestartNeeded {
+		f.warn(StepTailscale, WarnRestart, "restart the computer to finish installing Tailscale")
 	}
 	if r.UsesSystemVPN {
 		f.warn(StepTailscale, WarnSystemVPN, "the Tailscale app uses the system VPN slot, which conflicts with mihomo's TUN; the open-source tailscaled avoids that")
 	}
 	if r.Service != nil && r.Service.DryRun {
-		return r.Version, fail(CodeNotRoot, "the helper is not running as root: the tailscaled service was only planned")
+		return r.Version, fail(CodeNotRoot, "the helper is not running %s: the tailscaled service was only planned", service.Current().AsAdmin())
 	}
 	if r.Kind == "twinnel" && r.Path != "" && f.Env.LinkTailscale != nil {
 		if _, err := f.Env.LinkTailscale(r.Path); err != nil {
@@ -712,7 +809,10 @@ func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 
 func (f *Flow) runLogin(ctx context.Context, hc Caller) (string, error) {
 	if f.Opts.NoTailscale {
-		return "", &StepError{Code: CodeUnsupported, Err: errors.New("skipped (--no-tailscale)")}
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("skipped (--no-tailscale)")}
+	}
+	if f.Opts.TailscaleInstallOnly {
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("Tailscale was left stopped (install only)")}
 	}
 	state := func(start bool) (rpc.TailscaleLoginResult, error) {
 		var ls rpc.TailscaleLoginResult
@@ -737,7 +837,15 @@ func (f *Flow) runLogin(ctx context.Context, hc Caller) (string, error) {
 		return ls.Tailnet, nil
 	}
 	if ls, err = state(true); err != nil {
-		return "", err
+		var re *rpc.Error
+		if !errors.As(err, &re) || re.Code != rpc.CodeNotImplemented || f.Env.SessionLogin == nil {
+			return "", err
+		}
+		// Windows: the login is the user's, started from this process.
+		if err := f.Env.SessionLogin(ctx); err != nil {
+			return "", fmt.Errorf("tailscale login: %w", err)
+		}
+		ls, err = state(false)
 	}
 	timeout := f.Opts.LoginTimeout
 	if timeout <= 0 {
@@ -766,6 +874,14 @@ func (f *Flow) runLogin(ctx context.Context, hc Caller) (string, error) {
 	return "", errors.New("the login did not finish in time; open the link again and retry")
 }
 
+// LocalSessionLogin is Env.SessionLogin over tailscaled's LocalAPI from
+// this process (the app or the CLI, running as the signed-in user). On
+// Windows the node is put in Unattended Mode, so it stays up after this
+// process exits.
+func LocalSessionLogin(ctx context.Context) error {
+	return tailscale.New(tailscale.LocalAPI(nil), true).LoginInSession(ctx, runtime.GOOS == "windows")
+}
+
 func (f *Flow) runHealth(ctx context.Context, hc Caller) (string, error) {
 	// The coexist layer with the tailnet's peers, now that it is up.
 	var tr rpc.TailnetRefreshResult
@@ -774,6 +890,12 @@ func (f *Flow) runHealth(ctx context.Context, hc Caller) (string, error) {
 	if err := hc.Call(ctx, rpc.MethodHealthRun, rpc.HealthRunParams{Reason: "setup", Lang: f.Env.Lang}, &hr); err != nil {
 		return "", err
 	}
+	return healthOutcome(hr)
+}
+
+// healthOutcome is the health step's result for a report: "ok/total", and
+// CodeHealthFail naming the failed checks.
+func healthOutcome(hr rpc.HealthReport) (string, error) {
 	var rep health.Report
 	if err := json.Unmarshal(hr.Report, &rep); err != nil {
 		return "", fmt.Errorf("health report: %w", err)

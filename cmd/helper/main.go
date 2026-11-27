@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -38,15 +39,19 @@ type options struct {
 	stateDir      string
 	socket        string
 	foreground    bool
+	logLevel      slog.Level
 	group         string
 	tailnetStatus string
 	version       bool
 
-	secrets        string
-	keychain       string
-	tailnetIface   string
-	noHealth       bool
-	noSystemDNS    bool
+	secrets      string
+	keychain     string
+	tailnetIface string
+	noHealth     bool
+	noSystemDNS  bool
+	// noCtlOwner: do not look up who listens on the controller port (a
+	// development stack whose fake controller is not a managed mihomo).
+	noCtlOwner     bool
 	healthInterval time.Duration
 	// allowSIDs (Windows) may use the pipe besides LocalSystem, elevated
 	// administrators and the helper's own user.
@@ -65,6 +70,7 @@ func parseFlags(args []string) (*options, error) {
 	fs.StringVar(&o.stateDir, "state-dir", store.DefaultDir, "state `DIR` (settings, layers, history, kernels)")
 	fs.StringVar(&o.socket, "socket", rpc.DefaultSocket, "unix socket `PATH` (Windows: named pipe) to listen on")
 	fs.BoolVar(&o.foreground, "foreground", false, "log to stderr instead of <state-dir>/logs/helper.log")
+	fs.TextVar(&o.logLevel, "log-level", slog.LevelInfo, "log `LEVEL`: debug (also every read-only call), info, warn or error")
 	fs.StringVar(&o.group, "group", "admin", "`GROUP` whose members may use the helper (besides root and the helper's own user)")
 	fs.StringVar(&o.tailnetStatus, "tailnet-status-file", "", "development: read tailscale status JSON from `FILE` instead of running 'tailscale status --json' (peers for the coexist layer, takeover probe and health checks)")
 	fs.StringVar(&o.secrets, "secrets", "auto", "where secrets live: keychain (macOS), dpapi (Windows: <state-dir>/secrets.dpapi), file (<state-dir>/secrets.json, development) or auto (keychain as root on macOS, dpapi elevated on Windows)")
@@ -72,6 +78,7 @@ func parseFlags(args []string) (*options, error) {
 	fs.StringVar(&o.keychain, "keychain", "", "keychain `FILE` for --secrets keychain (default the System keychain)")
 	fs.StringVar(&o.tailnetIface, "tailnet-iface", "auto", "Tailscale interface for the coexist resolver: auto (route to 100.100.100.100), none, or a `NAME`")
 	fs.BoolVar(&o.noHealth, "no-health", false, "do not run the health checks (health.last/run then fail)")
+	fs.BoolVar(&o.noCtlOwner, "no-controller-owner", false, "development: do not check which program listens on the controller port (a fake controller); a reload refused with SAFE_PATHS still counts as another program's mihomo")
 	fs.BoolVar(&o.noSystemDNS, "no-system-dns", false, "development: do not read or set the system DNS (dns.* report it as unsupported)")
 	fs.DurationVar(&o.healthInterval, "health-interval", 5*time.Minute, "time between scheduled health runs")
 	fs.StringVar(&o.takeoverServices, "takeover-services-dir", "", "development: look for launchd plists only in `DIR` (takeover.plan/adopt)")
@@ -96,6 +103,11 @@ func (l *stringList) Set(v string) error { *l = append(*l, v); return nil }
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "svchost" {
+		if len(os.Args) == 3 && os.Args[2] == "--revision" {
+			// What an upgrade asks a host binary (scm.HostRevision).
+			fmt.Println(svchost.Revision)
+			return
+		}
 		// Windows: host a program that is not a service (mihomo.exe).
 		os.Exit(svchost.Main(os.Args[2:]))
 	}
@@ -181,7 +193,13 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 	if priv.Elevated() {
 		e.ServiceRunner = &engine.ServiceRunner{Exec: platformExecutor(), Files: service.OSFiles{}}
 	}
+	// launchd and systemd write mihomo's output files; twinnel-svchost
+	// rotates its own on Windows.
+	e.RotateServiceLogs = runtime.GOOS != "windows"
 	watch := setupPlatform(e, o)
+	if o.noCtlOwner {
+		e.PortOwner = nil
+	}
 	e.TakeoverDiscover.ConfigPath = o.takeoverConfig
 	e.TakeoverDiscover.MihomoBin = o.takeoverMihomo
 
@@ -196,7 +214,7 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", o.socket, err)
 	}
-	log.Info("helper started", "version", engine.HelperVersion, "pid", os.Getpid(), "uid", os.Getuid(),
+	log.Info("helper started", "version", engine.HelperVersion, "as", rpc.Self(),
 		"state_dir", st.Dir, "socket", o.socket, "group", o.group, "config", settings.Mihomo.ConfigFile)
 	e.Bus.Publish(rpc.EventHelperStarted, map[string]any{"version": engine.HelperVersion, "pid": os.Getpid()})
 
@@ -251,17 +269,17 @@ func newLogger(o *options, st *store.Store) (*slog.Logger, func(), error) {
 	var w io.Writer = os.Stderr
 	closeFn := func() {}
 	if !o.foreground {
-		dir := st.Path("logs")
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		path := engine.HelperLogFile(st)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return nil, nil, err
 		}
-		f, err := os.OpenFile(filepath.Join(dir, "helper.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
 			return nil, nil, err
 		}
 		w, closeFn = f, func() { f.Close() }
 	}
-	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})), closeFn, nil
+	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: o.logLevel})), closeFn, nil
 }
 
 // openSecrets picks the secrets backend. With the keychain, secrets left in

@@ -201,7 +201,8 @@ func (m *Monitor) TestExit() bool {
 	m.mu.Lock()
 	now := m.o.Now()
 	mh := m.snap.Mihomo
-	if !mh.Reachable || !exitTestDue(now, mh.Primary, m.d.exitTry) || m.d.inflight[mh.Primary.Node] != nil {
+	// Never through another program's mihomo (MihomoView).
+	if !m.snap.MihomoLive() || !exitTestDue(now, mh.Primary, m.d.exitTry) || m.d.inflight[mh.Primary.Node] != nil {
 		m.mu.Unlock()
 		return false
 	}

@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/l3ony2k/twinnel/core/sysdns"
 )
 
 // DefaultRegistry returns a registry with all built-in checks, in report order.
@@ -16,7 +20,8 @@ func DefaultRegistry() *Registry {
 	for _, c := range []Check{
 		TailnetRoute{}, TUNExclude{}, TailscaleRules{}, MagicDNS{}, PeerNames{},
 		ResolverBinding{}, FakeIPMode{},
-		SystemDNS{}, VPNConflict{}, LeakGuard{}, LeakEgress{}, Controller{},
+		SystemDNS{}, VPNConflict{}, CompetitorAutostart{}, TUNDataplane{}, LeakGuard{}, LeakEgress{}, ControllerOwnerCheck{}, Controller{},
+		BinaryIntegrity{},
 	} {
 		r.Register(c)
 	}
@@ -80,8 +85,11 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 		return *r
 	}
 	ifs, err := env.Interfaces(ctx)
+	if r, ok := unsupportedErr(ctx, env, err); ok {
+		return r
+	}
 	if err != nil {
-		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "interfaces", err)}
+		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "interfaces", err), Reasons: []string{ReasonReadFailed}}
 	}
 	tsIf := ""
 	for _, a := range ts.TailscaleIPs {
@@ -93,7 +101,7 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 		if !ts.TUN {
 			return skipText(L.msgTSUserspace)
 		}
-		return Result{Status: StatusFail, Summary: L.msgTSNoIface}
+		return Result{Status: StatusFail, Summary: L.msgTSNoIface, Reasons: []string{ReasonRouteNoIface}}
 	}
 	mihomoIf := ""
 	if t, _, err := tunConfig(ctx, env); err == nil && t.Enable {
@@ -125,9 +133,13 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 	var bad []string
 	for _, d := range dests {
 		rl, err := env.RouteGet(ctx, d.String())
+		if r, ok := unsupportedErr(ctx, env, err); ok {
+			return r
+		}
 		if err != nil {
 			res.Evidence = append(res.Evidence, fmt.Sprintf("%s → %v", d, err))
 			res.Status = Worse(res.Status, StatusWarn)
+			res.because(ReasonRouteLookup)
 			continue
 		}
 		line := fmt.Sprintf("%s → %s", d, rl.Interface)
@@ -139,9 +151,11 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 		case mihomoIf != "" && rl.Interface == mihomoIf:
 			line += "  ← " + L.evIntoMihomo
 			bad = append(bad, d.String())
+			res.because(ReasonRouteIntoMihomo)
 		default:
 			line += "  ← " + L.evNotTS
 			bad = append(bad, d.String())
+			res.because(ReasonRouteElsewhere)
 		}
 		res.Evidence = append(res.Evidence, line)
 	}
@@ -156,6 +170,7 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgRouteBad, strings.Join(bad, ", "))
 		res.Fix = &FixHint{Text: L.fixRouteBad, AutoFix: FixCoexist}
+		res.Reasons = removeReason(res.Reasons, ReasonRouteLookup)
 	}
 	return res
 }
@@ -181,7 +196,7 @@ func (TUNExclude) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	t, src, err := tunConfig(ctx, env)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	if !t.Enable {
 		return skipText(L.msgTUNOff)
@@ -200,6 +215,7 @@ func (TUNExclude) Run(ctx context.Context, env Env) Result {
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgExcludeMissing, strings.Join(missing, ", "))
 		res.Fix = &FixHint{Text: L.fixExclude, AutoFix: FixCoexist}
+		res.because(ReasonExcludeMissing)
 	}
 	return res
 }
@@ -219,7 +235,7 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	rules, src, err := mihomoRules(ctx, env)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	// Rules only apply in rule mode: global sends everything to GLOBAL,
 	// direct sends everything DIRECT.
@@ -232,7 +248,8 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 			final := ch[len(ch)-1]
 			if final != "DIRECT" {
 				return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgRulesGlobal, final),
-					Evidence: []string{strings.Join(ch, " → ")}, Fix: &FixHint{Text: L.fixRulesGlobal}}
+					Evidence: []string{strings.Join(ch, " → ")}, Fix: &FixHint{Text: L.fixRulesGlobal, AutoFix: FixModeRule},
+					Reasons: []string{ReasonRulesGlobal}}
 			}
 			return Result{Status: StatusOK, Summary: L.msgRulesDirect, Evidence: []string{strings.Join(ch, " → ")}}
 		}
@@ -276,10 +293,12 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgRulesBad, strings.Join(bad, ", "))
 		res.Fix = &FixHint{Text: L.fixRules, AutoFix: FixCoexist}
+		res.because(ReasonRulesNotDirect)
 	case len(risky) > 0:
 		res.Status = StatusWarn
 		res.Summary = fmt.Sprintf(L.msgRulesRisky, strings.Join(risky, ", "))
 		res.Fix = &FixHint{Text: L.fixRules, AutoFix: FixCoexist}
+		res.because(ReasonRulesShadowed)
 	}
 	return res
 }
@@ -343,6 +362,7 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 
 	res := Result{Status: StatusOK, Summary: L.msgMagicOK}
 	var sysFail, mihomoFake, mihomoNoAnswer []string
+	noResolver := false
 	for i, nm := range names {
 		sys, err := found[i].sys, found[i].sysErr
 		switch {
@@ -401,6 +421,7 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evResolverCfg, ts.MagicDNSSuffix, yesNo(L, suffixOK), reverse))
 		if !suffixOK {
 			sysFail = append(sysFail, ts.MagicDNSSuffix+" resolver")
+			noResolver = true
 		}
 	}
 	if cfg != nil {
@@ -415,7 +436,14 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 	case len(sysFail) > 0:
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgMagicSysFail, strings.Join(uniq(sysFail), ", "))
-		res.Fix = &FixHint{Text: L.fixMagicSys}
+		res.Fix = &FixHint{Text: L.fixMagicSys, AutoFix: FixCoexist}
+		if noResolver {
+			res.because(ReasonMagicNoResolver)
+			res.Fix.AutoFix = ""
+		}
+		if len(sysFail) > 1 || !noResolver {
+			res.because(ReasonMagicSystem)
+		}
 	case len(mihomoFake) > 0 || len(mihomoNoAnswer) > 0:
 		res.Status = StatusWarn
 		var parts []string
@@ -437,6 +465,7 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 			}
 		}
 		res.Fix = &FixHint{Text: fix, AutoFix: FixCoexist}
+		res.because(ReasonMagicMihomo)
 	}
 	return res
 }
@@ -498,7 +527,7 @@ func (PeerNames) Run(ctx context.Context, env Env) Result {
 	}
 	rules, src, err := mihomoRules(ctx, env)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	inRules := map[string]bool{}
 	for _, ru := range rules {
@@ -533,6 +562,7 @@ func (PeerNames) Run(ctx context.Context, env Env) Result {
 		res.Status = StatusWarn
 		res.Summary = L.msgNamesNone
 		res.Fix = &FixHint{Text: L.fixNames, AutoFix: FixCoexist}
+		res.because(ReasonNamesNone)
 		return res
 	}
 	if len(missing) > 0 || len(stale) > 0 {
@@ -546,6 +576,7 @@ func (PeerNames) Run(ctx context.Context, env Env) Result {
 		}
 		res.Summary = strings.Join(parts, "；")
 		res.Fix = &FixHint{Text: L.fixNames, AutoFix: FixCoexist}
+		res.because(ReasonNamesOutdated)
 	}
 	return res
 }
@@ -561,7 +592,22 @@ func sortedKeys(m map[string]bool) []string {
 
 // ---------------------------------------------------------------------------
 
-// SystemDNS: every active network service resolves through mihomo.
+// ConnectedDevices are the interfaces whose link carries traffic now
+// (sysdns.LinkConnected): a network service counts for the system-dns
+// verdict only while it is enabled and its device is one of them, the
+// same rule dns.status applies (sysdns.Counted).
+func ConnectedDevices(ctx context.Context, env Env) map[string]bool {
+	ifs, _ := env.Interfaces(ctx)
+	out := map[string]bool{}
+	for _, i := range ifs {
+		if sysdns.LinkConnected(i.Up, i.Active, i.Addrs) {
+			out[i.Name] = true
+		}
+	}
+	return out
+}
+
+// SystemDNS: every connected network service resolves through mihomo.
 type SystemDNS struct{}
 
 func (SystemDNS) ID() string            { return "system-dns" }
@@ -571,36 +617,32 @@ func (SystemDNS) Platforms() []string   { return AllPlatforms }
 
 func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
+	G := dnsGuardFor(L)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	if !cfg.DNS.Enable {
 		return skipText(L.msgMihomoDNSOff)
 	}
 	listen := hostOf(cfg.DNS.Listen)
-	want := map[string]bool{listen: true}
-	if listen == "0.0.0.0" || listen == "" || listen == "::" {
-		want["127.0.0.1"] = true
-	}
+	// The one definition of "resolves through mihomo" (core/sysdns), the
+	// same the helper's dns.point and its DNS watchdog use.
+	mihomo := sysdns.MihomoAddrs(listen, env.Platform())
 	tun, _, _ := tunConfig(ctx, env)
 	hijack := hijacksAll53(tun)
+	guard := dnsGuard(ctx, env)
 
 	svcs, err := env.NetworkServices(ctx)
+	if r, ok := unsupportedErr(ctx, env, err); ok {
+		return r
+	}
 	if err != nil {
-		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "network services", err)}
+		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "network services", err), Reasons: []string{ReasonReadFailed}}
 	}
-	ifs, _ := env.Interfaces(ctx)
-	active := map[string]bool{}
-	for _, i := range ifs {
-		if i.Up && i.Active {
-			for _, a := range i.Addrs {
-				if a.Is4() && !a.IsLinkLocalUnicast() {
-					active[i.Name] = true
-				}
-			}
-		}
-	}
+	// Only connected services count: the one rule dns.status and the
+	// setup share (sysdns.LinkConnected, ConnectedDevices).
+	active := ConnectedDevices(ctx, env)
 	// The default resolver shows what DHCP handed out for services without
 	// manual DNS.
 	var defaultNS []string
@@ -617,7 +659,7 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	if strings.TrimSpace(cfg.DNS.Listen) == "" {
 		res.Summary = L.msgDNSOKNoListen
 	}
-	var bad, viaHijack []string
+	var bad, viaHijack, pointed, restored []string
 	nActive := 0
 	for _, s := range svcs {
 		if s.Device == "" {
@@ -632,15 +674,20 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 		if len(servers) == 0 {
 			servers = defaultNS
 		}
-		ok := len(servers) > 0
-		for _, ns := range servers {
-			if !want[ns] {
-				ok = false
-			}
-		}
 		line := fmt.Sprintf(L.evSvc, s.Name, s.Device, strings.Join(servers, ", "), how)
-		if ok {
+		if sysdns.PointsAt(servers, mihomo) {
+			pointed = append(pointed, s.Name)
+			if guard != nil && slices.Contains(guard.Unprotected, s.Name) {
+				line += "  ← " + G.evNoBackup
+			}
 			res.Evidence = append(res.Evidence, line)
+			continue
+		}
+		if guard != nil && slices.Contains(guard.Restored, s.Name) {
+			// Off mihomo on purpose: the watchdog put the earlier DNS back
+			// while mihomo does not answer, and points it back later.
+			res.Evidence = append(res.Evidence, line+"  ← "+G.evRestored)
+			restored = append(restored, s.Name)
 			continue
 		}
 		// Not pointing at mihomo: dns-hijack only catches queries that enter
@@ -665,16 +712,54 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	if len(defaultNS) > 0 {
 		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evDefaultResolver, strings.Join(defaultNS, ", ")))
 	}
-	switch {
-	case len(bad) > 0:
-		res.Status = StatusFail
-		res.Summary = fmt.Sprintf(L.msgDNSBad, strings.Join(bad, ", "))
-		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: FixSystemDNS}
-	case len(viaHijack) > 0:
-		res.Status = StatusWarn
-		res.Summary = fmt.Sprintf(L.msgDNSHijack, strings.Join(viaHijack, ", "))
-		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: FixSystemDNS}
-	case nActive == 0:
+	var unprotected []string
+	if guard != nil {
+		for _, n := range pointed {
+			if slices.Contains(guard.Unprotected, n) {
+				unprotected = append(unprotected, n)
+			}
+		}
+	}
+	// Only asked when something depends on mihomo's DNS.
+	down := (len(pointed) > 0 || len(restored) > 0) && mihomoDown(ctx, env)
+
+	// Reasons in order of weight; the first one sets the summary and fix.
+	set := func(st Status, summary string, fix *FixHint, reason string) {
+		if res.Reasons == nil {
+			res.Summary, res.Fix = summary, fix
+		}
+		res.Status = Worse(res.Status, st)
+		res.because(reason)
+	}
+	restart := &FixHint{Text: G.fixRestart, AutoFix: FixRestartMihomo}
+	pointFix := &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: FixSystemDNS}
+	if len(pointed) > 0 && down {
+		// Every lookup on the machine goes to a resolver that is gone.
+		set(StatusFail, fmt.Sprintf(G.msgDown, strings.Join(pointed, ", ")), restart, ReasonDNSMihomoDown)
+		if len(unprotected) == 0 && guard != nil {
+			res.Evidence = append(res.Evidence, G.evWatchdogWill)
+		}
+	}
+	if len(bad) > 0 {
+		set(StatusFail, fmt.Sprintf(L.msgDNSBad, strings.Join(bad, ", ")), pointFix, ReasonDNSNotMihomo)
+	}
+	if len(restored) > 0 {
+		st, msg := StatusWarn, G.msgRestoredBack
+		if down {
+			st, msg = StatusFail, G.msgRestored
+		}
+		set(st, fmt.Sprintf(msg, strings.Join(restored, ", ")), restart, ReasonDNSRestored)
+	}
+	if len(viaHijack) > 0 {
+		set(StatusWarn, fmt.Sprintf(L.msgDNSHijack, strings.Join(viaHijack, ", ")), pointFix, ReasonDNSViaHijack)
+	}
+	if len(unprotected) > 0 {
+		// Nothing recorded to put back: when mihomo stops, the watchdog
+		// cannot restore these and the machine loses DNS.
+		set(StatusWarn, fmt.Sprintf(G.msgNoBackup, strings.Join(unprotected, ", ")),
+			&FixHint{Text: G.fixBackup, AutoFix: FixDNSBackup}, ReasonDNSNoBackup)
+	}
+	if res.Reasons == nil && nActive == 0 {
 		// Offline: nothing to check, nothing to fix here.
 		res.Status = StatusSkip
 		res.Summary = L.msgDNSNoActive
@@ -732,11 +817,15 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 		res.Status = Worse(res.Status, s)
 		problems = append(problems, msg)
 		res.Causes = append(res.Causes, cause)
+		res.because(causeReason[cause])
 	}
 
-	if vpns, err := env.VPNs(ctx); err != nil {
+	if vpns, err := env.VPNs(ctx); errors.Is(err, ErrNotSupported) {
+		// No VPN list on this platform: the routes below still tell.
+	} else if err != nil {
 		res.Evidence = append(res.Evidence, fmt.Sprintf(L.msgReadFailed, "VPN list", err))
 		res.Status = Worse(res.Status, StatusWarn)
+		res.because(ReasonReadFailed)
 	} else {
 		for _, v := range vpns {
 			line := fmt.Sprintf("%s [%s] %s", v.Name, v.BundleID, v.Status)
@@ -892,7 +981,7 @@ func (LeakGuard) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	rt, err := env.MihomoRuntime(ctx)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	groups := env.Settings().SensitiveGroups
 	if len(groups) == 0 {
@@ -902,12 +991,15 @@ func (LeakGuard) Run(ctx context.Context, env Env) Result {
 	var fails, warns []string
 	if rt.Configs.Mode == "global" || rt.Configs.Mode == "direct" {
 		fails = append(fails, fmt.Sprintf(L.msgLeakMode, rt.Configs.Mode))
+		res.because(ReasonLeakMode)
 	}
+	var leaky []string // the groups leak guard's override should cover
 	for _, g := range groups {
 		p, ok := rt.Proxies[g]
 		if !ok || !p.IsGroup() {
 			warns = append(warns, fmt.Sprintf(L.msgLeakNoGroup, g))
 			res.Evidence = append(res.Evidence, fmt.Sprintf(L.msgLeakNoGroup, g))
+			res.because(ReasonLeakNoGroup)
 			continue
 		}
 		// Follow the current selection down to a real proxy.
@@ -918,11 +1010,17 @@ func (LeakGuard) Run(ctx context.Context, env Env) Result {
 		if final == "DIRECT" || cur.Type == "Direct" {
 			line += "  ← " + L.evLeakDirect
 			fails = append(fails, fmt.Sprintf(L.msgLeakSelected, g))
+			res.because(ReasonLeakSelected)
+			leaky = append(leaky, g)
 		}
 		res.Evidence = append(res.Evidence, line)
 
 		// Can the group reach DIRECT, automatically or by selection?
 		auto, manual := directPaths(rt.Proxies, g, map[string]bool{})
+		if len(auto)+len(manual) > 0 {
+			res.because(ReasonLeakMayGo)
+			leaky = append(leaky, g)
+		}
 		for _, a := range auto {
 			fails = append(fails, fmt.Sprintf(L.msgLeakAuto, g, a))
 			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evLeakAuto, a))
@@ -936,11 +1034,11 @@ func (LeakGuard) Run(ctx context.Context, env Env) Result {
 	case len(fails) > 0:
 		res.Status = StatusFail
 		res.Summary = strings.Join(append(fails, warns...), "；")
-		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: FixLeakGuard}
+		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: FixLeakGuard, Param: strings.Join(uniq(leaky), ",")}
 	case len(warns) > 0:
 		res.Status = StatusWarn
 		res.Summary = strings.Join(warns, "；")
-		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: FixLeakGuard}
+		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: FixLeakGuard, Param: strings.Join(uniq(leaky), ",")}
 	}
 	return res
 }
@@ -995,7 +1093,7 @@ func (Controller) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	if cfg.ExternalController == "" {
 		return Result{Status: StatusOK, Summary: L.msgCtlDisabled}
@@ -1009,10 +1107,12 @@ func (Controller) Run(ctx context.Context, env Env) Result {
 	if !isLoopbackHost(host) {
 		res.Status = StatusFail
 		problems = append(problems, fmt.Sprintf(L.msgCtlExposed, host))
+		res.because(ReasonCtlExposed)
 	}
 	if !cfg.SecretSet {
 		res.Status = Worse(res.Status, StatusWarn)
 		problems = append(problems, L.msgCtlNoSecret)
+		res.because(ReasonCtlNoSecret)
 	}
 	if rt, err := env.MihomoRuntime(ctx); err == nil && !rt.AuthUsed {
 		res.Evidence = append(res.Evidence, L.evCtlNoAuth)
@@ -1020,6 +1120,9 @@ func (Controller) Run(ctx context.Context, env Env) Result {
 	if len(problems) > 0 {
 		res.Summary = strings.Join(problems, "；")
 		res.Fix = &FixHint{Text: L.fixCtl, AutoFix: FixController}
+		if _, port, err := net.SplitHostPort(cfg.ExternalController); err == nil {
+			res.Fix.Param = port
+		}
 	}
 	return res
 }

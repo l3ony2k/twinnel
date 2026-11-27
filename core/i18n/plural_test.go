@@ -78,3 +78,25 @@ func walkTable(v reflect.Value, path string, fn func(path, s string)) {
 		}
 	}
 }
+
+// A Chinese value drops the template's space on its Chinese sides; a
+// Latin value keeps it.
+func TestFSpacesNames(t *testing.T) {
+	for _, c := range []struct {
+		format string
+		args   []any
+		want   string
+	}{
+		{"%s 被 %s 占用", []any{"127.0.0.1:9090", "另一个 mihomo"}, "127.0.0.1:9090 被另一个 mihomo 占用"},
+		{"%s 被 %s 占用", []any{"127.0.0.1:9090", "Clash Party"}, "127.0.0.1:9090 被 Clash Party 占用"},
+		{"退出 %s（并关掉它的开机自启）", []any{"另一个 mihomo"}, "退出另一个 mihomo（并关掉它的开机自启）"},
+		{"在 %s 里", []any{"设置"}, "在设置里"},
+		{"%s 在运行", []any{"后台助手"}, "后台助手在运行"},
+		{"Quit %s now", []any{"另一个"}, "Quit 另一个 now"},
+		{"%d 项：%s", []any{3, "甲"}, "3 项：甲"},
+	} {
+		if got := F(c.format, c.args...); got != c.want {
+			t.Errorf("F(%q, %v) = %q, want %q", c.format, c.args, got, c.want)
+		}
+	}
+}

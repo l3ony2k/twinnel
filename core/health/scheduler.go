@@ -166,7 +166,7 @@ func (s *Scheduler) UseLang(tag string) bool {
 	if tag == "" {
 		return false
 	}
-	tag = LangOf(WithLang(context.Background(), tag))
+	tag = MatchLang(tag)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lang = tag

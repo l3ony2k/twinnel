@@ -19,6 +19,7 @@ func (e *Engine) Register(s *rpc.Server) {
 		return e.RestartHelper()
 	})
 
+	rpc.Typed(s, rpc.MethodComposeStatus, func(ctx context.Context, _ rpc.Empty) (rpc.ComposeStatus, error) { return e.ComposeStatus(ctx) })
 	rpc.Typed(s, rpc.MethodComposePreview, func(ctx context.Context, _ rpc.Empty) (rpc.ComposeResult, error) { return e.Preview(ctx) })
 	rpc.Typed(s, rpc.MethodComposeApply, func(ctx context.Context, p rpc.ApplyParams) (*rpc.ApplyResult, error) {
 		// No reason: Apply records the code "apply" (a client words it).
@@ -81,6 +82,7 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodTailscaleInfo, func(ctx context.Context, _ rpc.Empty) (rpc.TailscaleInfo, error) {
 		return e.TailscaleInfo(ctx), nil
 	})
+	rpc.Typed(s, rpc.MethodServiceLog, func(_ context.Context, p rpc.ServiceLogParams) (rpc.ServiceLog, error) { return e.ServiceLog(p) })
 	rpc.Typed(s, rpc.MethodServiceStatus, func(ctx context.Context, p rpc.ServiceParams) (rpc.ServiceStatus, error) {
 		return e.ServiceStatus(ctx, p.Name)
 	})
@@ -95,11 +97,17 @@ func (e *Engine) Register(s *rpc.Server) {
 		})
 	}
 
-	rpc.Typed(s, rpc.MethodGeoCheck, func(ctx context.Context, _ rpc.Empty) (rpc.AccessoryCheck, error) { return e.GeoCheck(ctx) })
+	rpc.Typed(s, rpc.MethodGeoStatus, func(context.Context, rpc.Empty) (rpc.AccessoryCheck, error) { return e.GeoStatus() })
+	rpc.Typed(s, rpc.MethodGeoCheck, func(ctx context.Context, p rpc.AccessoryCheckParams) (rpc.AccessoryCheck, error) {
+		return e.GeoCheck(ctx, p)
+	})
 	rpc.Typed(s, rpc.MethodGeoUpdate, func(ctx context.Context, p rpc.AccessoryUpdateParams) (rpc.AccessoryUpdateResult, error) {
 		return e.GeoUpdate(ctx, p)
 	})
-	rpc.Typed(s, rpc.MethodUICheck, func(ctx context.Context, _ rpc.Empty) (rpc.AccessoryCheck, error) { return e.UICheck(ctx) })
+	rpc.Typed(s, rpc.MethodUIStatus, func(context.Context, rpc.Empty) (rpc.AccessoryCheck, error) { return e.UIStatus() })
+	rpc.Typed(s, rpc.MethodUICheck, func(ctx context.Context, p rpc.AccessoryCheckParams) (rpc.AccessoryCheck, error) {
+		return e.UICheck(ctx, p)
+	})
 	rpc.Typed(s, rpc.MethodUIUpdate, func(ctx context.Context, p rpc.AccessoryUpdateParams) (rpc.AccessoryUpdateResult, error) {
 		return e.UIUpdate(ctx, p)
 	})
@@ -132,6 +140,9 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodControllerSecure, func(ctx context.Context, _ rpc.Empty) (rpc.ControllerSecureResult, error) {
 		return e.SecureController(ctx)
 	})
+	rpc.Typed(s, rpc.MethodControllerMove, func(ctx context.Context, p rpc.ControllerMoveParams) (rpc.ControllerMoveResult, error) {
+		return e.MoveController(ctx, p)
+	})
 	rpc.Typed(s, rpc.MethodHardenPlan, func(ctx context.Context, p rpc.HardenPlanParams) (rpc.HardenPlan, error) {
 		return e.HardenPlan(ctx, p)
 	})
@@ -144,11 +155,16 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodDNSStatus, func(ctx context.Context, _ rpc.Empty) (rpc.DNSStatus, error) { return e.DNSStatus(ctx) })
 	rpc.Typed(s, rpc.MethodDNSPoint, func(ctx context.Context, _ rpc.Empty) (rpc.DNSStatus, error) { return e.DNSPoint(ctx) })
 	rpc.Typed(s, rpc.MethodDNSRestore, func(ctx context.Context, _ rpc.Empty) (rpc.DNSStatus, error) { return e.DNSRestore(ctx) })
+	rpc.Typed(s, rpc.MethodDNSBackup, func(ctx context.Context, _ rpc.Empty) (rpc.DNSStatus, error) { return e.DNSBackup(ctx) })
 	rpc.Typed(s, rpc.MethodTailscaleInstall, func(ctx context.Context, p rpc.TailscaleInstallParams) (rpc.TailscaleInstallResult, error) {
 		return e.TailscaleInstall(ctx, p)
 	})
 	rpc.Typed(s, rpc.MethodTailscaleLogin, func(ctx context.Context, p rpc.TailscaleLoginParams) (rpc.TailscaleLoginResult, error) {
 		return e.TailscaleLogin(ctx, p)
+	})
+	rpc.Typed(s, rpc.MethodAutostartList, func(ctx context.Context, _ rpc.Empty) (rpc.AutostartList, error) { return e.AutostartList(ctx), nil })
+	rpc.Typed(s, rpc.MethodAutostartChange, func(ctx context.Context, p rpc.AutostartChangeParams) (rpc.AutostartChangeResult, error) {
+		return e.AutostartChange(ctx, p)
 	})
 	e.registerCredentials(s)
 	e.registerAgent(s)

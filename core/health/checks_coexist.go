@@ -3,10 +3,13 @@ package health
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
+	neturl "net/url"
 	"sort"
 	"strings"
+	"time"
 )
 
 // ResolverBinding: when mihomo binds its own sockets to the physical
@@ -25,7 +28,7 @@ func (ResolverBinding) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	if !cfg.DNS.Enable {
 		return skipText(L.msgMihomoDNSOff)
@@ -109,8 +112,10 @@ func (ResolverBinding) Run(ctx context.Context, env Env) Result {
 	switch {
 	case len(stale) > 0:
 		res.Status, res.Summary, res.Fix = StatusWarn, fmt.Sprintf(L.msgBindStale, staleIface, current), fix
+		res.because(ReasonBindStale)
 	case len(unbound) > 0 && hosts == 0:
 		res.Status, res.Summary, res.Fix = StatusWarn, L.msgBindMissing, fix
+		res.because(ReasonBindMissing)
 	case len(unbound) > 0:
 		res.Summary = L.msgBindHostsOnly
 	default:
@@ -181,7 +186,7 @@ func (FakeIPMode) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	if !cfg.DNS.Enable || !strings.EqualFold(cfg.DNS.EnhancedMode, "fake-ip") {
 		return skipText(L.msgFakeIPNotUsed)
@@ -206,7 +211,8 @@ func (FakeIPMode) Run(ctx context.Context, env Env) Result {
 	default:
 		res.Status = StatusWarn
 		res.Summary = fmt.Sprintf(L.msgWildcardBad, mode)
-		res.Fix = &FixHint{Text: L.fixWildcard, AutoFix: FixCoexist}
+		res.Fix = &FixHint{Text: L.fixWildcard}
+		res.because(ReasonFakeIPWildcard)
 	}
 	return res
 }
@@ -226,6 +232,9 @@ func (LeakEgress) Platforms() []string   { return AllPlatforms }
 func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	s := env.Settings()
+	if !egressSupported(env) {
+		return unsupported(L, env.Platform())
+	}
 	if !s.Egress {
 		r := skipText(L.msgEgressOff)
 		r.Fix = &FixHint{Text: L.fixEgressProbe, AutoFix: FixEgressProbe}
@@ -233,24 +242,24 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	}
 	ee, ok := env.(EgressEnv)
 	if !ok {
-		return skip(L.msgEgressErr, ErrNotSupported)
+		return unsupported(L, env.Platform())
 	}
-	url := s.EgressURL
-	if url == "" {
-		url = DefaultEgressURL
-	}
-	res := Result{Status: StatusOK, Evidence: []string{fmt.Sprintf(L.evEgressURL, url)}}
+	urls := s.EgressEndpoints()
+	res := Result{Status: StatusOK, Evidence: []string{fmt.Sprintf(L.evEgressURL, strings.Join(egressHosts(urls), ", "))}}
 	// Direct baseline: the echo fetched on the physical interface, plus the
 	// public endpoints tailscaled found by STUN (tailscaled goes DIRECT, and
 	// this costs no traffic). Either is enough.
 	direct := map[netip.Addr]bool{}
 	ips := &EgressIPs{}
 	res.Egress = ips
-	d, derr := ee.DirectEgress(ctx, url)
+	d, dURL, derr := tryEgress(ctx, urls, egressDirectBudget, func(ctx context.Context, u string) (egressAnswer, error) {
+		a, err := ee.DirectEgress(ctx, u)
+		return egressAnswer{ip: a}, err
+	})
 	if derr == nil {
-		direct[d] = true
-		ips.Direct = d
-		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressDirect, MaskIP(d)))
+		direct[d.ip] = true
+		ips.Direct = d.ip
+		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressDirect, MaskIP(d.ip), egressHost(dURL)))
 	} else {
 		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressDirectErr, derr))
 	}
@@ -267,12 +276,26 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	// No baseline means the network itself could not reach the echo:
 	// nothing to compare and nothing Twinnel or the config can fix.
 	if len(direct) == 0 {
+		if r, ok := unsupportedErr(ctx, env, derr); ok {
+			r.Evidence = res.Evidence
+			return r
+		}
 		res.Status, res.Summary = StatusSkip, fmt.Sprintf(L.msgEgressErr, derr)
 		return res
 	}
-	prox, chain, err := ee.ProxiedEgress(ctx, url)
+	pa, pURL, err := tryEgress(ctx, urls, egressProxiedBudget, func(ctx context.Context, u string) (egressAnswer, error) {
+		a, chain, err := ee.ProxiedEgress(ctx, u)
+		return egressAnswer{ip: a, chain: chain}, err
+	})
+	prox, chain := pa.ip, pa.chain
+	if r, ok := unsupportedErr(ctx, env, err); ok {
+		r.Evidence = res.Evidence
+		return r
+	}
 	if err != nil {
 		res.Status, res.Summary = StatusWarn, fmt.Sprintf(L.msgEgressErr, err)
+		res.Fix = &FixHint{Text: L.fixEgressProbe, AutoFix: FixEgressProbe}
+		res.because(ReasonEgressFailed)
 		return res
 	}
 	leaf := "?"
@@ -287,7 +310,7 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	for i, c := range chain {
 		path[len(chain)-1-i] = c
 	}
-	res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressProxied, MaskIP(prox), strings.Join(path, " → ")))
+	res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressProxied, MaskIP(prox), strings.Join(path, " → "), egressHost(pURL)))
 	if leaf == "DIRECT" {
 		res.Status, res.Summary = StatusSkip, L.msgEgressDirectPath
 		return res
@@ -295,12 +318,13 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	if direct[prox] {
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgEgressSame, leaf)
-		res.Fix = &FixHint{Text: L.fixEgress}
+		res.Fix = &FixHint{Text: L.fixEgress, Param: egressGroup(ctx, env, leaf)}
+		res.because(ReasonEgressSame)
 		return res
 	}
 	rt, err := env.MihomoRuntime(ctx)
 	if err != nil {
-		r := skipErr(L.msgMihomoUnavailable, err)
+		r := skipMihomo(ctx, err)
 		r.Egress = ips
 		return r
 	}
@@ -319,6 +343,68 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	}
 	res.Summary = fmt.Sprintf(L.msgEgressOK, strings.Join(measured, ", "))
 	return res
+}
+
+// The egress test's time limits. A scheduled health run gives a check
+// 15 s: the direct path may spend egressDirectBudget (in mainland China
+// the first endpoint times out there), the proxied one egressProxiedBudget,
+// each endpoint at most egressAttempt.
+const (
+	egressAttempt       = 3500 * time.Millisecond
+	egressDirectBudget  = 7 * time.Second
+	egressProxiedBudget = 6 * time.Second
+)
+
+// egressAnswer is what one path's echo returned.
+type egressAnswer struct {
+	ip    netip.Addr
+	chain []string
+}
+
+// tryEgress asks the endpoints in order, each for at most egressAttempt
+// and all within budget, and returns the first answer and the endpoint
+// that gave it. An ErrNotSupported or a cancelled ctx ends it at once;
+// otherwise the error lists every endpoint's failure.
+func tryEgress(ctx context.Context, urls []string, budget time.Duration, f func(context.Context, string) (egressAnswer, error)) (egressAnswer, string, error) {
+	ctx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+	var errs []string
+	for _, u := range urls {
+		if ctx.Err() != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", egressHost(u), ctx.Err()))
+			break
+		}
+		actx, acancel := context.WithTimeout(ctx, egressAttempt)
+		a, err := f(actx, u)
+		acancel()
+		if err == nil {
+			return a, u, nil
+		}
+		if errors.Is(err, ErrNotSupported) {
+			return egressAnswer{}, "", err
+		}
+		errs = append(errs, fmt.Sprintf("%s: %v", egressHost(u), err))
+	}
+	if len(errs) == 0 {
+		return egressAnswer{}, "", errors.New("no egress test URL")
+	}
+	return egressAnswer{}, "", errors.New(strings.Join(errs, "; "))
+}
+
+// egressHost is the host[:port] of an echo URL, as reports name it.
+func egressHost(u string) string {
+	if p, err := neturl.Parse(u); err == nil && p.Host != "" {
+		return p.Host
+	}
+	return u
+}
+
+func egressHosts(urls []string) []string {
+	out := make([]string, len(urls))
+	for i, u := range urls {
+		out[i] = egressHost(u)
+	}
+	return out
 }
 
 // publicAddr reports whether a is a global address that can be a public
@@ -368,8 +454,11 @@ func MaskIP(a netip.Addr) string {
 	return fmt.Sprintf("%x:%x::x", uint16(b[0])<<8|uint16(b[1]), uint16(b[2])<<8|uint16(b[3]))
 }
 
-// ParseEgressBody extracts the client IP from an IP-echo response: either a
-// Cloudflare trace ("ip=203.0.113.7" line) or a body that is just the IP.
+// ParseEgressBody extracts the client IP from an IP-echo response: a
+// Cloudflare trace ("ip=203.0.113.7" line), a body that is just the IP, or
+// a short text that names one ("Current IP Address: 203.0.113.7",
+// "当前 IP：203.0.113.7  来自于：…"): the first word that is a whole
+// address.
 func ParseEgressBody(body string) (netip.Addr, error) {
 	sc := bufio.NewScanner(strings.NewReader(body))
 	for sc.Scan() {
@@ -381,5 +470,38 @@ func ParseEgressBody(body string) (netip.Addr, error) {
 	if a, err := netip.ParseAddr(strings.TrimSpace(body)); err == nil {
 		return a, nil
 	}
+	if len(body) <= 4<<10 { // an echo, not a page
+		for _, w := range strings.FieldsFunc(body, notAddrRune) {
+			if a, err := netip.ParseAddr(w); err == nil && (a.Is4() || strings.Count(w, ":") >= 2) && !a.IsUnspecified() {
+				return a, nil
+			}
+		}
+	}
 	return netip.Addr{}, fmt.Errorf("no IP in the echo response")
+}
+
+// notAddrRune: r cannot be part of an IPv4/IPv6 address.
+func notAddrRune(r rune) bool {
+	switch {
+	case r >= '0' && r <= '9', r >= 'a' && r <= 'f', r >= 'A' && r <= 'F', r == '.', r == ':':
+		return false
+	}
+	return true
+}
+
+// egressGroup is the sensitive group whose current node is leaf (the one
+// to pick another node for), else the first sensitive group.
+func egressGroup(ctx context.Context, env Env, leaf string) string {
+	groups := env.Settings().SensitiveGroups
+	if rt, err := env.MihomoRuntime(ctx); err == nil {
+		for _, g := range groups {
+			if ch := followNow(rt.Proxies, g); ch[len(ch)-1] == leaf {
+				return g
+			}
+		}
+	}
+	if len(groups) > 0 {
+		return groups[0]
+	}
+	return ""
 }

@@ -7,6 +7,8 @@ package i18n
 import (
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Strings is the full set of UI texts. Fields, not map keys, so that a
@@ -194,6 +196,7 @@ type Strings struct {
 	GeoTitle, UITitle, AccessoryDir, AccessoryForce                                                  string
 	AccessoryUpdate, AccessoryUpToDate, AccessoryCurrent, AccessoryError                             string
 	AccessoryMissing, AccessoryVerifiable, AccessoryUnverifiable, AccessoryLocal, AccessoryUnchecked string
+	AccessoryUnused                                                                                  string // the running config loads none of the GEO databases
 	AccessoryRemote, AccessoryNothing, AccessoryRolledBack                                           string
 	AccessoryUpdated, AccessorySkipped                                                               string // %s: names
 	AccessoryReloadNeeded, AccessoryApply, AccessoryApplyReason                                      string
@@ -207,11 +210,13 @@ type Strings struct {
 	TakeoverBinary, TakeoverSecretSet                                                 string
 	TakeoverTSSvc, TakeoverBase                                                       string
 	TakeoverUseBase                                                                   string
+	TakeoverManaged                                                                   string // Twinnel runs this setup already: nothing to take over
 	TakeoverCandScore                                                                 string // proxies same/total, groups same/total, tail/rules, head
 	TakeoverNoLayers                                                                  string
 	TakeoverRules                                                                     string // %d
 	TakeoverVerdict, TakeoverEquivalent, TakeoverNotEquivalent, TakeoverDeliberate    string
 	TakeoverOtherChanges, TakeoverNoChanges, TakeoverShowText, TakeoverHideText       string
+	TakeoverShowAllRules, TakeoverFoldRules                                           string
 	TakeoverAdopt                                                                     string
 	TakeoverAdoptedAt                                                                 string // %s: time
 	TakeoverReplan, TakeoverNotValid                                                  string
@@ -260,10 +265,13 @@ type Strings struct {
 	HelperMgmtStrings      // helpermgmt.go
 	SetupStrings           // setup.go
 	ConfigUIStrings        // configui.go
+	ProgressStrings        // progress.go
+	HealthFixStrings       // healthfix.go
 	LifecycleStrings       // lifecycle.go
 	TakeoverExplainStrings // takeoverexplain.go
 	InfoTipStrings         // infotips.go
 	StatusStrings          // status.go
+	ForeignCtlStrings      // foreignctl.go
 	SidebarStrings         // sidebar.go
 	OverviewStrings        // overview.go
 	PagesStrings           // pages.go
@@ -271,6 +279,11 @@ type Strings struct {
 	AgentStrings           // agent.go
 	ImportStrings          // importcfg.go
 	PlatformStrings        // platform.go
+	DNSWatchStrings        // dnswatch.go
+	WizardStrings          // wizard.go
+	AutostartStrings       // autostart.go
+	ComponentStrings       // components.go
+	TSLoginStrings         // tslogin.go
 }
 
 // zh is the Chinese text.
@@ -294,7 +307,7 @@ var zh = Strings{
 	ReasonTSNeedsLogin:   "Tailscale 需要登录",
 	ReasonTSStopped:      "Tailscale 已断开",
 	ReasonTSExitNode:     "Tailscale 正在使用出口节点「%s」，可能和代理冲突",
-	ReasonTSKeyExpiry:    "Tailscale 密钥将在 %s 过期",
+	ReasonTSKeyExpiry:    "Tailscale 密钥%s过期",
 	ReasonTSHealth:       "Tailscale：%s",
 	ReasonTSSystemVPN:    "Tailscale 使用系统 VPN 通道，建议改用 tailscaled",
 	ReasonHealthWarn:     "健康检查：%d 项警告",
@@ -690,6 +703,7 @@ var zh = Strings{
 	AccessoryCurrent:      "最新",
 	AccessoryError:        "出错",
 	AccessoryMissing:      "未安装",
+	AccessoryUnused:       "当前配置不使用",
 	AccessoryVerifiable:   "可校验",
 	AccessoryUnverifiable: "无校验值",
 	AccessoryUnchecked:    "未检查",
@@ -713,6 +727,7 @@ var zh = Strings{
 	TakeoverDiscardTitle:   "删除接管计划「%s」？",
 	TakeoverDiscardBody:    "不影响现在的配置。",
 	TakeoverFound:          "现有安装",
+	TakeoverManaged:        "已由 Twinnel 管理",
 	TakeoverLive:           "配置文件",
 	TakeoverMihomoSvc:      "mihomo 服务",
 	TakeoverBinary:         "mihomo 程序",
@@ -731,6 +746,8 @@ var zh = Strings{
 	TakeoverNoChanges:      "没有行为差异",
 	TakeoverShowText:       "显示完整报告",
 	TakeoverHideText:       "收起报告",
+	TakeoverShowAllRules:   "列出所有失效规则",
+	TakeoverFoldRules:      "折叠失效规则",
 	TakeoverAdopt:          "接管",
 	TakeoverAdoptedAt:      "已于 %s 接管",
 	TakeoverReplan:         "请重新生成计划",
@@ -826,26 +843,88 @@ var zh = Strings{
 	TakeoverStrings:        zhTakeover,
 	HelperMgmtStrings:      zhHelperMgmt,
 	SetupStrings:           zhSetup,
+	WizardStrings:          zhWizard,
+	AutostartStrings:       zhAutostart,
+	ComponentStrings:       zhComponents,
 	ConfigUIStrings:        zhConfigUI,
+	ProgressStrings:        zhProgress,
+	HealthFixStrings:       zhHealthFix,
 	LifecycleStrings:       zhLifecycle,
 	TakeoverExplainStrings: zhTakeoverExplain,
 	InfoTipStrings:         zhInfoTips,
 	StatusStrings:          zhStatus,
+	ForeignCtlStrings:      zhForeignCtl,
+	DNSWatchStrings:        zhDNSWatch,
 	SidebarStrings:         zhSidebar,
 	OverviewStrings:        zhOverview,
+	TSLoginStrings:         zhTSLogin,
 	PagesStrings:           zhPages,
 	AgentStrings:           zhAgent,
 	ImportStrings:          zhImport,
 	PlatformStrings:        zhPlatform,
 }
 
-// F formats one of the strings.
+// F formats one of the strings. A Chinese template spaces its slots for
+// Latin values ("%s 被占用"); a value that starts or ends in Chinese
+// ("另一个 mihomo") drops the space on that side, so names read the same
+// whatever language they are in (TestFSpacesNames).
 func F(format string, args ...any) string {
 	if strings.IndexByte(format, '{') >= 0 {
 		format = plurals(format, args)
 	}
-	return fmt.Sprintf(format, args...)
+	wide := false
+	for i, a := range args {
+		if v, ok := a.(string); ok && v != "" && (isWide(firstRune(v)) || isWide(lastRune(v))) {
+			if !wide {
+				args = append([]any(nil), args...)
+				wide = true
+			}
+			args[i] = slotMark + v + slotMark
+		}
+	}
+	out := fmt.Sprintf(format, args...)
+	if wide {
+		out = tidySlots(out)
+	}
+	return out
 }
+
+// slotMark brackets a Chinese value while F formats; tidySlots removes it.
+const slotMark = "\x00"
+
+// tidySlots drops a template's space between a Chinese value and Chinese
+// text (or full-width punctuation) next to it, then the marks.
+func tidySlots(s string) string {
+	r := []rune(s)
+	var b strings.Builder
+	in := false // inside a marked value
+	for i := 0; i < len(r); i++ {
+		if r[i] == 0 {
+			in = !in
+			continue
+		}
+		if r[i] == ' ' {
+			// A space just before an opening mark or just after a closing
+			// one, between two wide runes, goes.
+			if !in && i+1 < len(r) && r[i+1] == 0 && i > 0 && isWide(r[i-1]) && i+2 < len(r) && isWide(r[i+2]) {
+				continue
+			}
+			if !in && i > 0 && r[i-1] == 0 && i > 1 && isWide(r[i-2]) && i+1 < len(r) && isWide(r[i+1]) {
+				continue
+			}
+		}
+		b.WriteRune(r[i])
+	}
+	return b.String()
+}
+
+// isWide: a Han character or full-width punctuation.
+func isWide(r rune) bool {
+	return unicode.Is(unicode.Han, r) || r >= 0x3000 && r <= 0x303F || r >= 0xFF00 && r <= 0xFFEF
+}
+
+func firstRune(s string) rune { r, _ := utf8.DecodeRuneInString(s); return r }
+func lastRune(s string) rune  { r, _ := utf8.DecodeLastRuneInString(s); return r }
 
 // plurals picks the form of each {one|other} group ({s} is {|s}) by the
 // number of the closest %d before it: "%d issue{s} found". English needs

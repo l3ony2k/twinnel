@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"unsafe"
 
@@ -16,7 +17,7 @@ import (
 	"golang.org/x/sys/windows/svc"
 )
 
-// maxLog is the size above which the log is moved to <log>.1 at start.
+// maxLog is the size above which the log is moved to <log>.1.
 const maxLog = 10 << 20
 
 // Main is the service host's entry point: `svchost --name … -- program`.
@@ -31,13 +32,11 @@ func Main(args []string) int {
 		fmt.Fprintln(os.Stderr, "svchost: must be started by the Service Control Manager (the service "+o.Name+")")
 		return 2
 	}
-	out := io.Discard
+	var out io.Writer = io.Discard
 	if o.Log != "" {
-		if fi, err := os.Stat(o.Log); err == nil && fi.Size() > maxLog {
-			os.Rename(o.Log, o.Log+".1")
-		}
-		f, err := os.OpenFile(o.Log, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-		if err == nil {
+		// The child's stdout and stderr, its startup included, and the
+		// host's own lines; rotated at maxLog while it runs.
+		if f, err := OpenLog(o.Log, maxLog); err == nil {
 			defer f.Close()
 			out = f
 		}
@@ -117,7 +116,8 @@ func (p proc) Wait() error { return p.cmd.Wait() }
 func (p proc) Kill() error { return p.cmd.Process.Kill() }
 
 func (h *handler) start(job windows.Handle) (Process, error) {
-	cmd := exec.Command(h.o.Argv[0], h.o.Argv[1:]...)
+	argv := ResolveProgram(h.o.Argv, filepath.EvalSymlinks) // the image path the firewall sees
+	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Stdout, cmd.Stderr = h.out, h.out
 	cmd.SysProcAttr = &windows.SysProcAttr{CreationFlags: windows.CREATE_NO_WINDOW | windows.CREATE_NEW_PROCESS_GROUP}
 	if err := cmd.Start(); err != nil {

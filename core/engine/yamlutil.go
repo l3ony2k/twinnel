@@ -2,6 +2,7 @@ package engine
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 
 	"github.com/l3ony2k/twinnel/core/config"
@@ -24,6 +25,25 @@ func topLevel(cfg []byte, key string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// topLevels is topLevel for several keys with one parse: the scalar
+// values found, by key.
+func topLevels(cfg []byte, keys ...string) map[string]string {
+	out := map[string]string{}
+	root, err := config.Parse(cfg)
+	if err != nil {
+		return out
+	}
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		k := root.Content[i].Value
+		if root.Content[i+1].Kind == yaml.ScalarNode && slices.Contains(keys, k) {
+			if _, seen := out[k]; !seen {
+				out[k] = root.Content[i+1].Value
+			}
+		}
+	}
+	return out
 }
 
 // withoutSecret removes the top-level secret from an encoded config. The
@@ -100,4 +120,34 @@ func mixedPort(cfg []byte) int {
 		}
 	}
 	return 0
+}
+
+// DashboardUIDir is the external-ui Twinnel adds when the person installs
+// the dashboard from Twinnel and nothing else sets external-ui.
+const DashboardUIDir = "ui"
+
+// withExternalUI adds `external-ui: ui` after external-controller unless
+// the config already sets external-ui.
+func withExternalUI(cfg []byte) ([]byte, error) {
+	root, err := config.Parse(cfg)
+	if err != nil {
+		return nil, err
+	}
+	at := -1
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		switch root.Content[i].Value {
+		case "external-ui":
+			return cfg, nil
+		case "external-controller", "secret":
+			at = i + 2
+		}
+	}
+	key := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "external-ui"}
+	val := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: DashboardUIDir}
+	if at < 0 {
+		root.Content = append(root.Content, key, val)
+	} else {
+		root.Content = append(root.Content[:at], append([]*yaml.Node{key, val}, root.Content[at:]...)...)
+	}
+	return config.Encode(root)
 }

@@ -1,8 +1,11 @@
 package health
 
 import (
+	"github.com/l3ony2k/twinnel/core/autostart"
+
 	"context"
 	"errors"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -35,12 +38,37 @@ type fakeEnv struct {
 	egressDirect, egressProxied netip.Addr
 	egressChain                 []string
 	egressErr                   error
+	// egressDown: endpoints that fail on a path ("direct "+url or
+	// "proxied "+url); egressAsked records each request in order.
+	egressDown  map[string]error
+	egressAsked []string
+
+	// tun-dataplane probes (checks_dataplane_test.go); nil answers.
+	dialErr, proxyErr, pingErr error
+	dialed, proxied            []string
+
+	owner *foreign.Owner // nil: the env does not know the controller's owner
 }
 
-func (f *fakeEnv) DirectEgress(context.Context, string) (netip.Addr, error) {
+func (f *fakeEnv) ControllerOwner(context.Context) (foreign.Owner, error) {
+	if f.owner == nil {
+		return foreign.Owner{}, ErrNotSupported
+	}
+	return *f.owner, nil
+}
+
+func (f *fakeEnv) DirectEgress(_ context.Context, url string) (netip.Addr, error) {
+	f.egressAsked = append(f.egressAsked, "direct "+url)
+	if err := f.egressDown["direct "+url]; err != nil {
+		return netip.Addr{}, err
+	}
 	return f.egressDirect, f.egressErr
 }
-func (f *fakeEnv) ProxiedEgress(context.Context, string) (netip.Addr, []string, error) {
+func (f *fakeEnv) ProxiedEgress(_ context.Context, url string) (netip.Addr, []string, error) {
+	f.egressAsked = append(f.egressAsked, "proxied "+url)
+	if err := f.egressDown["proxied "+url]; err != nil {
+		return netip.Addr{}, nil, err
+	}
 	return f.egressProxied, f.egressChain, f.egressErr
 }
 
@@ -69,8 +97,12 @@ func healthyEnv() *fakeEnv {
 	}
 	settings := DefaultSettings()
 	settings.Egress = true
+	// Helper-only facts (checks_extra_test.go fakes the binary check).
+	settings.Binaries = []BinaryRef{{Name: "mihomo", Path: "/synthetic/kernels/mihomo/current/mihomo"}}
+	settings.Autostarts = func(context.Context) ([]autostart.Entry, error) { return nil, nil }
 	return &fakeEnv{
 		settings:      settings,
+		owner:         &foreign.Owner{Addr: "127.0.0.1:9090", Verdict: foreign.Managed, PID: 4242, Exe: "/opt/twinnel/kernels/mihomo/current/mihomo"},
 		egressDirect:  a("198.51.100.7"),
 		egressProxied: a("203.0.113.50"),
 		egressChain:   []string{"node-a", "PROXY", "Final"},

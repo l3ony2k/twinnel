@@ -62,9 +62,9 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 	pair := w == 0 || w >= 2*max(halfCardMin, 360)+gapGroup
 	col := ui.Column(c.Key("overview")).Gap(gapGroup).FillWidth()
 	col.Children(func() {
+		a.gettingStarted(c, s) // not set up yet: 继续设置 comes first
 		a.verdict(c, s)
 		a.exitNodeAcceptedRow(c, s)
-		a.gettingStarted(c, s)
 		a.actionNotes(c, s)
 		a.quickActions(c, s)
 		a.glanceTiles(c, s, tiles)
@@ -128,11 +128,14 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	m := s.Mihomo
 	can := s.Can()
+	live := s.MihomoLive()
+	lock := mihomoLockTip(s) // why the mihomo actions are off, if another mihomo is on the port
 	ui.Row(c.Key("quick")).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 		// 全部测速: one batch (status.Monitor.TestAll), the icon a spinner
 		// while it runs, as on 策略组.
 		_, _, busy := a.mon.DelayProgress()
-		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy || !m.Reachable || len(m.Groups) == 0)
+		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy || !live || len(m.Groups) == 0)
+		lockTip(b, lock)
 		spin := showBusy(c, b, busy)
 		b.Children(func() {
 			if spin {
@@ -146,21 +149,22 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 			a.testAll()
 		}
 		env := proxyEnv(m.Config)
-		cp := iconButton(c.Key("copy-env"), iconCopy, T.OvCopyProxyEnv, false).Disabled(!m.Reachable || env == "")
-		if env != "" {
+		cp := iconButton(c.Key("copy-env"), iconCopy, T.OvCopyProxyEnv, false).Disabled(!live || env == "")
+		if env != "" && live {
 			cp.Tooltip(env)
 		}
+		lockTip(cp, lock)
 		if cp.Clicked() {
 			copyText(c, env)
 		}
-		if iconButton(c.Key("dashboard"), iconDashboard, T.OvDashboard, false).Disabled(!m.Reachable).Clicked() {
-			_ = mygo.Shell.OpenExternal(dashboardURL(a.mh.BaseURL()))
+		if lockTip(iconButton(c.Key("dashboard"), iconDashboard, T.OvDashboard, false).Disabled(!live), lock).Clicked() {
+			a.openDashboard("/ui/")
 		}
-		if iconButton(c.Key("reload"), iconRefresh, T.ReloadConfig, false).Disabled(!can.Mihomo).Clicked() {
+		if lockTip(iconButton(c.Key("reload"), iconRefresh, T.ReloadConfig, false).Disabled(!can.Mihomo), lock).Clicked() {
 			a.reloadMihomo(s)
 		}
 		ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-			if iconButton(c.Key("restart"), iconPower, T.RestartMihomo, false).Disabled(!can.Helper || a.hd.busy != "").Clicked() {
+			if lockTip(iconButton(c.Key("restart"), iconPower, T.RestartMihomo, false).Disabled(!a.canRestartMihomo(s)), lock).Clicked() {
 				a.confirmRestartMihomo()
 			}
 			a.helperLock(c, s)
@@ -260,7 +264,7 @@ func (a *app) glanceTiles(c *ui.Context, s status.Snapshot, cols int) {
 	conns := ovTile{key: "tile-conns", label: T.Connections, figure: status.NoDelay}
 	mem := ovTile{key: "tile-mem", label: T.OvTileMemory, figure: status.NoDelay, page: pageKernel}
 	peers := ovTile{key: "tile-peers", label: T.OnlinePeers, figure: status.NoDelay, page: pageTailscale}
-	if m.Reachable {
+	if mv := s.MihomoView(); mv.Live() {
 		conns.figure = strconv.Itoa(m.Connections)
 		conns.sub = fmt.Sprintf(T.OvTileTotal, status.Bytes(m.Traffic.DownTotal), status.Bytes(m.Traffic.UpTotal))
 		conns.tip = T.Total + " " + conns.sub
@@ -274,7 +278,9 @@ func (a *app) glanceTiles(c *ui.Context, s status.Snapshot, cols int) {
 			mem.tip = fmt.Sprintf(T.OvMemoryTip, status.Bytes(m.Memory), status.Bytes(m.Process.RSS))
 		}
 	} else {
-		conns.sub, mem.sub = T.Unreachable, T.Unreachable
+		if !mv.Foreign() { // foreign: the exit tile and the card say it once
+			conns.sub, mem.sub = mv.Text(), mv.Text()
+		}
 	}
 	if ts.Reachable && ts.State.Running() {
 		peers.figure = fmt.Sprintf("%d / %d", ts.State.OnlinePeers(), len(ts.State.Peers))
@@ -364,7 +370,7 @@ func (a *app) tile(c *ui.Context, tl ovTile) {
 // trafficCaption is the traffic card's trailing text: how much time the
 // chart shows.
 func (a *app) trafficCaption(c *ui.Context, s status.Snapshot) {
-	if !s.Mihomo.Reachable {
+	if !s.MihomoLive() {
 		return
 	}
 	if hist := a.mon.TrafficHistory(); len(hist) > 1 {
@@ -386,7 +392,13 @@ func (a *app) mihomoRows(c *ui.Context, s status.Snapshot) ovRows {
 	T := i18n.T
 	m := s.Mihomo
 	rows := ovRows{}
-	if !m.Reachable {
+	if s.MihomoView().Foreign() {
+		// Another program's mihomo holds the controller: what holds it
+		// and the ways out; none of its values as Twinnel's.
+		rows[slotBody] = func() { a.foreignCardBody(c, s) }
+		return rows
+	}
+	if !s.MihomoLive() {
 		rows[slotBody] = func() {
 			a.cardDown(c, svcMihomo, m.Err)
 			kvMono(c, T.Controller, a.mh.BaseURL())
@@ -503,22 +515,10 @@ func (a *app) tsCardRows(c *ui.Context, s status.Snapshot) ovRows {
 	ts := s.Tailscale
 	st := ts.State
 	rows := ovRows{}
-	if !ts.Reachable {
-		rows[slotBody] = func() {
-			a.cardDown(c, svcTailscale, ts.Err)
-			kv(c, T.Install, T.InstallKind(string(ts.Install.Kind)))
-		}
-		return rows
-	}
-	if needsLogin(s) {
-		// Logged out: the node's addresses and devices are not its own
-		// now; the way back in is the one action.
-		rows[slotBody] = func() {
-			kvWith(c, T.State, func() {
-				ui.Text(c, T.TSState(st.BackendState)).Grow(1).SingleLine()
-				a.tsLoginButton(c, s)
-			})
-		}
+	if a.tsPanelShown(s) {
+		// Not running, or logging in: the card is the state and its one
+		// action (tslogin.go); the node's rows are not its own now.
+		rows[slotBody] = func() { a.tsLoginPanel(c, s, tsPanelOpts{Compact: true}) }
 		return rows
 	}
 	rows[slotState] = func() {
@@ -570,7 +570,7 @@ func (a *app) tsCardRows(c *ui.Context, s status.Snapshot) ovRows {
 				e := num(ui.Text(c, exp)).SingleLine().Shrink(1)
 				if st.KeyExpiresWithin(s.Time, status.KeyExpiryWarning) {
 					e.TextColor(pal(t).warnText)
-					ui.Link(c, T.KeyRenew, tailscaleAdminURL).FontSize(plat.calloutSize)
+					a.tsReauthButton(c, s)
 				}
 			})
 		}
@@ -720,20 +720,15 @@ func (a *app) healthValue(c *ui.Context, s status.Snapshot) {
 		ui.Text(c, T.HealthRunning).TextColor(t.TextMuted).SingleLine()
 		return
 	}
-	text, lvl := T.OvHealthOK, status.LevelOK
-	if _, l := s.HealthBadge(); l != status.LevelOK {
-		lvl = l
-		for _, r := range s.Reasons {
-			if r.Code == status.ReasonHealth {
-				text = healthReasonShort(r)
-			}
-		}
+	text, lvl, icon := T.OvHealthOK, status.LevelOK, iconOK
+	if r, ok := healthReason(s); ok {
+		text, lvl, icon = healthReasonShort(r), r.Level, healthReasonIcon(r)
 	} else if rep.Counts()[health.StatusOK] == 0 {
 		text, lvl = T.HealthSkip, status.LevelUnknown
 	}
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(1).MinWidth(0).Children(func() {
 		if lvl != status.LevelUnknown {
-			ui.Icon(c, levelIcon(lvl)).FontSize(iconInline).TextColor(levelText(t, lvl)).Shrink(0)
+			ui.Icon(c, icon).FontSize(iconInline).TextColor(levelText(t, lvl)).Shrink(0)
 		}
 		e := ui.Text(c, text).SingleLine().Shrink(1)
 		if lvl != status.LevelOK && lvl != status.LevelUnknown {
@@ -755,14 +750,31 @@ func levelIcon(l status.Level) *ui.SVG {
 	return iconSkip
 }
 
-// healthReasonShort words the health reason for the row labelled 健康检查:
-// its count at its level (1 个问题 for a warning, whether the checks
-// found failures before takeover or warnings; 1 项失败 for an error).
-func healthReasonShort(r status.Reason) string {
-	if r.Level == status.LevelError {
-		return fmt.Sprintf(i18n.T.OvHealthFail, r.Count)
+// healthReason is the snapshot's health reason, if any.
+func healthReason(s status.Snapshot) (status.Reason, bool) {
+	for _, r := range s.Reasons {
+		if r.Code == status.ReasonHealth && r.Count > 0 {
+			return r, true
+		}
 	}
-	return i18n.F(i18n.T.OvHealthIssues, r.Count)
+	return status.Reason{}, false
+}
+
+// healthReasonShort words the health reason for a place labelled 健康检查:
+// everything that needs attention, split into failures and warnings when
+// both are in it (4 项需要处理：2 项失败、2 项警告); before takeover 发现 4
+// 个问题….
+func healthReasonShort(r status.Reason) string {
+	return i18n.T.HealthCount(r.Fail, r.Warn, r.Found)
+}
+
+// healthReasonIcon is ⊗ when failures are in the number, else ⚠: the
+// shape says it, whatever the color.
+func healthReasonIcon(r status.Reason) *ui.SVG {
+	if r.Fail > 0 {
+		return iconError
+	}
+	return iconWarning
 }
 
 // --- 最近活动 ---

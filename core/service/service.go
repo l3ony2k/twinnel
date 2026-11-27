@@ -9,14 +9,15 @@ package service
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/l3ony2k/twinnel/core/binswap"
+	"github.com/l3ony2k/twinnel/core/consoletext"
 )
 
 // Spec describes one service.
@@ -82,19 +83,26 @@ const (
 	// StepRemoveAll deletes a directory tree (Windows purge; Unix plans
 	// keep `rm -rf`). Needs a Files with RemoveAll.
 	StepRemoveAll StepKind = "removeall"
+	// StepRename moves Src to Path (replacing it). On Windows it moves a
+	// running program's file aside, which the system allows while it
+	// refuses to overwrite or delete it. Needs a Files with Rename.
+	StepRename StepKind = "rename"
 )
 
 // Step is one action of a Plan.
 type Step struct {
 	Kind    StepKind
-	Path    string      // mkdir/copy(dst)/write/remove
-	Src     string      // copy
+	Path    string      // mkdir/copy(dst)/write/remove/rename(dst)
+	Src     string      // copy/rename
 	Mode    fs.FileMode // mkdir/copy/write
 	Content []byte      // write
 	Argv    []string    // run
 	// IgnoreError marks steps whose failure is expected in some states
 	// (e.g. unloading a service that is not loaded).
 	IgnoreError bool
+	// Always runs the step even after an earlier step failed (a
+	// "finally": starting again a service the plan stopped).
+	Always bool
 
 	// Retry (run) is how many more times a failing command is run when
 	// its error or output contains one of RetryOn, waiting RetryBackoff,
@@ -125,57 +133,6 @@ var Sleep = func(ctx context.Context, d time.Duration) error {
 	}
 }
 
-// String renders the step as the shell command it is equivalent to.
-func (s Step) String() string {
-	var out string
-	switch s.Kind {
-	case StepMkdir:
-		out = fmt.Sprintf("install -d -m %04o %s", s.Mode.Perm(), shellQuote(s.Path))
-	case StepCopy:
-		out = fmt.Sprintf("install -m %04o %s %s", s.Mode.Perm(), shellQuote(s.Src), shellQuote(s.Path))
-	case StepWrite:
-		out = fmt.Sprintf("write %s (mode %04o, %d bytes)", shellQuote(s.Path), s.Mode.Perm(), len(s.Content))
-	case StepRemove:
-		out = "rm -f " + shellQuote(s.Path)
-	case StepRemoveAll:
-		out = "rm -rf " + shellQuote(s.Path)
-	case StepRun:
-		q := make([]string, len(s.Argv))
-		for i, a := range s.Argv {
-			q[i] = shellQuote(a)
-		}
-		out = strings.Join(q, " ")
-		if s.Retry > 0 {
-			out += fmt.Sprintf("  # retried up to %d times while busy", s.Retry)
-		}
-	case StepWait:
-		q := make([]string, len(s.Argv))
-		for i, a := range s.Argv {
-			q[i] = shellQuote(a)
-		}
-		until := fmt.Sprintf("%q", s.Until)
-		for _, o := range s.OrUntil {
-			until += fmt.Sprintf(" or %q", o)
-		}
-		out = fmt.Sprintf("wait until `%s` says %s (up to %s)", strings.Join(q, " "), until, s.Timeout)
-	default:
-		out = string(s.Kind)
-	}
-	if s.IgnoreError {
-		out += "  # errors ignored"
-	}
-	return out
-}
-
-func shellQuote(s string) string {
-	if s != "" && strings.IndexFunc(s, func(r rune) bool {
-		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("-_./:=@%+,", r))
-	}) < 0 {
-		return s
-	}
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
 // Manager is implemented per platform.
 type Manager interface {
 	// Render returns the service definition (plist, unit file...).
@@ -202,10 +159,15 @@ type Files interface {
 	Remove(path string) error
 }
 
-// Apply runs a plan in order and stops at the first failing step that is
-// not IgnoreError.
+// Apply runs a plan in order. At the first failing step that is not
+// IgnoreError it stops, except for the Always steps after it, which still
+// run; the first failure is returned.
 func Apply(ctx context.Context, steps []Step, ex Executor, files Files) error {
+	var failed error
 	for _, s := range steps {
+		if failed != nil && !s.Always {
+			continue
+		}
 		var err error
 		switch s.Kind {
 		case StepMkdir:
@@ -223,6 +185,13 @@ func Apply(ctx context.Context, steps []Step, ex Executor, files Files) error {
 			} else {
 				err = ra.RemoveAll(s.Path)
 			}
+		case StepRename:
+			rn, ok := files.(interface{ Rename(src, dst string) error })
+			if !ok {
+				err = fmt.Errorf("cannot rename with %T", files)
+			} else {
+				err = rn.Rename(s.Src, s.Path)
+			}
 		case StepRun:
 			err = runRetrying(ctx, s, ex)
 		case StepWait:
@@ -230,11 +199,11 @@ func Apply(ctx context.Context, steps []Step, ex Executor, files Files) error {
 		default:
 			err = fmt.Errorf("unknown step kind %q", s.Kind)
 		}
-		if err != nil && !s.IgnoreError {
-			return fmt.Errorf("%s: %w", s, err)
+		if err != nil && !s.IgnoreError && failed == nil {
+			failed = fmt.Errorf("%s: %w", s, err)
 		}
 	}
-	return nil
+	return failed
 }
 
 // runRetrying runs a StepRun, again on the errors it names.
@@ -296,21 +265,6 @@ func waitUntil(ctx context.Context, s Step, ex Executor) error {
 	}
 }
 
-// FormatPlan renders a plan for a dry run: each step on a line, file
-// contents of write steps included.
-func FormatPlan(w io.Writer, steps []Step) {
-	for i, s := range steps {
-		fmt.Fprintf(w, "%d. %s\n", i+1, s)
-		if s.Kind == StepWrite {
-			fmt.Fprintf(w, "----- %s -----\n%s", s.Path, s.Content)
-			if len(s.Content) > 0 && s.Content[len(s.Content)-1] != '\n' {
-				fmt.Fprintln(w)
-			}
-			fmt.Fprintf(w, "----- end -----\n")
-		}
-	}
-}
-
 // ExecExecutor runs commands with os/exec.
 type ExecExecutor struct{ Timeout time.Duration }
 
@@ -325,7 +279,10 @@ func (e ExecExecutor) Run(ctx context.Context, argv []string) ([]byte, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, t)
 	defer cancel()
-	return exec.CommandContext(ctx, argv[0], argv[1:]...).CombinedOutput()
+	out, err := exec.CommandContext(ctx, argv[0], argv[1:]...).CombinedOutput()
+	// Windows' own tools (sc, schtasks, reg) print in the OEM code page;
+	// what is kept of their output (errors, history) must be UTF-8.
+	return consoletext.Decode(out), err
 }
 
 // OSFiles implements Files on the real filesystem.
@@ -335,6 +292,9 @@ func (OSFiles) MkdirAll(p string, m fs.FileMode) error { return os.MkdirAll(p, m
 
 // RemoveAll deletes a directory tree.
 func (OSFiles) RemoveAll(p string) error { return os.RemoveAll(p) }
+
+// Rename moves src to dst, replacing dst.
+func (OSFiles) Rename(src, dst string) error { return os.Rename(src, dst) }
 func (OSFiles) Remove(p string) error {
 	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 		return err
@@ -352,13 +312,10 @@ func (OSFiles) WriteFile(p string, b []byte, m fs.FileMode) error {
 	}
 	return os.Rename(tmp, p)
 }
-func (f OSFiles) Copy(src, dst string, m fs.FileMode) error {
-	b, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	return f.WriteFile(dst, b, m)
+
+// Copy replaces dst with a copy of src even while dst runs (Windows: the
+// service host while mihomo runs, a helper not yet unloaded): the running
+// file is moved aside and deleted on a later copy (core/binswap).
+func (OSFiles) Copy(src, dst string, m fs.FileMode) error {
+	return binswap.Replace(src, dst, m)
 }

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net/netip"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -59,6 +61,9 @@ type FixHint struct {
 	Text    string `json:"text"`
 	Command string `json:"command,omitempty"`
 	AutoFix string `json:"autoFix,omitempty"`
+	// Param is what the fix acts on, when it needs one: the proxy group
+	// (leak guard, the egress test's node) or the controller's port.
+	Param string `json:"param,omitempty"`
 }
 
 // Result is what a check reports.
@@ -70,11 +75,17 @@ type Result struct {
 	// Causes name what a warn or fail comes from (Cause* codes), so a
 	// cause the user accepted can be told apart (Accept). Empty: unknown.
 	Causes []string `json:"causes,omitempty"`
+	// Reasons name why a warn or fail happened (Reason* codes), each with
+	// a fix in the catalog (FixFor). Empty in reports from older helpers.
+	Reasons []string `json:"reasons,omitempty"`
 	// Egress is what the egress test (LeakEgress) saw, unmasked. It is
 	// never marshalled with the result: reports, logs, the CLI and MCP
 	// keep MaskIP'd evidence. The helper hands it to the app only when
 	// asked (rpc ips), and the app shows it.
 	Egress *EgressIPs `json:"-"`
+	// Unsupported: the check cannot run on this platform (a skip that
+	// says so). The app offers to turn off a periodic test that has it.
+	Unsupported bool `json:"unsupported,omitempty"`
 }
 
 // EgressIPs are the public addresses the egress test saw: through mihomo
@@ -132,6 +143,30 @@ func (r *Registry) Get(id string) (Check, bool) {
 	return nil, false
 }
 
+// CheckIDs returns an error naming the ids that are no registered check,
+// with the list of valid ones; nil when all are known. A run limited to
+// an unknown id would run nothing and report "pass".
+func (r *Registry) CheckIDs(ids []string) error {
+	var bad []string
+	for _, id := range ids {
+		if _, ok := r.Get(id); !ok {
+			bad = append(bad, id)
+		}
+	}
+	if len(bad) == 0 {
+		return nil
+	}
+	return fmt.Errorf("unknown check %s (checks: %s)", strings.Join(quoteAll(bad), ", "), strings.Join(r.IDs(), ", "))
+}
+
+func quoteAll(ss []string) []string {
+	out := make([]string, len(ss))
+	for i, s := range ss {
+		out[i] = strconv.Quote(s)
+	}
+	return out
+}
+
 // IDs returns the sorted IDs of registered checks.
 func (r *Registry) IDs() []string {
 	var ids []string
@@ -158,6 +193,26 @@ func skip(format string, a ...any) Result {
 // skipErr is a skip with a short reason; the error goes to the evidence.
 func skipErr(summary string, err any) Result {
 	return Result{Status: StatusSkip, Summary: summary, Evidence: []string{fmt.Sprint(err)}}
+}
+
+// TidyEvidence drops what would render as an empty evidence line: blank
+// entries, and blank lines and trailing spaces inside an entry. The runner
+// tidies every result, and every renderer (Report.Text, Markdown, the
+// app's DedupeEvidence) tidies again, for reports from an older helper.
+func TidyEvidence(lines []string) []string {
+	var out []string
+	for _, e := range lines {
+		var keep []string
+		for _, l := range strings.Split(e, "\n") {
+			if l = strings.TrimRight(l, " \t\r"); strings.TrimSpace(l) != "" {
+				keep = append(keep, l)
+			}
+		}
+		if len(keep) > 0 {
+			out = append(out, strings.Join(keep, "\n"))
+		}
+	}
+	return out
 }
 
 // skipText is skip with a text that has no format verbs.

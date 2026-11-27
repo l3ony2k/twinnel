@@ -8,11 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/rpc/healthsrc"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
 var serviceMethods = map[string]string{
@@ -28,7 +31,7 @@ func serviceOp(cf *clientFlags, op, name string) error {
 	var r rpc.ServiceOpResult
 	return cf.callPrint(method, rpc.ServiceParams{Name: name}, &r, func() {
 		if r.DryRun {
-			fmt.Fprintf(stdout, "# dry run: the helper is not running as root, nothing was run\n")
+			fmt.Fprintf(stdout, "# dry run: the helper is not running %s, nothing was run\n", service.Current().AsAdmin())
 		}
 		fmt.Fprintf(stdout, "%s %s (%s):\n", r.Op, r.Name, r.Label)
 		for i, s := range r.Steps {
@@ -40,6 +43,55 @@ func serviceOp(cf *clientFlags, op, name string) error {
 		}
 		fmt.Fprintln(stdout)
 	})
+}
+
+// logFlags are `twinnel service log`'s.
+type logFlags struct {
+	lines int
+	since string
+}
+
+// serviceLog prints a log the helper keeps (service.log): mihomo's
+// output or the helper's own log, which only administrators can open
+// directly on Windows and Linux. Several files get a header each.
+func serviceLog(cf *clientFlags, name string, lf logFlags, now time.Time) error {
+	if !slices.Contains(rpc.ServiceLogSources, name) {
+		return fmt.Errorf("service log: want %s", strings.Join(rpc.ServiceLogSources, " or "))
+	}
+	p := rpc.ServiceLogParams{Name: name, Lines: lf.lines}
+	if lf.since != "" {
+		t, err := parseSince(lf.since, now)
+		if err != nil {
+			return err
+		}
+		p.Since = t
+		if p.Lines == 0 {
+			p.Lines = 2000 // a time bounds it; take what the helper gives
+		}
+	}
+	var r rpc.ServiceLog
+	return cf.callPrint(rpc.MethodServiceLog, p, &r, func() {
+		for _, f := range r.Files {
+			if len(r.Files) > 1 {
+				fmt.Fprintf(stdout, "==> %s <==\n", f.File)
+			}
+			for _, l := range f.Lines {
+				fmt.Fprintln(stdout, l)
+			}
+		}
+	})
+}
+
+// parseSince reads --since: a duration back from now ("10m") or a time
+// (RFC 3339).
+func parseSince(s string, now time.Time) (time.Time, error) {
+	if d, err := time.ParseDuration(s); err == nil && d > 0 {
+		return now.Add(-d), nil
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("--since %q: want a duration (10m, 2h) or an RFC 3339 time", s)
 }
 
 func runAccessory(kind string, args []string) error {
@@ -179,7 +231,7 @@ func printEgress(w io.Writer, cr health.CheckReport) {
 		at = ", " + cr.At.Local().Format("15:04:05")
 	}
 	fmt.Fprintf(w, "%s%s: %s\n", cr.Status, at, cr.Summary)
-	for _, e := range cr.Evidence {
+	for _, e := range health.TidyEvidence(cr.Evidence) {
 		fmt.Fprintf(w, "  %s\n", e)
 	}
 }

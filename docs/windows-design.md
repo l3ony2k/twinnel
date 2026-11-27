@@ -22,7 +22,7 @@ side by side without either taking the other's routes or DNS.
 | Elevation for install | `osascript … with administrator privileges` | `ShellExecuteExW` verb `runas` (UAC), argv joined with `syscall.EscapeArg`, never through `cmd.exe` |
 | Secrets | System keychain | DPAPI (`CryptProtectData`, the helper's LocalSystem scope) in `<state>\secrets.dpapi` |
 | mihomo service | LaunchDaemon `com.l3ony2k.twinnel.mihomo` | service `TwinnelMihomo`: `twinnel-svchost.exe` (a copy of the helper binary) hosting `mihomo.exe` |
-| Tailscale | tailscaled (brew) or the app | the official client: service `Tailscale` (`tailscaled.exe`), wintun adapter `Tailscale`; detect and read only |
+| Tailscale | tailscaled (brew) or the app | the official client: service `Tailscale` (`tailscaled.exe`), wintun adapter `Tailscale`; detected and kept, installed from its MSI when missing (§7) |
 | App prefs | `~/Library/Application Support/twinnel/app.json` | `%AppData%\twinnel\app.json` (`os.UserConfigDir`, unchanged code) |
 | Network facts | `route`, `netstat`, `scutil`, `networksetup` | `GetIpForwardTable2`, `GetAdaptersAddresses`, NRPT from the registry |
 
@@ -45,7 +45,7 @@ The service definition, written with the Service Control Manager:
 - `helper.restart` ends `run`; the service exits with a non-zero
   service-specific code so the failure actions start it again.
 
-Logging: the helper writes `<state>\logs\helper.log` as on macOS. No event
+Logging: the helper writes `<state>\logs\helper.log` as on macOS (rotated at 10 MB) and serves it over `service.log {helper}` to the app and CLI, whose users cannot open the file. Callers are named by the pipe client's token: SID and `DOMAIN\name` (`rpc.Peer.Caller`), never `uid=-1`. No event
 log source is registered (no installer-time registry writes beyond the
 service itself); the SCM's own events (start/stop/crash) land in the System
 log anyway.
@@ -122,7 +122,12 @@ needs "another helper is already listening": go-winio's first instance uses
 
 `twinnel helper install|upgrade|uninstall` as a non-elevated user:
 
-1. print the plan (same as macOS);
+1. print the plan (same as macOS), in Windows terms: every plan, step and
+   plan sentence goes through `service.Current()`, whose Windows dialect
+   (`scm.Dialect`) prints `mkdir`, `copy /y`, `move /y`, `del /f`,
+   `rmdir /s /q`, the `sc.exe` steps, "as administrator" and "Twinnel";
+   `--dry-run --json` also carries the steps as data (`steps`), which is
+   what the app shows;
 2. capture the current user's SID (`--allow-sid` for the pipe; the elevated
    copy may run as another admin account after an over-the-shoulder prompt);
 3. `ShellExecuteExW(lpVerb="runas", lpFile=<twinnel.exe>, lpParameters=<args>, nShow=SW_HIDE, fMask=SEE_MASK_NOCLOSEPROCESS|SEE_MASK_NO_CONSOLE)`,
@@ -169,6 +174,21 @@ twinnel-svchost.exe svchost --name TwinnelMihomo --log <state>\logs\mihomo.log
   to `--log`.
 - The restart/backoff logic (`platform/windows/svchost.Supervisor`) is
   platform-free and tested with a fake process starter.
+- Upgrades. The host is the third Twinnel binary (CLI, helper, host) and is
+  kept a copy of the helper (`platform/windows/scm` `Host`, `HostKeeper`):
+  `twinnel helper upgrade` refreshes it first (before the new helper
+  starts; `--check` reports `service_host`, action `service-host` when only
+  the host lags), and the installed helper refreshes it again whenever it
+  starts. A running service keeps the host's file locked, so a refresh
+  moves it aside (`twinnel-svchost.old-<n>.exe`, deleted once nothing runs
+  it) and copies the new one in place; mihomo keeps running on the old copy
+  until its next restart. mihomo is restarted at once only when it runs a
+  host of an older `svchost.Revision` (`twinnel-helper svchost
+  --revision`; hosts from before it report 0): bump the revision when a
+  host change must reach running services. The plan and the helper's log
+  and `service.changed` event (op `host-refresh`) say when mihomo restarts.
+  `status.get` reports the host (`service_host`), `twinnel version` and
+  关于 → 组件版本 show its version and a warning when it lags.
 
 `service.start/stop/restart/status` for `mihomo` and `tailscaled` go through
 the same SCM manager. The Tailscale service (`Tailscale`) is only started,
@@ -215,7 +235,30 @@ conflict is routes and DNS:
   scoped resolvers.
 - Detection: `core/tailscale.DetectInstall("windows", …)` looks for the
   service binary and CLI under `%ProgramFiles%\Tailscale`. Version via
-  `tailscale.exe version`. No download or install of Tailscale.
+  `tailscale.exe version`.
+- **Install** (`tailscale.install`, the setup flow's tailscale step), only
+  when no client is installed (an existing one is always kept): the helper
+  reads `MSIs[<amd64|arm64|x86>]` from `pkgs.tailscale.com/stable/?mode=json`,
+  downloads `tailscale-setup-<v>-<arch>.msi` into `%ProgramData%\Twinnel\tailscale`
+  (SYSTEM + Administrators only), checks it against the `.sha256` published
+  next to it, and runs
+  `%SystemRoot%\System32\msiexec.exe /i <msi> /qn /norestart /l*v %ProgramData%\Twinnel\tailscale-msi.log TS_NOLAUNCH=true`.
+  `TS_NOLAUNCH` because the helper runs in session 0: a tray app started
+  there is invisible; the MSI registers the tray app to start at the next
+  sign-in. No policy properties (`TS_UNATTENDEDMODE` …): they would lock
+  the user's own choices. The helper then waits (60 s) for the `Tailscale`
+  service to run and records the CLI and the service as adopted (Twinnel
+  starts/stops it, never replaces or removes it; uninstall leaves it).
+  msiexec exit codes are worded (1618 busy, 1602 canceled, 1625/1643/1260
+  policy, 1638 other version, 3010 restart needed → a warning).
+- **Login.** tailscaled keeps one profile per Windows user and never gives
+  one to SYSTEM (`ipnserver` skips `SetCurrentUser` for LocalSystem), so a
+  login the helper started would belong to nobody and the user's tray app
+  would switch away from it. On Windows `tailscale.login` therefore only
+  reads the state (`Start` → not implemented); the client (app or CLI, as
+  the signed-in user) starts the login itself in Unattended Mode
+  (`core/setup.LocalSessionLogin` = `up --unattended` + interactive login)
+  and follows it through the helper.
 
 ## 8. Health checks on Windows
 
@@ -234,7 +277,7 @@ fixtures on every OS.
 | VPNs | up adapters that are tunnels (if-type `TUNNEL`/`PPP`/`PROP_VIRTUAL`, or description matching WireGuard/Wintun/TAP-Windows/OpenVPN/…), excluding Tailscale's and mihomo's TUN |
 | OS resolver lookup | Go's resolver (`net.DefaultResolver`, which on Windows uses `GetAddrInfoW`, i.e. NRPT and the DNS client) |
 | mihomo / Tailscale | as on Linux: controller GETs, config file, `tailscale.exe status --json` |
-| egress test | not implemented yet (skips) |
+| egress test | socket pinned with `IP_UNICAST_IF` (index in network byte order) to the adapter Windows would route by without tunnels; DNS from the registry's `DhcpNameServer`, the adapter's servers and gateways |
 
 Check changes: `vpn-conflict` judges the default route on Windows like on
 Linux (another tunnel holding it fails; mihomo's TUN not holding it while
@@ -258,6 +301,16 @@ helper is migrated in and deleted, as with the keychain. The sealing is
 behind two functions, so the store's logic is tested on every OS.
 The app does not read secrets itself (it gets the controller secret over
 `controller.credentials`, as on macOS).
+
+Files with secrets that the user side writes (the export zip, `app.json`,
+`twinnel compose --out`, takeover plans, the temp dirs of `mihomo -t` and
+the temporary proxy) go through `core/privfile`: on Windows the file is
+created with a protected DACL (owner, SYSTEM, Administrators; nothing
+inherited from the folder) passed to `CreateFile`, so it is never readable
+by others, even for a moment; `os.WriteFile(…, 0o600)` would only inherit
+the folder's ACL (in `%TEMP%` that can include other accounts). On Unix the
+same calls give 0600 / 0700. The helper's store writes through it too.
+`core/privfile`'s guard test fails on a new direct 0600 write.
 
 ## 10. The app
 

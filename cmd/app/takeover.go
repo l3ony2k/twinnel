@@ -33,6 +33,7 @@ type takeoverView struct {
 
 	plan     *rpc.TakeoverPlan // the selected plan, full (summary + semdiff)
 	showText bool              // summary and semdiff texts expanded
+	showFull bool              // the semdiff with every dead rule (SemDiffFull)
 
 	adopt  *rpc.AdoptResult
 	secure *rpc.ControllerSecureResult
@@ -46,6 +47,8 @@ type takeoverView struct {
 	keysOpen             map[string]bool // change area → its keys shown
 	rulesOpen            bool
 	impactOpen           bool
+
+	autostart autostartView // takeover_autostart.go
 }
 
 // isTooOld reports whether err means the helper lacks the method.
@@ -126,7 +129,7 @@ func (a *app) takeoverMakePlan(base string) {
 			v.unsupported = true
 		}
 		if err == nil {
-			v.plan, v.adopt, v.showText = &p, nil, false
+			v.plan, v.adopt, v.showText, v.showFull = &p, nil, false, false
 		}
 		a.loadTakeover()
 	})

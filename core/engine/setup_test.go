@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -125,7 +126,7 @@ func TestTailscaleInstall(t *testing.T) {
 	h.e.ServiceRunner = &ServiceRunner{Exec: ex, Files: files}
 	h.e.TSInstaller = &kernel.TailscaleInstaller{Dir: h.e.Store.Path("tailscale"), PkgsURL: srv.URL, GOOS: "linux", GOARCH: "arm64",
 		Probe: func(context.Context, string) (string, error) { return "1.104.7", nil }}
-	h.e.TSProbe = &kernel.TailscaleProbe{Stat: func(string) (os.FileInfo, error) { return nil, os.ErrNotExist }}
+	h.e.TSProbe = &kernel.TailscaleProbe{GOOS: "linux", Stat: func(string) (os.FileInfo, error) { return nil, os.ErrNotExist }}
 
 	r, err := h.e.TailscaleInstall(ctx, rpc.TailscaleInstallParams{Proxy: rpc.ProxyDirect})
 	if err != nil {
@@ -151,6 +152,7 @@ func TestTailscaleInstall(t *testing.T) {
 	// An install Twinnel did not make is kept, and nothing else happens.
 	n := len(m.specs)
 	h.e.TSProbe = &kernel.TailscaleProbe{
+		GOOS: "darwin", // the kept install is the Mac app
 		Stat: func(p string) (os.FileInfo, error) {
 			if p == "/Applications/Tailscale.app/Contents/MacOS/Tailscale" {
 				return os.Stat(".")
@@ -237,12 +239,20 @@ func TestTempProxyConfigNeedsAProxy(t *testing.T) {
 type fakeTSControl struct {
 	backend, url string
 	ups, logins  int
+	// afterUp is the state Up leads to ("" keeps backend).
+	afterUp string
 }
 
 func (f *fakeTSControl) LoginState(context.Context) (string, string, string, error) {
 	return f.backend, f.url, "example.ts.net", nil
 }
-func (f *fakeTSControl) Up(context.Context) error { f.ups++; return nil }
+func (f *fakeTSControl) Up(context.Context) error {
+	f.ups++
+	if f.afterUp != "" {
+		f.backend = f.afterUp
+	}
+	return nil
+}
 func (f *fakeTSControl) StartLogin(context.Context) error {
 	f.logins++
 	f.url = "https://login.tailscale.com/a/synthetic"
@@ -271,5 +281,64 @@ func TestTailscaleLogin(t *testing.T) {
 	r, err = h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true})
 	if err != nil || r.Started || f.logins != 1 || r.Tailnet != "example.ts.net" {
 		t.Fatalf("running: %+v %v", r, err)
+	}
+	// Reauth on a running node: a new login, no Up.
+	r, err = h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true, Reauth: true})
+	if err != nil || !r.Started || f.logins != 2 || f.ups != 1 {
+		t.Fatalf("reauth: %+v %v %+v", r, err, f)
+	}
+}
+
+func TestTailscaleLoginConnectsAStoppedNode(t *testing.T) {
+	defer func(d time.Duration) { loginPoll = d }(loginPoll)
+	loginPoll = time.Millisecond
+	h := newHarness(t)
+	ctx := context.Background()
+	// Stopped but logged in: Up is enough, no login.
+	f := &fakeTSControl{backend: "Stopped", afterUp: "Running"}
+	h.e.TSControl = f
+	r, err := h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true})
+	if err != nil || r.Started || f.ups != 1 || f.logins != 0 || r.BackendState != "Running" {
+		t.Fatalf("stopped: %+v %v %+v", r, err, f)
+	}
+	// Stopped and logged out: Up, then a login.
+	f = &fakeTSControl{backend: "Stopped", afterUp: "NeedsLogin"}
+	h.e.TSControl = f
+	r, err = h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true})
+	if err != nil || !r.Started || f.logins != 1 || r.AuthURL == "" {
+		t.Fatalf("logged out: %+v %v %+v", r, err, f)
+	}
+	// A pending login keeps its URL.
+	f = &fakeTSControl{backend: "NeedsLogin", url: "https://login.tailscale.com/a/pending"}
+	h.e.TSControl = f
+	r, err = h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true})
+	if err != nil || r.Started || f.logins != 0 || r.AuthURL != "https://login.tailscale.com/a/pending" {
+		t.Fatalf("pending: %+v %v %+v", r, err, f)
+	}
+}
+
+// targetDNS is a platform part with its own target (Windows: ::1 too).
+type targetDNS struct{ fakeDNS }
+
+func (*targetDNS) DNSTarget() []string { return []string{"127.0.0.1", "::1"} }
+
+func TestDNSPointPlatformTarget(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	d := &targetDNS{fakeDNS{svcs: []sysdns.Service{{Name: "Wi-Fi"}}}}
+	h.e.SystemDNS = d
+	h.e.DNSProbe = func(_ context.Context, addr string) error {
+		if addr != "127.0.0.1:53" {
+			t.Errorf("probed %s", addr)
+		}
+		return nil
+	}
+	st, err := h.e.DNSPoint(ctx)
+	want := []string{"127.0.0.1", "::1"}
+	if err != nil || !st.Pointed || !slices.Equal(st.Target, want) || !slices.Equal(d.svcs[0].Servers, want) {
+		t.Fatalf("point: %+v %v %+v", st, err, d.svcs)
+	}
+	if st, err := h.e.DNSStatus(ctx); err != nil || !st.Pointed || !slices.Equal(st.Target, want) {
+		t.Fatalf("status: %+v %v", st, err)
 	}
 }

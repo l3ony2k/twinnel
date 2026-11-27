@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -12,14 +13,16 @@ import (
 
 // --- logs ---
 
-// The 日志 page has two sources (U29): mihomo's log stream, and what
-// Twinnel did (the helper's events). Both search and filter by level.
+// The 日志 page has three sources (U29): mihomo's log stream, what
+// Twinnel did (the helper's events), and the helper's own log. All search
+// and filter by level.
 
 var logLevels = []string{"debug", "info", "warning", "error"}
 
 const (
 	logsMihomo  = 0
 	logsTwinnel = 1
+	logsHelper  = 2
 )
 
 type logsView struct {
@@ -29,8 +32,8 @@ type logsView struct {
 	frozen []mihomo.LogEntry
 	list   ui.ListState
 
-	source int    // logsMihomo or logsTwinnel
-	query  string // search text, both sources
+	source int    // logsMihomo, logsTwinnel or logsHelper
+	query  string // search text, every source
 	evList ui.ListState
 	mark   uint64 // the event a toast pointed at (H7), highlighted
 
@@ -41,6 +44,14 @@ type logsView struct {
 	evCleared uint64
 
 	width float32 // the page's width last frame (the bar's search follows it)
+
+	svc serviceLog // mihomo's service output, shown before the stream (servicelog.go)
+
+	// The helper tab: its log file, and its own 暂停 / list.
+	helper   serviceLog
+	hPaused  bool
+	hFrozen  []mihomo.LogEntry
+	helperLs ui.ListState
 }
 
 func (l *logsView) levelName() string {
@@ -59,13 +70,34 @@ func (a *app) showTwinnelLog() {
 	a.openPage(pageLogs)
 }
 
+// mihomoLogs is 日志 → mihomo's list: the service output, then the stream.
+func (a *app) mihomoLogs() []mihomo.LogEntry {
+	return withServiceLog(a.logs.svc.entries, a.mon.Logs(), a.logs.levelName(), a.logs.svc.cleared)
+}
+
+// helperLogs is 日志 → 后台助手's list: the helper's log at the chosen
+// level, not cleared.
+func (a *app) helperLogs() []mihomo.LogEntry {
+	return withServiceLog(a.logs.helper.entries, nil, a.logs.levelName(), a.logs.helper.cleared)
+}
+
 func (a *app) logsPage(c *ui.Context, barH float32) {
 	a.logs.levelName()
-	entries := a.mon.Logs()
-	if a.logs.paused {
-		entries = a.logs.frozen
-	}
-	if a.logs.source == logsTwinnel {
+	var entries []mihomo.LogEntry
+	switch a.logs.source {
+	case logsMihomo:
+		a.fetchServiceLog(rpc.ServiceLogMihomo, &a.logs.svc)
+		entries = a.mihomoLogs()
+		if a.logs.paused {
+			entries = a.logs.frozen
+		}
+	case logsHelper:
+		a.fetchServiceLog(rpc.ServiceLogHelper, &a.logs.helper)
+		entries = a.helperLogs()
+		if a.logs.hPaused {
+			entries = a.logs.hFrozen
+		}
+	case logsTwinnel:
 		a.backfillEvents()
 	}
 	// Logs fill the pane, and so does their toolbar (window.go): long
@@ -135,7 +167,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 			// its ⓘ, the search, the level as a pop-up (its value names
 			// it), then 暂停 and 清空 as icons. It fits a 900 pt window in
 			// every language; the title never drops (R-kubai-1).
-			segmented(c.Key("source"), &v.source, T.LogsSourceMihomo, T.LogsSourceTwinnel).Label(T.PageLogs)
+			segmented(c.Key("source"), &v.source, T.LogsSourceMihomo, T.LogsSourceTwinnel, T.LogsSourceHelper).Label(T.PageLogs)
 			infoTipAbout(c, T.PageLogs, T.TipLogs, nil)
 			searchW := float32(200)
 			if v.width > 0 && v.width < 760 {
@@ -150,8 +182,11 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 			// shift as it flips; the state is also spoken (selected). Both
 			// tabs have both buttons, each with its own state.
 			paused := &v.paused
-			if v.source == logsTwinnel {
+			switch v.source {
+			case logsTwinnel:
 				paused = &v.evPaused
+			case logsHelper:
+				paused = &v.hPaused
 			}
 			icon, pause := iconPause, T.LogPause
 			if *paused {
@@ -163,21 +198,29 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 			}
 			if b.Clicked() {
 				*paused = !*paused
-				if v.source == logsTwinnel {
+				switch v.source {
+				case logsTwinnel:
 					v.evFrozen = append([]rpc.Event(nil), a.events.evs...)
-				} else {
-					v.frozen = a.mon.Logs()
+				case logsHelper:
+					v.hFrozen = a.helperLogs()
+				default:
+					v.frozen = a.mihomoLogs()
 				}
 			}
 			if barIcon(c.Key("clear"), iconClear, T.LogClear).Clicked() {
-				if v.source == logsTwinnel {
+				switch v.source {
+				case logsTwinnel:
 					if n := len(a.events.evs); n > 0 {
 						v.evCleared = a.events.evs[n-1].Seq
 					}
 					v.evFrozen = nil
-				} else {
+				case logsHelper:
+					v.hFrozen = nil
+					v.helper.cleared = time.Now()
+				default:
 					a.mon.ClearLogs()
 					v.frozen = nil
+					v.svc.cleared = time.Now()
 				}
 			}
 		})
@@ -200,11 +243,19 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 				}
 				entries = kept
 			}
+			list := &v.list
+			if v.source == logsHelper {
+				list = &v.helperLs
+				if len(entries) == 0 && v.helper.failed && len(v.helper.entries) == 0 {
+					a.logsEmpty(c, T.LogHelperUnavailable, "")
+					return
+				}
+			}
 			if len(entries) == 0 {
 				a.logsEmpty(c, T.LogEmpty, T.LogEmptyHint)
 				return
 			}
-			ui.List(c, &v.list, len(entries), func(i int) {
+			ui.List(c, list, len(entries), func(i int) {
 				e := entries[i]
 				col := t.Text
 				switch e.Type {

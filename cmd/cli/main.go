@@ -4,35 +4,56 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
-	"github.com/l3ony2k/twinnel/core/legacy"
 	"os"
 	"sort"
+	"strings"
+
+	"github.com/l3ony2k/twinnel/core/legacy"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 type command struct {
-	summary string
+	// summary is the command's line in the command list, worded for the
+	// system the help is for (helpOS).
+	summary func() string
 	run     func(args []string) error
+	// only are the systems this implementation is for, when it is one
+	// system's (a build-tagged file); nil: every system.
+	only []string
 }
 
 var commands = map[string]command{}
 
 func register(name, summary string, run func(args []string) error) {
+	registerCommand(name, command{summary: func() string { return summary }, run: run})
+}
+
+// registerOn registers goos's own implementation of a command.
+func registerOn(goos, name, summary string, run func(args []string) error) {
+	registerCommand(name, command{summary: func() string { return summary }, run: run, only: []string{goos}})
+}
+
+func registerCommand(name string, c command) {
 	if _, dup := commands[name]; dup {
 		panic("duplicate command " + name)
 	}
-	commands[name] = command{summary, run}
+	commands[name] = c
 }
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: twinnel <command> [args]")
 	names := make([]string, 0, len(commands))
 	for n := range commands {
-		names = append(names, n)
+		if shownOn([]string{n}, helpOS) {
+			names = append(names, n)
+		}
 	}
 	sort.Strings(names)
 	for _, n := range names {
-		fmt.Fprintf(os.Stderr, "  %-12s %s\n", n, commands[n].summary)
+		fmt.Fprintf(os.Stderr, "  %-12s %s\n", n, commands[n].summary())
 	}
 }
 
@@ -44,16 +65,36 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
-	if a := os.Args[1]; a == "--version" || a == "-version" || a == "-v" {
+	switch a := os.Args[1]; a {
+	case "--version", "-version", "-v":
 		os.Args[1] = "version"
+	case "help", "-h", "-help", "--help":
+		usage()
+		return
 	}
 	c, ok := commands[os.Args[1]]
 	if !ok {
+		fmt.Fprintf(os.Stderr, "twinnel: unknown command %q\n", os.Args[1])
 		usage()
 		os.Exit(2)
 	}
 	if err := c.run(os.Args[2:]); err != nil {
-		fmt.Fprintln(os.Stderr, "twinnel:", err)
+		if errors.Is(err, flag.ErrHelp) {
+			return // -h: the flag set printed the usage
+		}
+		fmt.Fprintln(os.Stderr, "twinnel:", errorText(err))
 		os.Exit(1)
 	}
+}
+
+// errorText is err for people: a helper error reads as its message, not
+// "rpc error -32003: …" (the JSON-RPC code says nothing to them; --json
+// output and MCP keep it).
+func errorText(err error) string {
+	msg := err.Error()
+	var re *rpc.Error
+	if errors.As(err, &re) && re.Message != "" {
+		msg = strings.Replace(msg, re.Error(), re.Message, 1)
+	}
+	return msg
 }

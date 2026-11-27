@@ -52,6 +52,7 @@ func (a *app) startHelper() {
 				switch a.page {
 				case pageKernel:
 					a.loadServices()
+					a.loadAccessories()
 				case pageTakeover:
 					a.loadTakeover()
 				}
@@ -64,6 +65,10 @@ func (a *app) startHelper() {
 	}
 	hc.OnEvents = func(evs []rpc.Event) {
 		mygo.RunOnMain(func() {
+			evs = a.takeAccessoryProgress(a.takeStages(evs))
+			if len(evs) == 0 {
+				return // only progress: nothing to reload
+			}
 			a.hd.lastEvent = evs[len(evs)-1]
 			a.recordEvents(evs)
 			if credentialsEvent(evs) {
@@ -71,6 +76,9 @@ func (a *app) startHelper() {
 			}
 			if serviceEvent(evs) && a.page == pageKernel {
 				a.loadServices()
+			}
+			if accessoryEvent(evs) && a.page == pageKernel {
+				a.loadAccessories()
 			}
 			if takeoverEvent(evs) && a.page == pageTakeover {
 				a.loadTakeover()
@@ -126,6 +134,9 @@ type helperData struct {
 	unappliedCheck bool // a check runs
 	unappliedAgain bool // something changed during it: check again
 	unappliedErr   bool // the last check failed: whether 应用 has work is unknown
+	// applyStage is the running apply's stage (rpc.Stage*), from the
+	// helper's compose.stage events; "" before the first.
+	applyStage string
 
 	cfg   configView
 	hist  historyView
@@ -254,7 +265,8 @@ func opResult(label string) (text string, quiet bool) {
 }
 
 // checkUnapplied asks the helper whether the composed config differs from
-// the one mihomo runs (compose.preview, read-only), for unappliedNote.
+// the one mihomo runs (compose.status: no mihomo -t, so it stays quick
+// after every save), for unappliedNote.
 // One check at a time; a change meanwhile asks again. Main thread.
 func (a *app) checkUnapplied() {
 	d := &a.hd
@@ -270,8 +282,7 @@ func (a *app) checkUnapplied() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
-		var r rpc.ComposeResult
-		err := hc.Call(ctx, rpc.MethodComposePreview, nil, &r)
+		r, err := composeStatus(ctx, hc)
 		mygo.RunOnMain(func() {
 			d.unappliedCheck = false
 			d.unapplied = err == nil && r.Changed // unknown reads as nothing to apply
@@ -388,7 +399,7 @@ func (a *app) helperWrites(s status.Snapshot) bool {
 func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	d := &a.hd
-	if d.busy != "" && !d.busyOnButton && d.span.visible(time.Now()) {
+	if d.busy != "" && !d.busyOnButton && !accessoryOpShown(d.busy) && d.span.visible(time.Now()) {
 		// No opButton shows this operation: say it here (after busyDelay).
 		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Children(func() {
 			ui.Spinner(c)
@@ -423,7 +434,7 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 	case status.HelperConnected:
 		return true
 	case status.HelperNotInstalled:
-		a.onboarding(c, s)
+		a.wizardGate(c) // the first-run wizard installs it (wizard.go)
 		return false
 	}
 	t := c.Theme()

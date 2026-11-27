@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"net/netip"
 	"sync"
 )
@@ -77,6 +78,10 @@ func (m *memoEnv) LookupSystem(_ context.Context, name string) (DNSAnswer, error
 	return memo(m, "dns-system:"+name, func() (DNSAnswer, error) { return m.inner.LookupSystem(m.ctx, name) })
 }
 
+// EgressSupported forwards whether the wrapped Env can run the egress
+// test (Memo itself always has the methods).
+func (m *memoEnv) EgressSupported() bool { return egressSupported(m.inner) }
+
 func (m *memoEnv) DirectEgress(_ context.Context, url string) (netip.Addr, error) {
 	e, ok := m.inner.(EgressEnv)
 	if !ok {
@@ -100,4 +105,12 @@ func (m *memoEnv) ProxiedEgress(_ context.Context, url string) (netip.Addr, []st
 		return proxiedEgress{a, c}, err
 	})
 	return v.addr, v.chain, err
+}
+
+func (m *memoEnv) ControllerOwner(_ context.Context) (foreign.Owner, error) {
+	oe, ok := m.inner.(OwnerEnv)
+	if !ok {
+		return foreign.Owner{}, ErrNotSupported
+	}
+	return memo(m, "controller-owner", func() (foreign.Owner, error) { return oe.ControllerOwner(m.ctx) })
 }

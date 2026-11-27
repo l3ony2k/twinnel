@@ -35,7 +35,7 @@ $MihomoServiceDefault = "TwinnelMihomo"
 $TailscaleService = "Tailscale"
 $PipeName = "twinnel-helper"
 
-$rows = New-Object System.Collections.Generic.List[object]
+$rows = [System.Collections.Generic.List[object]]::new()
 function Row([string]$Status, [string]$Step, [string]$Detail) {
     $rows.Add([pscustomobject]@{ Result = $Status; Step = $Step; Detail = $Detail })
 }

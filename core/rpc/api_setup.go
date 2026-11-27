@@ -7,15 +7,24 @@ import "time"
 // (kernel.install, subscription.put, layer.put, compose.apply,
 // service.install).
 const (
-	// MethodDNSStatus reads the DNS of the active network services and
+	// MethodDNSStatus reads the DNS of the managed network services
+	// (connected or not; DNSService.Connected tells them apart) and
 	// whether Twinnel keeps a backup of them.
 	MethodDNSStatus = "dns.status"
-	// MethodDNSPoint points every active network service at mihomo's DNS
-	// (127.0.0.1), recording the earlier values first. Refused while
-	// mihomo's DNS does not answer.
+	// MethodDNSPoint points every managed network service, connected or
+	// not (one that connects later already resolves through mihomo), at
+	// mihomo's DNS
+	// (127.0.0.1; on Windows also ::1 for IPv6, see
+	// platform/windows/sysdns.go), recording the earlier values first.
+	// Refused while mihomo's DNS does not answer.
 	MethodDNSPoint = "dns.point"
 	// MethodDNSRestore writes the recorded values back.
 	MethodDNSRestore = "dns.restore"
+	// MethodDNSBackup records automatic (DHCP) as the value to restore for
+	// every service that already points at mihomo without a recorded one
+	// (DNSStatus.Unprotected), so the DNS watchdog can protect it. It
+	// changes no DNS setting and works while mihomo is down.
+	MethodDNSBackup = "dns.backup"
 	// MethodTailscaleInstall installs the open-source tailscaled as a
 	// system service when no Tailscale is installed; an existing install
 	// is kept.
@@ -43,26 +52,59 @@ const (
 type DNSService struct {
 	Name    string   `json:"name"`
 	Servers []string `json:"servers"`
+	// Connected: the service's link carries traffic now
+	// (sysdns.LinkConnected). Only connected services count for Pointed
+	// and Unprotected. Never set on Backup entries.
+	Connected bool `json:"connected,omitempty"`
 }
 
 // DNSStatus is the result of the dns.* methods.
 type DNSStatus struct {
 	Services []DNSService `json:"services"`
 	Target   []string     `json:"target"`
-	Pointed  bool         `json:"pointed"`
+	// Pointed: every connected service points at mihomo (sysdns.PointsAt
+	// Target; sysdns.Counted: every service while none is connected).
+	Pointed bool `json:"pointed"`
+	// Unprotected are the connected services that point at mihomo with nothing
+	// recorded to restore: if mihomo stops they lose DNS and the watchdog
+	// cannot help (dns.backup, or dns.point, records automatic for them).
+	Unprotected []string `json:"unprotected,omitempty"`
+	// Recorded are the services dns.point or dns.backup recorded as
+	// automatic because they already pointed at mihomo.
+	Recorded []string `json:"recorded,omitempty"`
 	// Backup is what the services used before dns.point (nil: Twinnel did
 	// not change the system DNS, or restored it).
 	Backup   []DNSService `json:"backup,omitempty"`
 	BackupAt time.Time    `json:"backup_at,omitzero"`
 	Changed  []string     `json:"changed,omitempty"`
 	// Supported is false where the platform part is missing (Linux for
-	// now): dns.point and dns.restore then fail.
+	// now; macOS and Windows have one): dns.point and dns.restore then
+	// fail.
 	Supported bool `json:"supported"`
+	// Watch is the DNS watchdog (nil: a helper without one).
+	Watch *DNSWatch `json:"watch,omitempty"`
 }
 
 type TailscaleInstallParams struct {
 	// Proxy for the download (Proxy* or a URL).
 	Proxy string `json:"proxy,omitempty"`
+	// NoStart: install only. The Windows installer starts its service
+	// right away; it is stopped again (TailscaleInstallResult.Stopped).
+	NoStart bool `json:"no_start,omitempty"`
+	// Repair reinstalls an install whose files are damaged (Windows: the
+	// official MSI over the old one; the build Twinnel unpacked:
+	// unpacked again). An install from elsewhere (Homebrew, the app) is
+	// repaired with its own installer.
+	Repair bool `json:"repair,omitempty"`
+}
+
+// BinaryProblem is an installed program that is not sane (core/binsane):
+// Problem is "zeroed", "empty", "bad-header", "bad-signature" (damaged),
+// "missing" or "denied".
+type BinaryProblem struct {
+	Path    string `json:"path"`
+	Problem string `json:"problem"`
+	Detail  string `json:"detail,omitempty"`
 }
 
 // TailscaleInstallResult says what tailscale.install did.
@@ -76,12 +118,22 @@ type TailscaleInstallResult struct {
 	// that takes the system VPN slot, which conflicts with mihomo's TUN).
 	UsesSystemVPN bool   `json:"uses_system_vpn,omitempty"`
 	Version       string `json:"version,omitempty"`
-	Source        string `json:"source,omitempty"` // pkgs.tailscale.com or homebrew
+	Source        string `json:"source,omitempty"` // pkgs.tailscale.com, homebrew or the Windows MSI
 	Via           string `json:"via,omitempty"`    // the download's route: direct, proxy, subscription, url
 	Daemon        string `json:"daemon,omitempty"`
+	// RestartNeeded: the Windows installer asked for a restart to finish
+	// (msiexec exit code 3010); Tailscale may not work fully until then.
+	RestartNeeded bool `json:"restart_needed,omitempty"`
 	// Service is the tailscaled service install (dry run when the helper
 	// is not root).
 	Service *ServiceOpResult `json:"service,omitempty"`
+	// Stopped: the service was stopped after the install (NoStart).
+	Stopped bool `json:"stopped,omitempty"`
+	// Repaired: the install was damaged and was reinstalled (Repair).
+	Repaired bool `json:"repaired,omitempty"`
+	// Damaged are the installed files that are not sane; with an error
+	// coded "ts-damaged" unless Repair fixed them.
+	Damaged []BinaryProblem `json:"damaged,omitempty"`
 }
 
 // MethodTailscaleLogin reads tailscaled's login state and, with Start,
@@ -91,7 +143,12 @@ type TailscaleInstallResult struct {
 const MethodTailscaleLogin = "tailscale.login"
 
 type TailscaleLoginParams struct {
+	// Start connects the node (WantRunning) and, when it then needs a
+	// login, starts one. A node that only was stopped just connects.
 	Start bool `json:"start,omitempty"`
+	// Reauth (with Start) starts a new login even on a running node: the
+	// way to renew a node key before it expires.
+	Reauth bool `json:"reauth,omitempty"`
 }
 
 type TailscaleLoginResult struct {
@@ -101,3 +158,42 @@ type TailscaleLoginResult struct {
 	// Started: this call started a login (Start, and not Running yet).
 	Started bool `json:"started,omitempty"`
 }
+
+// EventDNSWatch: the DNS watchdog restored the system DNS because mihomo
+// did not answer, pointed it back, or forgot a restore (data: DNSWatch).
+const EventDNSWatch = "dns.watchdog"
+
+// Phases of DNSWatch (core/dnswatch).
+const (
+	DNSWatchOff      = "off"      // Twinnel does not own the system DNS
+	DNSWatchWatching = "watching" // pointed at mihomo, watched
+	DNSWatchRestored = "restored" // temporarily back to the earlier DNS
+)
+
+// Causes of a restore.
+const (
+	DNSCauseStopped   = "stopped"    // mihomo's service is not running
+	DNSCauseCrashLoop = "crash-loop" // it keeps restarting
+	DNSCauseNoAnswer  = "no-answer"  // it runs but its DNS does not answer
+)
+
+// DNSWatch is the DNS watchdog's state: once the system DNS points at
+// mihomo, a mihomo that dies would cut name resolution for the whole
+// machine, so the helper writes the earlier DNS back until mihomo answers
+// again (then points it back, leaving alone what the user changed by
+// hand). dns.point and dns.restore end a restore: dns.restore is how a
+// user keeps the earlier DNS.
+type DNSWatch struct {
+	Phase string    `json:"phase"`
+	Cause string    `json:"cause,omitempty"`
+	Since time.Time `json:"since,omitzero"`
+	// Services are the network services the watchdog restored.
+	Services []string `json:"services,omitempty"`
+	// LeftAlone are the services the last point-back skipped because the
+	// user changed their DNS by hand meanwhile.
+	LeftAlone   []string  `json:"left_alone,omitempty"`
+	LastRepoint time.Time `json:"last_repoint,omitzero"`
+}
+
+// Restored reports whether the watchdog holds the system DNS restored.
+func (w *DNSWatch) Restored() bool { return w != nil && w.Phase == DNSWatchRestored }

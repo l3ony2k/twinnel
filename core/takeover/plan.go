@@ -18,6 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // PlanVersion is the schema version of Plan.
@@ -33,6 +34,10 @@ type Options struct {
 	NoValidate bool
 	Now        func() time.Time
 }
+
+// ErrOwnSetup: the setup discovery found is Twinnel's own (Own), so
+// there is nothing to take over.
+var ErrOwnSetup = errors.New("this mihomo is already managed by Twinnel; there is nothing to take over")
 
 // Coexist describes the managed Tailscale layer the plan uses.
 type Coexist struct {
@@ -130,6 +135,9 @@ func BuildPlan(ctx context.Context, probe Probe, opt Options) (*Plan, error) {
 	disc, err := Discover(ctx, probe, opt.DiscoverOptions)
 	if err != nil {
 		return nil, err
+	}
+	if disc.Mihomo.Twinnel {
+		return nil, fmt.Errorf("%w (%s)", ErrOwnSetup, disc.Mihomo.Config)
 	}
 	p := &Plan{Version: PlanVersion, CreatedAt: now(), Discovery: disc, Live: disc.Mihomo.Config}
 	p.Warnings = append(p.Warnings, disc.Warnings...)
@@ -601,9 +609,11 @@ func coexistWhy(area string, cx Coexist) (why, code string, args []string) {
 }
 
 // WriteFiles writes the layers, the composed config, the redacted diff and
-// plan.json into dir (created 0700). Files holding config content are 0600.
+// plan.json into dir. Every file, and the dirs it creates, are readable by
+// their owner only (core/privfile): the layers and the composed config hold
+// node credentials.
 func (p *Plan) WriteFiles(dir string) error {
-	if err := os.MkdirAll(filepath.Join(dir, "layers"), 0o700); err != nil {
+	if err := privfile.MkdirAll(filepath.Join(dir, "layers")); err != nil {
 		return err
 	}
 	p.Files = map[string]string{}
@@ -611,14 +621,14 @@ func (p *Plan) WriteFiles(dir string) error {
 		l := &p.Layers[i]
 		name := fmt.Sprintf("%02d-%s.yaml", i, l.ID)
 		l.File = filepath.Join(dir, "layers", name)
-		if err := os.WriteFile(l.File, l.data, 0o600); err != nil {
+		if err := privfile.WriteFile(l.File, l.data); err != nil {
 			return err
 		}
 	}
 	write := func(role, name string, data []byte) error {
 		path := filepath.Join(dir, name)
 		p.Files[role] = path
-		return os.WriteFile(path, data, 0o600)
+		return privfile.WriteFile(path, data)
 	}
 	if err := write("composed", "composed.yaml", p.composed); err != nil {
 		return err
@@ -636,7 +646,7 @@ func (p *Plan) WriteFiles(dir string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p.Files["plan"], append(b, '\n'), 0o600)
+	return privfile.WriteFile(p.Files["plan"], append(b, '\n'))
 }
 
 // Text is a readable summary. It contains no credentials.

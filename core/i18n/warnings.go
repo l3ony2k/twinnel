@@ -157,6 +157,7 @@ var legacyReasons = []struct {
 	{"takeover-undo", regexp.MustCompile(`^adopt (\S+) rolled back$`)},
 	{"adopt", regexp.MustCompile(`^adopt (\S+)$`)},
 	{"controller-secure", regexp.MustCompile(`^controller\.secure$`)},
+	{"controller-move", regexp.MustCompile(`^controller\.move to (\S+)$`)},
 	{"harden", regexp.MustCompile(`^harden (\S+)$`)},
 	{"subscription-updated", regexp.MustCompile(`^subscription (\S+) updated$`)},
 	{"tailnet-changed", regexp.MustCompile(`^tailnet changed$`)},
@@ -202,6 +203,12 @@ func (s *Strings) HistoryReasonText(code string, args []string, reason string) s
 		} else {
 			fa = []any{""}
 		}
+	case "controller-move":
+		to := ""
+		if len(args) > 0 {
+			to = args[0]
+		}
+		fa = []any{to}
 	}
 	return F(tmpl, fa...)
 }

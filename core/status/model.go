@@ -5,6 +5,7 @@ package status
 
 import (
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/health"
@@ -150,7 +151,11 @@ type Reason struct {
 	Text   string
 	Health bool // comes from the health checks (the panel shows those on a line of their own)
 	Code   string
-	Count  int // ReasonHealth: the number the text says
+	Count  int // ReasonHealth: the number the text says (failures + warnings)
+	// ReasonHealth: how Count splits, and whether it is what was found
+	// before takeover (a warning, not a fault).
+	Fail, Warn int
+	Found      bool
 	// Raw is the error behind a reason as the system said it (English),
 	// for a secondary line and 复制; Text says it in the UI language.
 	Raw string
@@ -171,6 +176,13 @@ const (
 	ReasonTSHealth       = "ts-health"
 	ReasonTSSystemVPN    = "system-vpn"
 	ReasonHealth         = "health"
+	// ReasonCtlForeign: another program's mihomo holds the controller
+	// address (the helper's preflight); what the controller says is that
+	// program's, so the mihomo reasons and controls are left out.
+	ReasonCtlForeign = "controller-foreign"
+	// ReasonDNSRestored: the helper's DNS watchdog put the system DNS
+	// back to the earlier settings because mihomo did not answer.
+	ReasonDNSRestored = "dns-restored"
 )
 
 // Can is what the app can change right now, per thing a control acts
@@ -185,10 +197,19 @@ type Can struct {
 func (s Snapshot) Can() Can {
 	w := s.WritesAllowed
 	return Can{
-		Mihomo:    w && s.Mihomo.Reachable && !s.Mihomo.Unauthorized,
+		Mihomo:    w && s.MihomoLive(),
 		Tailscale: w && s.Tailscale.Reachable,
 		Helper:    w && s.Helper.Connected(),
 	}
+}
+
+// ForeignController is the owner of the controller address when the
+// helper found another program's mihomo on it, else nil.
+func (s Snapshot) ForeignController() *foreign.Owner {
+	if h := s.Helper.Status; h != nil && h.Mihomo.Owner.IsForeign() {
+		return h.Mihomo.Owner
+	}
+	return nil
 }
 
 // ExitNodeAccepted reports whether Tailscale uses an exit node the user
@@ -208,6 +229,12 @@ func (s Snapshot) acceptedCauses() []string {
 		return []string{health.CauseExitNode}
 	}
 	return nil
+}
+
+// DNSRestored reports whether the helper's DNS watchdog holds the system
+// DNS back on the earlier settings (mihomo did not answer).
+func (s Snapshot) DNSRestored() bool {
+	return s.Helper.Status != nil && s.Helper.Status.DNSWatch.Restored()
 }
 
 // TakenOver reports whether Twinnel manages the config: the helper says it
@@ -323,7 +350,10 @@ func Evaluate(s *Snapshot) {
 		rs = append(rs, Reason{Level: LevelError, Text: text, Code: code, Raw: err})
 	}
 	m := s.Mihomo
+	fo := s.ForeignController()
 	switch {
+	case fo != nil:
+		add(LevelError, ReasonCtlForeign, t.CtlForeign(fo.Addr, fo.Client.Name()))
 	case m.Unauthorized:
 		add(LevelError, ReasonMihomoAuth, t.ReasonMihomoAuth)
 	case !m.Reachable && m.Err != "":
@@ -335,6 +365,9 @@ func Evaluate(s *Snapshot) {
 		if p := m.Primary; p != nil && p.Tested && p.Delay <= 0 && !p.Builtin {
 			add(LevelWarn, ReasonPrimaryDead, fmt.Sprintf(t.ReasonPrimaryDead, p.Name))
 		}
+	}
+	if s.DNSRestored() {
+		add(LevelWarn, ReasonDNSRestored, t.ReasonDNSRestored)
 	}
 	ts := s.Tailscale
 	st := ts.State
@@ -355,7 +388,8 @@ func Evaluate(s *Snapshot) {
 		if _, ok := s.ExitNodeAccepted(); st.ExitNode != nil && !ok {
 			add(LevelWarn, ReasonTSExitNode, fmt.Sprintf(t.ReasonTSExitNode, st.ExitNode.Name))
 		}
-		if st.KeyExpiry != nil && st.KeyExpiresWithin(s.Time, KeyExpiryWarning) {
+		// Expired, the node needs a login: that reason says it.
+		if st.Running() && st.KeyExpiry != nil && st.KeyExpiresWithin(s.Time, KeyExpiryWarning) {
 			add(LevelWarn, ReasonTSKeyExpiry, fmt.Sprintf(t.ReasonTSKeyExpiry, Until(s.Time, *st.KeyExpiry)))
 		}
 		for _, h := range st.Health {
@@ -379,13 +413,21 @@ func Evaluate(s *Snapshot) {
 		c := health.Accept(s.Health.Report, health.CauseExitNode).Counts()
 		exitOnly = c[health.StatusFail] == 0
 	}
+	// The number is everything that needs attention, failures and
+	// warnings alike, split in the words when both are in it: the page's
+	// list, the sidebar badge, the overview and the flyout show the same.
+	hr := Reason{Health: true, Code: ReasonHealth, Count: fail + warn, Fail: fail, Warn: warn}
 	switch {
 	case fail > 0 && (!s.TakenOver() || exitOnly):
-		rs = append(rs, Reason{Level: LevelWarn, Text: i18n.F(t.ReasonHealthFound, fail), Health: true, Code: ReasonHealth, Count: fail})
+		hr.Level, hr.Found = LevelWarn, true
+		hr.Text = t.HealthCount(fail, warn, true)
 	case fail > 0:
-		rs = append(rs, Reason{Level: LevelError, Text: fmt.Sprintf(t.ReasonHealthFail, fail), Health: true, Code: ReasonHealth, Count: fail})
+		hr.Level, hr.Text = LevelError, fmt.Sprintf(t.HealthLine, t.HealthCount(fail, warn, false))
 	case warn > 0:
-		rs = append(rs, Reason{Level: LevelWarn, Text: i18n.F(t.ReasonHealthWarn, warn), Health: true, Code: ReasonHealth, Count: warn})
+		hr.Level, hr.Text = LevelWarn, fmt.Sprintf(t.HealthLine, t.HealthCount(0, warn, false))
+	}
+	if hr.Count > 0 {
+		rs = append(rs, hr)
 	}
 	s.Reasons = rs
 	switch {

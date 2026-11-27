@@ -85,6 +85,9 @@ type configView struct {
 	diff    *editor.DiffState
 	diffErr string
 	prevErr string // the last preview's failure, shown in the apply card
+	// prevStage is what a running preview does: "" composing and
+	// checking, stageDiff loading the texts for its diff.
+	prevStage string
 
 	// What each layer row marks, made once a frame (rowMarks): changed
 	// since the running config, or named by the last failed apply.
@@ -611,6 +614,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 		}
 	}
 	title := layerTitle(l)
+	a.spotRing(c, col, "layer:"+l.ID) // a health fix's 去调整 points here
 	col.Children(func() {
 		if dropAt != 0 {
 			dropLine(c, t, dropAt == 2)
@@ -1096,7 +1100,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 			id := strings.TrimSpace(v.edID)
 			// An error-level note means the helper would refuse the save:
 			// the button waits, the note says why (U35).
-			save := ui.PrimaryButton(c.Key("ed-save"), T.Save).Disabled(!w || id == "" || blocked)
+			save := a.saveButton(c.Key("ed-save"), T.Save+" "+id).Disabled(!w || id == "" || blocked)
 			if blocked {
 				save.Tooltip(T.LayerSaveBlocked)
 			}
@@ -1290,6 +1294,11 @@ func (a *app) removeLayer(id, name string) {
 	})
 }
 
+// asyncLintSize is the override size from which layerNotes lints in the
+// background (a 10k-rule override takes ~8 ms on a fast Mac, more on a
+// slow PC: too long for every keystroke on the main thread).
+const asyncLintSize = 64 << 10
+
 // layerNotes are the edited layer's notes: the helper's refusal of the
 // last save first (at its line when it has one), then the merge-directive
 // notes; blocked reports an error among them (the save then waits).
@@ -1297,9 +1306,25 @@ func (a *app) layerNotes() (notes []status.LintNote, blocked bool) {
 	v := &a.hd.cfg
 	key := lintKey{v.ed.Buffer, v.ed.Buffer.Version(), v.edFormat}
 	if key != v.lintKey {
-		v.lintKey, v.lint = key, nil
-		if layerFormats[v.edFormat] == formatMerge {
-			v.lint = status.LintOverride(v.ed.Buffer.String())
+		v.lintKey = key
+		switch text := v.ed.Buffer.String(); {
+		case layerFormats[v.edFormat] != formatMerge:
+			v.lint = nil
+		case len(text) < asyncLintSize:
+			v.lint = status.LintOverride(text)
+		default:
+			// A big override (thousands of rules) is linted off the main
+			// thread, so typing stays smooth; the last notes show until
+			// the new ones come (the helper checks the save anyway).
+			go func() {
+				notes := status.LintOverride(text)
+				mygo.RunOnMain(func() {
+					if v.lintKey == key {
+						v.lint = notes
+						a.invalidate()
+					}
+				})
+			}()
 		}
 	}
 	notes = v.lint
@@ -1473,6 +1498,10 @@ func (a *app) applyCard(c *ui.Context, s status.Snapshot) {
 	groupBox(c, t).Key("apply").Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(28).Children(func() {
 			switch {
+			case a.composeProgress() != "":
+				// A long apply or preview says what it waits for, in place
+				// of the state, while its button spins (save-perf).
+				ui.Text(c, a.composeProgress()).TextColor(t.TextMuted).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
 			case dr != nil:
 				a.driftState(c, s, *dr, w)
 				return
@@ -1676,6 +1705,15 @@ func (a *app) applySummary(c *ui.Context, r rpc.ApplyResult) {
 		if r.RolledBack && m.Code != "reload-failed" && m.Code != "verify-failed" { // those say it themselves
 			small(c, T.ApplyFailedRestore).Margin(0, 0, 0, 16)
 		}
+		if r.Foreign.IsForeign() && a.page != pageHealth {
+			// Another program's mihomo holds the controller: the health
+			// row has both fixes (quit it, or move Twinnel's port).
+			ui.Row(c).Margin(4, 0, 0, 16).Children(func() {
+				if pushButton(c.Key("foreign-fix"), T.ForeignHowToFix).Clicked() {
+					a.openPage(pageHealth)
+				}
+			})
+		}
 		a.culpritNotes(c, r.Culprits)
 		validateErrors(c, r.ValidateErrors)
 	}
@@ -1767,10 +1805,12 @@ func (a *app) runPreview(s status.Snapshot) {
 	var res rpc.ComposeResult
 	var live, next string
 	var diffErr error
+	a.hd.cfg.prevStage = ""
 	a.helperOp(T.Preview, time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
 		if err := hc.Call(ctx, rpc.MethodComposePreview, nil, &res); err != nil {
 			return err
 		}
+		mygo.RunOnMain(func() { a.hd.cfg.prevStage = stageDiff; a.invalidate() })
 		live, diffErr = fetchConfig(ctx, hc, cfgPath, rpc.ConfigLive, "")
 		if diffErr == nil {
 			next, diffErr = fetchConfig(ctx, hc, cfgPath, rpc.ConfigPreview, "")
@@ -1806,6 +1846,7 @@ func (a *app) runApply() {
 	// No words from the user: the helper records the code "apply".
 	p := rpc.ApplyParams{Reason: strings.TrimSpace(v.reason)}
 	var res rpc.ApplyResult
+	a.hd.applyStage = ""
 	a.helperOp(T.Apply, 2*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
 		return hc.Call(ctx, rpc.MethodComposeApply, p, &res)
 	}, func(err error) {

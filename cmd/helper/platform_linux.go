@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/engine"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/core/store"
@@ -46,7 +47,11 @@ func tailnetInterface(ctx context.Context) (string, error) {
 //     the interval and after applies and service operations.
 func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	linuxSettings(e)
+	e.Autostarts = autostartSource(o)
 	o.group = linuxGroup(o.group)
+	e.PortOwner = func(ctx context.Context, port int) (*foreign.Process, error) {
+		return foreign.ProcPortOwner(ctx, "/proc", port)
+	}
 
 	switch o.tailnetIface {
 	case "", "auto":
@@ -101,14 +106,16 @@ func linuxGroup(g string) string {
 // healthOptions points the checks at the mihomo the helper manages, read
 // fresh from settings for every run.
 func healthOptions(e *engine.Engine, opts *options) linux.Options {
-	o := linux.Options{TailscaleStatus: devTailnetStatus(e, opts)}
+	o := linux.Options{TailscaleStatus: devTailnetStatus(e, opts), Dataplane: health.NetProbes{}}
 	settings := health.DefaultSettings()
 	o.Settings = &settings
+	healthExtras(e, &settings)
 	st, err := e.Store.Settings()
 	if err != nil {
 		return o
 	}
-	settings.Egress = st.HealthEgress // 定期检测
+	// 防泄漏's groups and 定期检测: the same rule the CLI doctor uses.
+	settings.ApplyUserChoices(st.LeakGuardGroups, st.HealthEgress)
 	o.Controller = st.Mihomo.Controller
 	o.ConfigPath = st.Mihomo.ConfigFile
 	o.TailscaleBin = st.Tailscale.Binary

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/store"
 	"github.com/l3ony2k/twinnel/core/takeover"
@@ -232,9 +233,9 @@ func toRPCSettings(st *store.Settings) rpc.Settings {
 	return rpc.Settings{
 		LeakGuardGroups: g, TailscaleCoexist: st.Tailscale.Coexist, TailscaleResolver: st.Tailscale.Resolver,
 		HistoryKeep: st.HistoryKeep, KernelChannel: st.KernelChannel, AutoApply: *st.AutoApply,
-		HealthEgress: st.HealthEgress,
-		Drift:        toRPCDrift(st.Drift),
-		Agent:        rpc.AgentSettings{MCP: st.Agent.MCP, Operate: st.Agent.OperateOn(), Configure: st.Agent.Configure},
+		HealthEgress: st.HealthEgress, HealthEgressURLs: st.HealthEgressURLs, GeoAutoUpdate: geoAuto(st),
+		Drift: toRPCDrift(st.Drift),
+		Agent: rpc.AgentSettings{MCP: st.Agent.MCP, Operate: st.Agent.OperateOn(), Configure: st.Agent.Configure},
 	}
 }
 
@@ -286,6 +287,25 @@ func (e *Engine) UpdateSettings(u rpc.SettingsUpdate) (rpc.Settings, error) {
 		if u.HealthEgress != nil {
 			st.HealthEgress = *u.HealthEgress
 		}
+		if u.HealthEgressURLs != nil {
+			if err := health.CheckEgressURLs(*u.HealthEgressURLs); err != nil {
+				return rpc.ErrInvalid("%v", err)
+			}
+			st.HealthEgressURLs = slices.Clone(*u.HealthEgressURLs)
+			if len(st.HealthEgressURLs) == 0 {
+				st.HealthEgressURLs = nil
+			}
+		}
+		if u.GeoAutoUpdate != nil {
+			switch v := *u.GeoAutoUpdate; v {
+			case rpc.GeoAutoOff, "":
+				st.GeoAutoUpdate = ""
+			case rpc.GeoAutoWeekly:
+				st.GeoAutoUpdate = v
+			default:
+				return rpc.ErrInvalid("geo_auto_update must be %q or %q", rpc.GeoAutoOff, rpc.GeoAutoWeekly)
+			}
+		}
 		if a := u.Agent; a != nil {
 			if a.MCP != nil {
 				st.Agent.MCP = *a.MCP
@@ -308,7 +328,7 @@ func (e *Engine) UpdateSettings(u rpc.SettingsUpdate) (rpc.Settings, error) {
 		return rpc.Settings{}, err
 	}
 	e.publish(rpc.EventStateChanged, map[string]string{"settings": "updated"})
-	if u.HealthEgress != nil {
+	if u.HealthEgress != nil || u.HealthEgressURLs != nil {
 		e.triggerHealth("settings") // the egress row follows the switch
 	}
 	return toRPCSettings(st), nil

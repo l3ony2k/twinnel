@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/status"
@@ -155,7 +156,8 @@ func (a *app) panelHeader(c *ui.Context, s status.Snapshot) {
 	// state leaves them no room. Without rates (mihomo down) the state is
 	// the whole row, with no room kept for a second line (kubai R-19).
 	row := ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset + moduleInset).MinHeight(panelHeadH)
-	if s.Mihomo.Reachable {
+	live := s.MihomoLive() // another program's rates are not Twinnel's
+	if live {
 		row.Wrap()
 	}
 	row.Children(func() {
@@ -165,7 +167,7 @@ func (a *app) panelHeader(c *ui.Context, s status.Snapshot) {
 			})
 			ui.Text(c, s.Level.Text()).FontWeight(600).NoWrap()
 		})
-		if s.Mihomo.Reachable {
+		if live {
 			m := s.Mihomo.Traffic
 			num(small(c, "↓ "+status.Rate(m.Down)+"  ↑ "+status.Rate(m.Up))).NoWrap()
 		}
@@ -181,7 +183,7 @@ func (a *app) panelAttention(c *ui.Context, s status.Snapshot) {
 	for _, r := range s.Reasons {
 		switch {
 		case r.Health && a.healthSrc != nil: // the health row says it
-		case r.Code == status.ReasonMihomoDown, r.Code == status.ReasonTSDown,
+		case r.Code == status.ReasonMihomoDown, r.Code == status.ReasonCtlForeign, r.Code == status.ReasonTSDown,
 			r.Code == status.ReasonTSNeedsLogin, r.Code == status.ReasonTSStopped:
 		default:
 			reasons = append(reasons, r)
@@ -215,6 +217,7 @@ func (a *app) panelAttention(c *ui.Context, s status.Snapshot) {
 		}
 		if health {
 			a.healthLine(c, s)
+			a.healthFixLine(c, s)
 		}
 		if helper {
 			a.helperLine(c, s)
@@ -239,14 +242,11 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	// The one number (status.Snapshot.HealthBadge): the badge, the
 	// overview and the health page show the same.
-	n, lvl := s.HealthBadge()
-	_, fail := s.Health.Counts()
-	icon, col, text := iconWarning, levelColor(t, status.LevelWarn), i18n.F(T.PanelHealthWarn, n)
-	if fail > 0 {
-		icon, col, text = iconError, levelColor(t, lvl), fmt.Sprintf(T.PanelHealthFail, n)
-		if lvl == status.LevelWarn {
-			icon = iconWarning // before takeover: findings, not faults
-		}
+	r, _ := healthReason(s)
+	icon, col := healthReasonIcon(r), levelColor(t, r.Level)
+	text := fmt.Sprintf(T.HealthLine, healthReasonShort(r))
+	if r.Found {
+		text = healthReasonShort(r) // 发现 … says whose it is
 	}
 	row := panelRow(c.Key("health-line"), text).Role(ui.RoleButton)
 	row.Children(func() {
@@ -265,6 +265,31 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 		a.page = pageHealth
 		a.openMain()
 		a.pageChanged(old)
+	}
+}
+
+// healthFixLine is the flyout's 修复 row under the health row: the first
+// problem with a one-click fix, in plain words. A click opens the health
+// page on that fix's preview.
+func (a *app) healthFixLine(c *ui.Context, s status.Snapshot) {
+	cr, rf, ok := a.firstAutoFix(s)
+	if !ok || (cr.ID == (health.ControllerOwnerCheck{}).ID() && s.MihomoView().Foreign()) {
+		return // the mihomo module offers the controller-owner fixes
+	}
+	t := c.Theme()
+	T := i18n.T
+	row := panelRow(c.Key("health-fix"), T.FixDo+T.LabelSep+rf.text.Plain).Role(ui.RoleButton)
+	row.Children(func() {
+		ui.Box(c).Width(leadCol).Shrink(0)
+		ui.Text(c, rf.text.Plain).TextColor(t.TextMuted).Grow(1).Shrink(1).SingleLine().Tooltip(rf.text.Plain)
+		ui.Text(c, T.FixDo).TextColor(t.Accent).Shrink(0).SingleLine()
+	})
+	if row.Clicked() {
+		a.openPage(pageHealth)
+		a.healthOpen[cr.ID] = true
+		if act := a.fixButton(cr, rf, s); act != nil && !act.off {
+			act.run()
+		}
 	}
 }
 
@@ -311,13 +336,30 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	m := s.Mihomo
-	if !m.Reachable {
+	v := s.MihomoView()
+	if v.Foreign() {
+		// Another program's mihomo holds the controller: its state, the
+		// process on hover, and the two ways out; none of its values.
+		// The state wraps under the name: it is the module's message,
+		// too long to sit cut beside it.
+		mk, col, text := mihomoMark(t, v)
+		moduleHeader(c, mk, col, T.Mihomo, "", "", nil)
+		ui.Column(c).Gap(6).PaddingX(rowInset).PaddingY(2).Children(func() {
+			e := ui.Text(c, text).Wrap().LineHeight(lineText)
+			if d := v.Detail(); d != "" {
+				e.Tooltip(d)
+			}
+			a.foreignActions(c, s, 22)
+		})
+		return
+	}
+	if !v.Live() {
 		// Down: no stale values, the plain state (the error on hover), and
 		// 启动 when the helper can start it (else the lock says why not).
 		// Never a dead end (kubai R-19): 启动 when the helper can start
 		// it, else 重试 (ask again; its icon turns).
 		moduleHeader(c, markDown, t.Danger, T.Mihomo, T.Unreachable, m.Err, func() {
-			if !s.WritesAllowed || m.Unauthorized || !s.Helper.Connected() {
+			if !s.WritesAllowed || v.Phase == status.MihomoAuth || !s.Helper.Connected() {
 				a.panelRetry(c)
 				return
 			}
@@ -446,6 +488,12 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 	ts := s.Tailscale
 	st := ts.State
 	summary, detail := T.Unreachable, ts.Err
+	switch tsPhaseOf(s) {
+	case tsNotInstalled:
+		summary = T.TSLShortNotInstalled
+	case tsDaemonDown:
+		summary = T.TSLShortDown
+	}
 	if ts.Reachable {
 		summary = T.TSState(st.BackendState)
 		if st.Running() {
@@ -455,16 +503,19 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 	// The header's switch connects and disconnects, as Tailscale's own
 	// menu does.
 	moduleHeader(c, tsMark(s), tsColor(t, s), T.Tailscale, summary, detail, func() {
-		switch {
-		case needsLogin(s):
-			a.tsLoginButton(c, s)
-		case ts.Reachable:
+		// Every other state has its action in the panel below.
+		if ph := tsPhaseOf(s); ph == tsRunning || ph == tsStarting {
 			a.tsPowerSwitch(c, s).Size(32, 18).Radius(9)
 		}
 	})
 	a.controlError(c, pendTS)
-	if !ts.Reachable || needsLogin(s) {
-		return // its addresses and exit node are not this node's now
+	if a.tsPanelShown(s) {
+		// Not running, or logging in: the state's action, card-size. Its
+		// addresses and exit node are not this node's now.
+		ui.Column(c).PaddingX(rowInset).Padding(4, rowInset).Children(func() {
+			a.tsLoginPanel(c, s, tsPanelOpts{Compact: true})
+		})
+		return
 	}
 	if ip := st.Self.IPv4(); ip.IsValid() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).MinHeight(panelRowH).Children(func() {
@@ -497,7 +548,7 @@ func (a *app) exitNodeRow(c *ui.Context, s status.Snapshot) {
 				m.Separator()
 			}
 			if m.Item(name).Checked(name == sel).Chosen() && name != sel {
-				a.chooseExitNode(st, name, s.Mihomo.Reachable && s.Mihomo.Config.Tun.Enable)
+				a.chooseExitNode(st, name, s.MihomoLive() && s.Mihomo.Config.Tun.Enable)
 			}
 		}
 	})
@@ -521,12 +572,6 @@ func versionSuffix(v string) string {
 		return ""
 	}
 	return " · " + v
-}
-
-// needsLogin: Tailscale answers and wants a login.
-func needsLogin(s status.Snapshot) bool {
-	st := s.Tailscale.State.BackendState
-	return s.Tailscale.Reachable && (st == "NeedsLogin" || st == "NeedsMachineAuth")
 }
 
 // fitShotPanel sizes shot mode's stand-in for the flyout (a hidden window)

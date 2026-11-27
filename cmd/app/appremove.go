@@ -9,11 +9,16 @@ import (
 )
 
 // appRemovalScript is the PowerShell that deletes a Windows install of
-// the app once process pid has exited (完全移除; files_windows.go): the
-// folder, the Start menu shortcut, and the folder's bin from the user's
-// PATH. It refuses a folder that is not an install of Twinnel: an
+// the app once process pid has exited (完全移除; files_windows.go). It runs
+// the install's own install.ps1 -Uninstall, the one way a Windows install
+// is taken apart: it stops Twinnel's programs still running from the folder
+// (an agent's `twinnel mcp` keeps bin\twinnel.exe open, and a running
+// program cannot be deleted), then removes the shortcut, the PATH entry,
+// the start-at-login entry and the folder, and writes what it did to log.
+// A folder without install.ps1 gets the folder and the shortcut removed
+// here. It refuses a folder that is not an install of Twinnel: an
 // absolute path named Twinnel, not a drive root.
-func appRemovalScript(pid int, dir, shortcut string) (string, error) {
+func appRemovalScript(pid int, dir, shortcut, log string) (string, error) {
 	dir = strings.TrimRight(dir, `\`)
 	if !safeAppDir(dir) {
 		return "", fmt.Errorf("not a Twinnel install folder: %q", dir)
@@ -26,13 +31,22 @@ func appRemovalScript(pid int, dir, shortcut string) (string, error) {
 	fmt.Fprintf(&b, "$ErrorActionPreference = 'SilentlyContinue'\n")
 	fmt.Fprintf(&b, "Wait-Process -Id %d -Timeout 120\n", pid)
 	fmt.Fprintf(&b, "Start-Sleep -Milliseconds 500\n")
-	fmt.Fprintf(&b, "if (Test-Path -LiteralPath %s) { Remove-Item -LiteralPath %s -Recurse -Force }\n", q(dir+`\`+installMarker), q(dir))
+	// Not from inside the folder: a current directory keeps it from going.
+	b.WriteString("Set-Location -LiteralPath $env:TEMP; [Environment]::CurrentDirectory = $env:TEMP\n")
+	fmt.Fprintf(&b, "$dir = %s\n", q(dir))
+	fmt.Fprintf(&b, "$ps1 = %s\n", q(dir+`\install.ps1`))
+	if log != "" {
+		fmt.Fprintf(&b, "$log = %s\n", q(log))
+	} else {
+		b.WriteString("$log = $null\n")
+	}
+	b.WriteString("if ((Test-Path -LiteralPath (Join-Path $dir '" + installMarker + "')) -and (Test-Path -LiteralPath $ps1)) {\n")
+	b.WriteString("\tif ($log) { & $ps1 -Uninstall -InstallDir $dir *> $log } else { & $ps1 -Uninstall -InstallDir $dir }\n")
+	b.WriteString("\texit\n}\n")
+	fmt.Fprintf(&b, "if (Test-Path -LiteralPath (Join-Path $dir '%s')) { Remove-Item -LiteralPath $dir -Recurse -Force }\n", installMarker)
 	if shortcut != "" {
 		fmt.Fprintf(&b, "Remove-Item -LiteralPath %s -Force\n", q(shortcut))
 	}
-	fmt.Fprintf(&b, "$bin = %s\n", q(dir+`\bin`))
-	b.WriteString("$p = [Environment]::GetEnvironmentVariable('Path', 'User')\n")
-	b.WriteString("if ($p) { [Environment]::SetEnvironmentVariable('Path', (($p -split ';') | Where-Object { $_ -and ($_.TrimEnd('\\') -ne $bin) }) -join ';', 'User') }\n")
 	return b.String(), nil
 }
 

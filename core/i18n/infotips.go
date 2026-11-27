@@ -17,7 +17,7 @@ type InfoTipStrings struct {
 	TipEgress                        string // 出口 IP 实测: what 检测出口 sends; 定期检测
 	TipHistRollback                  string // 历史 → 这条记录
 	TipKernelState, TipGeo           string // 内核
-	TipLogs                          string // 日志: the two sources and the level
+	TipLogs                          string // 日志: the three sources and the level
 	TipPrimaryGroup                  string // 设置 → mihomo
 	TipNotifications, TipOpenAtLogin string // 设置
 	TipHelper                        string // 设置 → 后台助手
@@ -42,7 +42,7 @@ var zhInfoTips = InfoTipStrings{
 	TipKernelState: "Twinnel 管理：Twinnel 下载并校验 mihomo，可以更新和回滚。\n外部程序：服务仍在用你自己的程序，Twinnel 不更新它。\n待重启：新版本已装好，重启 mihomo 后生效。",
 	TipGeo:         "mihomo 规则里 GEOIP、GEOSITE 用到的数据文件，按配置里的 geox-url 下载。「可校验」的文件下载后会核对校验值。",
 
-	TipLogs: "mihomo：内核的实时日志，从打开页面起记录。\nTwinnel：后台助手做过的操作。\n级别只影响这里显示什么，不改 mihomo 的配置。",
+	TipLogs: "mihomo：内核的实时日志，从打开页面起记录。\nTwinnel：后台助手做过的操作。\n后台助手：它自己的运行日志，排查问题时用。\n级别只影响这里显示什么，不改 mihomo 的配置。",
 
 	TipPrimaryGroup:  "Twinnel 把这个策略组当作出口：总览和菜单栏显示它选的节点和延迟。",
 	TipNotifications: "mihomo 停止响应、Tailscale 需要登录或密钥快过期、健康检查失败时通知你。",
@@ -71,7 +71,7 @@ var enInfoTips = InfoTipStrings{
 	TipKernelState: "Managed by Twinnel: Twinnel downloads and verifies mihomo and can update or roll it back.\nExternal binary: the service still runs your own binary, which Twinnel doesn't update.\nRestart pending: a new version is installed and takes effect when mihomo restarts.",
 	TipGeo:         "The data files that GEOIP and GEOSITE rules use, downloaded from the config's geox-url. Files marked Verifiable are checked against a published digest.",
 
-	TipLogs: "mihomo shows the core's live log from when you open this page.\nTwinnel shows what the helper has done.\nThe level only filters what shows here; mihomo's config is not changed.",
+	TipLogs: "mihomo shows the core's live log from when you open this page.\nTwinnel shows what the helper has done.\nHelper shows the helper's own log, for troubleshooting.\nThe level only filters what shows here; mihomo's config is not changed.",
 
 	TipPrimaryGroup:  "Twinnel treats this group as the exit: the overview and the menu bar show the node it chose and its latency.",
 	TipNotifications: "You get a notification when mihomo stops responding, Tailscale needs a login or its key is about to expire, or a health check fails.",

@@ -83,7 +83,7 @@ The `.app` and the CLI and helper inside it are signed ad hoc (`SIGN_IDENTITY` a
 Everything below except the helper commands is read-only.
 
 ```sh
-twinnel doctor                      # run the health checks against the live setup
+twinnel doctor                      # the helper's health report (the app's view; its last one if under a minute old, --fresh runs now); --local runs them here
 twinnel doctor --markdown           # a report to paste into an issue (it shows tailnet names: review it first)
 twinnel doctor --only magicdns,system-dns --json
 twinnel doctor --egress             # opt-in: one HTTPS request direct and one through mihomo, compared
@@ -116,7 +116,8 @@ twinnel compose --preview           # compose and validate in the helper, no wri
 twinnel compose --apply             # validate, back up, write, reload, verify (rolls back on failure)
 twinnel history                     # composed configs; twinnel history rollback ID
 twinnel kernel check                # mihomo releases: list | check | install | rollback
-twinnel kernel geo check            # geo databases: check | update; twinnel kernel ui check|update for the dashboard
+twinnel geo status                  # geo databases: status | check | update [--proxy subscription] | auto weekly|off
+twinnel dashboard install           # web dashboard: status | check | install | update | open
 twinnel service restart mihomo      # services: status | start | stop | restart (mihomo, tailscaled) | install | uninstall (mihomo)
 twinnel settings                    # leak guard, coexist, tailnet resolver, history size, kernel channel, auto-apply
 twinnel tailnet refresh             # re-read the peers now (the helper also polls every 60 s)

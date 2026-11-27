@@ -50,6 +50,11 @@ func TestApplyErrors(t *testing.T) {
 		`subscription "home" has no URL`:                 "sub-no-url",
 		"the running mihomo does not answer: EOF":        "mihomo-no-answer",
 		"health checks are not available in this helper": "health-unavailable",
+		"the controller belongs to another mihomo: 127.0.0.1:9090 is held by Clash Party; Twinnel did not reload it":                                  "controller-foreign-app",
+		"the controller belongs to another mihomo: 127.0.0.1:9090 is held by another program; Twinnel did not reload it":                              "controller-foreign",
+		"the config did not change, but 127.0.0.1:9090 is held by Clash Party's mihomo; Twinnel's mihomo is not the one running":                      "controller-foreign-idle-app",
+		"the config did not change, but 127.0.0.1:9090 is held by another program's mihomo; Twinnel's mihomo is not the one running":                  "controller-foreign-idle",
+		"reload: PUT /configs?force=true: 400 Bad Request: path is not subpath of home directory or SAFE_PATHS: /x/config.yaml\n allowed paths: [/y]": "reload-safe-paths",
 		"something else": "",
 	} {
 		if m := Parse(text); m.Code != code || m.Text != text {

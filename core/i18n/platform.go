@@ -40,9 +40,13 @@ var windowsWording = map[string]func(*Strings){"zh-Hans": windowsZh, "en": windo
 
 // windowsZh: Windows words in Chinese.
 func windowsZh(s *Strings) {
+	s.HelperDeniedHint = "只有安装后台助手的用户，或以管理员身份运行的程序，可以管理网络配置"
+	s.TipAgentCLI = "在终端里用 twinnel 命令，Agent 的 MCP 配置也指向它。安装是把 Twinnel 的 bin 文件夹加入你的 PATH，之后新打开的终端才能找到它；随时可以移除。"
 	s.InfoExitNode = "让这台电脑的流量从 Tailscale 里的另一台设备出去。mihomo 的 TUN 开着时，两者都要接管默认路由，会互相冲突。"
 	s.ServiceInstallTitle = "为「%s」安装 Windows 服务？"
 	s.OnboardPlanHint = "点击安装后 Windows 会请求一次管理员授权"
+	s.OnboardIntro = "修改网络配置需要一个以 SYSTEM 身份运行的后台助手："
+	s.ServiceDryRunHint = "后台助手没有以管理员权限运行，步骤没有执行"
 	s.MenuBar = "任务栏"
 	s.LayerReorderHint = "拖动可以调整顺序（Alt+Shift+↑ / Alt+Shift+↓）"
 	s.ItemSecrets = "加密保存的凭据"
@@ -61,17 +65,22 @@ func windowsZh(s *Strings) {
 	s.SetupTitle = "设置这台电脑"
 	s.StepSetUpMac = "设置这台电脑"
 	s.SetupDone = "这台电脑已设置好"
+	s.AsLoginItems = "打开启动应用设置"
 	s.TipLeaveRemoveAll = "卸载后台助手，退出后删除 Twinnel 程序文件夹。mihomo 和 Tailscale 继续运行。不会撤销接管：要换回原来的配置，先撤销接管。"
 }
 
 // windowsEn: Windows words in English.
 func windowsEn(s *Strings) {
+	s.HelperDeniedHint = "Only the user who installed the helper, or a program run as administrator, can manage the network setup"
+	s.TipAgentCLI = "Use twinnel in a terminal; the agents' MCP settings point to it too. Installing adds Twinnel's bin folder to your PATH, so terminals you open afterwards find it. You can remove it at any time."
 	s.SelfIP = "This PC's IP"
 	s.SelfName = "This PC's name"
 	s.InfoTun = "TUN lets mihomo carry all of this PC's traffic, including apps that ignore the system proxy. Off, only apps that use the system proxy go through mihomo."
 	s.InfoExitNode = "Sends this PC's traffic out through another device on your tailnet. While mihomo's TUN is on, both want the default route and get in each other's way."
 	s.ServiceInstallTitle = "Install a Windows service for “%s”?"
 	s.OnboardPlanHint = "Windows asks for administrator approval once"
+	s.OnboardIntro = "Changing the network setup needs a helper that runs as SYSTEM:"
+	s.ServiceDryRunHint = "The helper isn't running as administrator; no steps were run"
 	s.MenuBar = "Taskbar"
 	s.LayerReorderHint = "Drag to reorder (Alt+Shift+↑ / Alt+Shift+↓)"
 	s.ConfigEmptyHint = "Add a subscription link or file, or take over the mihomo config already on this PC"
@@ -96,6 +105,7 @@ func windowsEn(s *Strings) {
 	s.ItemApp = "the Twinnel app"
 	s.ItemAppTrash = "the Twinnel program folder (deleted after it quits)"
 	s.OpenAtLoginApprove = "Allow Twinnel in Settings › Apps › Startup"
+	s.AsLoginItems = "Open Startup Apps"
 	s.TipLeaveRemoveAll = "Uninstalls the helper and deletes the Twinnel program folder after it quits. mihomo and Tailscale keep running. It doesn't undo the takeover: to get your original config back, undo the takeover first."
 }
 

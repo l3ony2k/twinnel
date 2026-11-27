@@ -3,6 +3,8 @@ package rpc
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/l3ony2k/twinnel/core/foreign"
 )
 
 // Methods served by the helper. This is the whole allowlist: the server
@@ -12,6 +14,10 @@ const (
 
 	MethodComposePreview = "compose.preview"
 	MethodComposeApply   = "compose.apply"
+	// MethodComposeStatus answers whether 应用 has work (the composed
+	// config differs from the file on disk) without mihomo -t: cheap
+	// enough to ask after every edit.
+	MethodComposeStatus = "compose.status"
 
 	MethodHistoryList     = "history.list"
 	MethodHistoryRollback = "history.rollback"
@@ -55,8 +61,13 @@ const (
 
 	MethodConfigGet = "config.get"
 
+	// geo.status and ui.status read what is installed and the last
+	// check's answer, without any network request; geo.check and
+	// ui.check ask GitHub.
+	MethodGeoStatus = "geo.status"
 	MethodGeoCheck  = "geo.check"
 	MethodGeoUpdate = "geo.update"
+	MethodUIStatus  = "ui.status"
 	MethodUICheck   = "ui.check"
 	MethodUIUpdate  = "ui.update"
 
@@ -66,6 +77,9 @@ const (
 	MethodTakeoverAdopt   = "takeover.adopt"
 
 	MethodControllerSecure = "controller.secure"
+	// MethodControllerMove moves Twinnel's controller to a free port (the
+	// fix of a controller held by another program's mihomo).
+	MethodControllerMove = "controller.move"
 
 	// Moving an adopted mihomo to the managed kernel, a root-owned config
 	// dir and a Twinnel LaunchDaemon (security review finding 5).
@@ -90,9 +104,16 @@ const (
 	EventAccessoryChanged = "accessory.changed" // geo databases or the external UI were updated
 	EventServiceChanged   = "service.changed"
 	EventTakeoverChanged  = "takeover.changed" // a plan was made, discarded, adopted or rolled back
+	EventControllerOwner  = "controller.owner" // the controller's owner changed (data: foreign.Owner)
 	EventHelperStarted    = "helper.started"
 	EventHelperStopping   = "helper.stopping"
 	EventEventsTruncated  = "events.truncated" // the client asked for events older than the buffer
+	// EventComposeStage: an apply or rollback moved to the next stage
+	// (data: ComposeStage), so a client can say what it waits for.
+	EventComposeStage = "compose.stage"
+	// EventAccessoryProgress: a geo or dashboard download moved on (data:
+	// AccessoryProgress); progress, not history.
+	EventAccessoryProgress = "accessory.progress"
 )
 
 // Empty is the params/result of methods without any.
@@ -101,11 +122,14 @@ type Empty struct{}
 // ---- status ----
 
 type Status struct {
-	HelperVersion string    `json:"helper_version"`
-	PID           int       `json:"pid"`
-	UID           int       `json:"uid"`
-	StateDir      string    `json:"state_dir"`
-	StartedAt     time.Time `json:"started_at"`
+	HelperVersion string `json:"helper_version"`
+	PID           int    `json:"pid"`
+	UID           int    `json:"uid"`
+	// RunsAs names the helper's account (Self().Caller()): "root (uid 0)",
+	// `NT AUTHORITY\SYSTEM (S-1-5-18)`. Empty from an older helper.
+	RunsAs    string    `json:"runs_as,omitempty"`
+	StateDir  string    `json:"state_dir"`
+	StartedAt time.Time `json:"started_at"`
 
 	Mihomo             MihomoStatus   `json:"mihomo"`
 	ActiveSubscription string         `json:"active_subscription,omitempty"`
@@ -114,6 +138,39 @@ type Status struct {
 	Tailnet            TailnetStatus  `json:"tailnet"`
 	Kernel             KernelList     `json:"kernel"`
 	Subscriptions      []Subscription `json:"subscriptions,omitempty"`
+	// DNSWatch is the DNS watchdog (nil: a helper without one, or a
+	// platform where Twinnel does not set the system DNS).
+	DNSWatch *DNSWatch `json:"dns_watch,omitempty"`
+	// ServiceHost is Windows' service host (nil elsewhere, or before the
+	// mihomo service is installed).
+	ServiceHost *ServiceHost `json:"service_host,omitempty"`
+}
+
+// ServiceHost is the Windows service host (twinnel-svchost.exe): the
+// copy of the helper binary that runs mihomo.exe as a Windows service.
+// The helper refreshes it when it starts and twinnel helper upgrade with
+// the helper.
+type ServiceHost struct {
+	Path    string `json:"path"`
+	Version string `json:"version,omitempty"`
+	// Stale: its file differs from the running helper's, or mihomo runs
+	// an older host. Error says why the last refresh failed.
+	Stale bool `json:"stale,omitempty"`
+	// Aside counts the old copies a refresh moved aside that are still
+	// on disk: a running service still uses them, and they are deleted
+	// once it restarts.
+	Aside int    `json:"aside,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+// ServiceHostRefresh is what a refresh of the service host did (the data
+// of EventServiceChanged with op "host-refresh").
+type ServiceHostRefresh struct {
+	From      string   `json:"from,omitempty"` // the host's version before
+	To        string   `json:"to,omitempty"`   // and after
+	Replaced  bool     `json:"replaced"`       // the file was replaced
+	Restarted []string `json:"restarted,omitempty"`
+	Error     string   `json:"error,omitempty"`
 }
 
 type MihomoStatus struct {
@@ -123,6 +180,10 @@ type MihomoStatus struct {
 	Reachable  bool   `json:"reachable"`
 	Version    string `json:"version,omitempty"` // from the controller's /version
 	Error      string `json:"error,omitempty"`
+	// Owner is who listens on the controller address: Twinnel's mihomo,
+	// another program's (Clash Party, Clash Verge Rev…: Twinnel then
+	// never reloads it), or unknown.
+	Owner *foreign.Owner `json:"owner,omitempty"`
 }
 
 type TailnetStatus struct {
@@ -137,6 +198,26 @@ type TailnetStatus struct {
 }
 
 // ---- compose ----
+
+// Stages of an apply or rollback, in order (EventComposeStage).
+const (
+	StageValidate = "validate" // compose and mihomo -t
+	StageWrite    = "write"    // back up and write the file
+	StageReload   = "reload"   // ask mihomo to load it
+	StageVerify   = "verify"   // wait for mihomo to answer again
+)
+
+// ComposeStage is EventComposeStage's data.
+type ComposeStage struct {
+	Stage string `json:"stage"`
+}
+
+// ComposeStatus is compose.status: the composed config's hash and
+// whether it differs from the config file on disk.
+type ComposeStatus struct {
+	Hash    string `json:"hash"`
+	Changed bool   `json:"changed"`
+}
 
 type ApplyParams struct {
 	Reason string `json:"reason,omitempty"`
@@ -200,6 +281,11 @@ type ApplyResult struct {
 	// Impact: what the hot reload did to the running mihomo (set when a
 	// previous config file existed to compare with).
 	Impact *ReloadImpact `json:"impact,omitempty"`
+	// Foreign: the controller belongs to another program's mihomo. With
+	// Error, the apply stopped before writing and reloading (ErrorMsg
+	// "controller-foreign"); without, nothing had changed and a warning
+	// says so ("controller-foreign-idle").
+	Foreign *foreign.Owner `json:"foreign,omitempty"`
 }
 
 // ReloadImpact says what a hot reload (PUT /configs) of mihomo does to
@@ -389,6 +475,11 @@ type Settings struct {
 	AutoApply         bool     `json:"auto_apply"`     // re-compose and apply after subscription/tailnet changes
 	// HealthEgress: the egress test runs with every health run (定期检测).
 	HealthEgress bool `json:"health_egress"`
+	// HealthEgressURLs: the egress test's IP-echo endpoints in the order
+	// they are tried; empty means the built-in list.
+	HealthEgressURLs []string `json:"health_egress_urls,omitempty"`
+	// GeoAutoUpdate: GeoAutoOff (default) or GeoAutoWeekly.
+	GeoAutoUpdate string `json:"geo_auto_update,omitempty"`
 	// Drift: mihomo runs a history entry the overrides do not compose
 	// (after a rollback); automatic re-compose waits until an apply.
 	Drift *Drift `json:"drift,omitempty"`
@@ -411,6 +502,11 @@ type SettingsUpdate struct {
 	KernelChannel     *string   `json:"kernel_channel,omitempty"`
 	AutoApply         *bool     `json:"auto_apply,omitempty"`
 	HealthEgress      *bool     `json:"health_egress,omitempty"`
+	// HealthEgressURLs replaces the endpoint list; an empty list puts the
+	// built-in one back.
+	HealthEgressURLs *[]string `json:"health_egress_urls,omitempty"`
+	// GeoAutoUpdate is GeoAutoOff or GeoAutoWeekly.
+	GeoAutoUpdate *string `json:"geo_auto_update,omitempty"`
 	// Agent changes the local agent switches. `twinnel mcp` never sends it:
 	// an agent cannot widen its own tiers.
 	Agent *AgentSettingsUpdate `json:"agent,omitempty"`
@@ -467,6 +563,8 @@ type KernelInstallParams struct {
 	Version string `json:"version,omitempty"`
 	// Proxy for the download (Proxy* or a proxy URL; default ProxyAuto).
 	Proxy string `json:"proxy,omitempty"`
+	// Repair downloads the current version again over damaged files.
+	Repair bool `json:"repair,omitempty"`
 }
 
 type TailscaleInfo struct {
@@ -624,6 +722,26 @@ type ConfigText struct {
 
 // ---- accessories (geo databases, external UI) ----
 
+// Accessory kinds (AccessoryProgress.Kind).
+const (
+	AccessoryGeo = "geo"
+	AccessoryUI  = "ui"
+)
+
+// Stages of an accessory download (EventAccessoryProgress), in order.
+const (
+	AccStageDownload = "download" // Done/Total bytes of Name
+	AccStageVerify   = "verify"   // digest, format, mihomo -t
+	AccStageInstall  = "install"  // swap the files in
+	AccStageReload   = "reload"   // ask mihomo to load them
+)
+
+// GeoAuto values (settings geo_auto_update).
+const (
+	GeoAutoOff    = "off"
+	GeoAutoWeekly = "weekly"
+)
+
 // AccessoryFile is one geo database or the UI bundle.
 type AccessoryFile struct {
 	Name       string `json:"name"` // "geoip", "geosite", "mmdb", "asn", "ui"
@@ -639,16 +757,66 @@ type AccessoryFile struct {
 	Verifiable      bool   `json:"verifiable"`
 	UpdateAvailable bool   `json:"update_available"`
 	Error           string `json:"error,omitempty"`
+
+	// ModTime is when the installed file (the UI's index.html) was
+	// written: the installed data's date.
+	ModTime time.Time `json:"mod_time,omitzero"`
+	// Version is the release tag the installed copy came from, when
+	// Twinnel installed it (else "").
+	Version string `json:"version,omitempty"`
+	// RemoteTag is the release tag of the published file, when known;
+	// RemoteTime when it was published.
+	RemoteTag  string    `json:"remote_tag,omitempty"`
+	RemoteTime time.Time `json:"remote_time,omitzero"`
+	// Source is where the installed copy came from (Twinnel's record);
+	// "" when it was put there by someone else (mihomo itself, by hand).
+	Source string `json:"source,omitempty"`
+	// Unused (geo): the config mihomo runs never makes it load this
+	// database, so an absent one is not missing and is not downloaded.
+	// False when that is unknown (no config yet, or an older helper).
+	Unused bool `json:"unused,omitempty"`
 }
 
 type AccessoryCheck struct {
 	Dir   string          `json:"dir"`
 	Files []AccessoryFile `json:"files"`
+
+	// CheckedAt is when the published files were last asked for (zero:
+	// never). A status read carries the last check's remote fields.
+	CheckedAt time.Time `json:"checked_at,omitzero"`
+	// Checked is true when Files carry a remote answer (CheckedAt's).
+	Checked bool `json:"checked,omitempty"`
+	// Via is how the last check or download went: "proxy" (mihomo's
+	// port), "direct", "subscription" or "url".
+	Via string `json:"via,omitempty"`
+	// Configured (ui): the config has external-ui, or Twinnel adds it.
+	// Without it mihomo serves no dashboard.
+	Configured bool `json:"configured,omitempty"`
+	// Path (ui) is where the controller serves the dashboard ("/ui/").
+	Path string `json:"path,omitempty"`
+	// AutoUpdate (geo): GeoAutoOff or GeoAutoWeekly.
+	AutoUpdate string `json:"auto_update,omitempty"`
+	// LastAuto (geo) is the last scheduled update; AutoError its failure.
+	LastAuto  time.Time `json:"last_auto,omitzero"`
+	AutoError string    `json:"auto_error,omitempty"`
+}
+
+// AccessoryCheckParams are geo.check's and ui.check's (optional).
+type AccessoryCheckParams struct {
+	// Proxy for the GitHub API request (rpc.Proxy*, or a proxy URL).
+	Proxy string `json:"proxy,omitempty"`
 }
 
 type AccessoryUpdateParams struct {
 	// Force downloads even files that look up to date.
 	Force bool `json:"force,omitempty"`
+	// Proxy for the downloads: ProxyAuto (default), ProxyDirect,
+	// ProxySubscription or a proxy URL.
+	Proxy string `json:"proxy,omitempty"`
+	// Reload asks mihomo to load the new geo files at once (a reload of
+	// the config on disk); without it they take effect at the next
+	// reload or restart.
+	Reload bool `json:"reload,omitempty"`
 }
 
 type AccessoryUpdateResult struct {
@@ -662,6 +830,24 @@ type AccessoryUpdateResult struct {
 	// geo change takes effect after compose.apply with force or a restart.
 	ReloadNeeded bool   `json:"reload_needed,omitempty"`
 	Error        string `json:"error,omitempty"`
+	// Via is how the downloads went (AccessoryCheck.Via).
+	Via string `json:"via,omitempty"`
+	// Reloaded: mihomo loaded the new files (Reload). ReloadError says
+	// why it did not (then ReloadNeeded stays set).
+	Reloaded    bool   `json:"reloaded,omitempty"`
+	ReloadError string `json:"reload_error,omitempty"`
+	// Configured (ui): this run added external-ui to Twinnel's config
+	// and applied it.
+	Configured bool `json:"configured,omitempty"`
+}
+
+// AccessoryProgress is EventAccessoryProgress's data.
+type AccessoryProgress struct {
+	Kind  string `json:"kind"`  // AccessoryGeo or AccessoryUI
+	Stage string `json:"stage"` // AccStage*
+	Name  string `json:"name,omitempty"`
+	Done  int64  `json:"done,omitempty"`  // bytes of all downloads so far
+	Total int64  `json:"total,omitempty"` // bytes of all downloads (0 unknown)
 }
 
 // ---- takeover ----
@@ -748,6 +934,10 @@ type TakeoverPlan struct {
 	Warnings    []string         `json:"warnings,omitempty"`
 	Summary     string           `json:"summary,omitempty"`
 	SemDiff     string           `json:"semdiff,omitempty"`
+	// SemDiffFull is SemDiff with every shadowed and redundant rule
+	// listed; set only when SemDiff folded some (the ones the live and the
+	// composed config share).
+	SemDiffFull string `json:"semdiff_full,omitempty"`
 	// Impact of the adopt's reload on the running mihomo (live config →
 	// composed config).
 	Impact *ReloadImpact `json:"impact,omitempty"`
@@ -833,6 +1023,27 @@ type ControllerSecureResult struct {
 	Replaced bool         `json:"replaced"` // a secret existed before
 	Apply    *ApplyResult `json:"apply,omitempty"`
 	Warnings []string     `json:"warnings,omitempty"`
+}
+
+// ControllerMoveParams: move Twinnel's controller to Port on 127.0.0.1
+// (0: the first free port from 9097). DryRun only picks the port.
+type ControllerMoveParams struct {
+	Port   int  `json:"port,omitempty"`
+	DryRun bool `json:"dry_run,omitempty"`
+}
+
+// ControllerMoveResult reports controller.move. The new address is in an
+// override (controller-port) and in settings; the config is written for
+// Twinnel's mihomo (never reloaded through the old address, which another
+// program may hold) and Twinnel's mihomo service is restarted when it is
+// installed.
+type ControllerMoveResult struct {
+	From      string       `json:"from"`
+	To        string       `json:"to"`
+	DryRun    bool         `json:"dry_run,omitempty"`
+	Restarted bool         `json:"restarted,omitempty"`
+	Apply     *ApplyResult `json:"apply,omitempty"`
+	Warnings  []string     `json:"warnings,omitempty"`
 }
 
 // ---- service.harden ----

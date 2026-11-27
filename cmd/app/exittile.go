@@ -52,8 +52,8 @@ func exitTileView(s status.Snapshot, testing bool, eg *health.CheckReport, at ti
 	T := i18n.T
 	v := exitView{figure: status.NoDelay}
 	m := s.Mihomo
-	if !m.Reachable {
-		v.node = T.Unreachable
+	if mv := s.MihomoView(); !mv.Live() {
+		v.node = mv.Text()
 		v.egress = egressNoTest
 		return v
 	}
@@ -122,7 +122,7 @@ func routeText(p *status.Group) string {
 // in-process run's (no helper), else the egress check of the health
 // report unless that only says the test is off.
 func (a *app) egressNow(s status.Snapshot) (*health.CheckReport, time.Time) {
-	if r := a.egress.result; r != nil {
+	if r := a.egress.result; r != nil && !r.Unsupported {
 		return r, r.At
 	}
 	rep := s.Health.Report
@@ -131,7 +131,7 @@ func (a *app) egressNow(s status.Snapshot) (*health.CheckReport, time.Time) {
 	}
 	for i := range rep.Checks {
 		cr := &rep.Checks[i]
-		if cr.ID != (health.LeakEgress{}).ID() || egressOff(*cr) {
+		if cr.ID != (health.LeakEgress{}).ID() || egressOff(*cr) || cr.Unsupported {
 			continue
 		}
 		at := cr.At
@@ -149,7 +149,7 @@ func (a *app) exitTile(c *ui.Context, s status.Snapshot) {
 	p := pal(t)
 	T := i18n.T
 	testing := false
-	if pr := s.Mihomo.Primary; pr != nil && s.Mihomo.Reachable && a.mon != nil {
+	if pr := s.Mihomo.Primary; pr != nil && s.MihomoLive() && a.mon != nil {
 		testing = a.mon.Testing(pr.Node)
 	}
 	eg, at := a.egressNow(s)
@@ -235,7 +235,7 @@ func (a *app) exitIPLine(c *ui.Context, v exitView) {
 // overview and the flyout call it as they draw, which they do only while
 // they show; a monitor change redraws them every few seconds.
 func (a *app) keepExitFresh(s status.Snapshot) {
-	if a.mon == nil || !s.Mihomo.Reachable || a.shotMode {
+	if a.mon == nil || !s.MihomoLive() || a.shotMode {
 		return // shots test only when their flow says (shots_exit.go)
 	}
 	a.mon.TestExit()

@@ -14,9 +14,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/binsane"
 	"github.com/l3ony2k/twinnel/core/kernel"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/service"
@@ -24,20 +26,24 @@ import (
 	"github.com/l3ony2k/twinnel/core/sysdns"
 )
 
-// DNSTarget is where dns.point sends the system's queries: mihomo's DNS
-// listener of the built-in base settings (dns.listen 127.0.0.1:53).
-var DNSTarget = []string{"127.0.0.1"}
+// dnsTarget is what dns.point sets (sysdns.TargetOf). Its first entry is
+// mihomo's listener (what dns.point probes).
+func (e *Engine) dnsTarget() []string { return sysdns.TargetOf(e.SystemDNS) }
 
 var tsInstallMu sync.Mutex
 
+// dnsBackupFile keeps what the services used before dns.point.
+const dnsBackupFile = "dns-backup.json"
+
 func (e *Engine) dnsManager() *sysdns.Manager {
-	return &sysdns.Manager{P: e.SystemDNS, Path: e.Store.Path("dns-backup.json"), Now: e.now}
+	return &sysdns.Manager{P: e.SystemDNS, Path: e.Store.Path(dnsBackupFile), Target: e.dnsTarget(), Now: e.now}
 }
 
-func toDNSStatus(st sysdns.Status) rpc.DNSStatus {
-	out := rpc.DNSStatus{Target: DNSTarget, Pointed: st.Pointed, Changed: st.Changed, Supported: true, Services: []rpc.DNSService{}}
+func toDNSStatus(st sysdns.Status, target []string) rpc.DNSStatus {
+	out := rpc.DNSStatus{Target: target, Pointed: st.Pointed, Changed: st.Changed, Supported: true, Services: []rpc.DNSService{},
+		Unprotected: st.Unprotected, Recorded: st.Recorded}
 	for _, s := range st.Services {
-		out.Services = append(out.Services, rpc.DNSService{Name: s.Name, Servers: s.Servers})
+		out.Services = append(out.Services, rpc.DNSService{Name: s.Name, Servers: s.Servers, Connected: s.Connected})
 	}
 	if st.Backup != nil {
 		out.BackupAt = st.Backup.At
@@ -51,13 +57,16 @@ func toDNSStatus(st sysdns.Status) rpc.DNSStatus {
 // DNSStatus reads the system DNS.
 func (e *Engine) DNSStatus(ctx context.Context) (rpc.DNSStatus, error) {
 	if e.SystemDNS == nil {
-		return rpc.DNSStatus{Target: DNSTarget, Services: []rpc.DNSService{}}, nil
+		return rpc.DNSStatus{Target: sysdns.DefaultTarget, Services: []rpc.DNSService{}}, nil
 	}
-	st, err := e.dnsManager().Status(ctx, DNSTarget)
+	target := e.dnsTarget()
+	st, err := e.dnsManager().Status(ctx)
 	if err != nil {
 		return rpc.DNSStatus{}, err
 	}
-	return toDNSStatus(st), nil
+	out := toDNSStatus(st, target)
+	out.Watch = e.DNSWatch()
+	return out, nil
 }
 
 // probeDNS reports whether a DNS server answers at addr: any answer,
@@ -86,12 +95,22 @@ func (e *Engine) DNSPoint(ctx context.Context) (rpc.DNSStatus, error) {
 	if e.SystemDNS == nil {
 		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeNotImplemented, "setting the system DNS is not supported on this platform yet")
 	}
-	addr := net.JoinHostPort(DNSTarget[0], "53")
+	target := e.dnsTarget()
+	addr := net.JoinHostPort(target[0], "53")
 	if err := e.probeDNS(ctx, addr); err != nil {
 		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeFailed, "mihomo's DNS does not answer at %s (%v); the system DNS was not changed", addr, err)
 	}
-	st, err := e.dnsManager().Point(ctx, DNSTarget)
-	out := toDNSStatus(st)
+	e.dnsWatch.mu.Lock()
+	st, err := e.dnsManager().Point(ctx)
+	if err == nil {
+		// Pointed on purpose: a watchdog restore is over.
+		if w := e.dnsWatchdog(); w != nil {
+			w.Reset()
+		}
+	}
+	e.dnsWatch.mu.Unlock()
+	out := toDNSStatus(st, target)
+	out.Watch = e.DNSWatch()
 	e.log().Info("system DNS pointed at mihomo", "changed", len(st.Changed), "err", err)
 	if err != nil {
 		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
@@ -100,16 +119,49 @@ func (e *Engine) DNSPoint(ctx context.Context) (rpc.DNSStatus, error) {
 	return out, nil
 }
 
+// DNSBackup records automatic (DHCP) as the restore value of every
+// service that points at mihomo without one (sysdns.Manager.Adopt): the
+// system DNS was pointed at mihomo before Twinnel did it (by hand, or by
+// another tool), so nothing could put it back if mihomo stopped. It
+// changes no DNS setting and works while mihomo is down; the watchdog
+// protects those services from then on.
+func (e *Engine) DNSBackup(ctx context.Context) (rpc.DNSStatus, error) {
+	if e.SystemDNS == nil {
+		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeNotImplemented, "setting the system DNS is not supported on this platform yet")
+	}
+	e.dnsWatch.mu.Lock()
+	st, err := e.dnsManager().Adopt(ctx)
+	e.dnsWatch.mu.Unlock()
+	out := toDNSStatus(st, e.dnsTarget())
+	out.Watch = e.DNSWatch()
+	e.log().Info("system DNS backup recorded", "recorded", len(st.Recorded), "err", err)
+	if err != nil {
+		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
+	}
+	if len(st.Recorded) > 0 {
+		e.triggerHealth("dns backup")
+	}
+	return out, nil
+}
+
 // DNSRestore puts the system DNS back as it was before DNSPoint.
 func (e *Engine) DNSRestore(ctx context.Context) (rpc.DNSStatus, error) {
 	if e.SystemDNS == nil {
 		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeNotImplemented, "setting the system DNS is not supported on this platform yet")
 	}
+	// Also how a user keeps the earlier DNS after a watchdog restore
+	// (保持原设置): without a backup the watchdog has nothing to watch.
+	e.dnsWatch.mu.Lock()
 	st, err := e.dnsManager().Restore(ctx)
+	if w := e.dnsWatchdog(); w != nil && (err == nil || errors.Is(err, sysdns.ErrNoBackup)) {
+		w.Reset()
+	}
+	e.dnsWatch.mu.Unlock()
 	if errors.Is(err, sysdns.ErrNoBackup) {
 		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeNotFound, "%v", err)
 	}
-	out := toDNSStatus(st)
+	out := toDNSStatus(st, e.dnsTarget())
+	out.Watch = e.DNSWatch()
 	e.log().Info("system DNS restored", "changed", len(st.Changed), "err", err)
 	if err != nil {
 		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
@@ -160,17 +212,46 @@ func (e *Engine) TailscaleInstall(ctx context.Context, p rpc.TailscaleInstallPar
 		probe = &kernel.TailscaleProbe{}
 	}
 	in := e.tsInstaller()
+	in.Repair = p.Repair
 	_, managedDaemon := in.Binaries()
 	if existing := probe.FindExisting(); existing != "" {
-		out.Kept, out.Path, out.Kind = true, existing, probe.Kind(existing)
+		kind := probe.Kind(existing)
+		bad := in.Damaged(existing, daemonNextTo(existing))
+		if len(bad) > 0 && p.Repair && kind == kernel.TSWindows && in.UsesMSI() {
+			e.log().Warn("tailscale install damaged: repairing", "files", len(bad))
+			r, err := e.tailscaleInstallMSI(ctx, st, p, in)
+			r.Repaired = err == nil
+			return r, err
+		}
+		out.Kept, out.Path, out.Kind = true, existing, kind
 		out.UsesSystemVPN = out.Kind == kernel.TSStandalone || out.Kind == kernel.TSAppStore
+		if len(bad) > 0 {
+			out.Damaged = binaryProblems(bad)
+			e.log().Warn("tailscale install damaged", "kind", kind, "files", len(bad))
+			return out, rpc.Errorf(rpc.CodeFailed, "%v", kernel.DamagedError(bad))
+		}
 		if v, err := probe.LocalVersion(ctx, existing); err == nil {
 			out.Version = v
 		}
 		e.log().Info("tailscale install kept", "kind", out.Kind)
 		return out, nil
 	}
-	if cur := in.Current(); cur != "" && fileExists(managedDaemon) {
+	if in.UsesMSI() {
+		return e.tailscaleInstallMSI(ctx, st, p, in)
+	}
+	cur := in.Current()
+	if cur != "" && fileExists(managedDaemon) {
+		cli, daemon := in.Binaries()
+		if bad := in.Damaged(cli, daemon); len(bad) > 0 {
+			if !p.Repair {
+				out.Kept, out.Kind, out.Path, out.Daemon = true, "twinnel", cli, daemon
+				out.Damaged = binaryProblems(bad)
+				return out, rpc.Errorf(rpc.CodeFailed, "%v", kernel.DamagedError(bad))
+			}
+			cur, out.Repaired = "", true // unpack it again
+		}
+	}
+	if cur != "" && fileExists(managedDaemon) {
 		// Installed by an earlier run: only make sure the service is there.
 		cli, daemon := in.Binaries()
 		out.Kept, out.Kind, out.Path, out.Version, out.Daemon = true, "twinnel", cli, cur, daemon
@@ -208,8 +289,129 @@ func (e *Engine) TailscaleInstall(ctx context.Context, p rpc.TailscaleInstallPar
 		return out, err
 	}
 	e.publish(rpc.EventServiceChanged, map[string]any{"name": "tailscaled", "op": "install", "dry_run": svc.DryRun})
+	if p.NoStart && !svc.DryRun {
+		out.Stopped = e.stopAfterInstall(ctx)
+	}
 	e.triggerHealth("tailscale install")
 	return out, nil
+}
+
+// stopAfterInstall stops tailscaled after an install-only request (the
+// installer started it) and reports whether it is stopped.
+func (e *Engine) stopAfterInstall(ctx context.Context) bool {
+	if _, err := e.ServiceOp(ctx, "tailscaled", service.OpStop); err != nil {
+		e.log().Warn("tailscale: stop after install-only failed", "err", err)
+		return false
+	}
+	e.log().Info("tailscale installed and left stopped (install only)")
+	return true
+}
+
+// daemonNextTo is the tailscaled next to a tailscale CLI, if there is one.
+func daemonNextTo(cli string) string {
+	dir, base := filepath.Split(cli)
+	name := "tailscaled"
+	if strings.HasSuffix(strings.ToLower(base), ".exe") {
+		name += ".exe"
+	} else if strings.Contains(cli, `\`) {
+		return ""
+	}
+	if d := filepath.Join(dir, name); fileExists(d) {
+		return d
+	}
+	return ""
+}
+
+func binaryProblems(rs []binsane.Result) []rpc.BinaryProblem {
+	out := make([]rpc.BinaryProblem, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, rpc.BinaryProblem{Path: r.Path, Problem: string(r.Problem), Detail: r.Detail})
+	}
+	return out
+}
+
+// tailscaleInstallMSI installs the official Windows client from its MSI
+// (core/kernel tailscale_msi.go) and waits for its "Tailscale" service.
+// The service is the MSI's: Twinnel records it as adopted, so it starts
+// and stops it but never replaces or removes it.
+func (e *Engine) tailscaleInstallMSI(ctx context.Context, st *store.Settings, p rpc.TailscaleInstallParams, in *kernel.TailscaleInstaller) (rpc.TailscaleInstallResult, error) {
+	out := rpc.TailscaleInstallResult{Kind: kernel.TSWindows}
+	label := st.Tailscale.ServiceLabel
+	cl, via, stop, err := e.downloadVia(ctx, st, p.Proxy)
+	if err != nil {
+		return out, err
+	}
+	defer stop()
+	in.HTTP = cl
+	out.Via = via
+	a, err := in.Resolve(ctx)
+	if err != nil {
+		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
+	}
+	out.Source = a.Source
+	logPath := e.Store.Path("tailscale-msi.log")
+	op := &rpc.ServiceOpResult{Name: "tailscaled", Label: label, Op: string(service.OpInstall),
+		Steps: []string{"download " + a.URL + " (sha256 " + a.SHA256 + ")", kernel.MSIExec() + " " + strings.Join(kernel.MSIArgs(a.Name, logPath), " ")}}
+	out.Service = op
+	if r := e.ServiceRunner; r == nil || r.DryRun || r.Exec == nil {
+		// A development helper (not elevated): only the plan.
+		op.DryRun = true
+		out.Version = a.Version
+		return out, nil
+	}
+	got, err := in.InstallMSI(ctx, a, logPath)
+	if err != nil {
+		e.log().Warn("tailscale msi install failed", "version", a.Version, "err", err)
+		if bad := in.Damaged(got.CLI, got.Daemon); len(bad) > 0 {
+			out.Damaged = binaryProblems(bad)
+		}
+		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
+	}
+	out.Version, out.Path, out.Daemon, out.RestartNeeded = got.Version, got.CLI, got.Daemon, got.RestartNeeded
+	e.log().Info("tailscale installed", "version", got.Version, "source", a.Source, "via", via, "restart_needed", got.RestartNeeded)
+	if _, err := e.Store.UpdateSettings(func(s *store.Settings) error {
+		s.Tailscale.Binary, s.Tailscale.DaemonBinary, s.Tailscale.ServiceAdopted = got.CLI, got.Daemon, true
+		return nil
+	}); err != nil {
+		return out, err
+	}
+	svc, err := e.waitService(ctx, "tailscaled", 120)
+	op.Status = svc
+	e.publish(rpc.EventServiceChanged, map[string]any{"name": "tailscaled", "op": "install"})
+	e.triggerHealth("tailscale install")
+	if err != nil {
+		return out, err
+	}
+	if !svc.Running {
+		return out, rpc.Errorf(rpc.CodeFailed, "Tailscale was installed but its service did not start; restart the computer and try again")
+	}
+	if p.NoStart {
+		// The MSI starts its service; the user asked for the install only.
+		out.Stopped = e.stopAfterInstall(ctx)
+	}
+	return out, nil
+}
+
+// waitService polls a service until it runs, up to tries half seconds;
+// err is only for a canceled wait.
+func (e *Engine) waitService(ctx context.Context, name string, tries int) (rpc.ServiceStatus, error) {
+	var last rpc.ServiceStatus
+	for i := range tries {
+		s, err := e.ServiceStatus(ctx, name)
+		if err == nil {
+			last = s
+			if s.Running {
+				return s, nil
+			}
+		}
+		if i == tries-1 {
+			break
+		}
+		if err := e.sleep(ctx, 500*time.Millisecond); err != nil {
+			return last, err
+		}
+	}
+	return last, nil
 }
 
 func (e *Engine) tsInstaller() *kernel.TailscaleInstaller {
@@ -346,6 +548,19 @@ type TailscaleControl interface {
 	StartLogin(ctx context.Context) error
 }
 
+// loginPoll is how often TailscaleLogin re-reads the state after Up.
+var loginPoll = 250 * time.Millisecond
+
+// loginUndecided: the node has not said yet whether it runs or needs a
+// login.
+func loginUndecided(backend string) bool {
+	return backend == "Stopped" || backend == "NoState"
+}
+
+// ErrLoginInSession is tailscale.login's answer to Start where the login
+// must run in the signed-in user's own process (Engine.TSLoginInSession).
+const ErrLoginInSession = "Tailscale logs in from the signed-in user's session on this system, not from the helper"
+
 // TailscaleLogin reads the login state and, with Start, connects and starts
 // an interactive login unless the node already runs.
 func (e *Engine) TailscaleLogin(ctx context.Context, p rpc.TailscaleLoginParams) (rpc.TailscaleLoginResult, error) {
@@ -357,17 +572,40 @@ func (e *Engine) TailscaleLogin(ctx context.Context, p rpc.TailscaleLoginParams)
 	if err != nil {
 		return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", err)
 	}
-	if p.Start && backend != "Running" {
-		if err := e.TSControl.Up(ctx); err != nil {
-			return out, rpc.Errorf(rpc.CodeFailed, "tailscale up: %v", err)
+	if p.Start && (backend != "Running" || p.Reauth) {
+		if e.TSLoginInSession {
+			return out, rpc.Errorf(rpc.CodeNotImplemented, "%s", ErrLoginInSession)
 		}
-		if err := e.TSControl.StartLogin(ctx); err != nil {
-			return out, rpc.Errorf(rpc.CodeFailed, "tailscale login: %v", err)
+		if backend != "Running" {
+			if err := e.TSControl.Up(ctx); err != nil {
+				return out, rpc.Errorf(rpc.CodeFailed, "tailscale up: %v", err)
+			}
+			// A node that was only stopped connects now; one that is
+			// logged out (or new) says NeedsLogin. Wait a moment to know.
+			for i := 0; i < 8 && loginUndecided(backend); i++ {
+				if i > 0 || backend == "Stopped" {
+					select {
+					case <-ctx.Done():
+						return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", ctx.Err())
+					case <-time.After(loginPoll):
+					}
+				}
+				if backend, authURL, tailnet, err = e.TSControl.LoginState(ctx); err != nil {
+					return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", err)
+				}
+			}
 		}
-		out.Started = true
-		e.log().Info("tailscale login started")
-		if backend, authURL, tailnet, err = e.TSControl.LoginState(ctx); err != nil {
-			return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", err)
+		// A login already pending keeps its URL (another client may have
+		// opened it); otherwise ask for one.
+		if p.Reauth || backend == "NeedsLogin" && authURL == "" || backend == "NoState" {
+			if err := e.TSControl.StartLogin(ctx); err != nil {
+				return out, rpc.Errorf(rpc.CodeFailed, "tailscale login: %v", err)
+			}
+			out.Started = true
+			e.log().Info("tailscale login started", "reauth", p.Reauth)
+			if backend, authURL, tailnet, err = e.TSControl.LoginState(ctx); err != nil {
+				return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", err)
+			}
 		}
 	}
 	out.BackendState, out.AuthURL, out.Tailnet = backend, authURL, tailnet

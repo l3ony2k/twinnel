@@ -22,9 +22,11 @@ import (
 //
 // Warned: a non-loopback controller with a secret.
 func exposureCheck(final []byte, st *store.Settings) (warnings []string, errs []string) {
-	secret, _ := topLevel(final, "secret")
+	// One parse for every key (a large config takes tens of ms each).
+	top := topLevels(final, "secret", "external-controller", "external-controller-tls", "external-controller-unix", "external-controller-pipe")
+	secret := top["secret"]
 	for _, key := range []string{"external-controller", "external-controller-tls"} {
-		addr, ok := topLevel(final, key)
+		addr, ok := top[key]
 		if !ok || strings.TrimSpace(addr) == "" {
 			continue
 		}
@@ -32,13 +34,13 @@ func exposureCheck(final []byte, st *store.Settings) (warnings []string, errs []
 			continue
 		}
 		if secret == "" {
-			errs = append(errs, fmt.Sprintf("Twinnel refuses %s: %s listens beyond this Mac and the controller has no secret (anyone on the network could reconfigure the proxy); bind it to 127.0.0.1 or run controller.secure", key, addr))
+			errs = append(errs, fmt.Sprintf("Twinnel refuses %s: %s listens beyond this machine and the controller has no secret (anyone on the network could reconfigure the proxy); bind it to 127.0.0.1 or run controller.secure", key, addr))
 		} else {
 			warnings = append(warnings, fmt.Sprintf("%s: %s is reachable from the network (protected by the secret only)", key, addr))
 		}
 	}
 	for _, key := range []string{"external-controller-unix", "external-controller-pipe"} {
-		p, ok := topLevel(final, key)
+		p, ok := top[key]
 		if !ok || strings.TrimSpace(p) == "" {
 			continue
 		}

@@ -4,16 +4,19 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/msg"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/store"
@@ -114,22 +117,83 @@ func (e *Engine) compose(ctx context.Context, st *store.Settings) (*config.Resul
 			return nil, "", err
 		}
 	}
+	if st.Dashboard {
+		if cfg, err = withExternalUI(cfg); err != nil {
+			return nil, "", err
+		}
+	}
 	res.Config = cfg
 	return res, secret, nil
 }
 
 func (e *Engine) validateOpts(st *store.Settings) []config.ValidateOption {
-	var opts []config.ValidateOption
+	// The geo databases are linked from a copy in the state dir, not
+	// copied on every check (tens of MB; on Windows each copy is scanned
+	// again). A fresh install has no config dir yet: mihomo -t then
+	// downloads them, once, into that copy.
+	opts := []config.ValidateOption{config.WithGeoCache(e.Store.Path("validate", "geo"))}
 	if st.Mihomo.ConfigDir == "" {
-		return nil
+		return opts
 	}
 	opts = append(opts, config.WithSafePaths(st.Mihomo.ConfigDir))
-	// A fresh install has no config dir yet; mihomo -t then downloads the
-	// geo databases into its temp dir.
 	if fi, err := os.Stat(st.Mihomo.ConfigDir); err == nil && fi.IsDir() {
 		opts = append(opts, config.WithGeoDir(st.Mihomo.ConfigDir))
 	}
 	return opts
+}
+
+// validKey names one mihomo -t run: the bytes checked, the binary, and
+// the geo databases it was given. Two runs with the same key give the same
+// answer, so a passing one need not run again (预览 then 应用, or an
+// apply after a status check found the same config).
+func (e *Engine) validKey(st *store.Settings, bin string, final []byte) string {
+	h := sha256.New()
+	h.Write(final)
+	fmt.Fprintf(h, "\x00bin=%s", bin)
+	if fi, err := os.Stat(bin); err == nil {
+		fmt.Fprintf(h, ":%d:%d", fi.Size(), fi.ModTime().UnixNano())
+	}
+	fmt.Fprintf(h, "\x00dir=%s", st.Mihomo.ConfigDir)
+	if st.Mihomo.ConfigDir != "" {
+		es, _ := os.ReadDir(st.Mihomo.ConfigDir)
+		for _, de := range es {
+			if fi, err := de.Info(); err == nil && fi.Mode().IsRegular() {
+				switch strings.ToLower(filepath.Ext(de.Name())) {
+				case ".mmdb", ".metadb", ".dat":
+					fmt.Fprintf(h, "\x00%s:%d:%d", de.Name(), fi.Size(), fi.ModTime().UnixNano())
+				}
+			}
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// validCacheSize is how many passing mihomo -t runs are remembered.
+const validCacheSize = 4
+
+// passedBefore reports whether a mihomo -t with key passed recently.
+func (e *Engine) passedBefore(key string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return slices.Contains(e.validOK, key)
+}
+
+// rememberPass records a passing mihomo -t run.
+func (e *Engine) rememberPass(key string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if slices.Contains(e.validOK, key) {
+		return
+	}
+	e.validOK = append(e.validOK, key)
+	if len(e.validOK) > validCacheSize {
+		e.validOK = e.validOK[len(e.validOK)-validCacheSize:]
+	}
+}
+
+// stage tells clients what an apply or rollback now waits for.
+func (e *Engine) stage(name string) {
+	e.publish(rpc.EventComposeStage, rpc.ComposeStage{Stage: name})
 }
 
 // blame names the overrides (or the subscription) that hold a name
@@ -153,6 +217,25 @@ func (e *Engine) blame(ctx context.Context, st *store.Settings, errs []string) [
 		out = append(out, rpc.Culprit{Name: c.Name, Layer: c.Layer, Title: c.Title})
 	}
 	return out
+}
+
+// ComposeStatus composes and compares with the file on disk, without
+// mihomo -t: whether 应用 has work, cheap enough for every edit.
+func (e *Engine) ComposeStatus(ctx context.Context) (rpc.ComposeStatus, error) {
+	st, err := e.Store.Settings()
+	if err != nil {
+		return rpc.ComposeStatus{}, err
+	}
+	res, layerSecret, err := e.compose(ctx, st)
+	if err != nil {
+		return rpc.ComposeStatus{}, err
+	}
+	current, _ := readConfined(st.Mihomo.ConfigFile)
+	final, err := e.finalConfig(res.Config, current, layerSecret)
+	if err != nil {
+		return rpc.ComposeStatus{}, err
+	}
+	return rpc.ComposeStatus{Hash: store.Hash(res.Config), Changed: !bytes.Equal(final, current)}, nil
 }
 
 // Preview composes and validates without writing anything.
@@ -180,14 +263,7 @@ func (e *Engine) check(ctx context.Context, st *store.Settings, cfg []byte, appl
 	if cr.Applied == nil {
 		cr.Applied = []string{}
 	}
-	secret := e.controllerSecret()
-	if secret == "" {
-		secret = layerSecret
-	}
-	if secret == "" && len(current) > 0 {
-		secret, _ = topLevel(current, "secret")
-	}
-	final, err := withSecret(cfg, secret)
+	final, err := e.finalConfig(cfg, current, layerSecret)
 	if err != nil {
 		return cr, nil, err
 	}
@@ -196,9 +272,15 @@ func (e *Engine) check(ctx context.Context, st *store.Settings, cfg []byte, appl
 	if err != nil {
 		return cr, nil, err
 	}
-	v, err := e.validate(ctx, bin, final, e.validateOpts(st)...)
-	if err != nil {
-		return cr, nil, err
+	key := e.validKey(st, bin, final)
+	v := &config.Validation{OK: true}
+	if !e.passedBefore(key) {
+		if v, err = e.validate(ctx, bin, final, e.validateOpts(st)...); err != nil {
+			return cr, nil, err
+		}
+		if v.OK {
+			e.rememberPass(key)
+		}
 	}
 	cr.Valid = v.OK
 	cr.ValidateErrors = v.Errors
@@ -214,6 +296,20 @@ func (e *Engine) check(ctx context.Context, st *store.Settings, cfg []byte, appl
 	return cr, final, nil
 }
 
+// finalConfig is cfg with the controller secret written: the stored one,
+// else the one a layer set (layerSecret, already stripped from cfg), else
+// the one in the file being replaced.
+func (e *Engine) finalConfig(cfg, current []byte, layerSecret string) ([]byte, error) {
+	secret := e.controllerSecret()
+	if secret == "" {
+		secret = layerSecret
+	}
+	if secret == "" && len(current) > 0 {
+		secret, _ = topLevel(current, "secret")
+	}
+	return withSecret(cfg, secret)
+}
+
 // Apply runs the whole pipeline: compose → mihomo -t → back up → write →
 // reload → verify. On any failure the previous file stays (or is put back)
 // and the previous config keeps running.
@@ -222,6 +318,7 @@ func (e *Engine) Apply(ctx context.Context, p rpc.ApplyParams) (*rpc.ApplyResult
 	defer e.applyMu.Unlock()
 	start := e.now()
 	res := &rpc.ApplyResult{Reason: p.Reason, ReasonCode: p.ReasonCode, ReasonArgs: p.ReasonArgs, Time: start.UTC()}
+	e.stage(rpc.StageValidate)
 
 	st, err := e.Store.Settings()
 	if err != nil {
@@ -254,6 +351,7 @@ func (e *Engine) Rollback(ctx context.Context, id string) (*rpc.ApplyResult, err
 	defer e.applyMu.Unlock()
 	start := e.now()
 	res := &rpc.ApplyResult{Reason: "rollback to " + id, Time: start.UTC()}
+	e.stage(rpc.StageValidate)
 	data, target, err := e.Store.ReadHistory(id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotExist) {
@@ -306,6 +404,12 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 		return e.fail(res, start, fmt.Errorf("mihomo -t rejected the config: %v", cr.ValidateErrors))
 	}
 	if !cr.Changed && !p.Force {
+		// Nothing to send, but not "ok" while another program's mihomo
+		// holds the controller.
+		if o := e.recentOwner(ctx); o.IsForeign() {
+			res.Foreign = &o
+			res.Warnings = append(res.Warnings, foreignIdleWarning(o))
+		}
 		return e.done(res, start), nil
 	}
 
@@ -331,6 +435,14 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 	cancel()
 	running := verr == nil
 
+	// Preflight: never write for, or reload, another program's mihomo on
+	// the controller address (Clash Party, Clash Verge Rev…).
+	if o := e.ControllerOwner(ctx); o.IsForeign() {
+		res.Foreign = &o
+		return e.fail(res, start, foreignError(o))
+	}
+
+	e.stage(rpc.StageWrite)
 	// Back up what is on disk unless history already has it.
 	if hadCurrent {
 		stripped := stripSecretBytes(current)
@@ -363,12 +475,24 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 	res.Written = true
 
 	if running {
+		e.stage(rpc.StageReload)
 		if err := e.reloadAndVerify(ctx, oldCtrl, cfgPath, force); err != nil {
+			// mihomo refused the path as outside its home: the mihomo that
+			// answered is not the one that runs this config. Put the file
+			// back without reloading that one again.
+			if foreign.IsSafePathsError(err.Error()) {
+				o := foreign.FromSafePaths(controllerAddr(st.Mihomo.Controller), err.Error(), e.now())
+				e.setOwner(o)
+				e.restore(ctx, nil, cd, name, final, current, hadCurrent, mode)
+				res.Written, res.RolledBack, res.Foreign = false, true, &o
+				return e.fail(res, start, foreignError(o))
+			}
 			e.restore(ctx, oldCtrl, cd, name, final, current, hadCurrent, mode)
 			res.Written, res.RolledBack = false, true
 			return e.fail(res, start, err)
 		}
 		res.Reloaded = true
+		e.clearForeign()
 	} else {
 		res.Warnings = append(res.Warnings, "mihomo is not running ("+verr.Error()+"); the config was written and will be used at the next start")
 	}
@@ -444,6 +568,7 @@ func (e *Engine) reloadAndVerify(ctx context.Context, ctrl Controller, path stri
 	if err := reloadWith(rctx, ctrl, path, force); err != nil {
 		return fmt.Errorf("reload: %w", err)
 	}
+	e.stage(rpc.StageVerify)
 	timeout := e.VerifyTimeout
 	if timeout <= 0 {
 		timeout = 10 * time.Second
@@ -465,7 +590,8 @@ func (e *Engine) reloadAndVerify(ctx context.Context, ctrl Controller, path stri
 	}
 }
 
-// restore puts the previous file back and asks mihomo to load it again.
+// restore puts the previous file back and asks mihomo to load it again
+// (not when ctrl is nil).
 func (e *Engine) restore(ctx context.Context, ctrl Controller, cd *confDir, name string, failed, old []byte, hadOld bool, mode fs.FileMode) {
 	path := filepath.Join(cd.Path, name)
 	if !hadOld {
@@ -475,6 +601,9 @@ func (e *Engine) restore(ctx context.Context, ctrl Controller, cd *confDir, name
 	oldInfo, _ := cd.Stat(name)
 	if err := writeConfined(cd, name, old, mode, oldInfo); err != nil {
 		e.log().Error("restore config failed", "path", path, "err", err)
+		return
+	}
+	if ctrl == nil { // the controller is not Twinnel's: the file only
 		return
 	}
 	rctx, cancel := context.WithTimeout(ctx, 30*time.Second)

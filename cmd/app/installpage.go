@@ -1,6 +1,8 @@
 package main
 
 import (
+	"slices"
+
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/twinnel/core/i18n"
@@ -12,33 +14,59 @@ import (
 // was opened from selected (System Settings does the same for a pane's
 // sub-pages), and the toolbar's ‹, ⌘[ or a click on that row go back.
 
-// subPages maps a page without a sidebar row to the row it belongs to
-// when nothing else opened it (安装后台助手 is managed in 设置).
-var subPages = map[string]string{pageInstall: pageSettings, pageLeave: pageSettings}
+// subPage is a page without a sidebar row: the row that stands for it.
+type subPage struct {
+	// home is its row when nothing that links to it opened it (a launch
+	// target, the flyout, a menu): where it is managed.
+	home string
+	// from are the sidebar pages that link to it. Opened from one of
+	// them, that page's row stays selected and ‹ goes back there; from
+	// any other page (the one the window happened to show) home does.
+	from []string
+}
+
+// subPages is the sub-page table: 安装后台助手 and 停止使用 are managed in
+// 设置 (后台助手), and are also reached from the pages listed.
+var subPages = map[string]subPage{
+	pageInstall: {home: pageSettings, from: []string{pageSettings, pageOverview, pageAbout, pageHealth}},
+	pageLeave:   {home: pageSettings, from: []string{pageSettings, pageAbout, pageTakeover}},
+}
 
 // subFrom is the sidebar page a sub-page was opened from: the sidebar
 // keeps that row selected and ‹ goes back there, so the install page
 // reached from 概览 or 关于 reads as part of it (walkthrough 2, N18).
 var subFrom = map[string]string{}
 
-// noteSubPage records where page was opened from (pageChanged).
+// noteSubPage records where page was opened from (pageChanged): a page
+// in its table's from, or nothing (its home row), never just the page the
+// window showed before (Windows QA round 3: 停止使用 opened by a launch
+// target over 接管 kept 接管 selected).
 func noteSubPage(page, from string) {
-	if _, sub := subPages[page]; !sub || from == "" {
+	sp, sub := subPages[page]
+	if !sub {
 		return
 	}
 	if _, fromSub := subPages[from]; fromSub {
 		return // from another sub-page: keep what that one had
 	}
-	subFrom[page] = from
+	if slices.Contains(sp.from, from) {
+		subFrom[page] = from
+		return
+	}
+	delete(subFrom, page)
 }
+
+// forgetSubFrom shows page under its home row: it was opened from no page
+// (a launch target).
+func forgetSubFrom(page string) { delete(subFrom, page) }
 
 // navParent is the sidebar row that shows page: its own, or its parent's.
 func navParent(page string) string {
 	if p := subFrom[page]; p != "" {
 		return p
 	}
-	if p, ok := subPages[page]; ok {
-		return p
+	if sp, ok := subPages[page]; ok {
+		return sp.home
 	}
 	return page
 }

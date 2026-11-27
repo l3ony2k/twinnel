@@ -71,8 +71,8 @@ func (a *app) kernelPage(c *ui.Context, s status.Snapshot) {
 // Tailscale, one section each in one list.
 func (a *app) componentsCard(c *ui.Context, s status.Snapshot) {
 	listCard(c, listHead(c, nil, i18n.T.PgComponents, nil), func() {
-		for _, k := range []accessoryKind{geoKind(), uiKind()} {
-			if a.section(k.check) {
+		for _, k := range accessoryKinds() {
+			if a.section(k.check) || a.section("components") {
 				ui.Column(c.Key(k.check)).Children(func() { a.accessoryRows(c, s, k) })
 			}
 		}
@@ -161,7 +161,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 		}
 		listRow(c).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, T.KernelChannel).TextColor(t.TextMuted).Width(labelWidth).Shrink(0)
+				ui.Text(c, T.KernelChannel).TextColor(t.TextMuted).Width(labelCol()).Shrink(0)
 				if ui.Segmented(c.Key("channel"), &v.channel, T.ChannelStable, T.ChannelAlpha).Changed() {
 					v.release = nil
 				}
@@ -340,8 +340,8 @@ func (a *app) checkUpdates() {
 		var wg sync.WaitGroup
 		run := func(f func()) { wg.Add(1); go func() { defer wg.Done(); f() }() }
 		run(func() { relE = hc.Call(ctx, rpc.MethodKernelCheck, rpc.KernelCheckParams{Channel: ch}, &rel) })
-		run(func() { geoE = hc.Call(ctx, geo.check, nil, &geoR) })
-		run(func() { uiE = hc.Call(ctx, uik.check, nil, &uiR) })
+		run(func() { geoE = hc.Call(ctx, geo.check, rpc.AccessoryCheckParams{Proxy: geo.view(a).proxy}, &geoR) })
+		run(func() { uiE = hc.Call(ctx, uik.check, rpc.AccessoryCheckParams{Proxy: uik.view(a).proxy}, &uiR) })
 		run(func() { tsE = hc.Call(ctx, rpc.MethodTailscaleInfo, nil, &ts) })
 		wg.Wait()
 		return nil // each section shows its own failure
@@ -362,6 +362,7 @@ func (a *app) checkUpdates() {
 			av.checkErr = ""
 			if r.err == nil {
 				av.check = r.res
+				av.res, av.failErr = nil, ""
 			} else {
 				av.checkErr = helperError(r.err)
 			}

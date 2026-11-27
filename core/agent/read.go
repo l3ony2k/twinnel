@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"sort"
 	"strings"
 	"time"
@@ -27,9 +28,11 @@ online peers), the last health result and which agent tiers are on. Start here.`
 		toolOpts{noHelper: true}, s.status)
 
 	addTool(s, rpc.TierRead, "version", "Versions",
-		`Versions of Twinnel, the helper, the mihomo kernel (running, installed, previous), Tailscale, and the
-geo databases. With check_updates it also asks GitHub for the latest mihomo release and geo files
-(network requests; nothing is installed).`,
+		`Versions of Twinnel, the helper (and its two binaries: the one shipped with Twinnel and the installed one,
+with a warning when they differ), the mihomo kernel (running, installed, previous), Tailscale, the geo
+databases and the web dashboard (geo / dashboard: installed or not, date, source, the last update check
+and whether it found something newer). With check_updates it also asks GitHub for the latest mihomo
+release, geo files and dashboard (network requests; nothing is installed).`,
 		toolOpts{noHelper: true, openWorld: true}, s.version)
 
 	addTool(s, rpc.TierRead, "health", "Health checks",
@@ -56,7 +59,11 @@ since mihomo started.`,
 	addTool(s, rpc.TierRead, "logs", "Logs",
 		`Recent log lines. source "twinnel" (default): what the helper did (applies, subscription updates,
 health changes, agent actions), newest last. source "mihomo": mihomo's live log, listened to for about
-3 seconds (mihomo keeps no backlog), at level (debug, info, warning, error; default info).`,
+3 seconds (the stream has no backlog), at level (debug, info, warning, error; default info).
+source "mihomo-output": what mihomo's service wrote to its output file, startup errors included
+(a config mihomo refused at start shows up here, not in the live log); level filters it too.
+source "helper": the helper's own log (every change it made and who asked, warnings, errors);
+level filters it too.`,
 		toolOpts{}, s.logs)
 
 	addTool(s, rpc.TierRead, "subscriptions", "Subscriptions",
@@ -78,7 +85,9 @@ groups, rules; node contents are never shown.`,
 	addTool(s, rpc.TierRead, "preview", "Preview compose",
 		`What apply would do now, without doing it: composes the subscription and overrides, validates the
 result with mihomo -t, and returns the semantic diff against the running config, the validation
-errors (and which override causes them) and the reload's impact (e.g. TUN rebuilt).`,
+errors (and which override causes them) and the reload's impact (e.g. TUN rebuilt). The diff starts with
+a one-line summary and the setting changes; shadowed rules that are the same on both sides are folded
+into a count (verbose=true lists them all).`,
 		toolOpts{}, s.preview)
 
 	addTool(s, rpc.TierRead, "takeover_plans", "Takeover plans",
@@ -93,8 +102,10 @@ peer-relay, idle), whether it is or may be an exit node. online_only limits the 
 
 	if s.d.Doctor != nil {
 		addTool(s, rpc.TierRead, "doctor", "Doctor",
-			"Runs `twinnel doctor` here: the same coexistence checks as health, run by this process against the "+
-				"running mihomo and Tailscale (read-only). Use it when the helper is not reachable.",
+			"Runs `twinnel doctor`: the helper's coexistence checks, the report the app shows. Its last report when it is under a minute old "+
+				"(ageNs then says how old), else the helper runs them now; fresh=true always runs them now. "+
+				"When the helper does not answer, this process runs them itself against the running mihomo and Tailscale; "+
+				"the report's source then says local-no-helper, and checks that need the helper's knowledge skip (read-only).",
 			toolOpts{noHelper: true}, s.doctor)
 	}
 
@@ -128,6 +139,9 @@ type statusOut struct {
 		TUN       *bool      `json:"tun,omitempty"`
 		Groups    []groupNow `json:"selector_groups,omitempty"`
 		Error     string     `json:"error,omitempty"`
+		// Owner: who listens on the controller address. Foreign: another
+		// program's mihomo; what the controller reports is that program's.
+		Owner *foreign.Owner `json:"controller_owner,omitempty"`
 	} `json:"mihomo"`
 	Config *struct {
 		ActiveSubscription string     `json:"active_subscription,omitempty"`
@@ -183,6 +197,7 @@ func (s *Server) status(c *call, _ noArgs) (any, error) {
 		var st rpc.Status
 		if err := h.Call(c.ctx, rpc.MethodStatus, nil, &st); err == nil {
 			out.Helper.Version = st.HelperVersion
+			out.Mihomo.Owner = st.Mihomo.Owner
 			out.Config = &struct {
 				ActiveSubscription string     `json:"active_subscription,omitempty"`
 				Layers             int        `json:"layers"`
@@ -210,7 +225,11 @@ func (s *Server) status(c *call, _ noArgs) (any, error) {
 			out.Health = summarizeHealth(hr)
 		}
 	}
-	if mc, err := c.mihomo(false); err != nil {
+	if o := out.Mihomo.Owner; o.IsForeign() {
+		// What the controller says is the other program's mihomo, not
+		// Twinnel's: its mode, TUN and groups are left out.
+		out.Mihomo.Error = foreignOwnerError(*o).Error()
+	} else if mc, err := c.mihomo(false); err != nil {
 		out.Mihomo.Error = err.Error()
 	} else if v, err := mc.Version(c.ctx); err != nil {
 		out.Mihomo.Error = err.Error()
@@ -299,6 +318,14 @@ func (s *Server) version(c *call, in versionIn) (any, error) {
 		if h.Call(c.ctx, rpc.MethodStatus, nil, &st) == nil {
 			out["helper"] = st.HelperVersion
 			out["mihomo_running"] = st.Mihomo.Version
+			if o := st.Mihomo.Owner; o.IsForeign() {
+				// The version that answered is the other program's mihomo.
+				out["mihomo_running_owner"] = o
+			}
+			if st.ServiceHost != nil {
+				// Windows: the helper's copy that runs mihomo.
+				out["service_host"] = st.ServiceHost
+			}
 		}
 		var kl rpc.KernelList
 		if h.Call(c.ctx, rpc.MethodKernelList, nil, &kl) == nil {
@@ -315,11 +342,20 @@ func (s *Server) version(c *call, in versionIn) (any, error) {
 			} else {
 				out["kernel_latest_error"] = err.Error()
 			}
-			var geo rpc.AccessoryCheck
-			if err := h.Call(c.ctx, rpc.MethodGeoCheck, nil, &geo); err == nil {
-				out["geo"] = geo.Files
+		}
+		for _, x := range []struct{ key, status, check string }{
+			{"geo", rpc.MethodGeoStatus, rpc.MethodGeoCheck},
+			{"dashboard", rpc.MethodUIStatus, rpc.MethodUICheck},
+		} {
+			method, params := x.status, any(nil)
+			if in.CheckUpdates {
+				method, params = x.check, rpc.AccessoryCheckParams{}
+			}
+			var r rpc.AccessoryCheck
+			if err := h.Call(c.ctx, method, params, &r); err == nil {
+				out[x.key] = r
 			} else {
-				out["geo_error"] = err.Error()
+				out[x.key+"_error"] = err.Error()
 			}
 		}
 	}
@@ -328,6 +364,12 @@ func (s *Server) version(c *call, in versionIn) (any, error) {
 			if v, err := mc.Version(c.ctx); err == nil {
 				out["mihomo_running"] = v.Version
 			}
+		}
+	}
+	if s.d.HelperBinaries != nil {
+		running, _ := out["helper"].(string)
+		if hb := s.d.HelperBinaries(c.ctx, running); hb != nil {
+			out["helper_binaries"] = hb
 		}
 	}
 	return out, nil
@@ -519,8 +561,8 @@ func (s *Server) traffic(c *call, _ noArgs) (any, error) {
 // ---- logs ----
 
 type logsIn struct {
-	Source string `json:"source,omitempty" jsonschema:"twinnel (default) or mihomo"`
-	Level  string `json:"level,omitempty" jsonschema:"mihomo only: debug, info (default), warning or error"`
+	Source string `json:"source,omitempty" jsonschema:"twinnel (default), mihomo, mihomo-output or helper"`
+	Level  string `json:"level,omitempty" jsonschema:"mihomo, mihomo-output and helper: debug, info (default), warning or error"`
 	Lines  int    `json:"lines,omitempty" jsonschema:"at most this many lines, newest (default 50, max 500)"`
 }
 
@@ -573,8 +615,28 @@ func (s *Server) logs(c *call, in logsIn) (any, error) {
 		if err != nil && ctx.Err() == nil {
 			return nil, err
 		}
+	case "mihomo-output", "helper":
+		// A log file the helper keeps (service.log): the same
+		// key=value lines, parsed alike.
+		name := rpc.ServiceLogMihomo
+		if in.Source == "helper" {
+			name = rpc.ServiceLogHelper
+		}
+		lvl := orDefault(in.Level, "info")
+		var r rpc.ServiceLog
+		if err := c.rpc(rpc.MethodServiceLog, rpc.ServiceLogParams{Name: name, Lines: n}, &r); err != nil {
+			return nil, err
+		}
+		for _, f := range r.Files {
+			for _, e := range mihomo.ParseLogLines(f.Lines) {
+				if mihomo.LevelAtLeast(e.Type, lvl) {
+					out = append(out, logLine{Time: e.Time, Type: f.File, Level: e.Type, Text: s.redactString(e.Payload)})
+				}
+			}
+		}
+		sort.SliceStable(out, func(i, j int) bool { return out[i].Time.Before(out[j].Time) })
 	default:
-		return nil, fmt.Errorf("source must be twinnel or mihomo")
+		return nil, fmt.Errorf("source must be twinnel, mihomo, mihomo-output or helper")
 	}
 	if len(out) > n {
 		out = out[len(out)-n:]
@@ -623,6 +685,7 @@ type historyIn struct {
 	Diff    string `json:"diff,omitempty" jsonschema:"a history id: return its semantic diff against the running config"`
 	Against string `json:"against,omitempty" jsonschema:"with diff: compare against this history id instead of the running config"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"at most this many entries (default 20)"`
+	Verbose bool   `json:"verbose,omitempty" jsonschema:"with diff: list every shadowed or redundant rule, also those the same on both sides"`
 }
 
 func (s *Server) history(c *call, in historyIn) (any, error) {
@@ -631,7 +694,7 @@ func (s *Server) history(c *call, in historyIn) (any, error) {
 		if in.Against != "" {
 			from = rpc.ConfigGetParams{Source: rpc.ConfigHistory, ID: in.Against}
 		}
-		text, err := c.semDiff(from, rpc.ConfigGetParams{Source: rpc.ConfigHistory, ID: in.Diff})
+		text, err := c.semDiff(from, rpc.ConfigGetParams{Source: rpc.ConfigHistory, ID: in.Diff}, in.Verbose)
 		if err != nil {
 			return nil, err
 		}
@@ -653,7 +716,9 @@ func (s *Server) history(c *call, in historyIn) (any, error) {
 
 // semDiff is the semantic diff of two config texts the helper returns.
 // SemanticDiff never renders node contents and redacts settings.
-func (c *call) semDiff(a, b rpc.ConfigGetParams) (string, error) {
+// verbose lists every dead rule; otherwise those both sides share are
+// folded into a count and a few examples.
+func (c *call) semDiff(a, b rpc.ConfigGetParams, verbose bool) (string, error) {
 	var ta, tb rpc.ConfigText
 	if err := c.rpc(rpc.MethodConfigGet, a, &ta); err != nil {
 		return "", fmt.Errorf("%s config: %w", a.Source, err)
@@ -668,7 +733,7 @@ func (c *call) semDiff(a, b rpc.ConfigGetParams) (string, error) {
 	if d.Equivalent() {
 		return "(no difference in behavior)", nil
 	}
-	return d.Text(200), nil
+	return d.Render(config.TextOptions{Limit: 200, Verbose: verbose, More: "verbose=true lists them all"}), nil
 }
 
 // previewOut is compose.preview with the diff against the running config.
@@ -683,14 +748,14 @@ type previewOut struct {
 	Diff           string        `json:"diff"`
 }
 
-func (c *call) previewNow() (*previewOut, error) {
+func (c *call) previewNow(verbose bool) (*previewOut, error) {
 	var r rpc.ComposeResult
 	if err := c.rpc(rpc.MethodComposePreview, nil, &r); err != nil {
 		return nil, err
 	}
 	out := &previewOut{Valid: r.Valid, ValidateErrors: r.ValidateErrors, Culprits: r.Culprits, Changed: r.Changed,
 		Warnings: r.Warnings, Applied: r.Applied, Hash: r.Hash}
-	diff, err := c.semDiff(rpc.ConfigGetParams{Source: rpc.ConfigLive}, rpc.ConfigGetParams{Source: rpc.ConfigPreview})
+	diff, err := c.semDiff(rpc.ConfigGetParams{Source: rpc.ConfigLive}, rpc.ConfigGetParams{Source: rpc.ConfigPreview}, verbose)
 	if err != nil {
 		out.Diff = "(diff unavailable: " + err.Error() + ")"
 	} else {
@@ -699,7 +764,11 @@ func (c *call) previewNow() (*previewOut, error) {
 	return out, nil
 }
 
-func (s *Server) preview(c *call, _ noArgs) (any, error) { return c.previewNow() }
+type previewIn struct {
+	Verbose bool `json:"verbose,omitempty" jsonschema:"list every shadowed or redundant rule, also those the same on both sides"`
+}
+
+func (s *Server) preview(c *call, in previewIn) (any, error) { return c.previewNow(in.Verbose) }
 
 func (s *Server) takeoverPlans(c *call, _ noArgs) (any, error) {
 	var ps []rpc.TakeoverPlan
@@ -755,8 +824,12 @@ func (s *Server) tailnetPeers(c *call, in peersIn) (any, error) {
 	return map[string]any{"self": st.Self.DNSName, "state": st.BackendState, "peers": out}, nil
 }
 
-func (s *Server) doctor(c *call, _ noArgs) (any, error) {
-	raw, err := s.d.Doctor(c.ctx)
+type doctorIn struct {
+	Fresh bool `json:"fresh,omitempty" jsonschema:"run the checks now even when the helper's last report is under a minute old"`
+}
+
+func (s *Server) doctor(c *call, in doctorIn) (any, error) {
+	raw, err := s.d.Doctor(c.ctx, in.Fresh)
 	if err != nil {
 		return nil, err
 	}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 func init() {
@@ -28,11 +29,7 @@ flags:
 `
 
 func runCompose(args []string) error {
-	fs := flag.NewFlagSet("compose", flag.ContinueOnError)
-	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), composeUsage)
-		fs.PrintDefaults()
-	}
+	fs := newFlags("compose", composeUsage)
 	var (
 		sub, base, out, validate, geoDir string
 		tailnetJSON, tsResolver, tsIface string
@@ -194,7 +191,7 @@ func runCompose(args []string) error {
 		_, err = os.Stdout.Write(res.Config)
 		return err
 	}
-	return writeFileAtomic(out, res.Config)
+	return privfile.WriteFile(out, res.Config) // it holds node credentials
 }
 
 type userLayer struct {
@@ -227,24 +224,4 @@ func tailscaleStatus() ([]byte, error) {
 		return nil, fmt.Errorf("tailscale status --json: %w", err)
 	}
 	return b, nil
-}
-
-func writeFileAtomic(path string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
 }

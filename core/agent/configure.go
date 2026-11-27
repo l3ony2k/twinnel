@@ -41,8 +41,8 @@ the previous order in the result.`,
 		toolOpts{idempotent: true}, s.layerOrder)
 
 	addTool(s, rpc.TierConfigure, "sub_put", "Save subscription",
-		`Creates or changes a subscription: name, URL (http/https; kept in the system keychain and never
-shown again) and update interval in minutes (0: manual). An empty url keeps the stored one. Stored only:
+		`Creates or changes a subscription: name, URL (http/https; kept in the helper's secret store and
+never shown again) and update interval in minutes (0: manual). An empty url keeps the stored one. Stored only:
 refresh_subscription downloads it; apply uses it when it is active.`,
 		toolOpts{idempotent: true, openWorld: true}, s.subPut)
 
@@ -221,10 +221,11 @@ func (s *Server) subRemove(c *call, in idIn) (any, error) {
 type applyIn struct {
 	PreviewHash string `json:"preview_hash,omitempty" jsonschema:"the preview_hash of the preview the person saw; empty returns the preview"`
 	Reason      string `json:"reason,omitempty" jsonschema:"why, in a few words (kept in history)"`
+	Verbose     bool   `json:"verbose,omitempty" jsonschema:"without preview_hash: list every shadowed or redundant rule in the diff"`
 }
 
 func (s *Server) apply(c *call, in applyIn) (any, error) {
-	p, err := c.previewNow()
+	p, err := c.previewNow(in.Verbose)
 	if err != nil {
 		return nil, err
 	}

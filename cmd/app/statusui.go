@@ -54,6 +54,10 @@ func (a *app) helperLock(c *ui.Context, s status.Snapshot) bool {
 // openHelperSetup opens where the helper gets installed (not installed)
 // or managed (installed but down: 设置 → 后台助手).
 func (a *app) openHelperSetup(s status.Snapshot) {
+	if need, known := needsSetup(s); known && need {
+		a.openWizard()
+		return
+	}
 	if s.Helper.State == status.HelperNotInstalled {
 		a.openPage(pageInstall)
 		return
@@ -150,7 +154,7 @@ func (a *app) mihomoService(method, label string) {
 // mihomoServiceItems are the 操作 menu's items while mihomo is down.
 func (a *app) mihomoServiceItems(m *ui.Menu, s status.Snapshot) {
 	T := i18n.T
-	off := !s.Can().Helper || a.hd.busy != ""
+	off := !a.canRestartMihomo(s)
 	if m.Item(T.StartMihomo).Disabled(off).Chosen() {
 		a.mihomoService(rpc.MethodServiceStart, T.StartMihomo)
 	}
@@ -172,7 +176,7 @@ func (a *app) recoveryMenu(c *ui.Context, s status.Snapshot) ui.Element {
 // row).
 func (a *app) recoveryItems(m *ui.Menu, s status.Snapshot) {
 	T := i18n.T
-	if m.Item(T.RestartMihomo).Disabled(!s.Can().Helper || a.hd.busy != "").Chosen() {
+	if m.Item(T.RestartMihomo).Disabled(!a.canRestartMihomo(s)).Chosen() {
 		a.mihomoService(rpc.MethodServiceRestart, T.RestartMihomo)
 	}
 	hasExit := s.Tailscale.Reachable && s.Tailscale.State.ExitNode != nil
@@ -183,13 +187,14 @@ func (a *app) recoveryItems(m *ui.Menu, s status.Snapshot) {
 	if m.Item(T.RecoveryConnectivity).Chosen() {
 		a.connectivityTest(s)
 	}
+	a.dnsRecoveryItems(m, s)
 }
 
 // connectivityTest reruns the health checks and tests the main group's
 // nodes (reads only), then shows the health page.
 func (a *app) connectivityTest(s status.Snapshot) {
 	a.rerunHealth()
-	if p := s.Mihomo.Primary; p != nil && s.Mihomo.Reachable {
+	if p := s.Mihomo.Primary; p != nil && s.MihomoLive() {
 		a.testGroup(p.Name)
 	}
 	a.openPage(pageHealth)
@@ -227,8 +232,8 @@ func (a *app) fixAction(cr health.CheckReport, s status.Snapshot) *fixAction {
 	}
 	helperStep := func(label string, run func()) *fixAction {
 		switch {
-		case a.freshMachine(s): // nothing to take over: set it up
-			return &fixAction{label: T.SetupTitle, run: func() { a.openPage(pageSetup) }, off: !s.WritesAllowed}
+		case a.wizardPending(s) && !s.TakenOver(): // not set up yet: the wizard
+			return &fixAction{label: T.WizResume, run: a.openWizard}
 		case s.Helper.State == status.HelperNotInstalled:
 			return &fixAction{label: T.FixInstallHelper, run: func() { a.openPage(pageInstall) }, off: !s.WritesAllowed}
 		case !s.TakenOver():
@@ -267,9 +272,29 @@ type egressState struct {
 	why     string // err in words (helperError)
 }
 
-// canTestEgress: the helper runs the test, or the app can.
+// canTestEgress: the helper runs the test, or the app can, and the
+// test can run on this platform.
 func (a *app) canTestEgress(s status.Snapshot) bool {
+	if a.egressUnsupported(s) {
+		return false
+	}
 	return s.Helper.Connected() && a.hc != nil && !a.shotMode || a.egressProbe != nil
+}
+
+// egressUnsupported: the last egress result says the test can't run on
+// this platform.
+func (a *app) egressUnsupported(s status.Snapshot) bool {
+	if r := a.egress.result; r != nil && r.Unsupported {
+		return true
+	}
+	if rep := s.Health.Report; rep != nil {
+		for _, cr := range rep.Checks {
+			if cr.ID == (health.LeakEgress{}).ID() {
+				return cr.Unsupported
+			}
+		}
+	}
+	return false
 }
 
 // egressHelper is the helper connection the egress test may use: nil in
@@ -385,6 +410,7 @@ type bannerAct struct {
 	key, label string
 	run        func()
 	menu       func(m *ui.Menu) // a submenu (应急恢复) instead of run
+	off        bool             // can't run now: the banner leaves it out
 }
 
 // bannerActs are the banner's actions that can run now, most useful
@@ -402,12 +428,27 @@ func (a *app) bannerActs(s status.Snapshot) []bannerAct {
 	}
 	can := s.Can()
 	var acts []bannerAct
-	if has(status.ReasonMihomoDown) && can.Helper && a.hd.busy == "" {
+	// Another program's mihomo on the controller leads: its two ways out,
+	// the card's own (restarting Twinnel's mihomo cannot help then).
+	for _, act := range a.foreignFixes(s) {
+		if !act.off {
+			acts = append(acts, act)
+		}
+	}
+	acts = append(acts, a.dnsRestoredActs(s)...)
+	if has(status.ReasonMihomoDown) && !s.DNSRestored() && a.canRestartMihomo(s) {
 		acts = append(acts, bannerAct{key: "start-mihomo", label: T.StartMihomo,
 			run: func() { a.mihomoService(rpc.MethodServiceStart, T.StartMihomo) }})
 	}
 	if has(status.ReasonTSNeedsLogin) && can.Tailscale {
-		acts = append(acts, bannerAct{key: "ts-login", label: T.TSLogIn, run: func() { a.tsLogin(s) }})
+		switch tsPhaseOf(s) {
+		case tsMachineAuth:
+			acts = append(acts, bannerAct{key: "ts-admin", label: T.TSLAdminConsole, run: func() { _ = mygo.Shell.OpenExternal(tailscaleAdminURL) }})
+		case tsKeyExpired:
+			acts = append(acts, bannerAct{key: "ts-login", label: T.TSLRelogin, run: func() { a.tsLoginFromBanner(s) }})
+		default:
+			acts = append(acts, bannerAct{key: "ts-login", label: T.TSLLogIn, run: func() { a.tsLoginFromBanner(s) }})
+		}
 	}
 	if has(status.ReasonHealth) {
 		if !s.TakenOver() && s.WritesAllowed {
@@ -459,99 +500,31 @@ func (a *app) verdictActions(c *ui.Context, s status.Snapshot) {
 	})
 }
 
-// tsLoginButton opens Tailscale's login page in the browser: the URL the
-// node already has, else one it is asked for.
-func (a *app) tsLoginButton(c *ui.Context, s status.Snapshot) {
-	T := i18n.T
-	if pushButton(c.Key("ts-login"), T.TSLogIn).Disabled(!s.Can().Tailscale).Clicked() {
-		a.tsLogin(s)
-	}
+// tsLoginFromBanner starts the login and shows the Tailscale page,
+// where the link and its QR code are.
+func (a *app) tsLoginFromBanner(s status.Snapshot) {
+	a.startTSLogin(s, false)
+	a.openPage(pageTailscale)
 }
 
-func (a *app) tsLogin(s status.Snapshot) {
-	if u := s.Tailscale.State.AuthURL; u != "" {
-		_ = mygo.Shell.OpenExternal(u)
-		return
-	}
-	ts, mon := a.ts, a.mon
-	a.do(func(ctx context.Context) error {
-		if err := ts.Login(ctx); err != nil {
-			return err
-		}
-		// The node answers with its URL a moment later.
-		for range 20 {
-			st, err := ts.State(ctx)
-			if err == nil && st.AuthURL != "" {
-				u := st.AuthURL
-				mygo.RunOnMain(func() { _ = mygo.Shell.OpenExternal(u) })
-				return nil
-			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(250 * time.Millisecond):
-			}
-		}
-		mon.Refresh()
-		return nil
-	})
-}
-
-// gettingStarted is the 开始使用 strip while Twinnel is not running the
-// show yet: three steps, each done or not, each opening its page. It
-// goes once all three are done.
+// gettingStarted is 总览's way back into the first-run wizard while
+// Twinnel is not set up (or the wizard was left before 完成): one quiet
+// row, where the setup stands and 继续设置. It goes once set up.
 func (a *app) gettingStarted(c *ui.Context, s status.Snapshot) {
-	if h := s.Helper.State; h != status.HelperNotInstalled && (h != status.HelperConnected || s.Helper.Status == nil) {
-		// Whether Twinnel took over is known only from a connected helper
-		// (or none installed): no strip that guesses.
-		return
-	}
-	T := i18n.T
-	installed := s.Helper.State != status.HelperNotInstalled
-	taken := installed && s.TakenOver()
-	// The step is done when nothing fails. Warnings stay on the health
-	// page and badge but must not keep onboarding open forever: some
-	// (network conditions, things the user chose) can't be cleared.
-	_, fails := s.Health.Counts()
-	clean := s.Health.Report != nil && fails == 0
-	if installed && taken && clean {
+	if !a.wizardPending(s) {
 		return
 	}
 	t := c.Theme()
-	steps := []struct {
-		label string
-		done  bool
-		page  string
-	}{
-		{T.StepHelper, installed, pageInstall},
-		{T.StepTakeOver, taken, pageTakeover},
-		{T.StepCheckCoexist, clean, pageHealth},
-	}
-	if a.freshMachine(s) {
-		// Nothing to take over: 设置这台 Mac installs the helper too.
-		steps[0].page = pageSetup
-		steps[1].label, steps[1].page = T.StepSetUpMac, pageSetup
-	}
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
-		ui.Text(c, T.GetStarted).FontWeight(600).Margin(0, 4, 0, 0).SingleLine()
-		for i, st := range steps {
-			if st.done {
-				// Done: ✓ and its name, no button (R-kubai-25, kubai 022):
-				// nothing is left to do there.
-				ui.Row(c.Key(fmt.Sprint("step", i))).Gap(6).AlignItems(ui.Center).PaddingX(4).Label(st.label).Children(func() {
-					ui.Icon(c, iconOK).FontSize(iconInline).TextColor(pal(t).okText)
-					ui.Text(c, st.label).TextColor(t.TextMuted).SingleLine()
-				})
-				continue
+	T := i18n.T
+	groupBox(c, t).Padding(10, groupPadX).Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, iconTwinnel).FontSize(iconInline + 2).TextColor(t.Accent).Shrink(0)
+			ui.Text(c, T.WizResumeHead).FontWeight(600).SingleLine().Shrink(1)
+			num(small(c, i18n.F(T.WizProgress, a.wiz.state.Step+1, wizSteps))).SingleLine()
+			ui.Spacer(c)
+			if ui.PrimaryButton(c.Key("wiz-resume"), T.WizResume).Clicked() {
+				a.openWizard()
 			}
-			page := st.page
-			b := pushFace(c.Key(fmt.Sprint("step", i)), ui.Button(c, "")).Label(st.label).Children(func() {
-				ui.Icon(c, iconSkip).FontSize(iconInline).TextColor(t.TextMuted)
-				ui.Text(c, st.label).SingleLine()
-			})
-			if b.Clicked() {
-				a.openPage(page)
-			}
-		}
+		})
 	})
 }

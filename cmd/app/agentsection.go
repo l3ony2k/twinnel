@@ -41,6 +41,11 @@ type agentView struct {
 	cliBusy bool
 	cliErr  string
 
+	// Windows (clipath.go): whether the CLI's folder is on the user's PATH.
+	pathRead bool
+	onPath   bool
+	binDir   string
+
 	shotLinks []string // shot mode: the installed links (no file system reads)
 }
 
@@ -313,7 +318,8 @@ func (a *app) agentSection(c *ui.Context, s status.Snapshot) {
 func (a *app) agentCLIRow(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	v := &a.agent
-	if !plat.cliLink { // Windows: install.ps1 puts bin\ on PATH
+	if !plat.cliLink { // Windows: bin\ on the user's PATH instead of a link
+		a.agentCLIPathRow(c, s)
 		return
 	}
 	links := a.cliLinks()
@@ -367,7 +373,7 @@ func (a *app) agentConnectRow(c *ui.Context) {
 			copyText(c, snip)
 		}
 	})
-	ui.Column(c).PaddingStart(labelWidth + 36).Children(func() {
+	ui.Column(c).PaddingStart(labelCol() + 36).Children(func() {
 		codeBlock(c, agentSnippet(v.client, a.agentCommand()))
 	})
 }
@@ -396,7 +402,7 @@ func (a *app) agentActivityRows(c *ui.Context) {
 					if !act.OK {
 						ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(t.Warning).Shrink(0).Label(T.ErrorPrefix)
 					}
-					ui.Text(c, agentActionText(act)).SingleLine().Shrink(1).Tooltip(strings.TrimSpace(act.Args + "\n" + act.Error))
+					ui.Text(c, agentActionText(act)).SingleLine().Shrink(1).Tooltip(agentActionTip(act))
 				})
 			}
 			if n := len(v.activity) - agentShownActions; n > 0 {
@@ -408,6 +414,18 @@ func (a *app) agentActivityRows(c *ui.Context) {
 			}
 		})
 	})
+}
+
+// agentActionTip is an action's tooltip: its arguments, its error and the
+// account the agent ran as, one per line.
+func agentActionTip(act rpc.AgentAction) string {
+	var lines []string
+	for _, s := range []string{act.Args, act.Error, act.Caller} {
+		if s != "" {
+			lines = append(lines, s)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // agentActionText is one action in words: who and what.

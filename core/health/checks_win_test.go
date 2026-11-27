@@ -53,3 +53,20 @@ func TestDNSFixTextWindows(t *testing.T) {
 		t.Errorf("system-dns on windows: %+v", r)
 	}
 }
+
+// dns.point sets ::1 as the IPv6 server on Windows (nothing listens there,
+// so nothing leaks): the check takes it as pointed there and nowhere else.
+func TestSystemDNSWindowsLoopbackV6(t *testing.T) {
+	for _, plat := range []string{Windows, Darwin, Linux} {
+		e := healthyEnv()
+		e.platform = plat
+		e.cfg.TUN.DNSHijack, e.rt.Configs.TUN.DNSHijack = nil, nil
+		for i := range e.svcs {
+			e.svcs[i].DNS = []string{"127.0.0.1", "::1"}
+		}
+		r := SystemDNS{}.Run(context.Background(), e)
+		if wantOK := plat == Windows; (r.Status == StatusOK) != wantOK {
+			t.Errorf("%s: %s %q", plat, r.Status, r.Summary)
+		}
+	}
+}
