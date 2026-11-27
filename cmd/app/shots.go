@@ -131,6 +131,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"readme":          a.readmeShots,          // shots_readme.go
 		"wizard":          a.wizardShots,          // shots_wizard.go
 		"healthfix":       a.healthFixShots,       // shots_healthfix.go
+		"dnswatch":        a.dnsWatchShots,        // shots_dnswatch.go
 		"takeover":        a.takeoverE2E,
 	}
 }
