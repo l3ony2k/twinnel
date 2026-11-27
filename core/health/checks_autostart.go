@@ -184,7 +184,7 @@ func init() {
 	fixCatalog[ReasonAutostartOn] = FixSpec{Kind: FixAuto, Action: FixDisableAutostart}
 	fixCatalog[ReasonAutostartManual] = FixSpec{Kind: FixManual, Open: OpenLoginItems}
 	fixCatalog[ReasonAutostartManual+"@"+Linux] = FixSpec{Kind: FixManual}
-	fixCatalog[ReasonAutostartManual+"@"+Windows] = FixSpec{Kind: FixManual}
+	fixCatalog[ReasonAutostartManual+"@"+Windows] = FixSpec{Kind: FixManual, Open: OpenLoginItems}
 
 	zhFixTexts[ReasonAutostartOn] = FixText{"另一个代理软件登记了自启动，登录或开机后会再起来，抢走默认路由和 9090 端口。",
 		"由后台助手关掉这些自启动项：只是停用，不删除，可以撤销。软件本身不动。"}

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/l3ony2k/twinnel/core/autostart"
+	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
@@ -18,6 +19,34 @@ func (e *Engine) ownLabels() []string {
 		return nil
 	}
 	return []string{st.Mihomo.ServiceLabel, st.Tailscale.ServiceLabel}
+}
+
+// AutostartFind is the competing clients' autostart entries for the
+// health check (the read error keeps its kind: denied is not missing).
+func (e *Engine) AutostartFind(ctx context.Context) ([]autostart.Entry, error) {
+	return autostart.Find(ctx, e.Autostarts, e.ownLabels()...)
+}
+
+// HealthBinaries are the programs binary-integrity checks: the managed
+// mihomo and the Tailscale binaries Twinnel installed or adopted (signed
+// on Windows: the official client is Authenticode-signed).
+func (e *Engine) HealthBinaries(goos string) []health.BinaryRef {
+	var out []health.BinaryRef
+	if e.Kernels != nil {
+		if l, err := e.Kernels.List(); err == nil && l.Current != "" {
+			out = append(out, health.BinaryRef{Name: "mihomo", Path: e.Kernels.Binary()})
+		}
+	}
+	if st, err := e.Store.Settings(); err == nil {
+		signed := goos == "windows"
+		if st.Tailscale.Binary != "" {
+			out = append(out, health.BinaryRef{Name: "tailscale", Path: st.Tailscale.Binary, Signed: signed})
+		}
+		if st.Tailscale.DaemonBinary != "" {
+			out = append(out, health.BinaryRef{Name: "tailscaled", Path: st.Tailscale.DaemonBinary, Signed: signed})
+		}
+	}
+	return out
 }
 
 // AutostartList lists the competing clients' autostart entries.

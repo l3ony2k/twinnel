@@ -105,6 +105,7 @@ func healthOptions(e *engine.Engine, opts *options) linux.Options {
 	o := linux.Options{TailscaleStatus: devTailnetStatus(e, opts)}
 	settings := health.DefaultSettings()
 	o.Settings = &settings
+	healthExtras(e, &settings)
 	st, err := e.Store.Settings()
 	if err != nil {
 		return o
