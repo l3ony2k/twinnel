@@ -130,7 +130,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 					}
 				}
 				kvWith(c, T.KernelActive, func() {
-					monoText(c, used).SingleLine().Shrink(1).Selectable().Tooltip(k.Active)
+					monoText(c, used).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Selectable().Tooltip(k.Active)
 				})
 			}
 			if running != "" {
@@ -156,7 +156,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 						num(small(c, kv.Time.Local().Format("2006-01-02")).SingleLine().Shrink(0))
 					}
 				})
-				mono(ui.Text(c, kv.Path)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Selectable().Tooltip(kv.Path)
+				mono(ui.Text(c, kv.Path)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().TruncateMiddle().Selectable().Tooltip(kv.Path)
 			})
 		}
 		listRow(c).Children(func() {

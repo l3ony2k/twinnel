@@ -300,7 +300,7 @@ func (a *app) accessoryRows(c *ui.Context, s status.Snapshot, k accessoryKind) {
 	listRow(c).Children(func() {
 		componentHead(c, k.title, k.tip, func() {
 			if ck := v.check; ck != nil && ck.Dir != "" {
-				mono(ui.Text(c, ck.Dir)).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable().Tooltip(ck.Dir)
+				mono(ui.Text(c, ck.Dir)).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Selectable().Tooltip(ck.Dir)
 			} else if v.check == nil && v.checkErr == "" {
 				ui.Text(c, T.AccessoryUnchecked).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine() // before the first check
 			}
@@ -374,7 +374,7 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 			tag(c, T.AccessoryUnverifiable)
 		}
 		ui.Spacer(c)
-		mono(ui.Text(c, filepath.Base(f.File))).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable().Tooltip(f.File)
+		mono(ui.Text(c, filepath.Base(f.File))).TextColor(t.TextMuted).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Selectable().Tooltip(f.File)
 	})
 	local := T.AccessoryMissing
 	if f.Installed {
