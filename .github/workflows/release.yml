@@ -53,15 +53,28 @@ jobs:
           scripts/build-release.sh "$@"
       - name: check the version stamp
         run: |
+          trap 'echo "::error::check failed (line $LINENO): $BASH_COMMAND"' ERR
+          fail() { echo "::error::$*"; exit 1; }
           arc=$(ls dist/twinnel_*_linux_amd64.tar.gz)
           want=${arc#dist/twinnel_}; want=${want%_linux_amd64.tar.gz}
           tmp=$(mktemp -d)
           tar -C "$tmp" -xzf "$arc"
           d="$tmp/${arc#dist/}"; d=${d%.tar.gz}
-          test "$("$d/twinnel" version --short)" = "$want"
-          test "$("$d/twinnel-helper" -version)" = "twinnel-helper $want"
-          test -x "$d/install.sh" && test -f "$d/twinnel-helper.service" && test -f "$d/INSTALL.md"
-          "$d/install.sh" --dry-run | grep -q '/etc/systemd/system/twinnel-helper.service'
+          for t in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
+            test -f "dist/twinnel_${want}_${t%/*}_${t#*/}.tar.gz" || fail "missing dist/twinnel_${want}_${t%/*}_${t#*/}.tar.gz"
+          done
+          for a in amd64 arm64; do
+            x="$tmp/linux_$a"; mkdir -p "$x"; tar -C "$x" -xzf "dist/twinnel_${want}_linux_${a}.tar.gz"
+            scripts/check-binary.sh elf "$x/twinnel_${want}_linux_${a}/twinnel" "$a"
+            scripts/check-binary.sh elf "$x/twinnel_${want}_linux_${a}/twinnel-helper" "$a"
+          done
+          got=$("$d/twinnel" version --short); [ "$got" = "$want" ] || fail "twinnel version --short: '$got', want '$want'"
+          got=$("$d/twinnel-helper" -version); [ "$got" = "twinnel-helper $want" ] || fail "twinnel-helper -version: '$got', want 'twinnel-helper $want'"
+          for f in install.sh:x twinnel-helper.service:f INSTALL.md:f; do
+            test -"${f#*:}" "$d/${f%:*}" || fail "${f%:*} missing (or not executable) in $arc"
+          done
+          plan=$("$d/install.sh" --dry-run)
+          case "$plan" in *'/etc/systemd/system/twinnel-helper.service'*) ;; *) echo "$plan"; fail "install.sh --dry-run does not install the systemd unit" ;; esac
           echo "version $want"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -100,20 +113,26 @@ jobs:
           scripts/build-release.sh "$@"
       - name: check the app
         run: |
+          trap 'echo "::error::check failed (line $LINENO): $BASH_COMMAND"' ERR
+          fail() { echo "::error::$*"; exit 1; }
           app=dist/app/darwin-universal/Twinnel.app
           test -d "$app" || app=$(find dist/app -maxdepth 2 -name Twinnel.app -type d | head -n 1)
+          test -d "$app" || fail "no Twinnel.app under dist/app"
           plist="$app/Contents/Info.plist"
-          test -f "$app/Contents/Resources/Assets.car"
-          plutil -extract CFBundleIconName raw "$plist" | grep -qx twinnel
-          plutil -extract CFBundleIconFile raw "$plist"
+          test -f "$app/Contents/Resources/Assets.car" || fail "no Assets.car (layered icon) in $app"
+          got=$(plutil -extract CFBundleIconName raw "$plist" || true)
+          [ "$got" = twinnel ] || fail "CFBundleIconName: '$got', want 'twinnel'"
+          plutil -extract CFBundleIconFile raw "$plist" >/dev/null || fail "no CFBundleIconFile in $plist"
           for f in "$app/Contents/MacOS/Twinnel" "$app/Contents/Resources/bin/twinnel" "$app/Contents/Resources/bin/twinnel-helper"; do
-            lipo -archs "$f" | tr ' ' '\n' | sort | tr '\n' ' ' | grep -qx 'arm64 x86_64 '
+            got=$(lipo -archs "$f" | tr ' ' '\n' | sort | tr '\n' ' ')
+            [ "$got" = 'arm64 x86_64 ' ] || fail "$f: architectures '$got', want 'arm64 x86_64'"
           done
-          codesign --verify --deep --strict "$app"
+          codesign --verify --deep --strict "$app" || fail "codesign --verify failed for $app"
           zip=$(ls dist/Twinnel_*_macos_universal.zip)
           want=${zip#dist/Twinnel_}; want=${want%_macos_universal.zip}
-          test "$("$app/Contents/Resources/bin/twinnel" version --short)" = "$want"
-          test -f "dist/Twinnel_${want}_macos_universal.dmg"
+          got=$("$app/Contents/Resources/bin/twinnel" version --short)
+          [ "$got" = "$want" ] || fail "twinnel version --short: '$got', want '$want'"
+          test -f "dist/Twinnel_${want}_macos_universal.dmg" || fail "missing dist/Twinnel_${want}_macos_universal.dmg"
           echo "Twinnel.app $want ($(plutil -extract CFBundleShortVersionString raw "$plist"))"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -150,38 +169,53 @@ jobs:
           scripts/build-release.sh "$@"
       - name: check the archives and the AppImages
         run: |
+          trap 'echo "::error::check failed (line $LINENO): $BASH_COMMAND"' ERR
+          fail() { echo "::error::$*"; exit 1; }
           arc=$(ls dist/Twinnel_*_linux_amd64_app.tar.gz)
           want=${arc#dist/Twinnel_}; want=${want%_linux_amd64_app.tar.gz}
           tmp=$(mktemp -d)
-          for a in amd64:x86-64 arm64:aarch64; do
-            tar -C "$tmp" -xzf "dist/Twinnel_${want}_linux_${a%:*}_app.tar.gz"
-            d="$tmp/Twinnel_${want}_linux_${a%:*}_app"
-            for f in Twinnel bin/twinnel bin/twinnel-helper install.sh uninstall.sh; do test -x "$d/$f"; done
-            file "$d/Twinnel" | grep -q "ELF 64-bit.*${a#*:}"
-            test -f "$d/share/icons/hicolor/scalable/apps/twinnel.svg"
-            test -f "$d/share/icons/hicolor/symbolic/apps/twinnel-symbolic.svg"
-            file "dist/Twinnel_${want}_linux_${a%:*}.AppImage" | grep -q "ELF 64-bit.*${a#*:}"
+          for a in amd64 arm64; do
+            tar -C "$tmp" -xzf "dist/Twinnel_${want}_linux_${a}_app.tar.gz"
+            d="$tmp/Twinnel_${want}_linux_${a}_app"
+            for f in Twinnel bin/twinnel bin/twinnel-helper install.sh uninstall.sh; do
+              test -x "$d/$f" || fail "$f missing or not executable in Twinnel_${want}_linux_${a}_app.tar.gz"
+            done
+            for f in Twinnel bin/twinnel bin/twinnel-helper; do scripts/check-binary.sh elf "$d/$f" "$a"; done
+            for f in scalable/apps/twinnel.svg symbolic/apps/twinnel-symbolic.svg; do
+              test -f "$d/share/icons/hicolor/$f" || fail "icon $f missing in Twinnel_${want}_linux_${a}_app.tar.gz"
+            done
+            scripts/check-binary.sh elf "dist/Twinnel_${want}_linux_${a}.AppImage" "$a"
           done
           d="$tmp/Twinnel_${want}_linux_amd64_app"
-          desktop-file-validate "$d/share/applications/twinnel.desktop"
-          test "$("$d/bin/twinnel" version --short)" = "$want"
-          test "$("$d/bin/twinnel-helper" -version)" = "twinnel-helper $want"
+          desktop-file-validate "$d/share/applications/twinnel.desktop" || fail "desktop-file-validate: share/applications/twinnel.desktop"
+          got=$("$d/bin/twinnel" version --short); [ "$got" = "$want" ] || fail "twinnel version --short: '$got', want '$want'"
+          got=$("$d/bin/twinnel-helper" -version); [ "$got" = "twinnel-helper $want" ] || fail "twinnel-helper -version: '$got', want 'twinnel-helper $want'"
           # install.sh / uninstall.sh into a scratch home, without the helper.
           home="$tmp/home"; mkdir -p "$home"
           HOME="$home" "$d/install.sh" --no-helper
-          test -x "$home/.local/lib/twinnel/Twinnel"
-          test "$("$home/.local/bin/twinnel" version --short)" = "$want"
-          grep -qx "Exec=$home/.local/lib/twinnel/Twinnel" "$home/.local/share/applications/twinnel.desktop"
-          HOME="$home" "$d/install.sh" --dry-run | grep -q 'helper install'
+          test -x "$home/.local/lib/twinnel/Twinnel" || fail "install.sh: no ~/.local/lib/twinnel/Twinnel"
+          got=$("$home/.local/bin/twinnel" version --short); [ "$got" = "$want" ] || fail "installed twinnel version --short: '$got', want '$want'"
+          grep -qx "Exec=$home/.local/lib/twinnel/Twinnel" "$home/.local/share/applications/twinnel.desktop" ||
+            fail "installed twinnel.desktop: Exec is not $home/.local/lib/twinnel/Twinnel"
+          plan=$(HOME="$home" "$d/install.sh" --dry-run)
+          case "$plan" in *'helper install'*) ;; *) echo "$plan"; fail "install.sh --dry-run does not install the helper" ;; esac
           HOME="$home" "$d/uninstall.sh" --keep-helper
-          test -z "$(find "$home/.local" -type f -o -type l)"
+          # update-desktop-database and gtk-update-icon-cache rebuild these
+          # caches after the uninstall; they index the whole directory (other
+          # apps too), so they stay.
+          left=$(find "$home/.local" \( -type f -o -type l \) ! -name mimeinfo.cache ! -name icon-theme.cache)
+          [ -z "$left" ] || fail "uninstall.sh left files behind: $left"
           # The AppImage, unpacked without FUSE; AppRun's cli copies the
           # tools out of the image.
-          (cd "$tmp" && "$GITHUB_WORKSPACE/dist/Twinnel_${want}_linux_amd64.AppImage" --appimage-extract >/dev/null)
-          test -x "$tmp/squashfs-root/AppRun" && test -x "$tmp/squashfs-root/usr/lib/twinnel/Twinnel"
-          desktop-file-validate "$tmp/squashfs-root/twinnel.desktop"
-          test "$(HOME="$home" "$tmp/squashfs-root/AppRun" cli version --short)" = "$want"
-          test -x "$home/.cache/twinnel/appimage/$want/twinnel-helper"
+          (cd "$tmp" && "$GITHUB_WORKSPACE/dist/Twinnel_${want}_linux_amd64.AppImage" --appimage-extract >/dev/null) ||
+            fail "Twinnel_${want}_linux_amd64.AppImage --appimage-extract failed"
+          for f in AppRun usr/lib/twinnel/Twinnel; do
+            test -x "$tmp/squashfs-root/$f" || fail "$f missing or not executable in the AppImage"
+          done
+          desktop-file-validate "$tmp/squashfs-root/twinnel.desktop" || fail "desktop-file-validate: the AppImage's twinnel.desktop"
+          got=$(HOME="$home" "$tmp/squashfs-root/AppRun" cli version --short)
+          [ "$got" = "$want" ] || fail "AppImage cli version --short: '$got', want '$want'"
+          test -x "$home/.cache/twinnel/appimage/$want/twinnel-helper" || fail "AppRun did not copy twinnel-helper to ~/.cache/twinnel/appimage/$want"
           echo "Linux app $want"
       - name: check the PKGBUILD (makepkg in Arch Linux)
         run: |
@@ -254,6 +288,8 @@ jobs:
           scripts/build-release.sh "$@"
       - name: check the zips
         run: |
+          trap 'echo "::error::check failed (line $LINENO): $BASH_COMMAND"' ERR
+          fail() { echo "::error::$*"; exit 1; }
           for arch in amd64 arm64; do
             zip=$(ls dist/Twinnel_*_windows_${arch}.zip)
             name=$(basename "$zip" .zip)
@@ -261,10 +297,13 @@ jobs:
             unzip -q "$zip" -d "$tmp"
             d="$tmp/$name"
             for f in Twinnel.exe bin/twinnel.exe bin/twinnel-helper.exe install.ps1 INSTALL.md; do
-              test -f "$d/$f" || { echo "missing $f in $zip"; exit 1; }
+              test -f "$d/$f" || fail "missing $f in $zip"
             done
-            file "$d/Twinnel.exe" | grep -q 'PE32+ executable (GUI)'
-            if grep -q WebView2Loader "$d/Twinnel.exe"; then echo "WebView2 linked into $zip"; exit 1; fi
+            # From the PE header: file(1) words it differently per version.
+            scripts/check-binary.sh pe "$d/Twinnel.exe" "$arch" gui
+            scripts/check-binary.sh pe "$d/bin/twinnel.exe" "$arch" console
+            scripts/check-binary.sh pe "$d/bin/twinnel-helper.exe" "$arch" console
+            if grep -qaF WebView2Loader "$d/Twinnel.exe"; then fail "WebView2Loader linked into Twinnel.exe in $zip"; fi
             echo "$zip ok"
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -288,12 +327,13 @@ jobs:
           fetch-depth: 0 # tags and history for the notes
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          path: assets
+          path: dist-release # not assets/: that is a source folder in the checkout
           merge-multiple: true
       - name: SHA256SUMS
-        working-directory: assets
+        working-directory: dist-release
         run: |
-          sha256sum -- * > SHA256SUMS
+          find . -maxdepth 1 -type f -printf "%f\0" | sort -z | xargs -0 sha256sum -- > "$RUNNER_TEMP/SHA256SUMS"
+          mv "$RUNNER_TEMP/SHA256SUMS" SHA256SUMS
           cat SHA256SUMS
       - name: release notes
         run: |
@@ -325,7 +365,7 @@ jobs:
         with:
           name: release
           path: |
-            assets/SHA256SUMS
+            dist-release/SHA256SUMS
             notes.md
           retention-days: 7
       - name: create the draft release
@@ -338,13 +378,13 @@ jobs:
           case "$TAG" in *-*) flags+=(--prerelease) ;; esac
           if gh release view "$TAG" >/dev/null 2>&1; then
             # A rerun: replace the assets of the existing (draft) release.
-            gh release upload "$TAG" assets/* --clobber
+            gh release upload "$TAG" dist-release/* --clobber
           else
-            gh release create "$TAG" assets/* "${flags[@]}" \
+            gh release create "$TAG" dist-release/* "${flags[@]}" \
               --title "Twinnel ${TAG#v}" --notes-file notes.md
           fi
       - name: dry run
         if: ${{ !(github.ref_type == 'tag' && (github.event_name == 'push' || !inputs.dry_run)) }}
         run: |
           echo "dry run: nothing published. Assets:" >> "$GITHUB_STEP_SUMMARY"
-          (cd assets && ls -l) >> "$GITHUB_STEP_SUMMARY"
+          (cd dist-release && ls -l) >> "$GITHUB_STEP_SUMMARY"
