@@ -5,6 +5,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // MihomoPhase is the state of Twinnel's mihomo, as every surface shows it
@@ -60,15 +61,29 @@ type MihomoView struct {
 // Twinnel.
 func (s Snapshot) MihomoView() MihomoView {
 	m := s.Mihomo
+	return mihomoViewOf(m.Reachable, m.Unauthorized, m.Err, s.ForeignController())
+}
+
+// HelperMihomoView is the view of the helper's own read of the controller
+// (status.get's mihomo: `twinnel helper status`), derived the same way.
+func HelperMihomoView(m rpc.MihomoStatus) MihomoView {
+	var owner *foreign.Owner
+	if m.Owner.IsForeign() {
+		owner = m.Owner
+	}
+	return mihomoViewOf(m.Reachable, false, m.Error, owner)
+}
+
+func mihomoViewOf(reachable, unauthorized bool, err string, owner *foreign.Owner) MihomoView {
 	switch {
-	case s.ForeignController() != nil:
-		return MihomoView{Phase: MihomoForeign, Owner: s.ForeignController()}
-	case m.Unauthorized:
-		return MihomoView{Phase: MihomoAuth, Err: m.Err}
-	case m.Reachable:
+	case owner != nil:
+		return MihomoView{Phase: MihomoForeign, Owner: owner}
+	case unauthorized:
+		return MihomoView{Phase: MihomoAuth, Err: err}
+	case reachable:
 		return MihomoView{Phase: MihomoRunning}
 	}
-	return MihomoView{Phase: MihomoDown, Err: m.Err}
+	return MihomoView{Phase: MihomoDown, Err: err}
 }
 
 // MihomoLive reports whether the controller answers for Twinnel's own
@@ -129,4 +144,42 @@ func (v MihomoView) Detail() string {
 		d += exe
 	}
 	return d
+}
+
+// ViewFact is one labelled row of a view, in the UI language. Every
+// surface that describes a view lists its Facts (the app's 总览 card, the
+// CLI's status), so they cannot say different things.
+type ViewFact struct {
+	// Key names the row for styling (FactController is an address).
+	Key   string
+	Label string
+	Value string
+}
+
+// Fact keys.
+const (
+	FactController = "controller"
+	FactProcess    = "process"
+	FactParent     = "parent"
+)
+
+// Facts are the rows under the view's state (Text): while another
+// program's mihomo holds the controller, its address, the process
+// (Detail) and what started it, as much as is known; none otherwise (the
+// state and Detail say it all).
+func (v MihomoView) Facts() []ViewFact {
+	if !v.Foreign() {
+		return nil
+	}
+	T := i18n.Cur()
+	var out []ViewFact
+	add := func(key, label, value string) {
+		if value != "" {
+			out = append(out, ViewFact{key, label, value})
+		}
+	}
+	add(FactController, T.Controller, v.Owner.Addr)
+	add(FactProcess, T.ForeignProcess, v.Detail())
+	add(FactParent, T.ForeignParent, v.Owner.Parent)
+	return out
 }

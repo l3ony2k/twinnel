@@ -18,6 +18,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/config"
 	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 	"github.com/l3ony2k/twinnel/core/store"
 )
 
@@ -30,12 +31,12 @@ func init() {
 	register("tailnet", "tailnet: refresh (re-read peers, re-apply if they changed)", runTailnet)
 	register("service", "services: status | start | stop | restart | install | uninstall NAME", runService)
 	register("events", "print helper events (--follow to keep waiting)", runEvents)
-	register("helper", "helper status | install | uninstall | upgrade | restart | health | plans | adopt | discard | secure-controller | harden", runHelper)
+	registerCommand("helper", command{summary: helperSummary, run: runHelper})
 
 	// `twinnel compose` composes locally; with --apply/--preview it asks the
 	// helper to compose from its own state instead.
 	local := commands["compose"]
-	commands["compose"] = command{local.summary + " (--apply / --preview: through the helper)", func(args []string) error {
+	commands["compose"] = command{summary: func() string { return local.summary() + " (--apply / --preview: through the helper)" }, run: func(args []string) error {
 		if slices.ContainsFunc(args, func(a string) bool {
 			a = strings.TrimLeft(a, "-")
 			return a == "apply" || a == "preview" || strings.HasPrefix(a, "apply=") || strings.HasPrefix(a, "preview=")
@@ -55,15 +56,11 @@ type clientFlags struct {
 }
 
 func newFlagSet(name, usage string) (*flag.FlagSet, *clientFlags) {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs := newFlags(name, usage)
 	cf := &clientFlags{}
 	fs.StringVar(&cf.socket, "socket", rpc.SocketFromEnv(), "helper socket `PATH` (env TWINNEL_SOCKET)")
 	fs.BoolVar(&cf.json, "json", false, "print the raw JSON result")
 	fs.DurationVar(&cf.timeout, "timeout", 3*time.Minute, "give up after `DURATION`")
-	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), usage)
-		fs.PrintDefaults()
-	}
 	return fs, cf
 }
 
@@ -154,7 +151,7 @@ func needArgs(pos []string, n int, usage string) error {
 // ---- status ----
 
 func runHelperStatus(args []string) error {
-	fs, cf := newFlagSet("status", "usage: twinnel status [--json]\n\n")
+	fs, cf := newFlagSet("helper status", "usage: twinnel helper status [--json]\n\n")
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
 	}
@@ -167,20 +164,24 @@ func runHelperStatus(args []string) error {
 		}
 		fmt.Fprintf(w, "helper\t%s (pid %d, %s), up since %s\n", s.HelperVersion, s.PID, runsAs, s.StartedAt.Local().Format("15:04:05"))
 		fmt.Fprintf(w, "state dir\t%s\n", s.StateDir)
-		if s.Mihomo.Reachable {
+		switch v := status.HelperMihomoView(s.Mihomo); {
+		case v.Live():
 			fmt.Fprintf(w, "mihomo\trunning %s, controller %s\n", s.Mihomo.Version, s.Mihomo.Controller)
-		} else {
+		case v.Foreign():
+			// Another program's: its version is not Twinnel's.
+			fmt.Fprintf(w, "mihomo\t%s\n", v.Text())
+			for _, f := range v.Facts() {
+				fmt.Fprintf(w, "\t%s: %s\n", f.Label, f.Value)
+			}
+			if o := s.Mihomo.Owner; o.WorkDir != "" {
+				fmt.Fprintf(w, "\twork dir: %s\n", o.WorkDir)
+			}
+			fmt.Fprintf(w, "\ttwinnel doctor --fix controller-owner\n")
+		default:
 			fmt.Fprintf(w, "mihomo\tnot reachable at %s: %s\n", s.Mihomo.Controller, s.Mihomo.Error)
 		}
-		if o := s.Mihomo.Owner; o != nil {
-			line := string(o.Verdict) + ": " + o.Label()
-			if o.IsForeign() {
-				line += "; Twinnel does not reload it (twinnel doctor --fix controller-owner)"
-				if o.WorkDir != "" {
-					line += ", its work dir " + o.WorkDir
-				}
-			}
-			fmt.Fprintf(w, "controller owner\t%s\n", line)
+		if o := s.Mihomo.Owner; o != nil && !o.IsForeign() {
+			fmt.Fprintf(w, "controller owner\t%s: %s\n", o.Verdict, o.Label())
 		}
 		fmt.Fprintf(w, "binary\t%s\n", orNone(s.Mihomo.Binary))
 		fmt.Fprintf(w, "config\t%s\n", s.Mihomo.ConfigPath)
@@ -838,50 +839,65 @@ func truncate(s string, n int) string {
 
 // ---- helper ----
 
+// helperSubs are the helper subcommands with their usage lines, in the
+// order help lists them.
+var helperSubs = []struct {
+	name, usage string
+	run         func([]string) error
+}{
+	{"status", "status [--json]", runHelperStatus},
+	{"install", "install [--dry-run] [--yes] [flags]   (asks for administrator approval)", runHelperInstall},
+	{"uninstall", "uninstall [--purge] [--dry-run] [--yes] [--json]", runHelperUninstall},
+	{"upgrade", "upgrade [--check] [--force] [--dry-run] [--yes] [--json]   (the helper next to this Twinnel)", runHelperUpgrade},
+	{"restart", "restart [--yes]", runHelperRestart},
+	{"health", "health [--run] [--json]", runHelperHealth},
+	{"egress", "egress [--json]   (the egress test once: two HTTPS requests to an IP-echo address)", runHelperEgress},
+	{"plans", "plans [PLAN_ID] [--json]", runHelperPlans},
+	{"adopt", "adopt PLAN_ID [--yes] [--skip-health]", runHelperAdopt},
+	{"discard", "discard PLAN_ID [--force]", runHelperDiscard},
+	{"secure-controller", "secure-controller [--yes]", runHelperSecure},
+	{"harden", "harden plan [--kernel VERSION] [--new-secret] [--json]\nharden apply [PLAN_ID] [--yes] [--skip-health]", runHelperHarden},
+}
+
+// helperSummary is the helper's line in the command list: its subcommands
+// on the system the help is worded for.
+func helperSummary() string {
+	var names []string
+	for _, s := range helperSubs {
+		if shownOn([]string{"helper", s.name}, helpOS) {
+			names = append(names, s.name)
+		}
+	}
+	return "helper " + strings.Join(names, " | ")
+}
+
 func runHelper(args []string) error {
 	sub := ""
 	if len(args) > 0 {
 		sub, args = args[0], args[1:]
 	}
-	switch sub {
-	case "status":
-		return runHelperStatus(args)
-	case "install":
-		return runHelperInstall(args)
-	case "uninstall":
-		return runHelperUninstall(args)
-	case "upgrade":
-		return runHelperUpgrade(args)
-	case "restart":
-		return runHelperRestart(args)
-	case "health":
-		return runHelperHealth(args)
-	case "egress":
-		return runHelperEgress(args)
-	case "adopt":
-		return runHelperAdopt(args)
-	case "plans":
-		return runHelperPlans(args)
-	case "discard":
-		return runHelperDiscard(args)
-	case "secure-controller":
-		return runHelperSecure(args)
-	case "harden":
-		return runHelperHarden(args)
+	var names []string
+	var u strings.Builder
+	for _, s := range helperSubs {
+		if !shownOn([]string{"helper", s.name}, helpOS) {
+			if s.name == sub {
+				return fmt.Errorf("twinnel helper %s is not available on this system", sub)
+			}
+			continue
+		}
+		if s.name == sub {
+			return s.run(args)
+		}
+		names = append(names, s.name)
+		for _, line := range strings.Split(s.usage, "\n") {
+			if u.Len() == 0 {
+				u.WriteString("usage: ")
+			} else {
+				u.WriteString("       ")
+			}
+			u.WriteString("twinnel helper " + line + "\n")
+		}
 	}
-	fmt.Fprint(os.Stderr, `usage: twinnel helper status [--json]
-       twinnel helper install [--dry-run] [--yes] [flags]   (asks for administrator approval)
-       twinnel helper uninstall [--purge] [--restore-mihomo | --keep-mihomo] [--dry-run] [--yes] [--json]
-       twinnel helper upgrade [--check] [--force] [--dry-run] [--yes] [--json]   (the helper next to this Twinnel)
-       twinnel helper restart [--yes]
-       twinnel helper health [--run] [--json]
-       twinnel helper egress [--json]   (the egress test once: two HTTPS requests to an IP-echo address)
-       twinnel helper plans [PLAN_ID] [--json]
-       twinnel helper adopt PLAN_ID [--yes] [--skip-health]
-       twinnel helper discard PLAN_ID [--force]
-       twinnel helper secure-controller [--yes]
-       twinnel helper harden plan [--kernel VERSION] [--new-secret] [--json]
-       twinnel helper harden apply [PLAN_ID] [--yes] [--skip-health]
-`)
-	return errors.New("helper: want status, install, uninstall, upgrade, restart, health, plans, adopt, discard, secure-controller or harden")
+	fmt.Fprint(os.Stderr, u.String())
+	return fmt.Errorf("helper: want %s or %s", strings.Join(names[:len(names)-1], ", "), names[len(names)-1])
 }

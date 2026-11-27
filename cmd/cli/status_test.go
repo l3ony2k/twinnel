@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/l3ony2k/twinnel/core/foreign"
+	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/mihomo"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/status"
@@ -19,16 +20,32 @@ func TestStatusForeignController(t *testing.T) {
 		Helper: status.Helper{State: status.HelperConnected, Status: &rpc.Status{Mihomo: rpc.MihomoStatus{Owner: owner}}},
 		Mihomo: status.Mihomo{Reachable: true, Version: "v9.9.9-other", Config: mihomo.Config{Mode: "global"}},
 	}
+	i18n.Set("en")
+	defer i18n.Set("zh-Hans")
 	status.Evaluate(&s)
 	s = hideForeign(s)
 	if s.Level != status.LevelError || len(s.Reasons) == 0 || s.Reasons[0].Code != status.ReasonCtlForeign {
 		t.Fatalf("level %v reasons %+v", s.Level, s.Reasons)
 	}
 	txt := statusText(s)
-	for _, want := range []string{"held by another mihomo: 127.0.0.1:9090 (another mihomo, pid 4321)", owner.Exe, owner.Parent, "twinnel doctor --fix controller-owner"} {
-		if !strings.Contains(txt, want) {
-			t.Errorf("missing %q in\n%s", want, txt)
+	// The app's words (status.MihomoView: its state and facts), not the
+	// CLI's own: the two cannot drift (Windows QA round 3: the CLI said
+	// "another mihomo" twice).
+	v := s.MihomoView()
+	want := []string{v.Text(), "twinnel doctor --fix controller-owner"}
+	for _, f := range v.Facts() {
+		want = append(want, f.Label+": "+f.Value)
+	}
+	if len(v.Facts()) != 3 {
+		t.Errorf("facts %+v", v.Facts())
+	}
+	for _, w := range want {
+		if !strings.Contains(txt, w) {
+			t.Errorf("missing %q in\n%s", w, txt)
 		}
+	}
+	if n := strings.Count(strings.ToLower(txt), "another mihomo"); n != 2 { // the reason and the state
+		t.Errorf("\"another mihomo\" %d times:\n%s", n, txt)
 	}
 	for _, bad := range []string{"v9.9.9-other", "global", "tun "} {
 		if strings.Contains(txt, bad) {

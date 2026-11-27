@@ -13,10 +13,11 @@ import (
 // It is service.Current on Windows (dialect_windows.go); tests use it
 // directly on any OS.
 var Dialect = service.Dialect{
-	Command: windowsCommand,
-	Note:    func(n string) string { return "  (" + n + ")" },
-	Admin:   "administrator",
-	App:     "Twinnel",
+	Command:     windowsCommand,
+	Note:        func(n string) string { return "  (" + n + ")" },
+	Admin:       "administrator",
+	App:         "Twinnel",
+	ServiceName: "Windows service name",
 }
 
 func windowsCommand(s service.Step) string {

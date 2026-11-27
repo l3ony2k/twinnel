@@ -66,7 +66,7 @@ type (
 )
 
 func runVersion(args []string) error {
-	fs := flag.NewFlagSet("version", flag.ContinueOnError)
+	fs := newFlags("version", "")
 	asJSON := fs.Bool("json", false, "print the versions as JSON")
 	socket := fs.String("socket", rpc.SocketFromEnv(), "helper socket `PATH` (env TWINNEL_SOCKET)")
 	controller := fs.String("controller", "", controllerFlagUsage)

@@ -165,6 +165,17 @@ type Owner struct {
 // IsForeign reports whether o names another program's mihomo.
 func (o *Owner) IsForeign() bool { return o != nil && o.Verdict == Foreign }
 
+// Who names the program in an English sentence about it ("… is held by
+// Who's mihomo"): its product name, else "another program". Sentences
+// that already say "another mihomo" use it instead of Label, so the
+// unknown name is never said twice.
+func (o Owner) Who() string {
+	if n := o.Client.Name(); n != "" {
+		return n
+	}
+	return "another program"
+}
+
 // Label is a short English label of the owner for evidence lines and
 // logs: "127.0.0.1:9090 (Clash Party, pid 4242)".
 func (o Owner) Label() string {

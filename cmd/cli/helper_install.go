@@ -74,23 +74,19 @@ type installFlags struct {
 }
 
 func newInstallFlags(name string, withBin bool) (*flag.FlagSet, *installFlags) {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs := newFlags(name, "")
 	f := &installFlags{}
 	fs.BoolVar(&f.dryRun, "dry-run", false, "print the plan (service definition and commands); change nothing")
 	fs.BoolVar(&f.yes, "yes", false, "do not ask for confirmation (the system's administrator prompt still appears)")
 	fs.BoolVar(&f.asRoot, "as-root", false, "internal: run the plan; only valid as root")
-	fs.Var(&allowSIDs, "allow-sid", "Windows: a user `SID` the helper's pipe allows (repeatable; default: whoever runs this)")
+	fs.Var(&allowSIDs, "allow-sid", "a user `SID` the helper's pipe allows (repeatable; default: whoever runs this)")
 	fs.StringVar(&f.output, "output", "", "internal (Windows): write the elevated run's output to this `PIPE`")
 	if withBin {
 		fs.StringVar(&f.helperBin, "helper-bin", "", "twinnel-helper `BINARY` to install (default: next to this Twinnel binary)")
 	}
 	fs.StringVar(&f.stateDir, "state-dir", store.DefaultDir, "helper state `DIR`")
 	fs.StringVar(&f.socket, "socket", rpc.DefaultSocket, "socket `PATH` the helper listens on")
-	fs.StringVar(&f.label, "label", store.DefaultHelperLabel, "service `LABEL` (launchd label, systemd unit, Windows service name)")
-	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "usage: twinnel %s [flags]\n\nflags:\n", name)
-		fs.PrintDefaults()
-	}
+	fs.StringVar(&f.label, "label", store.DefaultHelperLabel, "helper service `NAME` ("+sys().ServiceName+")")
 	return fs, f
 }
 

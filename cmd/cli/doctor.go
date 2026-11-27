@@ -17,6 +17,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/rpc/healthsrc"
 )
@@ -228,12 +229,12 @@ func init() {
 }
 
 func runDoctor(args []string) error {
-	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	fs := newFlags("doctor", "")
 	markdown := fs.Bool("markdown", false, "print the report as Markdown")
 	asJSON := fs.Bool("json", false, "print the report as JSON")
 	local := fs.Bool("local", false, "run the checks in this process instead of the helper (also when "+strings.Join(prefixed(localOnlyFlags), ", ")+" or --egress=false is given, or no helper answers)")
 	controller := fs.String("controller", "", "local run: mihomo controller `HOST:PORT` (default: the helper's, else the config's, else 127.0.0.1:9090)")
-	configPath := fs.String("mihomo-config", "", "local run: mihomo config file (default: "+configDiscovery+")")
+	configPath := fs.String("mihomo-config", "", "local run: mihomo config file (default: "+configDiscovery()+")")
 	groups := fs.String("sensitive-groups", "", "local run: comma-separated proxy groups that must never go DIRECT (default: the leak guard's groups in the helper's settings, else "+strings.Join(health.DefaultSettings().SensitiveGroups, ",")+")")
 	allowExit := fs.Bool("allow-exit-node", false, "local run: accept a Tailscale exit node (warn instead of fail)")
 	only := fs.String("only", "", "comma-separated check IDs to show (a local run runs only those)")
@@ -353,4 +354,17 @@ func splitList(s string) []string {
 		}
 	}
 	return out
+}
+
+// configDiscovery is where a local doctor run finds the mihomo config on
+// the system the help is worded for.
+func configDiscovery() string {
+	if t := byOS(map[string]string{
+		i18n.Darwin:  "discovered from the mihomo LaunchDaemon",
+		i18n.Linux:   "discovered from a systemd unit running mihomo, else /etc/mihomo/config.yaml, else ~/.config/mihomo/config.yaml",
+		i18n.Windows: `%ProgramData%\Twinnel\mihomo\config.yaml, else %USERPROFILE%\.config\mihomo\config.yaml`,
+	}); t != "" {
+		return t
+	}
+	return "none on this platform"
 }

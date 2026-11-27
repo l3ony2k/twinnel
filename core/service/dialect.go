@@ -25,6 +25,9 @@ type Dialect struct {
 	Admin string
 	// App names the app as people see it: "Twinnel.app", "Twinnel".
 	App string
+	// ServiceName is what names a system service there: "launchd label",
+	// "systemd unit", "Windows service name".
+	ServiceName string
 }
 
 // Step renders a step with its notes (errors ignored, retried).
@@ -60,19 +63,24 @@ func (d Dialect) FormatPlan(w io.Writer, steps []Step) {
 // AsAdmin is "as root" / "as administrator".
 func (d Dialect) AsAdmin() string { return "as " + d.Admin }
 
-// Unix is the dialect of macOS and Linux: POSIX shell commands.
-var Unix = Dialect{
-	Command: unixCommand,
-	Note:    func(n string) string { return "  # " + n },
-	Admin:   "root",
-	App:     unixApp(runtime.GOOS),
-}
+// Unix is the dialect of macOS and Linux (this one when it runs on
+// either): POSIX shell commands.
+var Unix = UnixFor(runtime.GOOS)
 
-func unixApp(goos string) string {
-	if goos == "darwin" {
-		return "Twinnel.app"
+// UnixFor is the dialect of macOS ("darwin") or Linux on any host (help
+// text worded for another system, tests).
+func UnixFor(goos string) Dialect {
+	d := Dialect{
+		Command:     unixCommand,
+		Note:        func(n string) string { return "  # " + n },
+		Admin:       "root",
+		App:         "Twinnel",
+		ServiceName: "systemd unit",
 	}
-	return "Twinnel"
+	if goos == "darwin" {
+		d.App, d.ServiceName = "Twinnel.app", "launchd label"
+	}
+	return d
 }
 
 var current atomic.Pointer[Dialect]

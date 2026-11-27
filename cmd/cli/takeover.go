@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/privfile"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/takeover"
@@ -19,7 +20,7 @@ import (
 )
 
 func init() {
-	register("takeover", "inspect a hand-made mihomo + Tailscale setup and write a takeover plan (read-only)", runTakeover)
+	registerOn(i18n.Darwin, "takeover", "inspect a hand-made mihomo + Tailscale setup and write a takeover plan (read-only)", runTakeover)
 }
 
 const takeoverUsage = `usage: twinnel takeover plan [--base FILE] [--out DIR] [flags]
@@ -42,11 +43,7 @@ func runTakeover(args []string) error {
 		fmt.Fprint(os.Stderr, takeoverUsage)
 		return errors.New("takeover: only the \"plan\" subcommand exists")
 	}
-	fs := flag.NewFlagSet("takeover plan", flag.ContinueOnError)
-	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), takeoverUsage)
-		fs.PrintDefaults()
-	}
+	fs := newFlags("takeover plan", takeoverUsage)
 	var opt takeover.Options
 	var out string
 	var asJSON, viaHelper bool

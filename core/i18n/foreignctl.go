@@ -23,8 +23,9 @@ type ForeignCtlStrings struct {
 	// port (the controller-owner fix), and how to quit the other program
 	// (its health row).
 	ForeignMovePort, ForeignQuitHow string
-	// The foreign process's row label (pid · executable).
-	ForeignProcess string
+	// The foreign process's row label (pid · executable), and the row of
+	// the program that started it (its parent's executable).
+	ForeignProcess, ForeignParent string
 }
 
 var zhForeignCtl = ForeignCtlStrings{
@@ -38,6 +39,7 @@ var zhForeignCtl = ForeignCtlStrings{
 	ForeignMovePort:     "换个控制端口",
 	ForeignQuitHow:      "怎么退出它",
 	ForeignProcess:      "占用的进程",
+	ForeignParent:       "启动它的程序",
 }
 
 var enForeignCtl = ForeignCtlStrings{
@@ -51,6 +53,7 @@ var enForeignCtl = ForeignCtlStrings{
 	ForeignMovePort:     "Change Twinnel's port",
 	ForeignQuitHow:      "How to quit it",
 	ForeignProcess:      "Held by",
+	ForeignParent:       "Started by",
 }
 
 // CtlForeign words a foreign controller for the status reason.

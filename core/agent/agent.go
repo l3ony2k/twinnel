@@ -220,11 +220,7 @@ func (c *call) mihomo(write bool) (*mihomo.Client, error) {
 // foreignOwnerError says that another program's mihomo holds the
 // controller address, and how to free it.
 func foreignOwnerError(o foreign.Owner) error {
-	who := o.Client.Name()
-	if who == "" {
-		who = "another program"
-	}
-	return fmt.Errorf("%s is held by %s's mihomo, not Twinnel's; quit it or move Twinnel's controller (health_fix controller-owner) first", o.Addr, who)
+	return fmt.Errorf("%s is held by %s's mihomo, not Twinnel's; quit it or move Twinnel's controller (health_fix controller-owner) first", o.Addr, o.Who())
 }
 
 // tailscale returns the LocalAPI client.

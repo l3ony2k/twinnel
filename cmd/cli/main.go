@@ -16,28 +16,44 @@ import (
 )
 
 type command struct {
-	summary string
+	// summary is the command's line in the command list, worded for the
+	// system the help is for (helpOS).
+	summary func() string
 	run     func(args []string) error
+	// only are the systems this implementation is for, when it is one
+	// system's (a build-tagged file); nil: every system.
+	only []string
 }
 
 var commands = map[string]command{}
 
 func register(name, summary string, run func(args []string) error) {
+	registerCommand(name, command{summary: func() string { return summary }, run: run})
+}
+
+// registerOn registers goos's own implementation of a command.
+func registerOn(goos, name, summary string, run func(args []string) error) {
+	registerCommand(name, command{summary: func() string { return summary }, run: run, only: []string{goos}})
+}
+
+func registerCommand(name string, c command) {
 	if _, dup := commands[name]; dup {
 		panic("duplicate command " + name)
 	}
-	commands[name] = command{summary, run}
+	commands[name] = c
 }
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: twinnel <command> [args]")
 	names := make([]string, 0, len(commands))
 	for n := range commands {
-		names = append(names, n)
+		if shownOn([]string{n}, helpOS) {
+			names = append(names, n)
+		}
 	}
 	sort.Strings(names)
 	for _, n := range names {
-		fmt.Fprintf(os.Stderr, "  %-12s %s\n", n, commands[n].summary)
+		fmt.Fprintf(os.Stderr, "  %-12s %s\n", n, commands[n].summary())
 	}
 }
 

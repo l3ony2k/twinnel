@@ -23,11 +23,7 @@ var ErrForeignController = errors.New("the controller belongs to another mihomo"
 // foreignError is the apply error of a foreign controller: worded for
 // core/msg ("controller-foreign"), the evidence kept apart.
 func foreignError(o foreign.Owner) error {
-	who := "another program"
-	if n := o.Client.Name(); n != "" {
-		who = n
-	}
-	return fmt.Errorf("%w: %s is held by %s; Twinnel did not reload it", ErrForeignController, o.Addr, who)
+	return fmt.Errorf("%w: %s is held by %s; Twinnel did not reload it", ErrForeignController, o.Addr, o.Who())
 }
 
 // foreignIdleWarning is the warning of an apply that had nothing to send
@@ -35,11 +31,7 @@ func foreignError(o foreign.Owner) error {
 // that Twinnel's mihomo is not the one running (core/msg
 // "controller-foreign-idle").
 func foreignIdleWarning(o foreign.Owner) string {
-	who := "another program"
-	if n := o.Client.Name(); n != "" {
-		who = n
-	}
-	return fmt.Sprintf("the config did not change, but %s is held by %s's mihomo; Twinnel's mihomo is not the one running", o.Addr, who)
+	return fmt.Sprintf("the config did not change, but %s is held by %s's mihomo; Twinnel's mihomo is not the one running", o.Addr, o.Who())
 }
 
 // ownerTTL is how long a port-owner answer is reused by the auto-apply
