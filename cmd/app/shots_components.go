@@ -38,6 +38,20 @@ func (a *app) componentShots(save func(*mygo.Window, string)) {
 		}
 		return fs
 	}
+	// geoOnlyMMDB: a config with GEOIP rules only (Windows QA round 1):
+	// the .dat files and the ASN database are absent and unused.
+	geoOnlyMMDB := func() []rpc.AccessoryFile {
+		fs := geoInstalled()
+		for _, i := range []int{0, 1, 3} {
+			fs[i] = rpc.AccessoryFile{Name: fs[i].Name, File: fs[i].File, URL: fs[i].URL, Unused: true}
+		}
+		return fs
+	}
+	geoNoneUsed := func() []rpc.AccessoryFile {
+		fs := geoOnlyMMDB()
+		fs[2] = rpc.AccessoryFile{Name: fs[2].Name, File: fs[2].File, URL: fs[2].URL, Unused: true}
+		return fs
+	}
 	geoNewer := func() []rpc.AccessoryFile {
 		fs := geoInstalled()
 		for i := range fs[:2] {
@@ -79,6 +93,12 @@ func (a *app) componentShots(save func(*mygo.Window, string)) {
 			ui:  accessoryView{check: uiCk(uiFile(true, "v1.90.0", ""), time.Time{}, true)}},
 		{name: "up-to-date",
 			geo: accessoryView{check: geoCk(geoInstalled(), checked)},
+			ui:  accessoryView{check: uiCk(uiFile(true, "v1.91.0", "v1.91.0"), checked, true)}},
+		{name: "geo-only-mmdb",
+			geo: accessoryView{check: geoCk(geoOnlyMMDB(), checked)},
+			ui:  accessoryView{check: uiCk(uiFile(true, "v1.91.0", "v1.91.0"), checked, true)}},
+		{name: "geo-none-used",
+			geo: accessoryView{check: geoCk(geoNoneUsed(), checked)},
 			ui:  accessoryView{check: uiCk(uiFile(true, "v1.91.0", "v1.91.0"), checked, true)}},
 		{name: "newer",
 			geo: accessoryView{check: geoCk(geoNewer(), checked)},
