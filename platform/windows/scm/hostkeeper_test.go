@@ -113,3 +113,55 @@ func TestHostKeeperReadOnly(t *testing.T) {
 		t.Errorf("state = %+v", st)
 	}
 }
+
+// The copy a refresh moved aside waits while mihomo runs it, and goes as
+// soon as mihomo restarts on the current file (Tidy after a service
+// operation, or State's next read after the SCM restarted it).
+func TestHostKeeperTidyAfterRestart(t *testing.T) {
+	for _, via := range []string{"tidy", "state"} {
+		t.Run(via, func(t *testing.T) {
+			k, files, _ := keeperFixture(1)
+			k.TTL = time.Minute
+			if _, err := k.Refresh(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			clock := time.Unix(0, 7)
+			k.Now = func() time.Time { clock = clock.Add(time.Hour); return clock } // every State reads again
+			aside := `C:\Program Files\Twinnel\twinnel-svchost.old-7.exe`
+			if st := k.State(context.Background()); st == nil || st.Aside != 1 || files.data[aside] != "old" {
+				t.Fatalf("while running the old copy: %+v, files %v", st, files.data)
+			}
+			// Tidy leaves a copy in use alone.
+			if err := k.Tidy(context.Background()); err != nil || files.data[aside] != "old" {
+				t.Fatalf("tidy while in use: %v, files %v", err, files.data)
+			}
+			// mihomo restarts: it runs the host's own file now.
+			files.locked = map[string]bool{tHost: true}
+			if via == "tidy" {
+				if err := k.Tidy(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if st := k.State(context.Background()); st == nil || st.Aside != 0 {
+				t.Fatalf("after restart: %+v", st)
+			}
+			if _, ok := files.data[aside]; ok || len(files.data) != 2 {
+				t.Errorf("files = %v", files.data)
+			}
+		})
+	}
+}
+
+// A development helper reports the copies left aside and never deletes
+// them.
+func TestHostKeeperTidyReadOnly(t *testing.T) {
+	k, files, _ := keeperFixture(1)
+	files.data[tOld] = "older"
+	k.Files, k.Exec = nil, nil
+	if err := k.Tidy(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if st := k.State(context.Background()); st == nil || st.Aside != 1 || files.data[tOld] != "older" {
+		t.Fatalf("state %+v, files %v", st, files.data)
+	}
+}
