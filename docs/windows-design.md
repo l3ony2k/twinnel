@@ -215,7 +215,30 @@ conflict is routes and DNS:
   scoped resolvers.
 - Detection: `core/tailscale.DetectInstall("windows", …)` looks for the
   service binary and CLI under `%ProgramFiles%\Tailscale`. Version via
-  `tailscale.exe version`. No download or install of Tailscale.
+  `tailscale.exe version`.
+- **Install** (`tailscale.install`, the setup flow's tailscale step), only
+  when no client is installed (an existing one is always kept): the helper
+  reads `MSIs[<amd64|arm64|x86>]` from `pkgs.tailscale.com/stable/?mode=json`,
+  downloads `tailscale-setup-<v>-<arch>.msi` into `%ProgramData%\Twinnel\tailscale`
+  (SYSTEM + Administrators only), checks it against the `.sha256` published
+  next to it, and runs
+  `%SystemRoot%\System32\msiexec.exe /i <msi> /qn /norestart /l*v %ProgramData%\Twinnel\tailscale-msi.log TS_NOLAUNCH=true`.
+  `TS_NOLAUNCH` because the helper runs in session 0: a tray app started
+  there is invisible; the MSI registers the tray app to start at the next
+  sign-in. No policy properties (`TS_UNATTENDEDMODE` …): they would lock
+  the user's own choices. The helper then waits (60 s) for the `Tailscale`
+  service to run and records the CLI and the service as adopted (Twinnel
+  starts/stops it, never replaces or removes it; uninstall leaves it).
+  msiexec exit codes are worded (1618 busy, 1602 canceled, 1625/1643/1260
+  policy, 1638 other version, 3010 restart needed → a warning).
+- **Login.** tailscaled keeps one profile per Windows user and never gives
+  one to SYSTEM (`ipnserver` skips `SetCurrentUser` for LocalSystem), so a
+  login the helper started would belong to nobody and the user's tray app
+  would switch away from it. On Windows `tailscale.login` therefore only
+  reads the state (`Start` → not implemented); the client (app or CLI, as
+  the signed-in user) starts the login itself in Unattended Mode
+  (`core/setup.LocalSessionLogin` = `up --unattended` + interactive login)
+  and follows it through the helper.
 
 ## 8. Health checks on Windows
 
