@@ -11,8 +11,10 @@
 # OpenSSH gets one without a UAC prompt). The helper upgrade needs it;
 # without it Windows would show a UAC prompt on the PC's screen.
 #
-# Deploy only a merged main: the script refuses another branch or a dirty
-# tree unless TWINNEL_DEPLOY_ANY_BRANCH=1.
+# Deploy only a merged main: when it builds, the script refuses another
+# branch or a dirty tree unless TWINNEL_DEPLOY_ANY_BRANCH=1. To deploy main
+# exactly from a work branch, build in a clean worktree of main and pass
+# --zip.
 #
 # On the PC it uses %ProgramData%\TwinnelQA\deploy\<version> (kept, so a
 # round can be redeployed) and installs to the default per-user folder
@@ -37,7 +39,9 @@ while [ $# -gt 0 ]; do
 done
 host="${1:?usage: $0 [--no-build] [--zip PATH] HOST}"
 
-if [ "${TWINNEL_DEPLOY_ANY_BRANCH:-0}" != 1 ]; then
+# The guard is about what this checkout builds; a --zip was built elsewhere
+# (e.g. a clean worktree of main) and is deployed as given.
+if [ -z "$zip" ] && [ "${TWINNEL_DEPLOY_ANY_BRANCH:-0}" != 1 ]; then
 	branch="$(git rev-parse --abbrev-ref HEAD)"
 	main="$(git rev-parse main)"
 	if [ "$(git rev-parse HEAD)" != "$main" ] && ! git merge-base --is-ancestor HEAD main; then
@@ -79,16 +83,8 @@ if (Test-Path -LiteralPath \$x) { Remove-Item -LiteralPath \$x -Recurse -Force }
 Expand-Archive -LiteralPath \$z -DestinationPath \$d -Force
 Unblock-File -LiteralPath \$z
 Get-ChildItem -LiteralPath \$x -Recurse -File | Unblock-File
-# Processes such as an agent's twinnel mcp server keep bin\twinnel.exe open, and
-# install.ps1 cannot overwrite it. Windows lets a running image be renamed:
-# move the locked ones aside (they keep running the old build) instead of
-# killing someone's agent session.
-\$ib=Join-Path \$env:LOCALAPPDATA 'Programs\\Twinnel\\bin'
-Get-ChildItem -LiteralPath \$ib -Filter '*.old-*' -EA SilentlyContinue | Remove-Item -Force -EA SilentlyContinue
-foreach (\$f in Get-ChildItem -LiteralPath \$ib -Filter '*.exe' -EA SilentlyContinue) {
-  try { [IO.File]::Open(\$f.FullName,'Open','ReadWrite','None').Dispose() }
-  catch { \$n=\$f.FullName+'.old-'+(Get-Date -Format yyyyMMddHHmmss); Write-Output \"move aside (in use): \$(\$f.Name)\"; Move-Item -LiteralPath \$f.FullName -Destination \$n }
-}
+# install.ps1 renames files that are in use (an agent's twinnel mcp) aside
+# itself and swaps all or none, so nothing is moved here.
 Write-Output '==> install.ps1 -NoLaunch'
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path \$x 'install.ps1') -NoLaunch
 if (\$LASTEXITCODE -ne 0) { throw \"install.ps1 failed (\$LASTEXITCODE)\" }
