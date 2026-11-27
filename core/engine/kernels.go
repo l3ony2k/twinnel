@@ -36,15 +36,37 @@ func (e *Engine) KernelList() (rpc.KernelList, error) {
 }
 
 func (e *Engine) kernelManager(ctx context.Context) *kernel.Manager {
+	m, _, _ := e.kernelManagerVia(ctx, rpc.ProxyAuto)
+	return m
+}
+
+// kernelManagerVia is kernelManager with a download proxy choice; stop
+// ends a temporary proxy.
+func (e *Engine) kernelManagerVia(ctx context.Context, proxy string) (*kernel.Manager, func(), error) {
 	m := *e.Kernels
+	stop := func() {}
 	if m.HTTP == nil {
 		st, err := e.Store.Settings()
-		if err == nil {
-			cl, _ := e.downloadClient(ctx, st)
-			m.HTTP = cl
+		if err != nil {
+			return &m, stop, err
+		}
+		cl, _, s, err := e.downloadVia(ctx, st, proxy)
+		if err != nil {
+			return &m, stop, err
+		}
+		m.HTTP, stop = cl, s
+	} else if proxy == rpc.ProxySubscription {
+		// Tests set HTTP; still exercise the temporary proxy's start.
+		st, err := e.Store.Settings()
+		if err != nil {
+			return &m, stop, err
+		}
+		_, stop, err = e.subscriptionProxy(ctx, st)
+		if err != nil {
+			return &m, func() {}, err
 		}
 	}
-	return &m
+	return &m, stop, nil
 }
 
 func (e *Engine) channel(c string) (string, error) {
@@ -90,7 +112,11 @@ func (e *Engine) KernelInstall(ctx context.Context, p rpc.KernelInstallParams) (
 	if err != nil {
 		return rpc.KernelList{}, err
 	}
-	m := e.kernelManager(ctx)
+	m, stop, err := e.kernelManagerVia(ctx, p.Proxy)
+	defer stop()
+	if err != nil {
+		return rpc.KernelList{}, err
+	}
 	r, err := m.Check(ctx, ch)
 	if err != nil {
 		return rpc.KernelList{}, err

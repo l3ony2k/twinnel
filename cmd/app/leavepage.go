@@ -636,7 +636,8 @@ func removeAppExtras() {
 		bootoutAgent(p)
 		os.Remove(p)
 	}
-	removeCLILinks() // 设置 → 本地 Agent → 命令行工具
+	removeCLILinks()       // 设置 → 本地 Agent → 命令行工具
+	removeTailscaleLinks() // and the tailscale command a setup linked
 	if d := legacyPrefsDir(); d != "" {
 		removeLegacyPrefs(d) // the app from before the rename
 	}

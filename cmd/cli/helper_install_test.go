@@ -16,10 +16,12 @@ import (
 
 // fakeSystem replaces every side effect of helper install/uninstall.
 type fakeSystem struct {
-	euid     int
-	elevated [][]string
-	applied  [][]service.Step
-	out      bytes.Buffer
+	euid int
+	// tsLinksRemoved counts removeTailscaleLinks calls (uninstall).
+	tsLinksRemoved int
+	elevated       [][]string
+	applied        [][]service.Step
+	out            bytes.Buffer
 	// loaded and def are what launchd says about the helper's service
 	// (helperServiceState): loaded, no plist on disk, by default.
 	loaded bool
@@ -41,8 +43,11 @@ func installFakes(t *testing.T, euid int) *fakeSystem {
 		return nil
 	}
 	stdin, stdout = strings.NewReader(""), &f.out
+	oldRT := removeTailscaleLinks
+	removeTailscaleLinks = func(string) []string { f.tsLinksRemoved++; return nil } // never the real PATH folders
 	t.Cleanup(func() {
 		geteuid, executable, runElevated, applyPlan, stdin, stdout, helperServiceState = oldE, oldX, oldR, oldA, oldIn, oldOut, oldS
+		removeTailscaleLinks = oldRT
 	})
 	return f
 }

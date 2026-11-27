@@ -56,7 +56,10 @@ type TailscaleInfo struct {
 // TailscaleProbe reads the local Tailscale version and the newest published
 // one.
 type TailscaleProbe struct {
-	Binary  string // empty: search TailscaleCandidates
+	Binary string // empty: search TailscaleCandidates, then Managed
+	// Managed is the CLI Twinnel installs (<state>/tailscale/current/
+	// tailscale), searched after TailscaleCandidates.
+	Managed string
 	PkgsURL string // default https://pkgs.tailscale.com
 	Track   string // "stable" (default) or "unstable"
 	HTTP    *http.Client
@@ -84,6 +87,22 @@ func (p *TailscaleProbe) Find() string {
 		}
 		return ""
 	}
+	for _, c := range TailscaleCandidates {
+		if _, err := p.stat(c); err == nil {
+			return c
+		}
+	}
+	if p.Managed != "" {
+		if _, err := p.stat(p.Managed); err == nil {
+			return p.Managed
+		}
+	}
+	return ""
+}
+
+// FindExisting is Find without Binary and Managed: a Tailscale install that
+// Twinnel did not make.
+func (p *TailscaleProbe) FindExisting() string {
 	for _, c := range TailscaleCandidates {
 		if _, err := p.stat(c); err == nil {
 			return c
