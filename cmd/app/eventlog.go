@@ -167,6 +167,8 @@ func describeEvent(e rpc.Event, name nameOf) (eventRow, bool) {
 		var act rpc.AgentAction
 		json.Unmarshal(e.Data, &act)
 		r.text, r.page, r.failed, r.raw = agentActionText(act), pageSettings, !act.OK, act.Error
+	case rpc.EventDNSWatch:
+		r.text, r.failed, r.page = dnsWatchEventText(e.Data)
 	case rpc.EventHelperStarted:
 		r.text = T.EvHelperStarted
 	case rpc.EventHelperStopping:

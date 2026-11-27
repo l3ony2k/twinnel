@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -78,4 +79,21 @@ func reasonTip(r status.Reason) string {
 		return i18n.T.TipDNSRestored
 	}
 	return ""
+}
+
+// dnsWatchEventText words a dns.watchdog event for 日志 → Twinnel; a
+// restore counts as a failure (mihomo is down) and goes to the overview.
+func dnsWatchEventText(data json.RawMessage) (text string, failed bool, page string) {
+	T := i18n.T
+	var w rpc.DNSWatch
+	json.Unmarshal(data, &w)
+	switch {
+	case w.Phase == rpc.DNSWatchRestored:
+		return T.EvDNSRestored, true, pageOverview
+	case w.Phase == rpc.DNSWatchWatching && len(w.LeftAlone) > 0:
+		return i18n.F(T.EvDNSBackLeft, len(w.LeftAlone)), false, pageOverview
+	case w.Phase == rpc.DNSWatchWatching:
+		return T.EvDNSBack, false, pageOverview
+	}
+	return T.EvDNSEnded, false, pageOverview
 }
