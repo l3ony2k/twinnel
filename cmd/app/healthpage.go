@@ -242,6 +242,16 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 				ui.Text(c, cr.Summary).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(cr.Summary)
 			}
 			ui.Spacer(c)
+			// A check that is off until asked (出口 IP 实测) offers its
+			// run on the row, not inside the fold (U31).
+			if cr.Status == health.StatusSkip && !open {
+				if act := a.fixAction(cr, s); act != nil {
+					busy := cr.ID == (health.LeakEgress{}).ID() && a.egress.running || a.hd.busy == act.label
+					if busyButton(c.Key("fix-inline"), act.label, false, busy, act.off).Clicked() {
+						act.run()
+					}
+				}
+			}
 			if expandable {
 				disclosure(c, open).Shrink(0)
 			}
