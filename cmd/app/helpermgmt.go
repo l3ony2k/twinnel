@@ -68,7 +68,7 @@ func (a *app) refreshHelperMgmt(s status.Snapshot) {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		var chk *upgradeCheck
-		if out, err := runCLI(ctx, upgradeArgs("--check", "--json")...); err == nil {
+		if out, err := a.runCLI(ctx, upgradeArgs("--check", "--json")...); err == nil {
 			var c upgradeCheck
 			if json.Unmarshal([]byte(out), &c) == nil {
 				chk = &c
@@ -143,7 +143,7 @@ func (a *app) helperCLIOp(label, doneText string, args []string, done func()) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		out, err := runCLI(ctx, args...)
+		out, err := a.runCLI(ctx, args...)
 		mygo.RunOnMain(func() {
 			v.running = ""
 			a.endOp()
@@ -212,7 +212,7 @@ func (a *app) openHelperLog() {
 // uninstallPlan asks the CLI what uninstalling does (read-only:
 // --dry-run --json), with the move back of a hardened mihomo whenever it
 // is needed: the app never offers to leave mihomo unmanaged.
-func uninstallPlan(ctx context.Context, purge bool) (*uninstall.Plan, *uninstall.Refusal, error) {
+func (a *app) uninstallPlan(ctx context.Context, purge bool) (*uninstall.Plan, *uninstall.Refusal, error) {
 	for _, restore := range []bool{false, true} {
 		args := []string{"helper", "uninstall", "--dry-run", "--json"}
 		if purge {
@@ -221,7 +221,7 @@ func uninstallPlan(ctx context.Context, purge bool) (*uninstall.Plan, *uninstall
 		if restore {
 			args = append(args, "--restore-mihomo")
 		}
-		out, err := runCLI(ctx, args...)
+		out, err := a.runCLI(ctx, args...)
 		if err != nil {
 			return nil, nil, errors.New(cliFailure(out, err))
 		}
@@ -342,7 +342,7 @@ func (a *app) askRemove(all bool) {
 		fail := func(msg string) {
 			mygo.RunOnMain(func() { v.running, v.errMsg = "", msg; a.invalidate() })
 		}
-		plan, refusal, err := uninstallPlan(ctx, all)
+		plan, refusal, err := a.uninstallPlan(ctx, all)
 		if err != nil {
 			fail(T.ErrorPrefix + err.Error())
 			return
@@ -369,7 +369,7 @@ func (a *app) askRemove(all bool) {
 		purge := all || res.CheckboxChecked
 		if purge && !all {
 			// The data was only a checkbox: check the purge plan too.
-			plan, refusal, err = uninstallPlan(ctx, true)
+			plan, refusal, err = a.uninstallPlan(ctx, true)
 			switch {
 			case err != nil:
 				fail(T.ErrorPrefix + err.Error())
