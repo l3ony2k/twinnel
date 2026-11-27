@@ -10,19 +10,23 @@ import (
 
 // The platform layer: what the app's look takes from the desktop it runs
 // on. Views never test runtime.GOOS for looks; they read plat and the
-// palette (style.go). Only macOS is built and checked today; the Windows
-// and Linux values are the starting point for those ports:
+// palette (style.go). macOS is built and checked on the machine; Windows
+// is cross-compiled and unit-tested (HANDOFF of feat/windows-gui has the
+// real-machine plan); the Linux values are the starting point for that
+// port:
 //
 //   - macOS (Apple HIG): system font (SF Pro + PingFang SC), 13 pt body,
 //     sidebar of the window's "sidebar" material under a hidden-inset title
 //     bar with the traffic lights over it, grouped boxes like System
 //     Settings (radius 10), the user's accent color, the flyout as a
 //     popover over the menu bar's own material.
-//   - Windows 11 (Fluent 2): Segoe UI Variable, 14 px body, Mica behind the
-//     navigation pane and the title bar drawn by the app (TitleBarHidden,
-//     caption buttons by the system), cards of radius 8 and controls of 4,
-//     40 px rows, the accent from the system; the tray flyout opaque with
-//     the Acrylic material when available.
+//   - Windows 11 (Fluent 2): Segoe UI Variable (Text, Display for titles),
+//     Cascadia Mono / Consolas for code (MyGo's monospace), 14 px body,
+//     Mica behind the navigation pane under the system's own title bar
+//     (the toolbar also clears a hidden title bar's caption buttons),
+//     cards of radius 8 and controls of 4, 40 px rows, WinUI's neutrals
+//     and signal colors with the system's accent; the tray flyout on
+//     Acrylic (Windows 11), opaque on Windows 10.
 //   - Linux (GNOME / libadwaita): Cantarell or the desktop's font, 14 px
 //     body, no material (opaque sidebar of the "view" color), the system's
 //     own title bar, boxed lists of radius 12 with 6 on controls, 46 px
