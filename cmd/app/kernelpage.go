@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ type kernelView struct {
 	channel   int // index into kernelChannels
 	inited    bool
 	release   *rpc.KernelRelease
+	checkErr  string // the last check's error (behind 复制详情)
 	ts        *rpc.TailscaleInfo
 	tsLoading bool
 
@@ -44,6 +46,7 @@ func (a *app) kernelPage(c *ui.Context, s status.Snapshot) {
 			v.channel = 1
 		}
 	}
+	a.refreshHelperMgmt(s) // helper.info: is mihomo's service adopted
 	a.opNotes(c, s)
 	if a.section("kernel") {
 		a.kernelCard(c, s)
@@ -74,16 +77,32 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 			return
 		}
 		listRow(c).Children(func() {
-			active := k.Active
-			if k.External {
-				active += " · " + T.KernelExternal
+			running := ""
+			if st := s.Helper.Status; st != nil {
+				running = st.Mihomo.Version
 			}
-			kv(c, T.KernelActive, active)
-			if st := s.Helper.Status; st != nil && st.Mihomo.Version != "" {
-				kv(c, T.KernelRunning, st.Mihomo.Version)
+			kvWith(c, T.State, func() {
+				state := T.KernelStateManaged
+				if k.External {
+					state = T.KernelStateExternal
+				}
+				tag(c, state)
+				if !k.External && pendingRestart(running, k.Current) {
+					effectChip(c, T.KernelPendingRestart, "", true, false)
+				}
+			})
+			kvWith(c, T.KernelActive, func() {
+				ui.Text(c, filepath.Base(orDash(k.Active))).SingleLine().Shrink(1).Selectable().Tooltip(k.Active)
+			})
+			if running != "" {
+				kv(c, T.KernelRunning, running)
 			}
-			kv(c, T.KernelCurrent, orDash(k.Current))
-			kv(c, T.KernelPrevious, orDash(k.Previous))
+			if !k.External { // 当前/上一个 only mean something for duet's kernels
+				kv(c, T.KernelCurrent, orDash(k.Current))
+				if k.Previous != "" {
+					kv(c, T.KernelPrevious, k.Previous)
+				}
+			}
 		})
 		for _, kv := range k.Installed {
 			listRow(c.Key(kv.Version)).Children(func() {
@@ -122,6 +141,17 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 				}
 			})
 		})
+		if v.checkErr != "" {
+			listRow(c).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText)
+					ui.Text(c, T.KernelCheckFailed).Grow(1)
+					if actionLink(c.Key("k-copy"), T.TkCopyDetails).Clicked() {
+						copyText(c, v.checkErr)
+					}
+				})
+			})
+		}
 		if r := v.release; r != nil {
 			listRow(c).Children(func() {
 				head, col := T.KernelUpToDate, t.Success
@@ -137,7 +167,11 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 					if r.UpdateAvailable {
 						rel := *r
 						if a.opButton(c.Key("k-install"), iconOK, fmt.Sprintf(T.KernelInstall, r.Version), true, fmt.Sprintf(T.KernelInstall, r.Version)).Disabled(!w).Clicked() {
-							a.confirm(fmt.Sprintf(T.KernelInstallTitle, rel.Version), T.KernelInstallBody, T.KernelInstallOK, func() {
+							body := i18n.F(T.KernelUpdateBody, orDash(k.Current), rel.Version)
+							if k.Current == "" {
+								body = i18n.F(T.KernelFirstBody, rel.Version)
+							}
+							a.confirm(fmt.Sprintf(T.KernelInstallTitle, rel.Version), body, T.KernelInstallOK, func() {
 								a.kernelInstall(rel)
 							})
 						}
@@ -173,11 +207,26 @@ func (a *app) kernelCheck() {
 	a.helperOp(T.KernelCheck, time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
 		return hc.Call(ctx, rpc.MethodKernelCheck, rpc.KernelCheckParams{Channel: ch}, &r)
 	}, func(err error) {
-		a.hd.kern.release = nil
+		v := &a.hd.kern
+		v.release, v.checkErr = nil, ""
 		if err == nil {
-			a.hd.kern.release = &r
+			v.release = &r
+			return
 		}
+		// The headline says it; the helper's text is behind 复制详情.
+		v.checkErr = helperError(err)
+		a.hd.msg, a.hd.msgErr = "", false
 	})
+}
+
+// pendingRestart: the running mihomo is not the current managed kernel
+// (installed or rolled back since it started).
+func pendingRestart(running, current string) bool {
+	if running == "" || current == "" {
+		return false
+	}
+	norm := func(v string) string { return strings.TrimPrefix(strings.Fields(v + " ")[0], "v") }
+	return norm(running) != norm(current) && !strings.Contains(running, strings.TrimPrefix(current, "v"))
 }
 
 func (a *app) kernelInstall(r rpc.KernelRelease) {
