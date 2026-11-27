@@ -145,6 +145,9 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	if d := systemDNS(o); d != nil {
 		e.SystemDNS = d
 	}
+	// tailscaled gives SYSTEM's logins to no user: the app or the CLI
+	// starts the login in the user's session (tailscale.LoginInSession).
+	e.TSLoginInSession = true
 	switch o.tailnetIface {
 	case "", "auto":
 		e.TailnetInterface = tailnetInterface

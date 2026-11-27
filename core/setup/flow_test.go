@@ -32,8 +32,10 @@ type fakeHelper struct {
 	dns       rpc.DNSStatus
 	tsInst    bool
 	tsErr     error
+	tsRes     *rpc.TailscaleInstallResult // nil: the open-source tailscaled installed by Twinnel
 	health    []health.CheckReport
 	login     *fakeTailnet // tailscaled behind the helper
+	inSession bool         // Windows: tailscale.login refuses Start
 }
 
 func newFakeHelper() *fakeHelper {
@@ -169,6 +171,9 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 			return h.tsErr
 		}
 		h.tsInst = true
+		if h.tsRes != nil {
+			return out(*h.tsRes)
+		}
 		return out(rpc.TailscaleInstallResult{Version: "1.104.7", Kind: "twinnel", Path: "/S/twinnel/tailscale/current/tailscale"})
 	case rpc.MethodTailscaleLogin:
 		if h.login == nil {
@@ -177,6 +182,9 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 		ls, err := h.login.LoginState(context.Background())
 		if err != nil {
 			return err
+		}
+		if params.(rpc.TailscaleLoginParams).Start && ls.Backend != "Running" && h.inSession {
+			return &rpc.Error{Code: rpc.CodeNotImplemented, Message: "Tailscale logs in from the signed-in user's session"}
 		}
 		if params.(rpc.TailscaleLoginParams).Start && ls.Backend != "Running" {
 			h.login.StartLogin(context.Background())
@@ -395,5 +403,75 @@ func TestFlowLinksTailscale(t *testing.T) {
 	ws := f.Step(StepTailscale).Warnings
 	if len(linked) != 1 || linked[0] != "/S/twinnel/tailscale/current/tailscale" || len(ws) != 1 || ws[0].Code != WarnTSOnPath {
 		t.Fatalf("linked %v warnings %+v", linked, ws)
+	}
+}
+
+// Windows: the official client from its MSI. A failed install is not a
+// download failure (another proxy would not help); a pending restart is a
+// warning; nothing is linked onto PATH (the MSI does that itself).
+func TestFlowWindowsTailscale(t *testing.T) {
+	h := newFakeHelper()
+	h.tsErr = &rpc.Error{Code: rpc.CodeFailed, Message: "another installation is in progress (Windows Installer is busy); wait for it to finish and try again"}
+	installed := true
+	f, _, _ := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	linked := 0
+	f.Env.LinkTailscale = func(string) (string, error) { linked++; return "", nil }
+	err := f.Run(context.Background())
+	var se *StepError
+	if !errors.As(err, &se) || se.Step != StepTailscale || se.Code != CodeInstallFailed {
+		t.Fatalf("err = %v", err)
+	}
+	// A download failure still offers a proxy.
+	h.tsErr = &rpc.Error{Code: rpc.CodeFailed, Message: `Get "https://pkgs.tailscale.com/stable/?mode=json": dial tcp: i/o timeout`}
+	if err := f.RunStep(context.Background(), StepTailscale); !errors.As(err, &se) || se.Code != CodeDownload {
+		t.Fatalf("err = %v", err)
+	}
+	h.tsErr = nil
+	h.tsRes = &rpc.TailscaleInstallResult{Kind: "windows", Version: "1.104.7", Path: `C:\Program Files\Tailscale\tailscale.exe`, RestartNeeded: true}
+	if err := f.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ws := f.Step(StepTailscale).Warnings
+	if len(ws) != 1 || ws[0].Code != WarnRestart || linked != 0 || f.Step(StepTailscale).Detail != "1.104.7" {
+		t.Fatalf("warnings %+v linked %d", ws, linked)
+	}
+}
+
+// mihomo that does not run on this CPU is an install failure.
+func TestFlowKernelDoesNotRun(t *testing.T) {
+	h := newFakeHelper()
+	h.kernelErr = &rpc.Error{Code: rpc.CodeFailed, Message: "the downloaded mihomo does not run on this computer: exit status 1"}
+	installed := true
+	f, _, _ := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	var se *StepError
+	if err := f.Run(context.Background()); !errors.As(err, &se) || se.Step != StepMihomo || se.Code != CodeInstallFailed {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// Windows: the helper refuses to start the login; the flow starts it from
+// its own process (the signed-in user) and follows it through the helper.
+func TestFlowSessionLogin(t *testing.T) {
+	h := newFakeHelper()
+	h.inSession = true
+	installed := true
+	f, tn, opened := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	// Without the hook the step fails.
+	err := f.Run(context.Background())
+	var se *StepError
+	if !errors.As(err, &se) || se.Step != StepLogin {
+		t.Fatalf("no hook: %v", err)
+	}
+	sessions := 0
+	tn.polls = 0
+	f.Env.SessionLogin = func(ctx context.Context) error {
+		sessions++
+		return tn.StartLogin(ctx)
+	}
+	if err := f.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if sessions != 1 || len(*opened) != 1 || f.Step(StepLogin).Detail != "example.ts.net" {
+		t.Fatalf("sessions %d opened %v step %+v", sessions, *opened, f.Step(StepLogin))
 	}
 }
