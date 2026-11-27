@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/i18n"
 	"github.com/l3ony2k/duet/core/mihomo"
 	"github.com/l3ony2k/duet/core/rpc"
@@ -46,17 +45,18 @@ func TestPortsAndDNSText(t *testing.T) {
 	}
 }
 
-func TestHealthShort(t *testing.T) {
+// The health row says the banner's one number at the banner's level
+// (R-kubai-6): findings rated a warning are 个问题, never 项失败.
+func TestHealthReasonShort(t *testing.T) {
 	i18n.Set("zh-Hans")
-	for want, cnt := range map[string]map[health.Status]int{
-		"2 项失败": {health.StatusFail: 2, health.StatusWarn: 1, health.StatusOK: 5},
-		"1 项警告": {health.StatusWarn: 1, health.StatusOK: 5},
-		"全部通过":  {health.StatusOK: 5},
-		"跳过":    {health.StatusSkip: 3},
-	} {
-		if got := healthShort(cnt); got != want {
-			t.Errorf("%v: %q, want %q", cnt, got, want)
-		}
+	if got := healthReasonShort(status.Reason{Level: status.LevelWarn, Count: 1, Code: status.ReasonHealth}); got != "1 个问题" {
+		t.Errorf("warn %q", got)
+	}
+	if got := healthReasonShort(status.Reason{Level: status.LevelError, Count: 2, Code: status.ReasonHealth}); got != "2 项失败" {
+		t.Errorf("error %q", got)
+	}
+	if levelIcon(status.LevelWarn) != iconWarning || levelIcon(status.LevelError) != iconError || levelIcon(status.LevelOK) != iconOK {
+		t.Error("level glyphs")
 	}
 }
 

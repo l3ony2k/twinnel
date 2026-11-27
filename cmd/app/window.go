@@ -474,7 +474,7 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot, height float32) {
 	}
 	grid := t.Text.Alpha(0.06) // quieter than a separator: the plot's lines lead (R-unslop-9)
 	axes := chart.Axes{Right: ticks, Label: func(_ chart.Side, tk chart.Tick) {
-		ovMono(c, tk.Label).FontSize(plat.smallSize).TextColor(t.TextMuted).NoWrap()
+		monoText(c, tk.Label).FontSize(plat.smallSize).TextColor(t.TextMuted).NoWrap()
 	}}
 	describe := func(i int) string {
 		h := hist[i]

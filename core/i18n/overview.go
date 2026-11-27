@@ -32,7 +32,7 @@ type OverviewStrings struct {
 	OvHealthRerun   string // duet card's trailing button
 	OvHealthOK      string
 	OvHealthFail    string // %d
-	OvHealthWarn    string // %d
+	OvHealthIssues  string // %d: findings rated a warning
 	OvRecent        string // card title: the last duet events
 	OvRecentAll     string // its trailing button: 日志 → duet
 	OvHelperVersion string // %s
@@ -67,7 +67,7 @@ var zhOverview = OverviewStrings{
 	OvHealthRerun:   "重新检查",
 	OvHealthOK:      "全部通过",
 	OvHealthFail:    "%d 项失败",
-	OvHealthWarn:    "%d 项警告",
+	OvHealthIssues:  "%d 个问题",
 	OvRecent:        "最近活动",
 	OvRecentAll:     "全部日志",
 	OvHelperVersion: "v%s",
@@ -102,7 +102,7 @@ var enOverview = OverviewStrings{
 	OvHealthRerun:   "Check Again",
 	OvHealthOK:      "All passed",
 	OvHealthFail:    "%d failed",
-	OvHealthWarn:    "%d warnings",
+	OvHealthIssues:  "%d issues",
 	OvRecent:        "Recent activity",
 	OvRecentAll:     "All Logs",
 	OvHelperVersion: "v%s",

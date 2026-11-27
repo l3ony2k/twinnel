@@ -428,13 +428,18 @@ func (a *app) gettingStarted(c *ui.Context, s status.Snapshot) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 		ui.Text(c, T.GetStarted).FontWeight(600).Margin(0, 4, 0, 0).SingleLine()
 		for i, st := range steps {
-			icon, col := iconSkip, t.TextMuted
 			if st.done {
-				icon, col = iconOK, t.Success
+				// Done: ✓ and its name, no button (R-kubai-25, kubai 022):
+				// nothing is left to do there.
+				ui.Row(c.Key(fmt.Sprint("step", i))).Gap(6).AlignItems(ui.Center).PaddingX(4).Label(st.label).Children(func() {
+					ui.Icon(c, iconOK).FontSize(iconInline).TextColor(pal(t).okText)
+					ui.Text(c, st.label).TextColor(t.TextMuted).SingleLine()
+				})
+				continue
 			}
 			page := st.page
 			b := pushFace(c.Key(fmt.Sprint("step", i)), ui.Button(c, "")).Label(st.label).Children(func() {
-				ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
+				ui.Icon(c, iconSkip).FontSize(iconInline).TextColor(t.TextMuted)
 				ui.Text(c, st.label).SingleLine()
 			})
 			if b.Clicked() {

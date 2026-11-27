@@ -28,7 +28,8 @@ import (
 //   - mihomo | Tailscale, then duet | 最近活动, side by side when there is
 //     room. Every card has a title and the same slot for a trailing action.
 //
-// Figures, addresses, ports and versions are monospaced (ovMono).
+// Addresses, ports, versions and DNS modes are monospaced (monoText);
+// the tiles' figures use tabular digits of the system face.
 
 // ovMaxWidth is the widest the overview grows: a dashboard uses the
 // window, where the other pages keep plat.contentMax for reading.
@@ -48,12 +49,6 @@ func pageMaxWidth(page string) float32 {
 	return plat.contentMax
 }
 
-// ovMono is monospaced text with digits of one width: figures, addresses,
-// ports, versions.
-func ovMono(c *ui.Context, s string) ui.Element {
-	return num(ui.Text(c, s).Font("monospace"))
-}
-
 func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	pageTitle(c, T.PageOverview)
@@ -63,7 +58,7 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 	if w == 0 || w >= ovTilesWide {
 		tiles = 4
 	}
-	pair := w == 0 || w >= 2*max(halfCardMin, 300)+gapGroup
+	pair := w == 0 || w >= 2*max(halfCardMin, 360)+gapGroup
 	col := ui.Column(c.Key("overview")).Gap(gapGroup).FillWidth()
 	col.Children(func() {
 		a.verdict(c, s)
@@ -92,7 +87,7 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 func ovCard(c *ui.Context, title, tip string, trailing func(), body func()) ui.Element {
 	t := c.Theme()
 	return ui.Column(c).Gap(8).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(groupPadX).Height(28).Children(func() {
+		groupHead(c).Children(func() {
 			ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine()
 			if tip != "" {
 				infoTipAbout(c, title, tip, nil)
@@ -166,8 +161,20 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 			}
 			a.helperLock(c, s)
 		})
-		pushFace(c, a.recoveryMenu(c, s))
+		if !a.bannerOffers(s, "recovery") { // never twice on one screen
+			pushFace(c, a.recoveryMenu(c, s))
+		}
 	})
+}
+
+// bannerOffers reports whether the banner shows the action key now.
+func (a *app) bannerOffers(s status.Snapshot, key string) bool {
+	for _, act := range a.bannerActs(s) {
+		if act.key == key {
+			return true
+		}
+	}
+	return false
 }
 
 // testAll tests every node once in the background.
@@ -370,22 +377,20 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	m := s.Mihomo
 	if !m.Reachable {
-		kv(c, T.State, T.Unreachable)
-		unreachableLine(c, svcMihomo, m.Err)
-		kvWith(c, T.Controller, func() { ovMono(c, a.mh.BaseURL()).SingleLine().Shrink(1).Selectable() })
+		a.cardDown(c, svcMihomo, m.Err)
+		kvMono(c, T.Controller, a.mh.BaseURL())
 		return
 	}
 	kvWith(c, T.State, func() {
 		ui.Text(c, T.Running).SingleLine().Shrink(0)
 		if m.Version != "" {
-			ovMono(c, m.Version).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
+			monoText(c, m.Version).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
 		}
 	})
 	if p := m.Process; p != nil {
 		processRows(c, p, s.Time)
 	}
-	// The mode at its own width: a segmented control never stretches.
-	kvWith(c, T.Mode, func() { a.modeControl(c, s).Shrink(0) })
+	kvWith(c, T.Mode, func() { kvControl(a.modeControl(c, s)) })
 	a.controlError(c, pendMode)
 	tun := T.TunOff
 	if m.Config.Tun.Enable {
@@ -393,14 +398,14 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	}
 	kvTipWith(c, T.Tun, T.InfoTun, nil, func() {
 		a.tunSwitch(c, s)
-		ovMono(c, tun).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		monoText(c, tun).TextColor(t.TextMuted).SingleLine().Shrink(1)
 	})
 	a.controlError(c, pendTun)
 	if d := dnsModeText(m.DNSMode); d != "" {
-		kvWith(c, T.OvDNS, func() { ovMono(c, d).SingleLine() })
+		kvWith(c, T.OvDNS, func() { monoText(c, d).SingleLine() })
 	}
 	if ports := portsText(m.Config); ports != "" {
-		kvWith(c, T.OvProxyPort, func() { ovMono(c, ports).SingleLine().Shrink(1).Selectable() })
+		kvWith(c, T.OvProxyPort, func() { monoText(c, ports).SingleLine().Shrink(1).Selectable() })
 	}
 	if p := m.Primary; p != nil {
 		// Where traffic leaves: the node and its delay; the route to it
@@ -409,7 +414,7 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 		kvWith(c, T.Exit, func() {
 			ui.Text(c, p.Node).SingleLine().Shrink(1).MinWidth(0).Tooltip(route)
 			ui.Spacer(c)
-			ovMono(c, p.DelayText()).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0)
+			monoText(c, p.DelayText()).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0)
 		})
 	}
 }
@@ -473,8 +478,7 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 	ts := s.Tailscale
 	st := ts.State
 	if !ts.Reachable {
-		kv(c, T.State, T.Unreachable)
-		unreachableLine(c, svcTailscale, ts.Err)
+		a.cardDown(c, svcTailscale, ts.Err)
 		kv(c, T.Install, T.InstallKind(string(ts.Install.Kind)))
 		return
 	}
@@ -490,16 +494,16 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 	kvWith(c, T.State, func() {
 		ui.Text(c, T.TSState(st.BackendState)).SingleLine().Shrink(0)
 		if st.Version != "" {
-			ovMono(c, shortTSVersion(st.Version)).TextColor(t.TextMuted).SingleLine().Shrink(1)
+			monoText(c, shortTSVersion(st.Version)).TextColor(t.TextMuted).SingleLine().Shrink(1)
 		}
 	})
 	if st.Tailnet != "" {
-		kvWith(c, T.OvTailnet, func() { ovMono(c, st.Tailnet).SingleLine().Shrink(1).Selectable() })
+		kvWith(c, T.OvTailnet, func() { monoText(c, st.Tailnet).SingleLine().Shrink(1).Selectable() })
 	}
 	kvWith(c, T.OvThisDevice, func() {
 		ui.Text(c, st.Self.Name).SingleLine().Shrink(1).Selectable()
 		if ip := st.Self.IPv4(); ip.IsValid() {
-			ovMono(c, ip.String()).TextColor(t.TextMuted).SingleLine().Shrink(0).Selectable()
+			monoText(c, ip.String()).TextColor(t.TextMuted).SingleLine().Shrink(0).Selectable()
 		}
 	})
 	kvTipWith(c, T.ExitNode, T.InfoExitNode, nil, func() { kvControl(a.exitNodePicker(c, s)) })
@@ -507,7 +511,7 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 	kvWith(c, T.MagicDNS, func() {
 		ui.Text(c, onOff(st.Prefs.MagicDNS)).SingleLine().Shrink(0)
 		if st.Prefs.MagicDNS && st.MagicDNSSuffix != "" {
-			ovMono(c, st.MagicDNSSuffix).TextColor(t.TextMuted).SingleLine().Shrink(1)
+			monoText(c, st.MagicDNSSuffix).TextColor(t.TextMuted).SingleLine().Shrink(1)
 		}
 	})
 	if st.KeyExpiry != nil {
@@ -525,6 +529,39 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 	}
 	kvWith(c, T.Install, func() { // wraps: long in some languages, and the card is half wide
 		ui.Text(c, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source)).Grow(1).Wrap().LineHeight(lineText).Selectable()
+	})
+}
+
+// cardDown is a card's body while its service can't be reached, at the
+// card's size (kubai 022, R-kubai-12): one row with a 40 tile holding ⊗,
+// what did not answer and why in words, and 重试 at its end. The system's
+// own error is on hover and behind 复制原文 in the row's menu; the page
+// size state (unreachableState) is for pages.
+func (a *app) cardDown(c *ui.Context, svc netService, err string) {
+	t := c.Theme()
+	T := i18n.T
+	title, _, short := svc.texts()
+	why := short
+	if w := i18n.NetReason(err); w != "" {
+		why = w
+	}
+	row := ui.Row(c.Key("down")).Gap(12).AlignItems(ui.Center).MinHeight(40).Label(title + " " + why)
+	if err != "" {
+		row.Tooltip(err).ContextMenu(func(m *ui.Menu) {
+			if m.Item(T.MsgCopyRaw).Chosen() {
+				copyText(c, err)
+			}
+		})
+	}
+	row.Children(func() {
+		ui.Row(c).Size(40, 40).Radius(plat.innerRadius).Background(pal(t).code).AlignItems(ui.Center).Justify(ui.Center).Shrink(0).Children(func() {
+			ui.Icon(c, iconError).FontSize(iconNav).TextColor(pal(t).badText)
+		})
+		ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+			ui.Text(c, title).FontWeight(500).SingleLine()
+			small(c, why).SingleLine()
+		})
+		a.retryButton(c.Key("retry-" + title))
 	})
 }
 
@@ -559,7 +596,7 @@ func (a *app) duetSummary(c *ui.Context, s status.Snapshot) {
 		switch h.State {
 		case status.HelperConnected:
 			if h.Status != nil && h.Status.HelperVersion != "" {
-				ovMono(c, fmt.Sprintf(T.OvHelperVersion, strings.TrimPrefix(h.Status.HelperVersion, "v"))).
+				monoText(c, fmt.Sprintf(T.OvHelperVersion, strings.TrimPrefix(h.Status.HelperVersion, "v"))).
 					TextColor(t.TextMuted).SingleLine().Shrink(1)
 			}
 		case status.HelperNotInstalled:
@@ -607,35 +644,69 @@ func (a *app) duetSummary(c *ui.Context, s status.Snapshot) {
 		})
 	}
 	kvWith(c, T.OvHealth, func() {
-		rep := s.Health.Report
-		if rep == nil {
-			ui.Text(c, T.HealthRunning).TextColor(t.TextMuted).SingleLine().Grow(1)
-		} else {
-			_, lvl := s.HealthBadge()
-			e := ui.Text(c, healthShort(rep.Counts())).SingleLine().Shrink(1).Grow(1)
-			if lvl != status.LevelOK {
-				e.TextColor(levelText(t, lvl))
-			}
-		}
+		a.healthValue(c, s)
+		ui.Spacer(c)
 		if pushButton(c.Key("health-open"), T.FindingsView).Clicked() {
 			a.openPage(pageHealth)
 		}
 	})
 }
 
-// healthShort is the report's counts for the row labelled 健康检查: the
-// failures, else the warnings, else 全部通过.
-func healthShort(cnt map[health.Status]int) string {
+// healthValue is the health checks' one number as the banner and the
+// sidebar rate it (Snapshot.HealthBadge), with that level's glyph and
+// color: a finding the banner calls a warning is a warning here too
+// (R-kubai-6), not 1 项失败 in amber.
+func (a *app) healthValue(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
 	T := i18n.T
-	switch {
-	case cnt[health.StatusFail] > 0:
-		return fmt.Sprintf(T.OvHealthFail, cnt[health.StatusFail])
-	case cnt[health.StatusWarn] > 0:
-		return fmt.Sprintf(T.OvHealthWarn, cnt[health.StatusWarn])
-	case cnt[health.StatusOK] > 0:
-		return T.OvHealthOK
+	rep := s.Health.Report
+	if rep == nil {
+		ui.Text(c, T.HealthRunning).TextColor(t.TextMuted).SingleLine()
+		return
 	}
-	return T.HealthSkip
+	text, lvl := T.OvHealthOK, status.LevelOK
+	if _, l := s.HealthBadge(); l != status.LevelOK {
+		lvl = l
+		for _, r := range s.Reasons {
+			if r.Code == status.ReasonHealth {
+				text = healthReasonShort(r)
+			}
+		}
+	} else if rep.Counts()[health.StatusOK] == 0 {
+		text, lvl = T.HealthSkip, status.LevelUnknown
+	}
+	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(1).MinWidth(0).Children(func() {
+		if lvl != status.LevelUnknown {
+			ui.Icon(c, levelIcon(lvl)).FontSize(iconInline).TextColor(levelText(t, lvl)).Shrink(0)
+		}
+		e := ui.Text(c, text).SingleLine().Shrink(1)
+		if lvl != status.LevelOK && lvl != status.LevelUnknown {
+			e.TextColor(levelText(t, lvl))
+		}
+	})
+}
+
+// levelIcon is a level's glyph: ✓, ⚠, ⊗ (the banner's).
+func levelIcon(l status.Level) *ui.SVG {
+	switch l {
+	case status.LevelWarn:
+		return iconWarning
+	case status.LevelError:
+		return iconError
+	case status.LevelOK:
+		return iconOK
+	}
+	return iconSkip
+}
+
+// healthReasonShort words the health reason for the row labelled 健康检查:
+// its count at its level (1 个问题 for a warning, whether the checks
+// found failures before takeover or warnings; 1 项失败 for an error).
+func healthReasonShort(r status.Reason) string {
+	if r.Level == status.LevelError {
+		return fmt.Sprintf(i18n.T.OvHealthFail, r.Count)
+	}
+	return fmt.Sprintf(i18n.T.OvHealthIssues, r.Count)
 }
 
 // --- 最近活动 ---
@@ -667,12 +738,12 @@ func (a *app) recentEvents(c *ui.Context, s status.Snapshot) {
 		if it.n > 1 {
 			r.text = fmt.Sprintf("%s ×%d", r.text, it.n)
 		}
-		el := ui.Row(c.Key(fmt.Sprint("ev", i))).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Label(r.kind + " " + r.text)
+		el := rowBleed(ui.Row(c.Key(fmt.Sprint("ev", i))).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Label(r.kind + " " + r.text))
 		if r.page != "" {
-			el.Role(ui.RoleButton).Focusable()
+			rowFill(c, el.Role(ui.RoleButton).Focusable(), false)
 		}
 		el.Children(func() {
-			ovMono(c, eventTime(s.Time, e.Time)).FontSize(plat.smallSize).TextColor(t.TextMuted).Shrink(0).Width(40)
+			monoText(c, eventTime(s.Time, e.Time)).FontSize(plat.smallSize).TextColor(t.TextMuted).Shrink(0).Width(40)
 			tag(c, r.kind)
 			txt := ui.Text(c, r.text).SingleLine().Shrink(1).MinWidth(0).Tooltip(r.text)
 			if r.failed {
