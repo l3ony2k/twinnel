@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/netip"
 	"strings"
 	"testing"
@@ -128,7 +129,74 @@ func TestLeakEgress(t *testing.T) {
 	want(t, c, env, StatusSkip, "no network") // network-only: not a warning
 }
 
+// Each path tries the endpoints in order until one answers, and the
+// evidence names the one that did. In mainland China the direct path to
+// 1.1.1.1 times out; the next endpoint stands in.
+func TestLeakEgressEndpointFallback(t *testing.T) {
+	env := healthyEnv()
+	first, second := DefaultEgressURLs[0], DefaultEgressURLs[1]
+	env.egressDown = map[string]error{"direct " + first: errors.New("dial tcp 1.1.1.1:443: i/o timeout")}
+	r := want(t, LeakEgress{}, env, StatusOK, "Google, Meta")
+	if got := strings.Join(env.egressAsked, " | "); got != "direct "+first+" | direct "+second+" | proxied "+first {
+		t.Errorf("asked %s", got)
+	}
+	ev := strings.Join(r.Evidence, "\n")
+	if !strings.Contains(ev, "直连出口：198.51.x.x（www.cloudflare.com 回答）") || !strings.Contains(ev, "1.1.1.1 回答）") {
+		t.Errorf("evidence does not say who answered:\n%s", ev)
+	}
+	if r.Egress == nil || r.Egress.Direct != a("198.51.100.7") {
+		t.Errorf("direct address %+v", r.Egress)
+	}
+
+	// Configured endpoints replace the built-in list; every failure is
+	// listed by host.
+	env = healthyEnv()
+	env.ts.Self.Addrs = nil
+	env.settings.EgressURLs = []string{"https://echo-a.example/ip", "https://echo-b.example/ip"}
+	env.egressErr = errors.New("unreachable")
+	r = want(t, LeakEgress{}, env, StatusSkip, "echo-a.example: unreachable; echo-b.example: unreachable")
+	if len(env.egressAsked) != 2 {
+		t.Errorf("asked %v", env.egressAsked)
+	}
+
+	// Unsupported ends the tries at once.
+	env = healthyEnv()
+	env.ts.Self.Addrs = nil
+	env.egressErr = fmt.Errorf("bind: %w", ErrNotSupported)
+	LeakEgress{}.Run(context.Background(), env)
+	if len(env.egressAsked) != 1 {
+		t.Errorf("tried on after unsupported: %v", env.egressAsked)
+	}
+}
+
+func TestCheckEgressURLs(t *testing.T) {
+	if err := CheckEgressURLs(DefaultEgressURLs); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range [][]string{{"http://1.1.1.1/"}, {"https:///x"}, {"https://u:p@echo.example/"}, {"1.1.1.1"},
+		make([]string, MaxEgressURLs+1)} {
+		if CheckEgressURLs(bad) == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+}
+
 func TestParseEgressBody(t *testing.T) {
+	for body, want := range map[string]string{
+		"Current IP Address: 203.0.113.7\n":                        "203.0.113.7",
+		"当前 IP：203.0.113.7  来自于：中国 广东 深圳  联通\n":                    "203.0.113.7",
+		"IP\t: 203.0.113.7\n地址\t: 示例\nURL\t: http://x/203.0.113.8": "203.0.113.7",
+		"your address is 2001:db8::7 (v6)":                         "2001:db8::7",
+	} {
+		if ip, err := ParseEgressBody(body); err != nil || ip.String() != want {
+			t.Errorf("%q: %v %v", body, ip, err)
+		}
+	}
+	for _, body := range []string{"cafe :: dead", "Address: none", strings.Repeat("x", 5000) + " 203.0.113.7"} {
+		if ip, err := ParseEgressBody(body); err == nil {
+			t.Errorf("%q: %v", body, ip)
+		}
+	}
 	ip, err := ParseEgressBody("fl=1\nh=1.1.1.1\nip=203.0.113.7\nts=1\n")
 	if err != nil || ip != netip.MustParseAddr("203.0.113.7") {
 		t.Fatal(ip, err)

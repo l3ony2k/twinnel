@@ -83,7 +83,7 @@ func TestWithOwnerKeepsEgress(t *testing.T) {
 	if _, ok := env.(OwnerEnv); !ok {
 		t.Fatal("owner lost")
 	}
-	if a, err := env.(EgressEnv).DirectEgress(context.Background(), DefaultEgressURL); err != nil || !a.IsValid() {
+	if a, err := env.(EgressEnv).DirectEgress(context.Background(), DefaultEgressURLs[0]); err != nil || !a.IsValid() {
 		t.Error(a, err)
 	}
 	rep := runAll(t, env, "en")

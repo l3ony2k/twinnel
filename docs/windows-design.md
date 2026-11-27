@@ -257,7 +257,7 @@ fixtures on every OS.
 | VPNs | up adapters that are tunnels (if-type `TUNNEL`/`PPP`/`PROP_VIRTUAL`, or description matching WireGuard/Wintun/TAP-Windows/OpenVPN/…), excluding Tailscale's and mihomo's TUN |
 | OS resolver lookup | Go's resolver (`net.DefaultResolver`, which on Windows uses `GetAddrInfoW`, i.e. NRPT and the DNS client) |
 | mihomo / Tailscale | as on Linux: controller GETs, config file, `tailscale.exe status --json` |
-| egress test | not implemented yet (skips) |
+| egress test | socket pinned with `IP_UNICAST_IF` (index in network byte order) to the adapter Windows would route by without tunnels; DNS from the registry's `DhcpNameServer`, the adapter's servers and gateways |
 
 Check changes: `vpn-conflict` judges the default route on Windows like on
 Linux (another tunnel holding it fails; mihomo's TUN not holding it while

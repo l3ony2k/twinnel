@@ -360,3 +360,8 @@ Rules that came out of round 1:
   excluded from the TUN, so SSH normally survives; plan for it not to.
 - Write the restore scripts so they are idempotent: the time box may run
   after the test already restored.
+- Twinnel's files are UTF-8. Read them over SSH as bytes or set
+  `[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)` first:
+  `Get-Content` printed through the SSH console's code page shows Chinese as
+  `?` and full-width punctuation as ASCII (`（`→`(`), which looks like a
+  broken file but is the console (round 1, `health-egress.json`).

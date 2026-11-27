@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/binswap"
+	"github.com/l3ony2k/twinnel/core/consoletext"
 )
 
 // Spec describes one service.
@@ -326,7 +327,10 @@ func (e ExecExecutor) Run(ctx context.Context, argv []string) ([]byte, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, t)
 	defer cancel()
-	return exec.CommandContext(ctx, argv[0], argv[1:]...).CombinedOutput()
+	out, err := exec.CommandContext(ctx, argv[0], argv[1:]...).CombinedOutput()
+	// Windows' own tools (sc, schtasks, reg) print in the OEM code page;
+	// what is kept of their output (errors, history) must be UTF-8.
+	return consoletext.Decode(out), err
 }
 
 // OSFiles implements Files on the real filesystem.

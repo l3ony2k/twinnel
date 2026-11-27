@@ -116,5 +116,8 @@ func healthSettings(ctx context.Context, socket string) (s health.Settings, ok b
 		return s, false
 	}
 	s.ApplyUserChoices(set.LeakGuardGroups, set.HealthEgress)
+	if len(set.HealthEgressURLs) > 0 {
+		s.EgressURLs = append([]string(nil), set.HealthEgressURLs...)
+	}
 	return s, true
 }

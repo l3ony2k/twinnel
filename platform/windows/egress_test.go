@@ -45,14 +45,29 @@ func TestEgressAdapter(t *testing.T) {
 }
 
 func TestDirectEgressPinsThePhysicalAdapter(t *testing.T) {
-	var got egress.Iface
-	e := New(Options{Sys: coexistSys(), Direct: func(_ context.Context, url string, ifc egress.Iface) (netip.Addr, error) {
-		got = ifc
-		return ip("203.0.113.9"), nil
-	}})
-	a, err := e.DirectEgress(context.Background(), health.DefaultEgressURL)
+	var p egress.Path
+	settings := health.DefaultSettings()
+	settings.DirectDNS = ips("192.0.2.53")
+	var dhcpGUID string
+	e := New(Options{Sys: coexistSys(), Settings: &settings,
+		DHCPDNS: func(guid string) []netip.Addr { dhcpGUID = guid; return ips("192.168.1.2") },
+		Direct: func(_ context.Context, url string, got egress.Path) (netip.Addr, error) {
+			p = got
+			return ip("203.0.113.9"), nil
+		}})
+	a, err := e.DirectEgress(context.Background(), "https://echo.example/trace")
+	got := p.Iface
 	if err != nil || a != ip("203.0.113.9") || got != (egress.Iface{Index: 11, Name: "Wi-Fi"}) {
 		t.Fatalf("%v %v %+v", a, err, got)
+	}
+	// Names resolve over Wi-Fi: the backup, Wi-Fi's DHCP servers, its
+	// gateway; never mihomo's 127.0.0.1 the adapter is set to now.
+	if dhcpGUID != "{00000000-0000-4000-8000-000000000011}" {
+		t.Errorf("DHCP servers read for %q", dhcpGUID)
+	}
+	want := append(ips("192.0.2.53", "192.168.1.2", "192.168.1.1"), egress.PublicDNS...)
+	if c := egress.DNSCandidates(p.DNS); fmt.Sprint(c) != fmt.Sprint(want) {
+		t.Errorf("DNS %v, want %v", c, want)
 	}
 	// Socket option it sets for that adapter on Windows: IP_UNICAST_IF.
 	o, err := egress.BindOption(health.Windows, "tcp4", got)
@@ -62,11 +77,11 @@ func TestDirectEgressPinsThePhysicalAdapter(t *testing.T) {
 
 	none := coexistSys()
 	none.adapters = none.adapters[3:]
-	e = New(Options{Sys: none, Direct: func(context.Context, string, egress.Iface) (netip.Addr, error) {
+	e = New(Options{Sys: none, Direct: func(context.Context, string, egress.Path) (netip.Addr, error) {
 		t.Fatal("dialed without a physical adapter")
 		return netip.Addr{}, nil
 	}})
-	if _, err := e.DirectEgress(context.Background(), health.DefaultEgressURL); err == nil {
+	if _, err := e.DirectEgress(context.Background(), health.DefaultEgressURLs[0]); err == nil {
 		t.Fatal("no error without a physical adapter")
 	}
 }
@@ -89,7 +104,7 @@ func TestProxiedEgressNeedsAPort(t *testing.T) {
 	defer ctl.Close()
 	e := New(Options{Sys: coexistSys(), Controller: strings.TrimPrefix(ctl.URL, "http://"),
 		ReadFile: func(string) ([]byte, error) { return nil, errors.New("no config") }})
-	_, _, err := e.ProxiedEgress(context.Background(), health.DefaultEgressURL)
+	_, _, err := e.ProxiedEgress(context.Background(), health.DefaultEgressURLs[0])
 	if err == nil || !strings.Contains(err.Error(), "mixed-port") {
 		t.Fatal(err)
 	}

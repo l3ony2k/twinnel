@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"slices"
 
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/platform/egress"
@@ -46,7 +47,8 @@ func hasFamily(addrs []netip.Addr, v4 bool) bool {
 
 // DirectEgress fetches url on a socket pinned to the physical adapter
 // (IP_UNICAST_IF), so the request bypasses mihomo's TUN even though the
-// TUN holds the default routes, and returns the IP the echo reports.
+// TUN holds the default routes, and returns the IP the echo reports. A
+// hostname is resolved over the same adapter (DirectPath).
 func (e *Env) DirectEgress(ctx context.Context, rawURL string) (netip.Addr, error) {
 	ads, err := e.opt.Sys.Adapters(ctx)
 	if err != nil {
@@ -60,7 +62,20 @@ func (e *Env) DirectEgress(ctx context.Context, rawURL string) (netip.Addr, erro
 	if !ok {
 		return netip.Addr{}, errors.New("no active physical adapter")
 	}
-	return e.direct(ctx, rawURL, egress.Iface{Index: int(a.Index), Name: a.Name})
+	p := DirectPath(a, e.Settings().DirectDNS, e.opt.DHCPDNS(a.GUID))
+	if e.opt.Direct != nil {
+		return e.opt.Direct(ctx, rawURL, p)
+	}
+	return egress.Direct(ctx, rawURL, p)
+}
+
+// DirectPath is the direct request's path over adapter a: pinned to it,
+// resolving with the servers the system used before Twinnel (backup), the
+// ones DHCP gave a, the ones a is set to now, then its gateways
+// (egress.DNSCandidates drops mihomo's and Tailscale's addresses).
+func DirectPath(a Adapter, backup, dhcp []netip.Addr) egress.Path {
+	dns := slices.Concat(backup, dhcp, a.DNS, a.Gateways)
+	return egress.Path{Iface: egress.Iface{Index: int(a.Index), Name: a.Name}, DNS: dns}
 }
 
 // ProxiedEgress fetches url through mihomo's mixed (or HTTP) port and
@@ -79,11 +94,4 @@ func (e *Env) ProxiedEgress(ctx context.Context, rawURL string) (netip.Addr, []s
 	return egress.Proxied(ctx, rawURL, port, egress.ControllerChain(func(ctx context.Context, path string) ([]byte, error) {
 		return e.get(ctx, addr, secret, path)
 	}))
-}
-
-func (e *Env) direct(ctx context.Context, rawURL string, ifc egress.Iface) (netip.Addr, error) {
-	if e.opt.Direct != nil {
-		return e.opt.Direct(ctx, rawURL, ifc)
-	}
-	return egress.Direct(ctx, rawURL, ifc)
 }

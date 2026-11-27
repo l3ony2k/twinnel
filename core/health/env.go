@@ -3,7 +3,9 @@ package health
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/netip"
+	neturl "net/url"
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/autostart"
@@ -55,10 +57,16 @@ type Settings struct {
 	// AllowExitNode accepts a Tailscale exit node without failing.
 	AllowExitNode bool `json:"allowExitNode,omitempty"`
 	// Egress enables the opt-in egress test (leak-guard-egress): one HTTPS
-	// request to EgressURL directly and one through mihomo.
+	// request to an IP-echo endpoint directly and one through mihomo.
 	Egress bool `json:"egress,omitempty"`
-	// EgressURL is a neutral IP-echo endpoint. Default DefaultEgressURL.
-	EgressURL string `json:"egressURL,omitempty"`
+	// EgressURLs are the IP-echo endpoints, tried in order on each path
+	// until one answers. Empty: DefaultEgressURLs.
+	EgressURLs []string `json:"egressURLs,omitempty"`
+	// DirectDNS are the DNS servers the physical network used before
+	// Twinnel pointed the system DNS at mihomo (the helper's DNS backup).
+	// The direct request resolves a hostname over them first, then over
+	// the platform's DHCP servers and gateway (never the system resolver).
+	DirectDNS []netip.Addr `json:"-"`
 	// Binaries are the programs Twinnel installed or runs, checked by
 	// binary-integrity (empty: that check skips).
 	Binaries []BinaryRef `json:"binaries,omitempty"`
@@ -71,9 +79,64 @@ type Settings struct {
 	DNSGuard func(ctx context.Context) (DNSGuard, error) `json:"-"`
 }
 
-// DefaultEgressURL is Cloudflare's trace endpoint on an IP literal: it
-// answers "ip=<your address>" and needs no DNS lookup.
-const DefaultEgressURL = "https://1.1.1.1/cdn-cgi/trace"
+// DefaultEgressURLs are the IP-echo endpoints of the egress test, tried in
+// order on each path (direct, then through mihomo) until one answers. Each
+// answers one GET with the caller's address and needs nothing else (no
+// key, no cookie, no personal data). Bodies ParseEgressBody reads:
+//
+//	https://1.1.1.1/cdn-cgi/trace
+//	    Cloudflare trace on an IP literal: no DNS lookup at all. Its
+//	    direct path is blocked in mainland China (1.1.1.1 and 1.0.0.1).
+//	https://www.cloudflare.com/cdn-cgi/trace
+//	    The same trace on Cloudflare's own name, served from other anycast
+//	    addresses that answer from mainland China too (slower).
+//	https://myip.ipip.net
+//	    IPIP.net (mainland China): "当前 IP：<ip>  来自于：…".
+//	https://ddns.oray.com/checkip
+//	    Oray (mainland China): "Current IP Address: <ip>".
+//
+// The mainland ones come last: through mihomo the usual rules send them
+// DIRECT, so they only stand in when the Cloudflare ones cannot be
+// reached. Users and the CLI can replace the list (Settings.EgressURLs,
+// `twinnel doctor --egress-url`).
+var DefaultEgressURLs = []string{
+	"https://1.1.1.1/cdn-cgi/trace",
+	"https://www.cloudflare.com/cdn-cgi/trace",
+	"https://myip.ipip.net",
+	"https://ddns.oray.com/checkip",
+}
+
+// MaxEgressURLs bounds a configured endpoint list (each path tries them
+// within its time budget anyway).
+const MaxEgressURLs = 8
+
+// CheckEgressURLs reports what is wrong with a configured endpoint list:
+// each must be an https URL with a host, without credentials.
+func CheckEgressURLs(urls []string) error {
+	if len(urls) > MaxEgressURLs {
+		return fmt.Errorf("at most %d egress URLs", MaxEgressURLs)
+	}
+	for _, s := range urls {
+		u, err := neturl.Parse(s)
+		switch {
+		case err != nil || len(s) > 512:
+			return fmt.Errorf("invalid egress URL %q", s)
+		case u.Scheme != "https" || u.Hostname() == "":
+			return fmt.Errorf("egress URL %q: must be https://host/…", s)
+		case u.User != nil:
+			return fmt.Errorf("egress URL %q: must not carry credentials", s)
+		}
+	}
+	return nil
+}
+
+// EgressEndpoints is s.EgressURLs, or DefaultEgressURLs when empty.
+func (s Settings) EgressEndpoints() []string {
+	if len(s.EgressURLs) > 0 {
+		return s.EgressURLs
+	}
+	return DefaultEgressURLs
+}
 
 // EgressEnv is implemented by Envs that can run the egress test. Both
 // methods make one HTTPS GET to url and return the client IP it reports.

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/consoletext"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/health/dnswire"
 	"github.com/l3ony2k/twinnel/platform/common"
@@ -35,7 +36,8 @@ type CommandRunner func(ctx context.Context, name string, args ...string) ([]byt
 
 // ExecRunner runs commands for real with a per-command timeout, without a
 // console window (the app is a GUI program; a console flashing up would
-// steal focus).
+// steal focus). Output and error text come back as UTF-8, converted from
+// the OEM code page Windows' own tools print in (consoletext).
 func ExecRunner(timeout time.Duration) CommandRunner {
 	return func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -45,8 +47,9 @@ func ExecRunner(timeout time.Duration) CommandRunner {
 		var stderr strings.Builder
 		cmd.Stderr = &stderr
 		out, err := cmd.Output()
+		out = consoletext.Decode(out)
 		if err != nil {
-			if s := strings.TrimSpace(stderr.String()); s != "" {
+			if s := strings.TrimSpace(string(consoletext.Decode([]byte(stderr.String())))); s != "" {
 				return out, fmt.Errorf("%s: %w: %s", filepath.Base(name), err, s)
 			}
 			return out, fmt.Errorf("%s: %w", filepath.Base(name), err)
@@ -91,9 +94,13 @@ type Options struct {
 	LookupHost func(ctx context.Context, name string) ([]netip.Addr, error)
 	// LookPath is exec.LookPath (replaceable for tests).
 	LookPath func(string) (string, error)
-	// Direct makes the egress test's direct request on a socket pinned to
-	// ifc. Default: egress.Direct. Tests replace it.
-	Direct func(ctx context.Context, url string, ifc egress.Iface) (netip.Addr, error)
+	// Direct makes the egress test's direct request over p (sockets pinned
+	// to the physical adapter, names resolved over it). Default:
+	// egress.Direct. Tests replace it.
+	Direct func(ctx context.Context, url string, p egress.Path) (netip.Addr, error)
+	// DHCPDNS returns the DNS servers DHCP gave the adapter with this
+	// registry GUID. Default: DHCPDNS (registry, read-only).
+	DHCPDNS func(guid string) []netip.Addr
 }
 
 // Env implements health.Env on Windows.
@@ -150,6 +157,9 @@ func New(opt Options) *Env {
 	}
 	if opt.LookPath == nil {
 		opt.LookPath = exec.LookPath
+	}
+	if opt.DHCPDNS == nil {
+		opt.DHCPDNS = DHCPDNS
 	}
 	if opt.LookupHost == nil {
 		opt.LookupHost = func(ctx context.Context, name string) ([]netip.Addr, error) {
