@@ -30,7 +30,7 @@ dns-extra:
 		"proxies+":    LevelOK,
 		"dns!":        LevelOK,
 		"+.lan":       LevelError, // needs a list (refused), and looks like a domain
-		"*.corp!":     LevelWarn, // domain-like
+		"*.corp!":     LevelWarn,  // domain-like
 		"+nameserver": LevelError, // needs a list (refused)
 	}
 	if len(got) != len(want) {

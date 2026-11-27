@@ -61,7 +61,7 @@ type configView struct {
 	// saveErr is the helper's refusal of the last save, shown in the
 	// editor (at its line when it has one), not at the top of the page.
 	saveErr    *rpc.Msg
-	saveErrBuf uint64 // the buffer version it was for
+	saveErrBuf uint64   // the buffer version it was for
 	baseIDs    []string // the stored base layers, in order (reorder sends them first)
 
 	// Preview and apply.

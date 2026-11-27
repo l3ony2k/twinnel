@@ -60,7 +60,7 @@ var zhHelperMgmt = HelperMgmtStrings{
 	RemoveAllConfirm:   "移除",
 	ItemHelper:         "后台助手",
 	ItemData:           "数据",
-	ItemDataCounts:     "数据（%d 个订阅、%d 个规则层、历史、日志）",
+	ItemDataCounts:     "数据（%d 个订阅、%d 个覆写、历史、日志）",
 	ItemSecrets:        "钥匙串项目",
 	ItemDuetMihomo:     "duet 的 mihomo 服务（切回 %s，断网几秒）",
 	ItemOriginalMihomo: "mihomo 原来的服务",

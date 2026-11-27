@@ -29,12 +29,12 @@ func hardenedPlan(purge bool) *uninstall.Plan {
 func TestPlanText(t *testing.T) {
 	got := planText(hardenedPlan(false), false)
 	want := "移除：后台助手、duet 的 mihomo 服务（切回 com.mihomo.proxy，断网几秒）\n" +
-		"保留：mihomo 原来的服务、数据（1 个订阅、3 个规则层、历史、日志）、钥匙串项目、Tailscale、duet.app"
+		"保留：mihomo 原来的服务、数据（1 个订阅、3 个覆写、历史、日志）、钥匙串项目、Tailscale、duet.app"
 	if got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
 	}
 	got = planText(hardenedPlan(true), true)
-	if !strings.HasPrefix(got, "移除：后台助手、duet 的 mihomo 服务（切回 com.mihomo.proxy，断网几秒）、数据（1 个订阅、3 个规则层、历史、日志）、钥匙串项目、登录时打开、duet.app（移到废纸篓）\n保留：mihomo 原来的服务、Tailscale") {
+	if !strings.HasPrefix(got, "移除：后台助手、duet 的 mihomo 服务（切回 com.mihomo.proxy，断网几秒）、数据（1 个订阅、3 个覆写、历史、日志）、钥匙串项目、登录时打开、duet.app（移到废纸篓）\n保留：mihomo 原来的服务、Tailscale") {
 		t.Errorf("remove all:\n%s", got)
 	}
 	if strings.Contains(got, "保留：mihomo 原来的服务、Tailscale、duet.app") {

@@ -42,7 +42,7 @@ var zhTakeover = TakeoverStrings{
 		"tailscale-rules":  "%s 条 Tailscale 规则改动：%s",
 	},
 	TakeoverWhys: map[string]string{
-		"coexist":                   "由托管的 Tailscale 共存层写入",
+		"coexist":                   "由 Tailscale 共存覆写写入",
 		"coexist-nameserver-policy": "Tailscale 共存：tailnet 的名字交给 %s 解析",
 		"coexist-fake-ip-filter":    "Tailscale 共存：tailnet 的名字拿到真实地址，不用 fake-ip",
 		"coexist-hosts":             "Tailscale 共存：设备名在本地解析（%s 台设备）",

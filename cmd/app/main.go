@@ -65,7 +65,7 @@ type app struct {
 	settings  settingsForm
 	logs      logsView
 	events    eventLog // the helper's events, for 日志 → duet (eventlog.go)
-	shotMode  bool // DUET_SHOTS: the panel draws its own background
+	shotMode  bool     // DUET_SHOTS: the panel draws its own background
 	// panelShotH is the content height shot mode's panel was last sized
 	// to (fitShotPanel).
 	panelShotH int
