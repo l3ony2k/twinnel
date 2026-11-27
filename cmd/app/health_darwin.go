@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/l3ony2k/duet/core/health"
@@ -24,6 +25,21 @@ func statusFile() func(context.Context) ([]byte, error) {
 	return func(context.Context) ([]byte, error) { return os.ReadFile(f) }
 }
 
+// devConfigPath pins the mihomo config the in-process checks read on a
+// dev or shot run (DUET_CONTROLLER set): DUET_MIHOMO_CONFIG, else the
+// default path under $HOME (the scratch home). Without it the checks
+// would find the live LaunchDaemon's config and put its contents in
+// the shots. Empty (discover) on a normal run.
+func devConfigPath() string {
+	if p := os.Getenv("DUET_MIHOMO_CONFIG"); p != "" {
+		return p
+	}
+	if os.Getenv("DUET_CONTROLLER") == "" {
+		return ""
+	}
+	return filepath.Join(os.Getenv("HOME"), ".config", "mihomo", "config.yaml")
+}
+
 // newHealthSource runs the health checks in-process with the macOS Env,
 // read-only. Later the helper serves the same report over RPC.
 func newHealthSource(cfg status.Config) status.HealthSource {
@@ -34,6 +50,7 @@ func newHealthSource(cfg status.Config) status.HealthSource {
 			return darwin.New(darwin.Options{
 				Controller:      cfg.Controller,
 				Secret:          cfg.Secret,
+				ConfigPath:      devConfigPath(),
 				Settings:        &settings,
 				TailscaleStatus: statusFile(),
 			})
@@ -52,6 +69,7 @@ func newEgressProbe(cfg status.Config) func(context.Context) *health.CheckReport
 		rep := r.Run(health.WithLang(ctx, i18n.Tag()), darwin.New(darwin.Options{
 			Controller:      cfg.Controller,
 			Secret:          cfg.Secret,
+			ConfigPath:      devConfigPath(),
 			Settings:        &settings,
 			TailscaleStatus: statusFile(),
 		}))
