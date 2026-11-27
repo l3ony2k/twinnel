@@ -25,6 +25,9 @@ func (a *app) takeoverPage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	v := &a.hd.take
 	pageTitle(c, T.PageTakeover)
+	if !a.takeoverAdopted() && a.section("plan") {
+		a.takeoverIntro(c)
+	}
 	if !v.fixture && !a.helperGate(c, s) {
 		return
 	}
@@ -71,9 +74,39 @@ func (a *app) takeoverAdopted() bool {
 	return false
 }
 
-// takeoverEmpty: before any plan, what runs now (from the status the
-// app already has), then 生成接管计划 with a 只读 badge: making a plan
-// changes nothing.
+// takeoverIntro: what takeover does, in one line and three points, and
+// 了解接管, which opens 关于 at 接管是什么. Drawn until duet took over.
+func (a *app) takeoverIntro(c *ui.Context) {
+	t := c.Theme()
+	T := i18n.T
+	groupBox(c, t).Gap(10).Children(func() {
+		ui.Text(c, T.TkIntroLead).FontWeight(plat.headingWeight).Wrap().LineHeight(lineText)
+		ui.Column(c).Gap(6).Children(func() {
+			for i, p := range []struct {
+				icon *ui.SVG
+				text string
+			}{
+				{iconConfig, T.TkIntroManage},
+				{iconService, T.TkIntroKeep},
+				{iconRollback, T.TkIntroUndo},
+			} {
+				ui.Row(c.Key(fmt.Sprint("intro", i))).Gap(8).AlignItems(ui.Start).Children(func() {
+					ui.Icon(c, p.icon).FontSize(iconInline).TextColor(t.Accent).MarginY(1).Shrink(0)
+					ui.Text(c, p.text).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Shrink(1)
+				})
+			}
+		})
+		if actionLink(c.Key("learn"), T.TkLearnMore).Clicked() {
+			a.about.reveal = aboutTakeoverAnchor
+			a.showPage(pageAbout)
+		}
+	})
+}
+
+// takeoverEmpty: before any plan, what runs now (the running mihomo's
+// service, binary and config, detected as a plan would; the helper's own
+// settings are duet's defaults until the takeover), then 生成接管计划
+// with its note: making a plan changes nothing.
 func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
@@ -92,11 +125,14 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 			}
 			return T.TkFoundNotRunning
 		}
-		if st := s.Helper.Status; st != nil && st.Mihomo.ConfigPath != "" {
-			kvWith(c, T.TakeoverLive, func() {
-				ui.Text(c, filepath.Base(st.Mihomo.ConfigPath)).SingleLine().Tooltip(st.Mihomo.ConfigPath)
-				meta(c, filepath.Dir(st.Mihomo.ConfigPath)).Shrink(1)
+		a.liveFileRow(c, "config", T.TakeoverLive, a.liveConfigPath(s))
+		if l := a.live; l.Label != "" {
+			kvWith(c.Key("service"), T.TkFoundService, func() {
+				ui.Text(c, l.Label).SingleLine().Shrink(1).Selectable().Tooltip(l.Plist)
 			})
+		}
+		if l := a.live; l.Binary != "" {
+			a.liveFileRow(c, "binary", T.TkFoundBinary, l.Binary)
 		}
 		mv := running(s.Mihomo.Reachable)
 		if s.Mihomo.Version != "" {
@@ -113,7 +149,7 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 			if v.loading {
 				ui.Spinner(c)
 			}
-			tag(c, T.TkReadOnly)
+			small(c, T.TkPlanNote).SingleLine().Shrink(1)
 			// Planning is read-only for the system (the helper writes the
 			// plan into its own state dir), so it needs no write permission.
 			can := s.Helper.Connected() && d.busy == "" && !v.unsupported && !v.fixture
@@ -123,6 +159,24 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 		})
 		if v.listErr != "" {
 			errorNote(c, T.ErrorPrefix+v.listErr)
+		}
+	})
+}
+
+// liveFileRow is a file of the running setup: its name, the folder after
+// it; 未检测到 once detection found nothing, 加载中 before it finished.
+func (a *app) liveFileRow(c *ui.Context, key, label, path string) {
+	t := c.Theme()
+	T := i18n.T
+	kvWith(c.Key(key), label, func() {
+		switch {
+		case path != "":
+			ui.Text(c, filepath.Base(path)).SingleLine().Shrink(0).Selectable().Tooltip(path)
+			meta(c, filepath.Dir(path)).Shrink(1)
+		case a.live.loaded || a.shotMode:
+			ui.Text(c, T.TkNotDetected).TextColor(t.TextMuted).SingleLine()
+		default:
+			ui.Text(c, T.Loading).TextColor(t.TextMuted).SingleLine()
 		}
 	})
 }

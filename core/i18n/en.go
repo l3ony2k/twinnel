@@ -532,15 +532,16 @@ var en = Strings{
 	HealthProblems:      "Needs attention",
 	HealthPassed:        "Other checks",
 
-	ConfigStrings:     enConfig,
-	WindowStrings:     enWindow,
-	AboutStrings:      enAbout,
-	TakeoverStrings:   enTakeover,
-	HelperMgmtStrings: enHelperMgmt,
-	ConfigUIStrings:   enConfigUI,
-	LifecycleStrings:  enLifecycle,
-	StatusStrings:     enStatus,
-	SidebarStrings:    enSidebar,
+	ConfigStrings:          enConfig,
+	WindowStrings:          enWindow,
+	AboutStrings:           enAbout,
+	TakeoverStrings:        enTakeover,
+	HelperMgmtStrings:      enHelperMgmt,
+	ConfigUIStrings:        enConfigUI,
+	LifecycleStrings:       enLifecycle,
+	TakeoverExplainStrings: enTakeoverExplain,
+	StatusStrings:          enStatus,
+	SidebarStrings:         enSidebar,
 }
 
 var enControls = ControlStrings{
