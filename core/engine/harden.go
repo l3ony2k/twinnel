@@ -1103,7 +1103,7 @@ func (e *Engine) HardenApply(ctx context.Context, p rpc.HardenApplyParams) (rpc.
 		return finish(rpc.PlanFailed)
 	}
 	step("settings", "ok", "settings point at "+ns.Mihomo.ConfigFile)
-	if _, err := e.Store.AddHistory(store.HistoryApplied, "harden "+p.PlanID, composed, e.now(), st.HistoryKeep); err != nil {
+	if _, err := e.Store.AddHistoryMeta(store.HistoryApplied, store.HistoryMeta{Reason: "harden " + p.PlanID, Code: store.ReasonHarden, Args: []string{p.PlanID}}, composed, e.now(), st.HistoryKeep); err != nil {
 		e.log().Warn("history", "err", err)
 	}
 	res.OK = true

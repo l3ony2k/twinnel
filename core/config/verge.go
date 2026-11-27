@@ -39,7 +39,7 @@ func ImportVergeMerge(data []byte) ([]byte, error) {
 		k, v := src.Content[i], src.Content[i+1]
 		if isVergeSeqKey(k.Value) {
 			if !isNull(v) && v.Kind != yaml.SequenceNode {
-				return nil, fmt.Errorf("%s: needs a list, got %s", k.Value, kindName(v.Kind))
+				return nil, fmt.Errorf("line %d: %s: needs a list, got %s", k.Line, k.Value, kindName(v.Kind))
 			}
 			seq[k.Value] = v
 			continue

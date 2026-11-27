@@ -237,7 +237,7 @@ func TestMerge(t *testing.T) {
 			name:    "prepend with a non-list",
 			base:    "a: 1\n",
 			patch:   "dns:\n  +nameserver: 1.1.1.1\n",
-			wantErr: `dns.nameserver: "+nameserver" needs a list`,
+			wantErr: `line 2: dns: "+nameserver" needs a list`,
 		},
 		{
 			name:    "top level not a mapping",

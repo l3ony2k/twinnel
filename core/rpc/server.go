@@ -17,7 +17,7 @@ var AllMethods = []string{
 	MethodStatus,
 	MethodComposePreview, MethodComposeApply,
 	MethodHistoryList, MethodHistoryRollback,
-	MethodLayerList, MethodLayerGet, MethodLayerPut, MethodLayerDelete, MethodLayerSetEnabled, MethodLayerReorder,
+	MethodLayerList, MethodLayerGet, MethodLayerPut, MethodLayerDelete, MethodLayerSetEnabled, MethodLayerReorder, MethodLayerRestore,
 	MethodSubList, MethodSubPut, MethodSubDelete, MethodSubActivate, MethodSubRefresh,
 	MethodSettingsGet, MethodSettingsUpdate,
 	MethodTailnetRefresh,

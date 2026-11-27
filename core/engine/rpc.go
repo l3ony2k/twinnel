@@ -37,6 +37,9 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodLayerReorder, func(ctx context.Context, p rpc.ReorderParams) (rpc.Empty, error) {
 		return rpc.Empty{}, e.ReorderLayers(p.IDs)
 	})
+	rpc.Typed(s, rpc.MethodLayerRestore, func(ctx context.Context, p rpc.LayerRestoreParams) (rpc.LayerRestoreResult, error) {
+		return e.RestoreLayers(ctx, p)
+	})
 
 	rpc.Typed(s, rpc.MethodSubList, func(ctx context.Context, _ rpc.Empty) ([]rpc.Subscription, error) { return e.Subscriptions() })
 	rpc.Typed(s, rpc.MethodSubPut, func(ctx context.Context, p rpc.SubPutParams) (rpc.Subscription, error) {
