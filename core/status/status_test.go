@@ -252,7 +252,7 @@ func TestConfig(t *testing.T) {
 	env := map[string]string{}
 	getenv := func(k string) string { return env[k] }
 	c, err := LoadConfig(path, getenv)
-	if err != nil || c.Controller != "127.0.0.1:9090" || c.PrimaryGroup != "PROXY" || c.AllowWrites {
+	if err != nil || c.Controller != "127.0.0.1:9090" || c.PrimaryGroup != "PROXY" || !c.AllowWrites {
 		t.Fatalf("defaults %+v %v", c, err)
 	}
 	c.Controller, c.Secret = "127.0.0.1:9999", "file-secret"
@@ -262,9 +262,9 @@ func TestConfig(t *testing.T) {
 	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o600 {
 		t.Errorf("mode %v", fi.Mode())
 	}
-	env[EnvSecret], env[EnvAllowWrites] = "env-secret", "1"
+	env[EnvSecret], env[EnvReadOnly] = "env-secret", "1"
 	c, _ = LoadConfig(path, getenv)
-	if c.Controller != "127.0.0.1:9999" || c.Secret != "env-secret" || !c.SecretFromEnv || !c.AllowWrites {
+	if c.Controller != "127.0.0.1:9999" || c.Secret != "env-secret" || !c.SecretFromEnv || c.AllowWrites {
 		t.Errorf("env %+v", c)
 	}
 	// An env secret is never written to the file.

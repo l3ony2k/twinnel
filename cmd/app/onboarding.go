@@ -280,8 +280,8 @@ func codeBlock(c *ui.Context, s string) ui.Element {
 }
 
 // installHelper runs `duet helper install`, which asks for the
-// administrator password (osascript) and sets up the LaunchDaemon. Only
-// reachable with DUET_ALLOW_WRITES=1.
+// administrator password (osascript) and sets up the LaunchDaemon. Does
+// nothing with DUET_READ_ONLY=1.
 func (a *app) installHelper() {
 	v := &a.hd.onb
 	if !a.cfg.AllowWrites || v.running {

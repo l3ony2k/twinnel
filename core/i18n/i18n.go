@@ -87,7 +87,7 @@ type Strings struct {
 	PanelHealthFail, PanelHealthPending string // %d
 	Seconds                             string // %.1f
 
-	// Controls (v0.2, guarded by DUET_ALLOW_WRITES).
+	// Controls (v0.2).
 	Actions, ReloadConfig, FlushFakeIP, FlushDNS, Done string
 	ExitNodeNone, ExitNodeConflictTitle                string
 	ExitNodeConflictBody, ExitNodeConfirm, Cancel      string
@@ -242,6 +242,7 @@ type Strings struct {
 	TakeoverStrings   // takeover.go
 	HelperMgmtStrings // helpermgmt.go
 	LifecycleStrings  // lifecycle.go
+	StatusStrings     // status.go
 	SidebarStrings    // sidebar.go
 }
 
@@ -322,7 +323,7 @@ var zh = Strings{
 	TSDown:             "断开",
 	OpenMainWindow:     "打开主窗口",
 	Quit:               "退出",
-	WritesDisabledHint: "设置 DUET_ALLOW_WRITES=1 后重新打开 duet 才能操作",
+	WritesDisabledHint: "只读模式",
 	ErrorPrefix:        "错误：",
 
 	TSStates: map[string]string{
@@ -365,7 +366,7 @@ var zh = Strings{
 	PathDirect:    "直连",
 	PathDERP:      "DERP 中继",
 	PathPeerRelay: "节点中继",
-	PathIdle:      "空闲",
+	PathIdle:      "未连接",
 	Online:        "在线",
 	Offline:       "离线",
 	NoPeers:       "没有其他设备",
@@ -776,6 +777,7 @@ var zh = Strings{
 	TakeoverStrings:   zhTakeover,
 	HelperMgmtStrings: zhHelperMgmt,
 	LifecycleStrings:  zhLifecycle,
+	StatusStrings:     zhStatus,
 	SidebarStrings:    zhSidebar,
 }
 

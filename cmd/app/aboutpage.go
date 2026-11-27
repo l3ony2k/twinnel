@@ -231,7 +231,6 @@ func (a *app) aboutBasics(c *ui.Context, s status.Snapshot) {
 		if st := s.Helper.Status; st != nil && st.Mihomo.ConfigPath != "" {
 			pathRow(c, "mihomo-config", T.MihomoConfigRow, st.Mihomo.ConfigPath)
 		}
-		kv(c, T.AllowWrites, onOff(a.cfg.AllowWrites))
 		in := s.Tailscale.Install
 		ts := T.InstallKind(string(in.Kind)) + sourceSuffix(in.Source)
 		if in.Daemon != "" {
@@ -309,7 +308,6 @@ func (a *app) aboutFAQ(c *ui.Context) {
 	}
 	qs := [][2]string{
 		{T.FAQVPNQ, T.FAQVPNA},
-		{T.FAQReadOnlyQ, T.FAQReadOnlyA},
 		{T.FAQRollbackQ, T.FAQRollbackA},
 		{T.FAQQuitQ, T.FAQQuitA},
 		{T.FAQLeaveQ, T.FAQLeaveA},

@@ -54,7 +54,7 @@ func (a *app) mainView(c *ui.Context) {
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
 		a.sidebarFrame(c, func() { a.sidebar(c, s) }) // sidebar.go
 		content := ui.Column(c).Grow(1).Background(t.Background)
-		if c.Vibrancy() && a.side.mode != sideHidden {
+		if c.Vibrancy() && a.contentHairline() {
 			content.BorderWidth(0, 0, 0, 1).BorderColor(pal(t).separator)
 		}
 		barH := toolbarHeight(c)
@@ -101,11 +101,12 @@ type toolbarSpec struct {
 // mainView builds the toolbar after the page. Main thread only.
 var pageBar toolbarSpec
 
-// toolbarHeight is the toolbar's height: the title bar's under a hidden
-// title bar (the traffic lights centered in it), at least a unified
-// toolbar's 52.
+// toolbarHeight is the toolbar's height: a band centered on the traffic
+// lights' line, as a unified toolbar's (52 on macOS 26). The window's
+// reported title bar height (66 under the hidden-inset style) is not that
+// line (sidebar.go, trafficLightsMid).
 func toolbarHeight(c *ui.Context) float32 {
-	return max(c.TitleBar().Height, 52)
+	return max(2*trafficLightsMid(c), 52)
 }
 
 func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
@@ -211,7 +212,6 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 // material, with the duet pair's state at its foot.
 func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
-	bar := c.TitleBar()
 	side := ui.Column(c).Width(a.sideInnerW()).Shrink(0).DragWindow()
 	if !c.Vibrancy() { // an opaque stand-in for the material
 		side.Background(ui.Hex("#ebebeb"))
@@ -219,16 +219,18 @@ func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 			side.Background(ui.Hex("#2a2a2c"))
 		}
 	}
-	side.Padding(max(bar.Bottom+12, 16), 10, 12).Gap(4).Children(func() {
+	side.Padding(sidebarTop(c), 10, 12).Gap(4).Children(func() {
 		old := a.page
 		ts := 0
 		if s.Tailscale.Reachable {
 			ts = s.Tailscale.State.OnlinePeers()
 		}
-		w, f := s.Health.Counts()
-		health := w + f
+		// The one health number (status.Snapshot.HealthBadge): failures
+		// in red when there are some, else warnings in amber; before
+		// takeover, failures are findings, in amber.
+		health, hl := s.HealthBadge()
 		healthTone := toneAttention
-		if f > 0 {
+		if hl == status.LevelError {
 			healthTone = toneAlert
 		}
 		sections := navSections(ts, health, healthTone)
@@ -363,6 +365,8 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	pageTitle(c, T.PageOverview)
 	a.verdict(c, s)
+	a.exitNodeAcceptedRow(c, s)
+	a.gettingStarted(c, s)
 	a.actionNotes(c, s)
 	card(c, T.Traffic, func() { a.trafficChart(c, s) })
 	// Side by side; stacked when a language's longer rows need more than
@@ -371,7 +375,7 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 		cardWith(c, T.Mihomo, func() { a.mihomoMenu(c, s) }, func() { a.mihomoSummary(c, s) }).Basis(0).Grow(1).MinWidth(halfCardMin)
 		card(c, T.Tailscale, func() { a.tailscaleSummary(c, s) }).Basis(0).Grow(1).MinWidth(halfCardMin)
 	})
-	card(c, T.Helper, func() { a.helperSummary(c, s) })
+	a.overviewHelperCard(c, s)
 }
 
 // verdict is the overall state in one line, with what makes it so.
@@ -395,44 +399,10 @@ func (a *app) verdict(c *ui.Context, s status.Snapshot) {
 				for _, r := range reasons {
 					ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
 				}
+				a.verdictActions(c, s)
 			})
 		})
 	})
-}
-
-// helperSummary is the overview's helper card.
-func (a *app) helperSummary(c *ui.Context, s status.Snapshot) {
-	T := i18n.T
-	h := s.Helper
-	kv(c, T.State, h.State.Text())
-	st := h.Status
-	if !h.Connected() || st == nil {
-		kv(c, T.HelperSocket, h.Socket)
-		if h.State == status.HelperNotInstalled {
-			// A push button in the value column, as other row actions;
-			// not a bar across the card.
-			kvWith(c, "", func() {
-				if pushButton(c.Key("onboard"), T.OnboardOpen).Clicked() {
-					old := a.page
-					a.page = pageConfig
-					a.pageChanged(old)
-				}
-			})
-		}
-		return
-	}
-	if !a.helperUpdateRow(c, s) {
-		kv(c, T.Version, fmt.Sprintf("%s · pid %d", st.HelperVersion, st.PID))
-	}
-	kv(c, T.Subscription, orDash(st.ActiveSubscription))
-	kv(c, T.Layers, fmt.Sprint(st.Layers))
-	if r := st.LastApply; r != nil {
-		last := r.Time.Local().Format("01-02 15:04") + " · " + T.ApplyDone
-		if r.Error != "" {
-			last = r.Time.Local().Format("01-02 15:04") + " · " + T.ApplyFailed + "：" + r.Error
-		}
-		kv(c, T.LastApply, last)
-	}
 }
 
 func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
@@ -447,7 +417,8 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	}
 	kv(c, T.State, T.Running)
 	kv(c, T.Version, m.Version)
-	kv(c, T.Mode, T.ModeName(string(m.Config.Mode)))
+	kvWith(c, T.Mode, func() { kvControl(a.modeControl(c, s)) })
+	a.controlError(c, pendMode)
 	tun := T.TunOff
 	if m.Config.Tun.Enable {
 		tun = m.Config.Tun.Device + sourceSuffix(m.Config.Tun.Stack) // the switch says it is on
@@ -458,25 +429,24 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 	})
 	a.controlError(c, pendTun)
 	if p := m.Primary; p != nil {
-		// One row for where traffic leaves: the primary group, what it
-		// selected down to the node, and the node's delay.
-		// The node keeps its room; the groups before it shrink first.
+		// One row for where traffic leaves: the node and its delay; the
+		// route to it (the main group and what it selected) on hover.
 		route := strings.Join(append([]string{p.Name}, p.Chain...), " → ")
-		via := strings.Join(append([]string{p.Name}, p.Chain[:max(len(p.Chain)-1, 0)]...), " → ") + " →"
 		kvWith(c, T.Exit, func() {
-			ui.Row(c).Gap(4).Grow(1).Shrink(1).MinWidth(0).Tooltip(route).Children(func() {
-				// The groups may shrink to nothing (the tooltip has the
-				// route); the node keeps its whole name.
-				ui.Text(c, via).TextColor(t.TextMuted).SingleLine().Shrink(100).MinWidth(0)
-				ui.Text(c, p.Node).SingleLine().Shrink(0)
-			})
+			ui.Text(c, p.Node).SingleLine().Shrink(1).MinWidth(0).Tooltip(route)
+			ui.Spacer(c)
 			num(ui.Text(c, p.DelayText()).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
 		})
 	}
 	kv(c, T.Connections, fmt.Sprint(m.Connections))
 }
 
+// tailscaleAdminURL is the tailnet's machines page, where a node key is
+// renewed.
+const tailscaleAdminURL = "https://login.tailscale.com/admin/machines"
+
 func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
 	T := i18n.T
 	ts := s.Tailscale
 	st := ts.State
@@ -484,6 +454,15 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 		kv(c, T.State, T.Unreachable)
 		unreachableLine(c, svcTailscale, ts.Err)
 		kv(c, T.Install, T.InstallKind(string(ts.Install.Kind)))
+		return
+	}
+	if needsLogin(s) {
+		// Logged out: the node's addresses and devices are not its own
+		// now; the way back in is the one action.
+		kvWith(c, T.State, func() {
+			ui.Text(c, T.TSState(st.BackendState)).Grow(1).SingleLine()
+			a.tsLoginButton(c, s)
+		})
 		return
 	}
 	kv(c, T.State, T.TSState(st.BackendState))
@@ -496,7 +475,15 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 	a.controlError(c, pendExit)
 	kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
 	if st.KeyExpiry != nil {
-		kv(c, T.KeyExpiry, st.KeyExpiry.Local().Format("2006-01-02")+" ("+status.Until(s.Time, *st.KeyExpiry)+")")
+		exp := st.KeyExpiry.Local().Format("2006-01-02") + " (" + status.Until(s.Time, *st.KeyExpiry) + ")"
+		if !st.KeyExpiresWithin(s.Time, status.KeyExpiryWarning) {
+			kv(c, T.KeyExpiry, exp)
+		} else {
+			kvWith(c, T.KeyExpiry, func() {
+				num(ui.Text(c, exp).TextColor(pal(t).warnText).SingleLine().Shrink(1))
+				ui.Link(c, T.KeyRenew, tailscaleAdminURL).FontSize(plat.calloutSize)
+			})
+		}
 	}
 	kvWith(c, T.Install, func() { // wraps: long in some languages, and the card is half wide
 		num(ui.Text(c, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source)).Grow(1).Wrap().LineHeight(lineText).Selectable())
@@ -720,7 +707,7 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 	// One list: a row per group, its nodes under it while open.
 	listBox(c, t).Children(func() {
 		for _, g := range m.Groups {
-			a.groupRow(c.Key("group:"+g.Name), g, s.WritesAllowed)
+			a.groupRow(c.Key("group:"+g.Name), g, s.Can().Mihomo)
 		}
 	})
 }
@@ -1102,7 +1089,19 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 		}
 		field("controller", T.Controller, ctlHint, &f.controller, false, fromHelper)
 		field("secret", T.Secret, secretHint, &f.secret, true, fromHelper || a.cfg.SecretFromEnv)
-		field("primary", T.PrimaryGroup, "", &f.primary, false, false)
+		// The main group by its own name, as mihomo lists it: a picker
+		// of the groups one can choose a node in, while mihomo answers.
+		if names := selectorGroups(s); len(names) > 0 {
+			if !contains(names, f.primary) && f.primary != "" {
+				names = append([]string{f.primary}, names...)
+			}
+			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, T.PrimaryGroup).TextColor(t.TextMuted).Width(labelWidth + 24).Shrink(0)
+				ui.Select(c.Key("primary"), &f.primary, names).Label(T.PrimaryGroup).Grow(1).MaxWidth(320)
+			})
+		} else {
+			field("primary", T.PrimaryGroup, "", &f.primary, false, false)
+		}
 		field("binary", T.MihomoBinary, "", &f.mihomoBinary, false, false)
 		field("confdir", T.MihomoConfigDir, "", &f.mihomoConfigDir, false, false)
 		ui.Row(c).Gap(12).AlignItems(ui.Center).PaddingStart(labelWidth + 36).Children(func() {
@@ -1132,6 +1131,29 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 	a.languageCard(c)
 	a.refreshHelperMgmt(s)
 	a.helperSection(c, s)
+}
+
+// selectorGroups are mihomo's groups a node can be chosen in, by name.
+func selectorGroups(s status.Snapshot) []string {
+	var out []string
+	if !s.Mihomo.Reachable {
+		return nil
+	}
+	for _, g := range s.Mihomo.Groups {
+		if g.Selectable() && g.Name != "GLOBAL" {
+			out = append(out, g.Name)
+		}
+	}
+	return out
+}
+
+func contains(list []string, v string) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *app) setNotifications(on bool) {

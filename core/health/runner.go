@@ -25,6 +25,10 @@ type CheckReport struct {
 	Title    string        `json:"title"`
 	Duration time.Duration `json:"durationNs"`
 	Result
+	// Set by Accept: the status before it was accepted, and the check
+	// whose accepted cause broke this one.
+	Was      Status `json:"was,omitempty"`
+	CausedBy string `json:"causedBy,omitempty"`
 }
 
 // Report is the result of a run.
