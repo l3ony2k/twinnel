@@ -24,11 +24,11 @@ type ovSlot int
 const (
 	slotBody    ovSlot = -1 // the whole card (down, logged out): no grid
 	slotState   ovSlot = iota
-	slotProcess         // memory · CPU
-	slotUptime          // 运行时长
-	slotExit            // mihomo 出口 ↔ Tailscale 出口节点
-	slotDNS             // DNS ↔ MagicDNS
-	slotAddr            // 代理端口 ↔ 本机
+	slotProcess        // memory · CPU
+	slotUptime         // 运行时长
+	slotExit           // mihomo 出口 ↔ Tailscale 出口节点
+	slotDNS            // DNS ↔ MagicDNS
+	slotAddr           // 代理端口 ↔ 本机
 	slotOwnBase ovSlot = 100
 )
 
