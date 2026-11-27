@@ -65,6 +65,21 @@ var patterns = []pattern{
 	{code: "health-unavailable", re: regexp.MustCompile(`^health checks are not available in this helper$`)},
 	{code: "takeover-unsupported", re: regexp.MustCompile(`^takeover is not supported by this helper`)},
 
+	// Install errors of kernel.install and tailscale.install (core/kernel,
+	// core/engine setup.go). Not anchored: they come wrapped.
+	{code: "msi-busy", re: regexp.MustCompile(`another installation is in progress \(Windows Installer is busy\)`)},
+	{code: "msi-canceled", re: regexp.MustCompile(`the Tailscale installation was canceled`)},
+	{code: "msi-blocked", re: regexp.MustCompile(`a system policy blocks installing Tailscale`)},
+	{code: "msi-other-version", re: regexp.MustCompile(`a different version of Tailscale is already installed`)},
+	{code: "msi-failed", re: regexp.MustCompile(`the Tailscale installer failed \(msiexec exit code (-?\d+)\); its log is (.+)$`)},
+	{code: "ts-service-down", re: regexp.MustCompile(`Tailscale was installed but its service did not start`)},
+	{code: "ts-cli-no-run", re: regexp.MustCompile(`Tailscale was installed but (.+) does not run`)},
+	{code: "ts-no-installer", re: regexp.MustCompile(`pkgs\.tailscale\.com has no Windows installer for (\S+)$`)},
+	{code: "mihomo-no-run", re: regexp.MustCompile(`the downloaded mihomo does not run on this computer`)},
+	{code: "mihomo-no-build", re: regexp.MustCompile(`release (\S+) has no asset for (\S+)$`)},
+	{code: "ts-login-session", re: regexp.MustCompile(`Tailscale logs in from the signed-in user's session on this system`)},
+	{code: "download-damaged", re: regexp.MustCompile(`checksum mismatch: got sha256:`)},
+
 	// Layer errors (core/config merge, layer.put, compose). Args: layer,
 	// line ("" when unknown), then the rest.
 	{code: "layer-needs-list", re: regexp.MustCompile(`^layer (\S+): (?:line (\d+): )?(?:.*: )?"(.+)" needs a list, got (\w+)$`)},
