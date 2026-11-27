@@ -160,6 +160,16 @@ type ComposeResult struct {
 	// word in its language (core/msg). A warning the helper has no code
 	// for has Code "" and only Text.
 	Messages []Msg `json:"messages,omitempty"`
+	// Culprits: when mihomo -t rejected the config, the overrides (or
+	// the subscription, Layer "") that hold a name its errors quote.
+	Culprits []Culprit `json:"culprits,omitempty"`
+}
+
+// Culprit is where a name mihomo -t complained about comes from.
+type Culprit struct {
+	Name  string `json:"name"`
+	Layer string `json:"layer,omitempty"` // an override's ID; "" for the subscription
+	Title string `json:"title,omitempty"` // the override's name
 }
 
 // Msg is a text the helper hands to a client as a code with arguments,

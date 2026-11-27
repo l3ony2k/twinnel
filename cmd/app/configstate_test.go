@@ -80,7 +80,7 @@ func TestDescribeEvent(t *testing.T) {
 	i18n.Set("zh")
 	data, _ := json.Marshal(rpc.ApplyResult{ReasonCode: "rollback", ReasonArgs: []string{"20261127T060539Z-52d20aaa"}, HistoryID: "h1",
 		ComposeResult: rpc.ComposeResult{Changed: true}})
-	r, ok := describeEvent(rpc.Event{Type: rpc.EventComposeApplied, Data: data, Time: time.Now()}, func(id string) string { return id })
+	r, ok := describeEvent(rpc.Event{Type: rpc.EventComposeApplied, Data: data, Time: time.Now()}, func(_, id string) string { return id })
 	if !ok || r.kind != "应用" || !strings.HasPrefix(r.text, "已应用 · 回滚到 ") || r.hist != "h1" || r.page != pageHistory {
 		t.Errorf("applied: %+v", r)
 	}
@@ -90,7 +90,7 @@ func TestDescribeEvent(t *testing.T) {
 		t.Errorf("failed: %+v", r)
 	}
 	data, _ = json.Marshal(map[string]any{"id": "main", "changed": true})
-	r, _ = describeEvent(rpc.Event{Type: rpc.EventSubUpdated, Data: data}, func(string) string { return "Home" })
+	r, _ = describeEvent(rpc.Event{Type: rpc.EventSubUpdated, Data: data}, func(string, string) string { return "Home" })
 	if r.text != "订阅「Home」已更新" {
 		t.Errorf("sub: %+v", r)
 	}
@@ -114,5 +114,38 @@ func TestHistoryReasonLegacy(t *testing.T) {
 	got := historyReason(rpc.HistoryEntry{Reason: "rollback to 20261127T060539Z-52d20aaa"})
 	if !strings.HasPrefix(got, "回滚到 11-27 ") && !strings.HasPrefix(got, "回滚到 11-26 ") {
 		t.Errorf("rollback: %q", got)
+	}
+}
+
+// 日志 → duet: a failed apply is one line in words (no HTTP, no 应用 twice),
+// and an edit names what it changed (walkthrough 2, N6 and N7).
+func TestDescribeEventWords(t *testing.T) {
+	i18n.Set("zh")
+	raw := "reload: PUT /configs?force=false: 400 Bad Request: synthetic reload failure"
+	data, _ := json.Marshal(rpc.ApplyResult{ReasonCode: "apply", Error: raw})
+	r, _ := describeEvent(rpc.Event{Type: rpc.EventComposeFailed, Data: data}, nil)
+	if r.text != "应用失败 · mihomo 重载失败，已恢复旧配置" || r.raw != raw {
+		t.Errorf("failed apply: %+v", r)
+	}
+	names := func(kind, id string) string {
+		if kind == "layer" && id == "lan" {
+			return "局域网直连"
+		}
+		return id
+	}
+	for _, tc := range []struct {
+		data map[string]string
+		want string
+	}{
+		{map[string]string{"layer": "lan", "op": "on"}, "启用了覆写「局域网直连」"},
+		{map[string]string{"layer": "gone", "op": "deleted", "name": "旧覆写"}, "删除了覆写「旧覆写」"},
+		{map[string]string{"layer": "lan"}, "覆写「局域网直连」已修改"},
+		{map[string]string{"subscription": "main", "op": "activated"}, "改用订阅「main」"},
+		{nil, "覆写或订阅已修改"},
+	} {
+		d, _ := json.Marshal(tc.data)
+		if r, _ := describeEvent(rpc.Event{Type: rpc.EventStateChanged, Data: d}, names); r.text != tc.want {
+			t.Errorf("%v: %q, want %q", tc.data, r.text, tc.want)
+		}
 	}
 }

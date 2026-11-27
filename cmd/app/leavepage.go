@@ -199,6 +199,29 @@ func invLabel(k string) string {
 }
 
 // invNested: the state dir's parts, drawn indented under it.
+// secretNames words the keychain items: 控制接口密钥、订阅「X」的地址
+// (walkthrough 2, N14). A key duet does not know shows as it is.
+func secretNames(names []string) string {
+	T := i18n.T
+	var out []string
+	for _, n := range names {
+		switch {
+		case n == "controller-secret":
+			out = append(out, T.SecretController)
+		case strings.HasPrefix(n, "subscription-url/"):
+			id := strings.TrimPrefix(n, "subscription-url/")
+			if id == adoptedSubID {
+				out = append(out, T.SecretSubAdopted)
+			} else {
+				out = append(out, i18n.F(T.SecretSubURL, id))
+			}
+		default:
+			out = append(out, n)
+		}
+	}
+	return strings.Join(out, T.ListSep)
+}
+
 func invNested(k string) bool {
 	switch k {
 	case rpc.InvSubscriptions, rpc.InvLayers, rpc.InvHistory, rpc.InvTakeoverBackups, rpc.InvKernels, rpc.InvLogs:
@@ -284,7 +307,7 @@ func (a *app) inventoryCard(c *ui.Context, s status.Snapshot) {
 					ui.Text(c, label).Width(200-indent).Margin(0, 0, 0, indent).Shrink(0).SingleLine().Tooltip(label)
 					detail := it.Path
 					if it.Kind == rpc.InvSecrets {
-						detail = strings.Join(it.Names, T.ListSep)
+						detail = secretNames(it.Names)
 					} else if it.Label != "" && it.Kind != invLaunchAgent {
 						detail = it.Label
 					}
@@ -488,6 +511,13 @@ func (a *app) exportCard(c *ui.Context, s status.Snapshot) {
 			n++
 		}
 	}
+	if inv := a.hd.leave.inv; inv != nil { // the inventory's count when it is read
+		for _, it := range inv.Items {
+			if it.Kind == rpc.InvLayers {
+				n = it.Count
+			}
+		}
+	}
 	cardTip(c, T.LeaveExport, T.TipLeaveExport, nil, func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, i18n.F(T.LeaveExportWhat, n)).Grow(1).Shrink(1)
@@ -503,7 +533,6 @@ func (a *app) exportCard(c *ui.Context, s status.Snapshot) {
 func (a *app) exportConfig() {
 	T := i18n.T
 	parent := a.win
-	layers := append([]rpc.Layer(nil), a.hd.layers...)
 	go func() {
 		to, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
 			Parent: parent, Title: i18n.Cur().LeaveExport,
@@ -515,7 +544,7 @@ func (a *app) exportConfig() {
 		}
 		mygo.RunOnMain(func() {
 			a.helperOp(T.LeaveExport, time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
-				return writeExport(ctx, hc, to, layers)
+				return writeExport(ctx, hc, to)
 			}, func(err error) {
 				if err == nil {
 					a.toast = i18n.F(T.LeaveExportDone, filepath.Base(to))
@@ -532,7 +561,13 @@ type exportCaller interface {
 
 // writeExport writes config.yaml (the live config as history keeps it,
 // without the controller secret) and overrides/<id>.yaml.
-func writeExport(ctx context.Context, hc exportCaller, to string, layers []rpc.Layer) error {
+func writeExport(ctx context.Context, hc exportCaller, to string) error {
+	// The helper's own list, not whatever the app last loaded: the zip
+	// holds every override the inventory counts (walkthrough 2, N30).
+	var layers []rpc.Layer
+	if err := hc.Call(ctx, rpc.MethodLayerList, nil, &layers); err != nil {
+		return err
+	}
 	var live rpc.ConfigText
 	if err := hc.Call(ctx, rpc.MethodConfigGet, rpc.ConfigGetParams{Source: rpc.ConfigLive}, &live); err != nil {
 		return err

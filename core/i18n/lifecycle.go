@@ -70,6 +70,8 @@ type LifecycleStrings struct {
 	TkNextUndo                                       string
 	TkSecretState                                    string // row label
 	TkSecretSetWeak                                  string
+	// The takeover result's 控制接口密钥 line.
+	TkResSecretKept, TkResSecretNew, TkResSecretNone string
 	TkSecretNone                                     string
 
 	// --- Helper states (U6, U7). ---
@@ -84,7 +86,11 @@ type LifecycleStrings struct {
 	// --- Services (U44, U55). ---
 	SvcAdopted    string // chip
 	SvcMore       string // ⋯ menu label
-	SvcAdoptedTip string
+	SvcOwnRunning string // mihomo runs, not from a service duet knows
+
+	// Keychain items in words (停止使用 duet). %s: subscription ID.
+	SecretController, SecretSubURL, SecretSubAdopted string
+	SvcAdoptedTip                                    string
 
 	// --- Kernel (U43, H11, U58). ---
 	KernelStateExternal, KernelStateManaged string
@@ -210,6 +216,9 @@ var zhLifecycle = LifecycleStrings{
 	TkNextUndo:      "撤销接管…",
 	TkSecretState:   "当前密钥",
 	TkSecretSetWeak: "已设",
+	TkResSecretKept: "沿用你原来的密钥",
+	TkResSecretNew:  "已生成新密钥",
+	TkResSecretNone: "未设，可在下面加固",
 	TkSecretNone:    "未设",
 
 	HelperStateNotRunning: "后台助手未运行",
@@ -223,7 +232,12 @@ var zhLifecycle = LifecycleStrings{
 
 	SvcAdopted:    "接管",
 	SvcMore:       "更多",
-	SvcAdoptedTip: "接管来的服务：duet 只启停，不改它的定义",
+	SvcOwnRunning: "运行中 · 由你自己的服务运行",
+
+	SecretController: "控制接口密钥",
+	SecretSubURL:     "订阅「%s」的地址",
+	SecretSubAdopted: "接管时导入的订阅地址",
+	SvcAdoptedTip:    "接管来的服务：duet 只启停，不改它的定义",
 
 	KernelStateExternal:  "外部程序（接管）",
 	KernelStateManaged:   "duet 管理",
@@ -297,14 +311,14 @@ var enLifecycle = LifecycleStrings{
 	TkEffKeepService:    "Kept · plist unchanged, started and stopped by duet",
 	TkEffNoService:      "No service",
 	TkEffKeep:           "Kept",
-	TkEffReplaceable:    "Kept · replaceable without admin rights",
+	TkEffReplaceable:    "Kept · any user can replace it",
 	TkEffReplaceableTip: "%s isn't owned by root",
 	TkEffRewrite:        "Rewritten in place · backed up first",
 	TkEffStoreSub:       "Saved to Keychain · downloaded on the first manual update",
 	TkEffSkipSub:        "%d found · not imported",
 	TkEffNoSub:          "None found · the source file is used",
-	TkEffKeepSecret:     "Kept · can be hardened later",
-	TkEffNoSecret:       "None · can be hardened later",
+	TkEffKeepSecret:     "Kept · harden later",
+	TkEffNoSecret:       "Not set · harden later",
 	TkEffUnchanged:      "Unchanged",
 	TkEditsLost:         "After takeover, direct edits to %s are overwritten on the next apply",
 	TkNewOverride:       "New Override",
@@ -376,6 +390,9 @@ var enLifecycle = LifecycleStrings{
 	TkNextUndo:      "Undo Takeover…",
 	TkSecretState:   "Current secret",
 	TkSecretSetWeak: "Set",
+	TkResSecretKept: "Kept your existing secret",
+	TkResSecretNew:  "A new secret was generated",
+	TkResSecretNone: "Not set; harden it below",
 	TkSecretNone:    "None",
 
 	HelperStateNotRunning: "Helper not running",
@@ -389,7 +406,12 @@ var enLifecycle = LifecycleStrings{
 
 	SvcAdopted:    "Adopted",
 	SvcMore:       "More",
-	SvcAdoptedTip: "Adopted service: duet starts and stops it but never changes its definition",
+	SvcOwnRunning: "Running · from your own service",
+
+	SecretController: "Controller secret",
+	SecretSubURL:     "URL of subscription “%s”",
+	SecretSubAdopted: "Subscription URL from takeover",
+	SvcAdoptedTip:    "Adopted service: duet starts and stops it but never changes its definition",
 
 	KernelStateExternal:  "External binary (adopted)",
 	KernelStateManaged:   "Managed by duet",

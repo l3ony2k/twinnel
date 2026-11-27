@@ -10,14 +10,15 @@ type AboutStrings struct {
 	AboutTagline string
 
 	// 检查更新 and its outcomes.
-	CheckUpdate      string
-	UpdateChecking   string
-	UpdateLatest     string
-	UpdateNewVersion string // %s: the new version
-	UpdateDownload   string
-	UpdateNone       string // no release published (yet)
-	UpdateFailed     string // %s: the short reason
-	UpdateRateLimit  string
+	CheckUpdate       string
+	UpdateChecking    string
+	UpdateLatest      string
+	UpdateNewVersion  string // %s: the new version
+	UpdateDownload    string
+	UpdateNone        string // no release published (yet)
+	UpdateFailed      string // %s: the short reason
+	UpdateFailedPlain string // no reason duet can word
+	UpdateRateLimit   string
 
 	// 基本信息.
 	AboutBasics, AboutPlatform string
@@ -39,14 +40,15 @@ var zhAbout = AboutStrings{
 	PageAbout:    "关于",
 	AboutTagline: "让 mihomo 与 Tailscale 在同一台电脑上和平共处",
 
-	CheckUpdate:      "检查更新",
-	UpdateChecking:   "检查中…",
-	UpdateLatest:     "已是最新",
-	UpdateNewVersion: "有新版本 %s",
-	UpdateDownload:   "下载",
-	UpdateNone:       "暂无发布版本",
-	UpdateFailed:     "检查失败：%s",
-	UpdateRateLimit:  "GitHub 请求太频繁，稍后再试",
+	CheckUpdate:       "检查更新",
+	UpdateChecking:    "检查中…",
+	UpdateLatest:      "已是最新",
+	UpdateNewVersion:  "有新版本 %s",
+	UpdateDownload:    "下载",
+	UpdateNone:        "暂无发布版本",
+	UpdateFailed:      "检查失败：%s",
+	UpdateFailedPlain: "检查失败",
+	UpdateRateLimit:   "GitHub 请求太频繁，稍后再试",
 
 	AboutBasics:   "基本信息",
 	AboutPlatform: "平台",

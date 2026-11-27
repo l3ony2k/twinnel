@@ -41,11 +41,40 @@ func (s *Strings) Msg(m rpc.Msg) (string, bool) {
 	if !ok {
 		return "", false
 	}
+	if !strings.Contains(tmpl, "%") {
+		// The args are the helper's English detail (reload notes): the
+		// UI words that from structured data (ImpactLines) or not at all.
+		return tmpl, true
+	}
 	args := make([]any, len(m.Args))
 	for i, v := range m.Args {
 		args[i] = strings.ReplaceAll(v, "\n", s.ListSep)
 	}
 	return F(tmpl, args...), true
+}
+
+var tailVerb = regexp.MustCompile(`(：|: )%(\[\d+\])?s$`)
+
+// MsgHead words m without its trailing detail (the system's error after
+// the colon), for a one-line row such as 日志 → duet; a code the app does
+// not know is the generic line.
+func (s *Strings) MsgHead(m rpc.Msg) string {
+	tmpl, ok := s.MsgTexts[m.Code]
+	if !ok {
+		tmpl, ok = s.WarningTexts[m.Code]
+	}
+	if !ok || m.Code == "" {
+		return s.MsgUnknown
+	}
+	if loc := tailVerb.FindStringIndex(tmpl); loc != nil {
+		m.Args = nil
+		tmpl = tmpl[:loc[0]]
+		if !strings.Contains(tmpl, "%") {
+			return tmpl
+		}
+	}
+	out, _ := s.Msg(m)
+	return out
 }
 
 // MsgText words m for display: its text, or, for a code the app does not

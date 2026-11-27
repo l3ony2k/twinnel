@@ -136,6 +136,9 @@ type Reason struct {
 	Health bool // comes from the health checks (the panel shows those on a line of their own)
 	Code   string
 	Count  int // ReasonHealth: the number the text says
+	// Raw is the error behind a reason as the system said it (English),
+	// for a secondary line and 复制; Text says it in the UI language.
+	Raw string
 }
 
 // Reason codes.
@@ -296,12 +299,21 @@ func Evaluate(s *Snapshot) {
 	t := i18n.Cur()
 	var rs []Reason
 	add := func(l Level, code, text string) { rs = append(rs, Reason{Level: l, Text: text, Code: code}) }
+	// down says "can't reach X" in the UI language, with the reason in
+	// words when duet knows it; the system's own text goes in Raw.
+	down := func(code, head, err string) {
+		text := head
+		if why := i18n.NetReason(err); why != "" {
+			text += t.NetReasonSep + why
+		}
+		rs = append(rs, Reason{Level: LevelError, Text: text, Code: code, Raw: err})
+	}
 	m := s.Mihomo
 	switch {
 	case m.Unauthorized:
 		add(LevelError, ReasonMihomoAuth, t.ReasonMihomoAuth)
 	case !m.Reachable && m.Err != "":
-		add(LevelError, ReasonMihomoDown, fmt.Sprintf(t.ReasonMihomoDown, m.Err))
+		down(ReasonMihomoDown, t.ReasonMihomoDown, m.Err)
 	case m.Reachable:
 		if !m.Config.Tun.Enable {
 			add(LevelWarn, ReasonTunOff, t.ReasonTunOff)
@@ -316,7 +328,7 @@ func Evaluate(s *Snapshot) {
 	case !ts.Reachable && ts.Install.Kind == tailscale.InstallUnknown && ts.Err != "":
 		add(LevelWarn, ReasonTSNotInstalled, t.ReasonTSNotInstalled)
 	case !ts.Reachable && ts.Err != "":
-		add(LevelError, ReasonTSDown, fmt.Sprintf(t.ReasonTSDown, ts.Err))
+		down(ReasonTSDown, t.ReasonTSDown, ts.Err)
 	case ts.Reachable:
 		switch st.BackendState {
 		case "NeedsLogin", "NeedsMachineAuth":
@@ -344,8 +356,17 @@ func Evaluate(s *Snapshot) {
 	// rules. One number counts: the failures, else the warnings. Before
 	// duet manages the config, failures are what it found on this Mac,
 	// not something that broke: a warning.
-	switch warn, fail := s.Health.Counts(); {
-	case fail > 0 && !s.TakenOver():
+	warn, fail := s.Health.Counts()
+	// Failures that only an exit node the user has not decided on yet
+	// causes are a choice to make, not something duet broke: a warning,
+	// with 接受 / 关闭出口节点 next to it (design review U4).
+	exitOnly := false
+	if fail > 0 && ts.Reachable && st.ExitNode != nil && s.Health.Report != nil {
+		c := health.Accept(s.Health.Report, health.CauseExitNode).Counts()
+		exitOnly = c[health.StatusFail] == 0
+	}
+	switch {
+	case fail > 0 && (!s.TakenOver() || exitOnly):
 		rs = append(rs, Reason{Level: LevelWarn, Text: fmt.Sprintf(t.ReasonHealthFound, fail), Health: true, Code: ReasonHealth, Count: fail})
 	case fail > 0:
 		rs = append(rs, Reason{Level: LevelError, Text: fmt.Sprintf(t.ReasonHealthFail, fail), Health: true, Code: ReasonHealth, Count: fail})

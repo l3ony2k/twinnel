@@ -306,7 +306,7 @@ func composeInputEvent(evs []rpc.Event) bool {
 func readOnlyOp(label string) bool {
 	T := i18n.T
 	switch label {
-	case T.Preview, T.HistoryDiff, T.TakeoverOpen, T.KernelCheck:
+	case T.Preview, T.HistoryDiff, T.TakeoverOpen, T.KernelCheck, T.TakeoverPlan:
 		return true
 	}
 	return strings.HasSuffix(label, " · "+T.KernelCheck)

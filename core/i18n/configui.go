@@ -91,6 +91,7 @@ type ConfigUIStrings struct {
 
 	// Drift after a rollback (U41).
 	DriftRow         string // %s: time of the entry
+	DriftRowSub      string // the drift row's second line
 	DriftRowBackup   string // %s: time of the entry (a backup: no overrides to restore)
 	DriftRestore     string
 	DriftReapply     string
@@ -117,14 +118,17 @@ type ConfigUIStrings struct {
 	MsgCopyRaw     string
 
 	// Reload impact (rpc.ReloadImpact fields).
-	ImpactTUN          string // %s: what changed
-	ImpactTUNWhy       map[string]string
-	ImpactDNS          string
-	ImpactListeners    string // %s: keys
-	ImpactProviders    string // %s: names
-	ImpactSelection    string
-	ImpactUnknown      string
-	ApplyFailedRestore string // the new config failed after writing; the old one runs
+	ImpactTUN       string // %s: what changed
+	ImpactTUNWhy    map[string]string
+	ImpactDNS       string
+	ImpactListeners string // %s: keys
+	ImpactProviders string // %s: names
+	ImpactSelection string
+	ImpactUnknown   string
+	// An apply that mihomo -t rejected: where the name it quotes comes
+	// from. %s: the override, the name / the name.
+	CulpritLayer, CulpritSub, CulpritOpen string
+	ApplyFailedRestore                    string // the new config failed after writing; the old one runs
 
 	// Logs: the duet tab (U29, H7).
 	LogsSourceMihomo, LogsSourceDuet string
@@ -134,6 +138,9 @@ type ConfigUIStrings struct {
 	EventKinds                       map[string]string // event type → chip
 	EvApplied, EvApplyUnchanged      string            // %s: reason
 	EvApplyFailed                    string            // %s: reason
+	// EvStateOps: an edit, by "layer.<op>" / "subscription.<op>" (op:
+	// saved, deleted, on, off, activated) or the kind alone. %s: the name.
+	EvStateOps                       map[string]string
 	EvState                          string
 	EvSubUpdated, EvSubSame          string // %s: subscription
 	EvSubFailed                      string // %s: subscription
@@ -223,8 +230,9 @@ var zhConfigUI = ConfigUIStrings{
 	ViewInHistory:  "在历史中查看",
 	ComposeOrder:   "合成顺序",
 
-	DriftRow:         "运行中：%s 的历史版本（不是由下面的覆写合成）",
-	DriftRowBackup:   "运行中：%s 的备份（不是由下面的覆写合成）",
+	DriftRow:         "运行中：%s 的历史版本",
+	DriftRowBackup:   "运行中：%s 的备份",
+	DriftRowSub:      "不是由下面的覆写合成",
 	DriftRestore:     "恢复这些覆写的状态",
 	DriftReapply:     "重新应用当前覆写",
 	DriftRestoreBody: "只改覆写，不会应用。",
@@ -280,6 +288,9 @@ var zhConfigUI = ConfigUIStrings{
 	ImpactProviders:    "经过这些节点集合的连接会断开：%s",
 	ImpactSelection:    "策略组会回到第一个节点",
 	ImpactUnknown:      "无法比较新旧配置，按最坏情况处理",
+	CulpritLayer:       "覆写「%s」用到了 %s",
+	CulpritSub:         "订阅原文用到了 %s",
+	CulpritOpen:        "打开",
 	ApplyFailedRestore: "新配置出错，已恢复旧配置",
 
 	LogsSourceMihomo: "mihomo",
@@ -307,19 +318,30 @@ var zhConfigUI = ConfigUIStrings{
 	EvApplyUnchanged: "没有变化 · %s",
 	EvApplyFailed:    "应用失败 · %s",
 	EvState:          "覆写或订阅已修改",
-	EvSubUpdated:     "订阅「%s」已更新",
-	EvSubSame:        "订阅「%s」没有变化",
-	EvSubFailed:      "订阅「%s」更新失败",
-	EvTailnet:        "Tailscale 设备有变化",
-	EvKernel:         "内核已切换",
-	EvAccessory:      "GEO 数据或面板已更新",
-	EvCheck:          "%s：%s",
-	EvHealth:         "检查完成：%d 项失败，%d 项警告",
-	EvService:        "服务状态改变",
-	EvTakeover:       "接管计划有变化",
-	EvHelperStarted:  "已启动",
-	EvHelperStop:     "正在停止",
-	EvShow:           "查看",
+	EvStateOps: map[string]string{
+		"layer":                  "覆写「%s」已修改",
+		"layer.saved":            "保存了覆写「%s」",
+		"layer.deleted":          "删除了覆写「%s」",
+		"layer.on":               "启用了覆写「%s」",
+		"layer.off":              "停用了覆写「%s」",
+		"subscription":           "订阅「%s」已修改",
+		"subscription.saved":     "保存了订阅「%s」",
+		"subscription.deleted":   "删除了订阅「%s」",
+		"subscription.activated": "改用订阅「%s」",
+	},
+	EvSubUpdated:    "订阅「%s」已更新",
+	EvSubSame:       "订阅「%s」没有变化",
+	EvSubFailed:     "订阅「%s」更新失败",
+	EvTailnet:       "Tailscale 设备有变化",
+	EvKernel:        "内核已切换",
+	EvAccessory:     "GEO 数据或面板已更新",
+	EvCheck:         "%s：%s",
+	EvHealth:        "检查完成：%d 项失败，%d 项警告",
+	EvService:       "服务状态改变",
+	EvTakeover:      "接管计划有变化",
+	EvHelperStarted: "已启动",
+	EvHelperStop:    "正在停止",
+	EvShow:          "查看",
 }
 
 var enConfigUI = ConfigUIStrings{
@@ -400,8 +422,9 @@ var enConfigUI = ConfigUIStrings{
 	ViewInHistory:  "View in History",
 	ComposeOrder:   "Compose order",
 
-	DriftRow:         "Running: the history version from %s (not composed from the overrides below)",
-	DriftRowBackup:   "Running: the backup from %s (not composed from the overrides below)",
+	DriftRow:         "Running: the history version from %s",
+	DriftRowBackup:   "Running: the backup from %s",
+	DriftRowSub:      "Not composed from the overrides below",
 	DriftRestore:     "Restore These Overrides",
 	DriftReapply:     "Apply Current Overrides",
 	DriftRestoreBody: "Only the overrides change; nothing is applied.",
@@ -457,6 +480,9 @@ var enConfigUI = ConfigUIStrings{
 	ImpactProviders:    "Connections through these providers close: %s",
 	ImpactSelection:    "Proxy groups go back to their first node",
 	ImpactUnknown:      "Couldn't compare the configs; assuming the worst",
+	CulpritLayer:       "Override “%s” uses %s",
+	CulpritSub:         "The subscription uses %s",
+	CulpritOpen:        "Open",
 	ApplyFailedRestore: "The new config failed; the old one was restored",
 
 	LogsSourceMihomo: "mihomo",
@@ -484,19 +510,30 @@ var enConfigUI = ConfigUIStrings{
 	EvApplyUnchanged: "No change · %s",
 	EvApplyFailed:    "Apply failed · %s",
 	EvState:          "Overrides or subscriptions edited",
-	EvSubUpdated:     "Subscription “%s” updated",
-	EvSubSame:        "Subscription “%s” unchanged",
-	EvSubFailed:      "Subscription “%s” failed to update",
-	EvTailnet:        "Tailscale devices changed",
-	EvKernel:         "Core switched",
-	EvAccessory:      "GEO data or dashboard updated",
-	EvCheck:          "%s: %s",
-	EvHealth:         "Checks done: %d failed, %d warnings",
-	EvService:        "Service state changed",
-	EvTakeover:       "Takeover plans changed",
-	EvHelperStarted:  "Started",
-	EvHelperStop:     "Stopping",
-	EvShow:           "Show",
+	EvStateOps: map[string]string{
+		"layer":                  "Override “%s” edited",
+		"layer.saved":            "Saved override “%s”",
+		"layer.deleted":          "Deleted override “%s”",
+		"layer.on":               "Turned on override “%s”",
+		"layer.off":              "Turned off override “%s”",
+		"subscription":           "Subscription “%s” edited",
+		"subscription.saved":     "Saved subscription “%s”",
+		"subscription.deleted":   "Deleted subscription “%s”",
+		"subscription.activated": "Switched to subscription “%s”",
+	},
+	EvSubUpdated:    "Subscription “%s” updated",
+	EvSubSame:       "Subscription “%s” unchanged",
+	EvSubFailed:     "Subscription “%s” failed to update",
+	EvTailnet:       "Tailscale devices changed",
+	EvKernel:        "Core switched",
+	EvAccessory:     "GEO data or dashboard updated",
+	EvCheck:         "%s: %s",
+	EvHealth:        "Checks done: %d failed, %d warnings",
+	EvService:       "Service state changed",
+	EvTakeover:      "Takeover plans changed",
+	EvHelperStarted: "Started",
+	EvHelperStop:    "Stopping",
+	EvShow:          "Show",
 }
 
 // Count words n with one (n == 1, with or without a %d) or many (with

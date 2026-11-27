@@ -87,11 +87,19 @@ func (a *app) backfillEvents() {
 // whether it is a failure, and where a click goes (page, history ID).
 type eventRow struct {
 	kind, text string
+	raw        string // the helper's own text behind 复制原文 (N6)
 	failed     bool
 	page, hist string
 }
 
-func describeEvent(e rpc.Event, subName func(id string) string) (eventRow, bool) {
+// nameOf names a subscription ("subscription") or an override ("layer")
+// by ID; "" when it is gone.
+type nameOf func(kind, id string) string
+
+func describeEvent(e rpc.Event, name nameOf) (eventRow, bool) {
+	if name == nil {
+		name = func(_, id string) string { return id }
+	}
 	T := i18n.T
 	kind, ok := T.EventKinds[e.Type]
 	if !ok {
@@ -106,9 +114,13 @@ func describeEvent(e rpc.Event, subName func(id string) string) (eventRow, bool)
 		r.page, r.hist = pageHistory, res.HistoryID
 		switch {
 		case e.Type == rpc.EventComposeFailed:
-			r.failed, r.page = true, pageConfig
-			text, _ := T.MsgText(errorMsg(res.Error, res.ErrorMsg), false)
-			r.text = i18n.F(T.EvApplyFailed, joinNonEmpty(reason, text))
+			r.failed, r.page, r.raw = true, pageConfig, res.Error
+			// The chip already says 应用: a plain apply's reason would
+			// repeat it. The system's text goes behind 复制原文.
+			if code, _ := i18n.HistoryReasonCode(res.ReasonCode, res.ReasonArgs, res.Reason); code == "apply" {
+				reason = ""
+			}
+			r.text = i18n.F(T.EvApplyFailed, joinNonEmpty(reason, T.MsgHead(errorMsg(res.Error, res.ErrorMsg))))
 		case !res.Changed && !res.Written:
 			r.text = i18n.F(T.EvApplyUnchanged, reason)
 		default:
@@ -116,14 +128,14 @@ func describeEvent(e rpc.Event, subName func(id string) string) (eventRow, bool)
 		}
 		r.text = strings.TrimSuffix(r.text, " · ")
 	case rpc.EventStateChanged:
-		r.text, r.page = T.EvState, pageConfig
+		r.text, r.page = stateChangeText(e.Data, name), pageConfig
 	case rpc.EventSubUpdated, rpc.EventSubFailed:
 		var d struct {
 			ID      string `json:"id"`
 			Changed bool   `json:"changed"`
 		}
 		json.Unmarshal(e.Data, &d)
-		name := subName(d.ID)
+		name := name("subscription", d.ID)
 		r.page = pageConfig
 		switch {
 		case e.Type == rpc.EventSubFailed:
@@ -159,6 +171,31 @@ func describeEvent(e rpc.Event, subName func(id string) string) (eventRow, bool)
 		r.text = T.EvHelperStop
 	}
 	return r, true
+}
+
+// stateChangeText names what an edit changed: which override or
+// subscription, and how (N7). An event from an older helper, or a change
+// with no single subject, says it in general.
+func stateChangeText(data json.RawMessage, name nameOf) string {
+	T := i18n.T
+	var d struct{ Layer, Subscription, Op, Name string }
+	json.Unmarshal(data, &d)
+	kind, id := "layer", d.Layer
+	if id == "" {
+		kind, id = "subscription", d.Subscription
+	}
+	if id == "" {
+		return T.EvState
+	}
+	n := name(kind, id)
+	if n == id && d.Name != "" { // gone (deleted): the name it had
+		n = d.Name
+	}
+	tmpl, ok := T.EvStateOps[kind+"."+d.Op]
+	if !ok {
+		tmpl = T.EvStateOps[kind]
+	}
+	return i18n.F(tmpl, n)
 }
 
 func joinNonEmpty(parts ...string) string {

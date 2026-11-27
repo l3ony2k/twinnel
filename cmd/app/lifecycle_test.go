@@ -27,7 +27,7 @@ func TestEffectRows(t *testing.T) {
 	if len(rows) != 6 {
 		t.Fatalf("rows %+v", rows)
 	}
-	if !rows[1].warn || rows[1].now != "mihomo · v1.19.34" || !rows[4].warn {
+	if !rows[1].warn || rows[1].now != "mihomo · v1.19.34" || rows[4].warn { // H13: no secret is not a risk
 		t.Fatalf("binary/secret rows %+v %+v", rows[1], rows[4])
 	}
 	rw := rewriteRows(p)
@@ -175,8 +175,8 @@ func TestWriteExport(t *testing.T) {
 		rpc.MethodLayerGet + "/mine":    rpc.LayerContent{Content: "rules: []\n"},
 		rpc.MethodLayerGet + "/coexist": rpc.LayerContent{Content: "managed\n"},
 	}
-	layers := []rpc.Layer{{ID: "mine"}, {ID: "coexist", Managed: true}}
-	if err := writeExport(context.Background(), hc, to, layers); err != nil {
+	hc[rpc.MethodLayerList] = []rpc.Layer{{ID: "mine"}, {ID: "coexist", Managed: true}}
+	if err := writeExport(context.Background(), hc, to); err != nil {
 		t.Fatal(err)
 	}
 	zr, err := zip.OpenReader(to)

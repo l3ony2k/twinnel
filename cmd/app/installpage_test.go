@@ -42,8 +42,13 @@ func TestInstallPageRouting(t *testing.T) {
 			}
 		}
 	}
-	if navParent(pageInstall) != pageAbout || pageBack(pageInstall) != pageAbout {
+	defer clear(subFrom)
+	if navParent(pageInstall) != pageSettings || pageBack(pageInstall) != pageSettings {
 		t.Errorf("install: parent %q back %q", navParent(pageInstall), pageBack(pageInstall))
+	}
+	noteSubPage(pageInstall, pageOverview) // opened from 开始使用 on 概览
+	if navParent(pageInstall) != pageOverview || pageBack(pageInstall) != pageOverview {
+		t.Errorf("install from overview: parent %q back %q", navParent(pageInstall), pageBack(pageInstall))
 	}
 }
 

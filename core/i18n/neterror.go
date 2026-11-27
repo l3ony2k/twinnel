@@ -45,6 +45,10 @@ func PlainNetError(raw string) string {
 	return s
 }
 
+// NetReason is why a connection failed, in the UI language ("" when duet
+// does not know the error).
+func NetReason(raw string) string { return netReason(raw) }
+
 func netReason(raw string) string {
 	T := Cur()
 	r := strings.ToLower(raw)

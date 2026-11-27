@@ -278,12 +278,18 @@ func (a *app) testEgress() {
 
 // --- overview ---
 
-// verdictActions are the overview banner's buttons for what its reasons
-// ask of the user: see the findings, take over, start mihomo, log in to
-// Tailscale, accept or turn off the exit node.
-func (a *app) verdictActions(c *ui.Context, s status.Snapshot) {
+// bannerAct is one thing the overview banner offers for its reasons.
+type bannerAct struct {
+	key, label string
+	run        func()
+	menu       func(m *ui.Menu) // a submenu (应急恢复) instead of run
+}
+
+// bannerActs are the banner's actions that can run now, most useful
+// first: what fixes the worst reason leads. Actions that can't run are
+// left out, not greyed (walkthrough 2, N8).
+func (a *app) bannerActs(s status.Snapshot) []bannerAct {
 	T := i18n.T
-	var acts []func()
 	has := func(code string) bool {
 		for _, r := range s.Reasons {
 			if r.Code == code {
@@ -292,50 +298,62 @@ func (a *app) verdictActions(c *ui.Context, s status.Snapshot) {
 		}
 		return false
 	}
+	can := s.Can()
+	var acts []bannerAct
+	if has(status.ReasonMihomoDown) && can.Helper && a.hd.busy == "" {
+		acts = append(acts, bannerAct{key: "start-mihomo", label: T.StartMihomo,
+			run: func() { a.mihomoService(rpc.MethodServiceStart, T.StartMihomo) }})
+	}
+	if has(status.ReasonTSNeedsLogin) && can.Tailscale {
+		acts = append(acts, bannerAct{key: "ts-login", label: T.TSLogIn, run: func() { a.tsLogin(s) }})
+	}
 	if has(status.ReasonHealth) {
-		acts = append(acts, func() {
-			if pushButton(c.Key("findings"), T.FindingsView).Clicked() {
-				a.openPage(pageHealth)
-			}
-		})
-		if !s.TakenOver() {
-			acts = append(acts, func() {
-				if pushButton(c.Key("findings-takeover"), T.FindingsTakeover).Clicked() {
-					a.openPage(pageTakeover)
-				}
-			})
+		if !s.TakenOver() && s.WritesAllowed {
+			acts = append(acts, bannerAct{key: "findings-takeover", label: T.FindingsTakeover, run: func() { a.openPage(pageTakeover) }})
 		}
-	}
-	if has(status.ReasonMihomoDown) {
-		acts = append(acts, func() {
-			b := pushButton(c.Key("start-mihomo"), T.StartMihomo).Disabled(!s.Can().Helper || a.hd.busy != "")
-			if b.Clicked() {
-				a.mihomoService(rpc.MethodServiceStart, T.StartMihomo)
-			}
-			a.helperLock(c, s)
-		}, func() { a.recoveryMenu(c, s) })
-	}
-	if has(status.ReasonTSNeedsLogin) {
-		acts = append(acts, func() { a.tsLoginButton(c, s) })
+		acts = append(acts, bannerAct{key: "findings", label: T.FindingsView, run: func() { a.openPage(pageHealth) }})
 	}
 	if has(status.ReasonTSExitNode) && s.Tailscale.State.ExitNode != nil {
 		name := s.Tailscale.State.ExitNode.Name
-		acts = append(acts, func() {
-			if pushButton(c.Key("exit-accept"), T.ExitNodeAccept).Clicked() {
-				a.acceptExitNode(name)
-			}
-			if pushButton(c.Key("exit-off"), T.ExitNodeTurnOff).Disabled(!s.Can().Tailscale).Clicked() {
-				a.turnOffExitNode()
-			}
-		})
+		acts = append(acts, bannerAct{key: "exit-accept", label: T.ExitNodeAccept, run: func() { a.acceptExitNode(name) }})
+		if can.Tailscale {
+			acts = append(acts, bannerAct{key: "exit-off", label: T.ExitNodeTurnOff, run: a.turnOffExitNode})
+		}
 	}
+	if has(status.ReasonMihomoDown) {
+		acts = append(acts, bannerAct{key: "recovery", label: T.Recovery, menu: func(m *ui.Menu) { a.recoveryItems(m, s) }})
+	}
+	return acts
+}
+
+// verdictActions are the overview banner's actions: the first as a
+// button, the rest under 更多 (at most two controls, N8).
+func (a *app) verdictActions(c *ui.Context, s status.Snapshot) {
+	acts := a.bannerActs(s)
 	if len(acts) == 0 {
 		return
 	}
+	first, rest := acts[0], acts[1:]
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Margin(4, 0, 0, 0).Children(func() {
-		for _, f := range acts {
-			f()
+		if first.menu != nil {
+			pushFace(c, ui.MenuButton(c.Key(first.key), first.label, first.menu))
+		} else if pushButton(c.Key(first.key), first.label).Clicked() {
+			first.run()
 		}
+		if len(rest) == 0 {
+			return
+		}
+		pushFace(c, ui.MenuButton(c.Key("banner-more"), i18n.T.SvcMore, func(m *ui.Menu) {
+			for _, act := range rest {
+				if act.menu != nil {
+					m.Submenu(act.label, act.menu)
+					continue
+				}
+				if m.Item(act.label).Chosen() {
+					act.run()
+				}
+			}
+		}))
 	})
 }
 

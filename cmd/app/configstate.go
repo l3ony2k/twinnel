@@ -267,9 +267,14 @@ func (a *app) driftState(c *ui.Context, s status.Snapshot, dr rpc.Drift, w bool)
 		text = T.DriftRowBackup
 	}
 	ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText).Shrink(0)
-	ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Shrink(1).Children(func() {
-		ui.Text(c, fmt.Sprintf(text, when.Local().Format("01-02 15:04"))).Shrink(1).Wrap().LineHeight(lineText)
-		infoTip(c, "", T.DriftInfo, nil).Shrink(0)
+	// Two short lines, not one long one the buttons squeeze into a
+	// mid-word wrap (walkthrough 2, N9).
+	ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+		ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, fmt.Sprintf(text, when.Local().Format("01-02 15:04"))).Shrink(1).SingleLine()
+			infoTip(c, "", T.DriftInfo, nil).Shrink(0)
+		})
+		small(c, T.DriftRowSub).SingleLine().Shrink(1)
 	})
 	busy := d.busy != ""
 	if dr.Manifest && pushButton(c.Key("drift-restore"), T.DriftRestore+"…").Disabled(!w || busy).Clicked() {

@@ -217,7 +217,7 @@ func (a *app) eventsList(c *ui.Context) {
 		evs = evs[k:]
 	}
 	for i := len(evs) - 1; i >= 0; i-- {
-		r, ok := describeEvent(evs[i], a.subscriptionName)
+		r, ok := describeEvent(evs[i], a.eventName)
 		if !ok {
 			continue
 		}
@@ -257,6 +257,9 @@ func (a *app) eventsList(c *ui.Context) {
 			if m.Item(i18n.T.CopyLine).Chosen() {
 				copyText(c, when+" "+r.kind+" "+r.text)
 			}
+			if r.raw != "" && m.Item(i18n.T.MsgCopyRaw).Chosen() {
+				copyText(c, r.raw)
+			}
 		})
 		el.Children(func() {
 			num(ui.Text(c, when).FontSize(plat.smallSize).TextColor(t.TextMuted).Shrink(0))
@@ -275,6 +278,19 @@ func (a *app) eventsList(c *ui.Context) {
 }
 
 // subscriptionName names a subscription by ID for the events.
+// eventName names a subscription or an override by ID for the events.
+func (a *app) eventName(kind, id string) string {
+	if kind == "layer" {
+		for _, l := range a.hd.layers {
+			if l.ID == id {
+				return layerTitle(l)
+			}
+		}
+		return id
+	}
+	return a.subscriptionName(id)
+}
+
 func (a *app) subscriptionName(id string) string {
 	for _, s := range a.hd.subs {
 		if s.ID == id && s.Name != "" {

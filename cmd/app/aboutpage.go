@@ -30,7 +30,7 @@ type aboutView struct {
 	checking bool
 	checked  bool
 	res      update.Result
-	err      string
+	err      error // the failed check; worded when drawn, in the UI language of the moment (N15)
 
 	cliVersion string // `duet version --short`; "" unknown
 	cliLoaded  bool
@@ -103,28 +103,36 @@ func (a *app) checkUpdate() {
 	if v.checking {
 		return
 	}
-	v.checking, v.err = true, ""
+	v.checking, v.err = true, nil
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		res, err := update.Check(ctx, update.Options{Proxy: systemProxy()})
 		mygo.RunOnMain(func() {
 			v := &a.about
-			v.checking, v.checked, v.res, v.err = false, true, res, ""
-			if err != nil {
-				v.err = updateErrText(err)
-			}
+			v.checking, v.checked, v.res, v.err = false, true, res, err
 			a.invalidate()
 		})
 	}()
 }
 
-// updateErrText is the short reason of a failed check.
-func updateErrText(err error) string {
-	if errors.Is(err, update.ErrRateLimited) {
-		return i18n.T.UpdateRateLimit
+// updateFailText is a failed check in the UI language: the reason in
+// words when duet knows it, else 检查失败 alone (the system's text is the
+// tooltip). Never the system's English, and never a reason worded in
+// another language (walkthrough 2, N15).
+func updateFailText(err error) string {
+	T := i18n.T
+	why := ""
+	switch {
+	case errors.Is(err, update.ErrRateLimited):
+		why = T.UpdateRateLimit
+	default:
+		why = i18n.PlainNetError(status.ShortError(err))
 	}
-	return i18n.PlainNetError(status.ShortError(err))
+	if why == "" {
+		return T.UpdateFailedPlain
+	}
+	return fmt.Sprintf(T.UpdateFailed, why)
 }
 
 func (a *app) aboutPage(c *ui.Context, s status.Snapshot) {
@@ -157,7 +165,7 @@ func (a *app) aboutHeader(c *ui.Context) {
 			})
 			ui.Column(c).Gap(6).AlignItems(ui.End).Shrink(0).Children(func() {
 				label := T.CheckUpdate
-				if v.err != "" {
+				if v.err != nil {
 					label = T.Retry
 				}
 				b := pushButton(c.Key("check-update"), "").Label(label).Disabled(v.checking)
@@ -185,9 +193,9 @@ func (a *app) updateOutcome(c *ui.Context) {
 	switch {
 	case v.checking:
 		small(c, T.UpdateChecking).SingleLine()
-	case v.err != "":
-		ui.Text(c, fmt.Sprintf(T.UpdateFailed, v.err)).FontSize(plat.calloutSize).TextColor(pal(t).badText).
-			SingleLine().Shrink(1).Tooltip(v.err)
+	case v.err != nil:
+		ui.Text(c, updateFailText(v.err)).FontSize(plat.calloutSize).TextColor(pal(t).badText).
+			SingleLine().Shrink(1).Tooltip(status.ShortError(v.err))
 	case !v.checked:
 	case v.res.State == update.Available:
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
@@ -381,7 +389,12 @@ func (a *app) aboutTakeover(c *ui.Context) {
 	para := func(text string) {
 		ui.Text(c, text).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 	}
-	el := card(c, T.AboutTakeover, func() {
+	var anchor ui.Element
+	card(c, T.AboutTakeover, func() {
+		// Scrolled to, the card's top lands under the toolbar, which is
+		// drawn over the page: the anchor sits a toolbar's height above
+		// it (walkthrough 2, N17).
+		anchor = ui.Box(c.Key("anchor")).Absolute().Top(-(toolbarHeight(c) + 12)).Left(0).Size(1, 1).PassThrough().AccessHidden(true)
 		flowRow(c, "now", T.TkNow, T.AbtTkYourConfig, "mihomo")
 		flowRow(c, "after", T.TkAfter, T.AbtTkSub+" + "+T.AbtTkLayers, T.AbtTkComposed, "mihomo")
 
@@ -415,7 +428,7 @@ func (a *app) aboutTakeover(c *ui.Context) {
 	})
 	if a.about.reveal == aboutTakeoverAnchor {
 		a.about.reveal = ""
-		el.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollStart, Animation: &rowMove})
+		anchor.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollStart, Animation: &rowMove})
 	}
 }
 

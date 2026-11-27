@@ -231,7 +231,10 @@ func FromStatus(st *ipnstate.Status, prefs *ipn.Prefs) State {
 		}
 		return a.Name < b.Name
 	})
-	if en := st.ExitNodeStatus; en != nil {
+	// An exit node is in use only while the node runs: logged out or
+	// stopped, the preference is kept but nothing goes through it, so it
+	// is not reported (it would read as a live conflict).
+	if en := st.ExitNodeStatus; en != nil && st.BackendState == "Running" {
 		s.ExitNodeOnline = en.Online
 		for i := range s.Peers {
 			if s.Peers[i].ID == string(en.ID) {

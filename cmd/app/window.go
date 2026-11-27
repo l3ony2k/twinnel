@@ -326,6 +326,7 @@ func (a *app) showPage(id string) {
 }
 
 func (a *app) pageChanged(old string) {
+	noteSubPage(a.page, old)
 	if a.page != old && a.hd.busy == "" {
 		a.hd.msg, a.hd.msgErr = "", false // the last outcome belongs to the page it ran on
 	}
@@ -405,6 +406,11 @@ func (a *app) verdict(c *ui.Context, s status.Snapshot) {
 				ui.Text(c, head).FontSize(plat.leadSize).FontWeight(600)
 				for _, r := range reasons {
 					ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
+					if r.Raw != "" {
+						// The system's own words, secondary (as errorNote).
+						ui.Text(c, r.Raw).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().
+							LineHeight(lineText).Selectable().Label(i18n.T.UnreachableDetail + "：" + r.Raw)
+					}
 				}
 				a.verdictActions(c, s)
 			})
@@ -1049,7 +1055,6 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 
 type settingsForm struct {
 	controller, secret, primary, testURL string
-	mihomoBinary, mihomoConfigDir        string
 	msg                                  string
 	failed                               bool
 }
@@ -1057,7 +1062,6 @@ type settingsForm struct {
 func (f *settingsForm) load(c status.Config) {
 	*f = settingsForm{
 		controller: c.Controller, primary: c.PrimaryGroup, testURL: c.TestURL,
-		mihomoBinary: c.MihomoBinary, mihomoConfigDir: c.MihomoConfigDir,
 	}
 	if !c.SecretFromEnv {
 		f.secret = c.Secret
@@ -1111,8 +1115,8 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 				ui.TextInput(c.Key("primary"), &f.primary).Label(T.PrimaryGroup).Grow(1)
 			})
 		}
-		field("binary", T.MihomoBinary, "", &f.mihomoBinary, false, false)
-		field("confdir", T.MihomoConfigDir, "", &f.mihomoConfigDir, false, false)
+		// No mihomo 程序 / 配置目录 fields: nothing read them (the helper
+		// keeps its own, found by takeover; walkthrough 2, N27).
 		ui.Row(c).Gap(12).AlignItems(ui.Center).PaddingStart(labelWidth + 36).Children(func() {
 			if ui.PrimaryButton(c.Key("save"), T.Save).Clicked() {
 				a.saveSettings()
@@ -1127,10 +1131,10 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 		ok := notificationsSupported()
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			switchLabel(c, T.NotificationsSwitch, T.TipNotifications, nil)
-			if !ok {
+			if tg := needsBundleTag(appBundled()); !ok && tg != "" {
 				// Dev runs cannot post notifications: the switch is off
 				// limits, and the tag says why (the tooltip, how).
-				tag(c, T.NotificationsUnsupported).Tooltip(T.NotificationsUnsupportedTip)
+				tag(c, tg).Tooltip(T.NotificationsUnsupportedTip)
 			}
 			if ui.Switch(c.Key("notify"), &on).Label(T.Notifications).Disabled(!ok).Changed() {
 				a.setNotifications(on)
@@ -1214,8 +1218,6 @@ func (a *app) saveSettings() {
 	cfg.Controller = strings.TrimSpace(f.controller)
 	cfg.PrimaryGroup = strings.TrimSpace(f.primary)
 	cfg.TestURL = strings.TrimSpace(f.testURL)
-	cfg.MihomoBinary = strings.TrimSpace(f.mihomoBinary)
-	cfg.MihomoConfigDir = strings.TrimSpace(f.mihomoConfigDir)
 	if !cfg.SecretFromEnv {
 		cfg.Secret = f.secret
 	}

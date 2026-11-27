@@ -15,11 +15,11 @@ type Strings struct {
 	StatusOK, StatusWarn, StatusError, StatusUnknown string
 
 	// Reasons for a status that is not OK.
-	ReasonMihomoDown     string // %s: error
+	ReasonMihomoDown     string // the reason in words follows (NetReason)
 	ReasonMihomoAuth     string
 	ReasonTunOff         string
 	ReasonPrimaryDead    string // %s: group
-	ReasonTSDown         string // %s: error
+	ReasonTSDown         string // the reason in words follows (NetReason)
 	ReasonTSNotInstalled string
 	ReasonTSNeedsLogin   string
 	ReasonTSStopped      string
@@ -131,6 +131,7 @@ type Strings struct {
 	// Layers and the layer editor.
 	Layers, LayerNew, LayerEdit, LayerGenerated, LayerEnabled             string
 	LayerManaged, LayerManagedHint, LayerID, LayerName, LayerStage        string
+	LayerAdvanced                                                         string
 	LayerFormat, FormatMerge, FormatVerge, MoveUp, MoveDown, LayerReorder string
 	LayerToggle                                                           string // %s: layer
 	LayerRemoveTitle                                                      string // %s: layer
@@ -268,11 +269,11 @@ var zh = Strings{
 	StatusError:   "出现故障",
 	StatusUnknown: "正在检测",
 
-	ReasonMihomoDown:     "连不上 mihomo 控制接口：%s",
+	ReasonMihomoDown:     "连不上 mihomo 控制接口",
 	ReasonMihomoAuth:     "mihomo 控制接口的密钥不对",
 	ReasonTunOff:         "mihomo TUN 未开启",
 	ReasonPrimaryDead:    "策略组「%s」当前节点测速失败",
-	ReasonTSDown:         "连不上 Tailscale：%s",
+	ReasonTSDown:         "连不上 Tailscale",
 	ReasonTSNotInstalled: "没有找到 Tailscale",
 	ReasonTSNeedsLogin:   "Tailscale 需要登录",
 	ReasonTSStopped:      "Tailscale 已断开",
@@ -502,6 +503,7 @@ var zh = Strings{
 	LayerManaged:     "托管",
 	LayerManagedHint: "由 duet 生成，只读",
 	LayerID:          "ID",
+	LayerAdvanced:    "高级",
 	LayerName:        "名称",
 	LayerStage:       "阶段",
 	LayerFormat:      "格式",
@@ -618,14 +620,14 @@ var zh = Strings{
 		"fakeip-whitelist": "dns.fake-ip-filter-mode 是 whitelist，没有加入 Tailscale 的 fake-ip-filter 条目；请确认白名单不包含 ts.net 或单段名字",
 		"fakeip-unknown":   "不认识的 dns.fake-ip-filter-mode「%s」，没有加入 Tailscale 的 fake-ip-filter 条目",
 		"new-secret":       "已生成新的控制接口密钥",
-		"reload-disrupts":  "这次重载会短暂中断网络：%s",
+		"reload-disrupts":  "这次重载会短暂中断网络",
 		"restart-needed":   "%s 要在 mihomo 重启后才生效",
 		"mihomo-stopped":   "mihomo 没有运行（%s）；配置已写入，下次启动时生效",
 		"exposed":          "%s：%s 可以从网络访问，只有密钥保护",
 		"adopt-refuses":    "接管会拒绝这套配置：%s",
 		"adopt-profiles":   "找到 %s 个订阅配置；订阅地址不会导入，接管后在「订阅与覆写」添加",
-		"adopt-disrupts":   "接管时的重载会短暂中断网络：%s",
-		"adopt-differs":    "应用的配置和计划里的 composed.yaml 不同：做计划之后 tailnet 设备或网卡变了",
+		"adopt-disrupts":   "接管时的重载会短暂中断网络",
+		"adopt-differs":    "做计划之后 tailnet 设备或网卡有变化，接管时已按现在的情况生成配置，不用重新生成计划",
 		"binary-writable":  "mihomo 程序 %s 不需要 root 就能被替换（%s），而服务以 root 运行它；请在「内核」安装由 duet 管理的内核",
 		"plain-http":       "订阅地址是明文 http，可能被读取或篡改；服务商支持的话请改用 https",
 		"secret-clients":   "网页面板、脚本等客户端需要新密钥，可用 %s 读取",

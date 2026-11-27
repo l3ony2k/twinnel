@@ -485,6 +485,16 @@ func warningNote(c *ui.Context, w string) ui.Element {
 	return msgNote(c, msg.Parse(w), true)
 }
 
+// infoNote is a line worth knowing that asks nothing of the user: the
+// muted info glyph and text (not the warning colors).
+func infoNote(c *ui.Context, text string) ui.Element {
+	t := c.Theme()
+	return ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
+		ui.Icon(c, iconAbout).FontSize(iconInline).TextColor(t.TextMuted).MarginY(1)
+		ui.Text(c, text).FontSize(plat.calloutSize).TextColor(t.TextMuted).Grow(1).Wrap().LineHeight(lineText).Selectable()
+	})
+}
+
 // emptyState says why a list is empty and what to do about it.
 func emptyState(c *ui.Context, icon *ui.SVG, title, hint string) ui.Element {
 	t := c.Theme()

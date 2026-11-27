@@ -161,7 +161,7 @@ func TestEvaluate(t *testing.T) {
 	}{
 		{"healthy", func(*Snapshot) {}, LevelOK, ""},
 		{"loading", func(s *Snapshot) { s.Loaded = false }, LevelUnknown, ""},
-		{"mihomo down", func(s *Snapshot) { s.Mihomo = Mihomo{Err: "connection refused"} }, LevelError, "connection refused"},
+		{"mihomo down", func(s *Snapshot) { s.Mihomo = Mihomo{Err: "connection refused"} }, LevelError, "对方拒绝了连接"},
 		{"mihomo auth", func(s *Snapshot) { s.Mihomo = Mihomo{Unauthorized: true, Err: "x"} }, LevelError, "密钥"},
 		{"tun off", func(s *Snapshot) { s.Mihomo.Config.Tun.Enable = false }, LevelWarn, "TUN"},
 		{"primary dead", func(s *Snapshot) {
@@ -174,7 +174,7 @@ func TestEvaluate(t *testing.T) {
 		{"ts exit node", func(s *Snapshot) { s.Tailscale.State.ExitNode = &tailscale.Peer{Name: "exit-1"} }, LevelWarn, "exit-1"},
 		{"ts key", func(s *Snapshot) { s.Tailscale.State.KeyExpiry = &soon }, LevelWarn, "过期"},
 		{"ts health", func(s *Snapshot) { s.Tailscale.State.Health = []string{"DNS broken"} }, LevelWarn, "DNS broken"},
-		{"ts down", func(s *Snapshot) { s.Tailscale.Reachable, s.Tailscale.Err = false, "no such socket" }, LevelError, "no such socket"},
+		{"ts down", func(s *Snapshot) { s.Tailscale.Reachable, s.Tailscale.Err = false, "no such socket" }, LevelError, "连不上 Tailscale"},
 		{"ts missing", func(s *Snapshot) {
 			s.Tailscale = Tailscale{Err: "no such socket", Install: tailscale.Install{Kind: tailscale.InstallUnknown}}
 		}, LevelWarn, "没有找到"},

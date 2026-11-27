@@ -115,6 +115,13 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 	}
 	state, col := serviceState(t, st)
 	adopted := a.serviceAdopted(name)
+	// mihomo runs, but not from a service duet knows (the person's own
+	// LaunchDaemon before takeover, or a terminal): it is running, and
+	// duet offers no service of its own over it (walkthrough 2, N11).
+	own := name == "mihomo" && !st.Installed && !adopted && s.Mihomo.Reachable
+	if own {
+		state, col = T.SvcOwnRunning, t.Success
+	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Height(28).Children(func() { // one height with or without buttons
 		dot(c, col, 8)
 		ui.Text(c, name).FontWeight(600)
@@ -125,8 +132,8 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		ui.Spacer(c)
 		if !st.Installed {
 			// Never offer duet's own service while the person's adopted
-			// one fills the role.
-			if name == "mihomo" && !adopted && a.opButton(c.Key("install"), iconOK, T.ServiceInstall, false, T.ServiceInstall+" "+name).Disabled(!w).Clicked() {
+			// one (or their own running mihomo) fills the role.
+			if name == "mihomo" && !adopted && !own && a.opButton(c.Key("install"), iconOK, T.ServiceInstall, false, T.ServiceInstall+" "+name).Disabled(!w).Clicked() {
 				a.confirm(fmt.Sprintf(T.ServiceInstallTitle, name), "", T.ServiceInstall, func() {
 					a.serviceOp(rpc.MethodServiceInstall, name, T.ServiceInstall)
 				})
@@ -159,6 +166,10 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 			})
 		}
 	})
+	if own {
+		kv(c, T.ServiceLabel, orDash(a.ownMihomoLabel()))
+		return
+	}
 	kv(c, T.ServiceLabel, orDash(st.Label))
 	if st.PID > 0 {
 		kv(c, "PID", fmt.Sprint(st.PID))
@@ -175,6 +186,17 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 	if st.Error != "" {
 		errorNote(c, T.ErrorPrefix+st.Error)
 	}
+}
+
+// ownMihomoLabel is the person's own mihomo service as takeover found it
+// ("" when no plan names one).
+func (a *app) ownMihomoLabel() string {
+	for _, p := range a.hd.take.plans {
+		if p.MihomoService != "" {
+			return p.MihomoService
+		}
+	}
+	return ""
 }
 
 // serviceAdopted: the helper runs this service under a definition it

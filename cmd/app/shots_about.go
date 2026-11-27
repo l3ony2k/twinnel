@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -45,13 +46,13 @@ func (a *app) aboutShots(save func(*mygo.Window, string)) {
 	}{
 		{"about-checking", func(v *aboutView) { v.checking, v.checked = true, false }},
 		{"about-latest", func(v *aboutView) {
-			v.checking, v.checked, v.err, v.res = false, true, "", update.Result{State: update.UpToDate, Latest: "0.1.0"}
+			v.checking, v.checked, v.err, v.res = false, true, nil, update.Result{State: update.UpToDate, Latest: "0.1.0"}
 		}},
 		{"about-available", func(v *aboutView) {
-			v.checking, v.checked, v.err = false, true, ""
+			v.checking, v.checked, v.err = false, true, nil
 			v.res = update.Result{State: update.Available, Latest: "0.2.0", URL: "https://github.com/l3ony2k/duet/releases/tag/v0.2.0"}
 		}},
-		{"about-failed", func(v *aboutView) { v.checking, v.checked, v.err = false, true, "没能连上 GitHub" }},
+		{"about-failed", func(v *aboutView) { v.checking, v.checked, v.err = false, true, errSyntheticUpdate }},
 	} {
 		set(st.fn)
 		if st.name == "about-checking" {
@@ -88,3 +89,6 @@ func (a *app) installShots(save func(*mygo.Window, string)) {
 		save(a.win, st.name)
 	}
 }
+
+// errSyntheticUpdate is a failed release check as Go reports it.
+var errSyntheticUpdate = errors.New(`Get "https://api.github.com/repos/l3ony2k/duet/releases/latest": dial tcp: lookup api.github.com: no such host`)

@@ -138,7 +138,7 @@ func (e *Engine) PutLayer(p rpc.LayerPutParams) (rpc.Layer, error) {
 	if err != nil {
 		return rpc.Layer{}, err
 	}
-	e.publish(rpc.EventStateChanged, map[string]string{"layer": p.ID})
+	e.publish(rpc.EventStateChanged, map[string]string{"layer": p.ID, "op": "saved", "name": meta.Name})
 	return rpc.Layer{ID: meta.ID, Name: meta.Name, Stage: meta.Stage, Format: meta.Format, Enabled: meta.Enabled, Size: len(p.Content),
 		NameCode: meta.NameCode, NameArgs: meta.NameArgs}, nil
 }
@@ -148,11 +148,13 @@ func (e *Engine) DeleteLayer(id string) error {
 	if reservedLayer(id) {
 		return rpc.ErrInvalid("%q is a managed layer; disable it in settings", id)
 	}
+	var name string
 	_, err := e.Store.UpdateSettings(func(st *store.Settings) error {
 		i := st.LayerIndex(id)
 		if i < 0 {
 			return rpc.ErrNotFound("layer", id)
 		}
+		name = st.Layers[i].Name
 		st.Layers = append(st.Layers[:i], st.Layers[i+1:]...)
 		return nil
 	})
@@ -160,7 +162,7 @@ func (e *Engine) DeleteLayer(id string) error {
 		return err
 	}
 	e.Store.DeleteLayer(id)
-	e.publish(rpc.EventStateChanged, map[string]string{"layer": id})
+	e.publish(rpc.EventStateChanged, map[string]string{"layer": id, "op": "deleted", "name": name})
 	return nil
 }
 
@@ -178,7 +180,11 @@ func (e *Engine) SetLayerEnabled(id string, on bool) error {
 		return nil
 	})
 	if err == nil {
-		e.publish(rpc.EventStateChanged, map[string]string{"layer": id})
+		op := "off"
+		if on {
+			op = "on"
+		}
+		e.publish(rpc.EventStateChanged, map[string]string{"layer": id, "op": op})
 	}
 	return err
 }

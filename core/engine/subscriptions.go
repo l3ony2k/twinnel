@@ -125,7 +125,7 @@ func (e *Engine) PutSubscription(ctx context.Context, p rpc.SubPutParams) (rpc.S
 	if err != nil {
 		return rpc.Subscription{}, err
 	}
-	e.publish(rpc.EventStateChanged, map[string]string{"subscription": p.ID})
+	e.publish(rpc.EventStateChanged, map[string]string{"subscription": p.ID, "op": "saved", "name": p.Name})
 	for _, s := range e.subscriptionInfos(st) {
 		if s.ID == p.ID {
 			if w := plainHTTPWarning(p.URL); w != "" {
@@ -139,6 +139,7 @@ func (e *Engine) PutSubscription(ctx context.Context, p rpc.SubPutParams) (rpc.S
 
 // DeleteSubscription removes a subscription, its content and its URL.
 func (e *Engine) DeleteSubscription(id string) error {
+	var name string
 	_, err := e.Store.UpdateSettings(func(st *store.Settings) error {
 		i := st.SubscriptionIndex(id)
 		if i < 0 {
@@ -147,6 +148,7 @@ func (e *Engine) DeleteSubscription(id string) error {
 		if st.Subscriptions[i].Active {
 			return rpc.ErrInvalid("subscription %q is active; activate another one first", id)
 		}
+		name = st.Subscriptions[i].Name
 		st.Subscriptions = append(st.Subscriptions[:i], st.Subscriptions[i+1:]...)
 		return nil
 	})
@@ -155,7 +157,7 @@ func (e *Engine) DeleteSubscription(id string) error {
 	}
 	e.Store.DeleteSubscription(id)
 	e.Secrets.Delete(store.SubscriptionURLKey(id))
-	e.publish(rpc.EventStateChanged, map[string]string{"subscription": id})
+	e.publish(rpc.EventStateChanged, map[string]string{"subscription": id, "op": "deleted", "name": name})
 	return nil
 }
 
@@ -171,7 +173,7 @@ func (e *Engine) ActivateSubscription(id string) error {
 		return nil
 	})
 	if err == nil {
-		e.publish(rpc.EventStateChanged, map[string]string{"subscription": id})
+		e.publish(rpc.EventStateChanged, map[string]string{"subscription": id, "op": "activated"})
 	}
 	return err
 }

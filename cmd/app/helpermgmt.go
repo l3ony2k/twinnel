@@ -426,6 +426,16 @@ func appBundlePath() string {
 // appBundled: 登录时打开 needs an app bundle (SMAppService).
 var appBundled = func() bool { return appBundlePath() != "" }
 
+// needsBundleTag is the 需打包版 chip for a control a dev run can't use,
+// and "" in a packaged app: there, a control that can't work is simply
+// off, never "needs the packaged app" (walkthrough 2, N28).
+func needsBundleTag(bundled bool) string {
+	if bundled {
+		return ""
+	}
+	return i18n.T.NotificationsUnsupported
+}
+
 func (a *app) setOpenAtLogin(on bool) {
 	a.hm.loginErr = ""
 	if err := mygo.App.SetOpenAtLogin(on); err != nil {
@@ -572,8 +582,8 @@ func (a *app) loginSection(c *ui.Context) {
 		on := ok && a.openAtLogin()
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			switchLabel(c, T.OpenAtLogin, T.TipOpenAtLogin, func() { a.openAboutFAQ(T.FAQQuitQ) })
-			if !ok {
-				tag(c, T.NotificationsUnsupported).Tooltip(T.OpenAtLoginUnsupportedTip)
+			if tg := needsBundleTag(ok); tg != "" {
+				tag(c, tg).Tooltip(T.OpenAtLoginUnsupportedTip)
 			}
 			if ui.Switch(c.Key("login"), &on).Label(T.OpenAtLogin).Disabled(!ok).Changed() {
 				a.setOpenAtLogin(on)
