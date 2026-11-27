@@ -1,5 +1,7 @@
 package i18n
 
+import "strings"
+
 // Texts of batch C (design review 2026-11-27): the 订阅与覆写 page's
 // compose groups, drift and pending rows, the 历史 page's reasons, the
 // 日志 page's duet events, and the helper messages coded by core/msg.
@@ -42,6 +44,18 @@ type ConfigUIStrings struct {
 	GuardMeta                  string // %s: the groups
 	GuardNoCandidates          string
 	ShowGenerated              string
+
+	// An override's row meta: what it does (config-polish2). The singular
+	// forms are for 1 (English); %d: count, %s: keys.
+	SumRule, SumRules       string
+	SumProxy, SumProxies    string
+	SumGroup, SumGroups     string
+	SumChanges, SumMoreKeys string
+	SumEmpty                string
+	// A subscription's update interval in human units.
+	SubDaily, SubEveryDays   string // %d: days
+	SubHourly, SubEveryHours string // %d: hours
+	SubEveryMins             string // %d: minutes
 
 	// Subscription row (U32).
 	SubSourceAdopted     string // %s: the base file, or "" (then SubSourceAdoptedBare)
@@ -162,6 +176,21 @@ var zhConfigUI = ConfigUIStrings{
 	GuardMeta:           "保护 %s",
 	GuardNoCandidates:   "没有含 DIRECT 的策略组",
 	ShowGenerated:       "查看生成内容",
+
+	SumRule:       "%d 条规则",
+	SumRules:      "%d 条规则",
+	SumProxy:      "%d 个节点",
+	SumProxies:    "%d 个节点",
+	SumGroup:      "%d 个策略组",
+	SumGroups:     "%d 个策略组",
+	SumChanges:    "改 %s",
+	SumMoreKeys:   " 等 %d 项",
+	SumEmpty:      "空",
+	SubDaily:      "每天更新",
+	SubEveryDays:  "每 %d 天更新",
+	SubHourly:     "每小时更新",
+	SubEveryHours: "每 %d 小时更新",
+	SubEveryMins:  "每 %d 分钟更新",
 
 	SubSourceAdopted:     "来源：接管时的配置（%s）",
 	SubSourceAdoptedBare: "来源：接管时的配置",
@@ -325,6 +354,21 @@ var enConfigUI = ConfigUIStrings{
 	GuardNoCandidates:   "No group has DIRECT",
 	ShowGenerated:       "Show Generated Config",
 
+	SumRule:       "%d rule",
+	SumRules:      "%d rules",
+	SumProxy:      "%d proxy",
+	SumProxies:    "%d proxies",
+	SumGroup:      "%d group",
+	SumGroups:     "%d groups",
+	SumChanges:    "changes %s",
+	SumMoreKeys:   " +%d more",
+	SumEmpty:      "Empty",
+	SubDaily:      "Updates daily",
+	SubEveryDays:  "Updates every %d days",
+	SubHourly:     "Updates hourly",
+	SubEveryHours: "Updates every %d hours",
+	SubEveryMins:  "Updates every %d min",
+
 	SubSourceAdopted:     "Source: the config at takeover (%s)",
 	SubSourceAdoptedBare: "Source: the config at takeover",
 	SubUpdated:           "Updated %s · %s",
@@ -453,4 +497,28 @@ var enConfigUI = ConfigUIStrings{
 	EvHelperStarted:  "Started",
 	EvHelperStop:     "Stopping",
 	EvShow:           "Show",
+}
+
+// Count words n with one (n == 1, with or without a %d) or many (with
+// a %d).
+func Count(n int, one, many string) string {
+	if n == 1 {
+		if !strings.Contains(one, "%d") {
+			return one
+		}
+		return F(one, n)
+	}
+	return F(many, n)
+}
+
+// Interval words a subscription's update interval in minutes (> 0) in
+// the largest whole unit: 每天, 每 6 小时, 每 30 分钟.
+func (s *Strings) Interval(mins int) string {
+	switch {
+	case mins%1440 == 0:
+		return Count(mins/1440, s.SubDaily, s.SubEveryDays)
+	case mins%60 == 0:
+		return Count(mins/60, s.SubHourly, s.SubEveryHours)
+	}
+	return F(s.SubEveryMins, mins)
 }
