@@ -1,0 +1,33 @@
+#!/bin/sh
+# AppRun of the Twinnel AppImage: runs the app inside the image.
+#
+# Root cannot read another user's FUSE mount, so the helper install
+# (pkexec twinnel helper install) cannot run twinnel or twinnel-helper from
+# the image. They are copied once per version to the user's cache, and the
+# app is pointed at that copy ($TWINNEL_CLI; twinnel-helper is found next
+# to it).
+set -eu
+here="$(dirname "$(readlink -f "$0")")"
+lib="$here/usr/lib/twinnel"
+
+if [ -z "${TWINNEL_CLI:-}" ]; then
+	version="$(cat "$lib/VERSION" 2>/dev/null || echo unknown)"
+	bin="${XDG_CACHE_HOME:-$HOME/.cache}/twinnel/appimage/$version"
+	if [ ! -x "$bin/twinnel" ] || [ ! -x "$bin/twinnel-helper" ]; then
+		tmp="$bin.tmp.$$"
+		rm -rf "$tmp"
+		mkdir -p "$tmp"
+		cp "$lib/bin/twinnel" "$lib/bin/twinnel-helper" "$tmp/"
+		chmod 0755 "$tmp/twinnel" "$tmp/twinnel-helper"
+		rm -rf "$bin"
+		mv "$tmp" "$bin"
+	fi
+	export TWINNEL_CLI="$bin/twinnel"
+fi
+
+# `Twinnel-*.AppImage cli ...` runs the command line tool.
+if [ "${1:-}" = cli ]; then
+	shift
+	exec "$TWINNEL_CLI" "$@"
+fi
+exec "$lib/Twinnel" "$@"

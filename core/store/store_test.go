@@ -176,3 +176,32 @@ func TestMigrateSecrets(t *testing.T) {
 		t.Error("file kept")
 	}
 }
+
+func TestSealedFileSecrets(t *testing.T) {
+	dir := t.TempDir()
+	xor := func(b []byte) ([]byte, error) {
+		out := make([]byte, len(b))
+		for i := range b {
+			out[i] = b[i] ^ 0x5a
+		}
+		return out, nil
+	}
+	sealed := &FileSecrets{Path: filepath.Join(dir, "secrets.sealed"), Seal: xor, Unseal: xor}
+	plain := &FileSecrets{Path: filepath.Join(dir, "secrets.json")}
+	if err := plain.Set(SecretController, "synthetic-secret"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := MigrateSecrets(plain, sealed); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := sealed.Get(SecretController); err != nil || v != "synthetic-secret" {
+		t.Fatalf("%q %v", v, err)
+	}
+	raw, _ := os.ReadFile(sealed.Path)
+	if strings.Contains(string(raw), "synthetic-secret") {
+		t.Error("sealed file holds the plain value")
+	}
+	if _, err := os.Stat(plain.Path); !os.IsNotExist(err) {
+		t.Error("plain file kept after migration")
+	}
+}

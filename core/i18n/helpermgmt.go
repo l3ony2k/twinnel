@@ -29,6 +29,7 @@ type HelperMgmtStrings struct {
 	ItemOriginalMihomo, ItemTwinnelMihomoKeep string
 	ItemTailscale, ItemApp, ItemAppTrash      string
 	ItemLoginItem                             string
+	ItemSystemDNS                             string // the system DNS Twinnel set, written back
 	UninstallOwnMihomo                        string
 	UninstallRefused                          string // %s: the reason
 
@@ -73,6 +74,7 @@ var zhHelperMgmt = HelperMgmtStrings{
 	ItemApp:               "Twinnel.app",
 	ItemAppTrash:          "Twinnel.app（移到废纸篓）",
 	ItemLoginItem:         "登录时打开",
+	ItemSystemDNS:         "系统 DNS 设置（改回原来的）",
 	UninstallOwnMihomo:    "mihomo 正在用 Twinnel 的数据运行，删除数据会断网。先在「内核」页卸载 mihomo 服务。",
 	UninstallRefused:      "无法卸载：%s",
 
@@ -122,6 +124,7 @@ var enHelperMgmt = HelperMgmtStrings{
 	ItemApp:               "Twinnel.app",
 	ItemAppTrash:          "Twinnel.app (moved to the Trash)",
 	ItemLoginItem:         "Open at login",
+	ItemSystemDNS:         "the system DNS setting (back to what it was)",
 	UninstallOwnMihomo:    "mihomo runs from Twinnel's data; deleting it would cut the network. Uninstall the mihomo service on the Core page first.",
 	UninstallRefused:      "Can't uninstall: %s",
 

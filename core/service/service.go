@@ -79,6 +79,9 @@ const (
 	// asynchronous change (launchd finishing a bootout) before the next
 	// step.
 	StepWait StepKind = "wait"
+	// StepRemoveAll deletes a directory tree (Windows purge; Unix plans
+	// keep `rm -rf`). Needs a Files with RemoveAll.
+	StepRemoveAll StepKind = "removeall"
 )
 
 // Step is one action of a Plan.
@@ -100,8 +103,10 @@ type Step struct {
 	RetryOn      []string
 	RetryBackoff time.Duration
 
-	// Until and Timeout (wait): see StepWait.
+	// Until and Timeout (wait): see StepWait. OrUntil are more strings any
+	// of which also ends the wait (e.g. "service does not exist").
 	Until   string
+	OrUntil []string
 	Timeout time.Duration
 }
 
@@ -132,6 +137,8 @@ func (s Step) String() string {
 		out = fmt.Sprintf("write %s (mode %04o, %d bytes)", shellQuote(s.Path), s.Mode.Perm(), len(s.Content))
 	case StepRemove:
 		out = "rm -f " + shellQuote(s.Path)
+	case StepRemoveAll:
+		out = "rm -rf " + shellQuote(s.Path)
 	case StepRun:
 		q := make([]string, len(s.Argv))
 		for i, a := range s.Argv {
@@ -146,7 +153,11 @@ func (s Step) String() string {
 		for i, a := range s.Argv {
 			q[i] = shellQuote(a)
 		}
-		out = fmt.Sprintf("wait until `%s` says %q (up to %s)", strings.Join(q, " "), s.Until, s.Timeout)
+		until := fmt.Sprintf("%q", s.Until)
+		for _, o := range s.OrUntil {
+			until += fmt.Sprintf(" or %q", o)
+		}
+		out = fmt.Sprintf("wait until `%s` says %s (up to %s)", strings.Join(q, " "), until, s.Timeout)
 	default:
 		out = string(s.Kind)
 	}
@@ -205,6 +216,13 @@ func Apply(ctx context.Context, steps []Step, ex Executor, files Files) error {
 			err = files.WriteFile(s.Path, s.Content, s.Mode)
 		case StepRemove:
 			err = files.Remove(s.Path)
+		case StepRemoveAll:
+			ra, ok := files.(interface{ RemoveAll(string) error })
+			if !ok {
+				err = fmt.Errorf("cannot remove a directory tree with %T", files)
+			} else {
+				err = ra.RemoveAll(s.Path)
+			}
 		case StepRun:
 			err = runRetrying(ctx, s, ex)
 		case StepWait:
@@ -262,7 +280,7 @@ func waitUntil(ctx context.Context, s Step, ex Executor) error {
 	var last string
 	for waited := time.Duration(0); ; waited += WaitEvery {
 		out, _ := ex.Run(ctx, s.Argv)
-		if strings.Contains(string(out), s.Until) {
+		if strings.Contains(string(out), s.Until) || matchesAny(string(out), s.OrUntil) {
 			return nil
 		}
 		last = strings.TrimSpace(string(out))
@@ -314,6 +332,9 @@ func (e ExecExecutor) Run(ctx context.Context, argv []string) ([]byte, error) {
 type OSFiles struct{}
 
 func (OSFiles) MkdirAll(p string, m fs.FileMode) error { return os.MkdirAll(p, m) }
+
+// RemoveAll deletes a directory tree.
+func (OSFiles) RemoveAll(p string) error { return os.RemoveAll(p) }
 func (OSFiles) Remove(p string) error {
 	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 		return err

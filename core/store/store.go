@@ -24,9 +24,6 @@ import (
 	"sync"
 )
 
-// DefaultDir is the state dir of the installed helper on macOS.
-const DefaultDir = "/Library/Application Support/twinnel"
-
 // Store gives typed access to the state dir. Safe for concurrent use.
 type Store struct {
 	Dir string

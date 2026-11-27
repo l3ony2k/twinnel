@@ -35,6 +35,7 @@ var AllMethods = []string{
 	MethodAgentRecord, MethodAgentActivity,
 	MethodHardenPlan, MethodHardenPlans, MethodHardenApply,
 	MethodHelperInfo, MethodHelperInventory, MethodHelperRestart, MethodEventsWait,
+	MethodDNSStatus, MethodDNSPoint, MethodDNSRestore, MethodTailscaleInstall, MethodTailscaleLogin,
 }
 
 // HandlerFunc serves one method. params is the raw JSON (may be empty).
@@ -174,7 +175,7 @@ func (s *Server) serveConn(c net.Conn) {
 		err = s.Auth.Authorize(peer)
 	}
 	if err != nil {
-		s.Log.Warn("rpc: refused connection", "uid", peer.UID, "pid", peer.PID, "err", err)
+		s.Log.Warn("rpc: refused connection", "uid", peer.UID, "sid", peer.SID, "pid", peer.PID, "err", err)
 		write(Response{Error: Errorf(CodeUnauthorized, "not allowed: %v", err)})
 		lingerRefused(c)
 		return

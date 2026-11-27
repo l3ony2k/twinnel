@@ -258,6 +258,7 @@ type Strings struct {
 	AboutStrings           // about.go
 	TakeoverStrings        // takeover.go
 	HelperMgmtStrings      // helpermgmt.go
+	SetupStrings           // setup.go
 	ConfigUIStrings        // configui.go
 	LifecycleStrings       // lifecycle.go
 	TakeoverExplainStrings // takeoverexplain.go
@@ -823,6 +824,7 @@ var zh = Strings{
 	AboutStrings:           zhAbout,
 	TakeoverStrings:        zhTakeover,
 	HelperMgmtStrings:      zhHelperMgmt,
+	SetupStrings:           zhSetup,
 	ConfigUIStrings:        zhConfigUI,
 	LifecycleStrings:       zhLifecycle,
 	TakeoverExplainStrings: zhTakeoverExplain,

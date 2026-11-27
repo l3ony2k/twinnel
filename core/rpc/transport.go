@@ -15,13 +15,19 @@ import (
 
 // Peer is the identity of the process on the other end of a connection.
 type Peer struct {
-	UID  int
+	UID  int   // -1 on Windows
 	GIDs []int // primary group first when the platform reports it
 	PID  int   // 0 when unknown
+	// Windows only: the user SID of the peer's process token, whether the
+	// token is elevated, and whether Administrators is an enabled group of
+	// it (only in an elevated admin token; a filtered one has it deny-only).
+	SID      string
+	Elevated bool
+	Admin    bool
 }
 
-// Transport hides the local socket kind (unix socket today, a named pipe on
-// Windows later).
+// Transport hides the local socket kind: a unix socket on macOS and Linux,
+// a named pipe on Windows (DefaultTransport).
 type Transport interface {
 	Listen(addr string) (net.Listener, error)
 	Dial(ctx context.Context, addr string) (net.Conn, error)

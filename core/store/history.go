@@ -38,6 +38,7 @@ const (
 	ReasonTailnet      = "tailnet-changed"
 	ReasonRestore      = "restore-layers" // args: the history ID the overrides came from
 	ReasonCLI          = "cli-apply"      // twinnel compose --apply without --reason
+	ReasonSetup        = "setup"          // the first apply of a fresh setup (core/setup)
 )
 
 // HistoryEntry is one line of history/index.json.

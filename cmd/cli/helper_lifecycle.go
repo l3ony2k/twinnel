@@ -200,11 +200,12 @@ func infoFromSettings(stateDir string) *rpc.HelperInfo {
 		Label:    st.HelperLabel,
 		Mihomo: rpc.HelperMihomoService{
 			Label: st.Mihomo.ServiceLabel, Adopted: st.Mihomo.ServiceAdopted, Controller: st.Mihomo.Controller,
-			Installed: fileExistsFn(serviceDefinition(st.Mihomo.ServiceLabel)),
+			Installed: serviceInstalled(st.Mihomo.ServiceLabel),
 		},
 		SecretKeys:    st.SecretKeys(),
 		Subscriptions: len(st.Subscriptions),
 		Layers:        len(st.Layers),
+		DNSBackup:     fileExistsFn(filepath.Join(stateDir, "dns-backup.json")),
 	}
 	if h := st.Hardened; h != nil {
 		info.Hardened = &rpc.HelperHardened{PlanID: h.PlanID, OldLabel: h.OldLabel, OldPlist: h.OldPlist}
@@ -246,10 +247,11 @@ func purgeSteps(p uninstall.Plan, stateDir string) ([]service.Step, error) {
 		case uninstall.StateDir:
 			dir := filepath.Clean(it.Path)
 			base := strings.ToLower(filepath.Base(dir))
-			if !filepath.IsAbs(dir) || filepath.Dir(dir) == "/" || !strings.Contains(base, "twinnel") && !strings.HasPrefix(base, legacy.Name) {
+			parent := filepath.Dir(dir)
+			if !filepath.IsAbs(dir) || parent == "/" || parent == filepath.VolumeName(dir)+string(filepath.Separator) || !strings.Contains(base, "twinnel") && !strings.HasPrefix(base, legacy.Name) {
 				return nil, fmt.Errorf("refusing to delete %q: not Twinnel's state dir", it.Path)
 			}
-			steps = append(steps, service.Step{Kind: service.StepRun, Argv: []string{"/bin/rm", "-rf", "--", dir}})
+			steps = append(steps, removeTreeStep(dir))
 		}
 	}
 	return steps, nil
@@ -260,6 +262,15 @@ func purgeSteps(p uninstall.Plan, stateDir string) ([]service.Step, error) {
 // wait until it answers; start Twinnel's again if it does not), then the
 // helper's removal, then the purge.
 func runUninstall(ctx context.Context, p uninstall.Plan, steps, purge []service.Step, stateDir string) error {
+	if p.RestoreDNS {
+		// First: the DNS must not point at a mihomo that goes away.
+		if err := restoreSystemDNS(ctx, stateDir); err != nil {
+			return fmt.Errorf("restore the system DNS: %w (nothing else was changed)", err)
+		}
+	}
+	for _, l := range removeTailscaleLinks(stateDir) {
+		fmt.Fprintf(stdout, "# removed the tailscale command link %s (Tailscale stays installed)\n", l)
+	}
 	if r := p.Restore; r != nil {
 		if err := restoreMihomo(ctx, r, p.Removes(uninstall.StateDir), stateDir); err != nil {
 			return err
@@ -340,6 +351,10 @@ func printUninstall(w io.Writer, p uninstall.Plan, steps, purge []service.Step) 
 	}
 	fmt.Fprintln(w, "steps:")
 	n := 0
+	if p.RestoreDNS {
+		n++
+		fmt.Fprintf(w, "%d. write the system DNS back from %s\n", n, "dns-backup.json")
+	}
 	if r := p.Restore; r != nil {
 		stop, start, undo := planMihomoRestore(r.FromLabel, r.ToLabel, r.ToPlist)
 		for _, s := range stop {
@@ -396,6 +411,8 @@ func describeItem(it uninstall.Item) string {
 		return "mihomo's original service " + it.Path + " (and its binary and config)"
 	case uninstall.Tailscale:
 		return "Tailscale (not touched)"
+	case uninstall.SystemDNS:
+		return "the system DNS Twinnel set (written back to the values recorded before)"
 	case uninstall.App:
 		return "Twinnel.app and the twinnel command"
 	}

@@ -34,6 +34,9 @@ type HelperInfo struct {
 	Subscriptions int `json:"subscriptions"`
 	Layers        int `json:"layers"`
 	History       int `json:"history"`
+	// DNSBackup: Twinnel pointed the system DNS at mihomo (dns.point) and
+	// keeps the earlier values; uninstalling writes them back.
+	DNSBackup bool `json:"dns_backup,omitempty"`
 }
 
 type HelperMihomoService struct {
