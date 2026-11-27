@@ -606,11 +606,11 @@ var enControls = ControlStrings{
 	OpFinishedBody:   "Click to see the result in Twinnel",
 	OpWarnings:       "%d note{s}",
 
-	PanelOpen:     "Open Twinnel…",
-	TrayShowPanel: "Show Panel",
+	PanelOpen:            "Open Twinnel…",
+	TrayShowPanel:        "Show Panel",
 	TrayHostMissingGNOME: "No tray icon: turn on the AppIndicator extension in GNOME",
-	TrayHostMissing: "No tray icon: this desktop runs no system tray",
-	PanelQuit:     "Quit Twinnel",
+	TrayHostMissing:      "No tray icon: this desktop runs no system tray",
+	PanelQuit:            "Quit Twinnel",
 }
 
 var enConfig = ConfigStrings{

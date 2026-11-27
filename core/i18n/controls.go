@@ -80,11 +80,11 @@ var zhControls = ControlStrings{
 	OpFinishedBody:   "点按打开 Twinnel 查看结果",
 	OpWarnings:       "%d 条提醒",
 
-	PanelOpen:     "打开 Twinnel…",
-	TrayShowPanel: "显示面板",
+	PanelOpen:            "打开 Twinnel…",
+	TrayShowPanel:        "显示面板",
 	TrayHostMissingGNOME: "看不到托盘图标：请在 GNOME 中启用 AppIndicator 扩展",
-	TrayHostMissing: "看不到托盘图标：当前桌面没有运行系统托盘",
-	PanelQuit:     "退出 Twinnel",
+	TrayHostMissing:      "看不到托盘图标：当前桌面没有运行系统托盘",
+	PanelQuit:            "退出 Twinnel",
 }
 
 // NetUnreachable is NetUnreachableF for host.
