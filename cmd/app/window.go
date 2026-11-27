@@ -718,7 +718,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	ui.Column(c).Gap(8).PaddingY(8).Clip().Transition(expandFor(open)).Children(func() {
 		// The head is a disclosure the keyboard reaches: Tab stops on it,
 		// Return or Space opens and closes the group.
-		head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).Cursor(ui.CursorPointer).
+		head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).
 			Role(ui.RoleDisclosure).Label(g.Name).Expanded(open).Focusable().FocusRingOffset(2)
 		head.ContextMenu(func(m *ui.Menu) {
 			label := T.GroupExpand
@@ -805,7 +805,6 @@ func (a *app) nodeTile(c *ui.Context, g status.Group, i, cols int, mem status.Me
 		chip.Background(p.accentSoft).Border(1, t.Accent.Alpha(0.35))
 	}
 	if canSelect {
-		chip.Cursor(ui.CursorPointer)
 		if chip.Hovered() {
 			chip.Background(t.SurfaceHover)
 		}

@@ -14,6 +14,10 @@ type WindowStrings struct {
 
 	// The app menu's 显示 (View) menu, which lists the pages with ⌘1…⌘9.
 	ViewMenu string
+
+	// A diff's folded unchanged lines (cmd/app diffSeparator).
+	DiffExpandUp, DiffExpandDown, DiffExpandAll string
+	DiffUnchanged                               string // %d: lines
 }
 
 var zhWindow = WindowStrings{
@@ -22,4 +26,9 @@ var zhWindow = WindowStrings{
 	NodeUse:       "使用这个节点",
 	CopyNodeName:  "复制节点名",
 	ViewMenu:      "显示",
+
+	DiffExpandUp:   "向上展开",
+	DiffExpandDown: "向下展开",
+	DiffExpandAll:  "全部展开",
+	DiffUnchanged:  "%d 行未改动",
 }

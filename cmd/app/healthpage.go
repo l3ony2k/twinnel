@@ -202,7 +202,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 			}
 		})
 		if expandable {
-			head.Cursor(ui.CursorPointer).Focusable().Role(ui.RoleDisclosure).Expanded(open)
+			head.Focusable().Role(ui.RoleDisclosure).Expanded(open)
 			if head.Clicked() {
 				a.healthOpen[cr.ID] = !open
 			}
@@ -265,7 +265,7 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 	default:
 		icon, col, text = iconOK, t.Success, T.PanelHealthOK
 	}
-	row := ui.Row(c.Key("health-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).Cursor(ui.CursorPointer).
+	row := ui.Row(c.Key("health-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).
 		Focusable().Role(ui.RoleButton).Label(text)
 	row.Children(func() {
 		ui.Icon(c, icon).FontSize(iconInline).TextColor(col)

@@ -198,7 +198,7 @@ func (a *app) installPlanCard(c *ui.Context) {
 			case !parsed && v.plan != "":
 				listRow(c).Children(func() { codeBlock(c, v.plan) })
 			case parsed:
-				head := ui.Row(c.Key("steps")).Gap(8).AlignItems(ui.Center).PaddingY(10).Cursor(ui.CursorPointer).
+				head := ui.Row(c.Key("steps")).Gap(8).AlignItems(ui.Center).PaddingY(10).
 					Focusable().Role(ui.RoleDisclosure).Expanded(v.stepsOpen).Label(i18n.F(T.OnboardSteps, len(steps)))
 				head.Children(func() {
 					disclosure(c, v.stepsOpen).Shrink(0)
