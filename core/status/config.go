@@ -44,6 +44,9 @@ type Config struct {
 	// in duet (node, mode, TUN, Tailscale, exit node, delay test): 关于 →
 	// 入门's last step reads it.
 	DailyUsed bool `json:"dailyUsed,omitempty"`
+	// Dock is when duet has a Dock icon (macOS): "" while the main window
+	// is open, DockAlways, DockNever (a menu bar app only).
+	Dock string `json:"dock,omitempty"`
 
 	// From the environment only, never saved. AllowWrites is on unless
 	// DUET_READ_ONLY=1: a deny switch for development and test runs
@@ -67,6 +70,13 @@ const TraySpeedOneLine = "one"
 
 // TraySpeedTwoLines is the explicit two-line value (older configs).
 const TraySpeedTwoLines = "two"
+
+// Config.Dock values; "" is the default, a Dock icon while the main
+// window is open.
+const (
+	DockAlways = "always"
+	DockNever  = "never"
+)
 
 // TraySpeedTwo reports whether the menu bar speed shows on two lines.
 func (c Config) TraySpeedTwo() bool { return c.TraySpeedLayout != TraySpeedOneLine }
