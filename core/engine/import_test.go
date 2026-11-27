@@ -110,6 +110,9 @@ func TestExportImportFreshMachine(t *testing.T) {
 		!it["subscription:main"].HasURL || !it["subscription:main"].HasContent {
 		t.Fatalf("items: %+v", dry.Items)
 	}
+	if strings.Join(dry.LeakGuardGroups, ",") != "Google" {
+		t.Fatalf("leak guard groups: %v", dry.LeakGuardGroups)
+	}
 	if !strings.Contains(strings.Join(dry.Warnings, ","), rpc.ImportWarnSecrets) {
 		t.Fatalf("warnings: %v", dry.Warnings)
 	}

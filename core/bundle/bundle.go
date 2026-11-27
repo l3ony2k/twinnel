@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -68,6 +69,9 @@ type Manifest struct {
 	App           string         `json:"app,omitempty"` // Twinnel version that wrote it
 	Layers        []Layer        `json:"layers"`
 	Subscriptions []Subscription `json:"subscriptions,omitempty"`
+	// LeakGuardGroups: the proxy groups the leak guard covered. The guard
+	// layer itself is rebuilt; its setting travels so setup can reuse it.
+	LeakGuardGroups []string `json:"leak_guard_groups,omitempty"`
 }
 
 // Layer is one override in compose order.
@@ -103,9 +107,10 @@ type Bundle struct {
 	Created time.Time // from the manifest
 	App     string    // from the manifest
 
-	Layers        []Layer
-	Subscriptions []Subscription
-	Config        string // config.yaml, for reference; never imported
+	Layers          []Layer
+	Subscriptions   []Subscription
+	LeakGuardGroups []string
+	Config          string // config.yaml, for reference; never imported
 }
 
 // HasSecrets reports whether the bundle carries credentials: subscription
@@ -138,7 +143,7 @@ func SubscriptionFile(id string) string { return "subscriptions/" + id + ".yaml"
 // fields are set from their IDs; a subscription without Content gets no
 // file.
 func Write(w io.Writer, b *Bundle, created time.Time, app string) error {
-	m := Manifest{Format: Format, Version: Version, Created: created.UTC(), App: app, Layers: []Layer{}}
+	m := Manifest{Format: Format, Version: Version, Created: created.UTC(), App: app, Layers: []Layer{}, LeakGuardGroups: b.LeakGuardGroups}
 	for _, l := range b.Layers {
 		if !store.ValidID(l.ID) {
 			return fmt.Errorf("invalid layer id %q", l.ID)
@@ -317,6 +322,11 @@ func fromManifest(raw string, files map[string]string) (*Bundle, error) {
 		return nil, fmt.Errorf("made by a newer Twinnel (export version %d; this one reads up to %d): update Twinnel first", m.Version, Version)
 	}
 	b := &Bundle{Source: SourceTwinnel, Version: m.Version, Created: m.Created, App: m.App, Config: files[ConfigFile]}
+	for _, g := range m.LeakGuardGroups {
+		if g != "" && len(g) <= 128 && !slices.Contains(b.LeakGuardGroups, g) {
+			b.LeakGuardGroups = append(b.LeakGuardGroups, g)
+		}
+	}
 	seen := map[string]bool{}
 	for i, l := range m.Layers {
 		if !store.ValidID(l.ID) {

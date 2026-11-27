@@ -152,4 +152,8 @@ type ConfigImportResult struct {
 	Stored int `json:"stored"`
 	// Activated is the subscription made active (none was active here).
 	Activated string `json:"activated,omitempty"`
+	// LeakGuardGroups: the groups the exporting machine's leak guard
+	// covered. Not applied here (settings.update does that); setup uses
+	// them.
+	LeakGuardGroups []string `json:"leak_guard_groups,omitempty"`
 }

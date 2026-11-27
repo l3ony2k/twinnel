@@ -43,9 +43,10 @@ type setupView struct {
 	shotSteps []setup.StepState
 }
 
-// setupImport restores an export zip. HOOK: the helper's config.import is
-// built on feat/import-config; while this is nil 从备份导入… is hidden.
-var setupImport func(ctx context.Context, hc setup.Caller, zip []byte) (setup.ImportResult, error)
+// setupImport restores an export zip through the helper's config.import
+// (setup.ImportConfig); a test or shot may replace it, and nil hides
+// 从备份导入….
+var setupImport = setup.ImportConfig
 
 // freshMachine: no helper takeover and no running mihomo was found, so 开始
 // 使用 offers 设置这台 Mac instead of 接管现有配置.

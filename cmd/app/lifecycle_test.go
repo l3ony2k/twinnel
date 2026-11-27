@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/bundle"
+	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 

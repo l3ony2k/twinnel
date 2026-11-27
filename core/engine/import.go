@@ -20,7 +20,7 @@ func (e *Engine) Export(ctx context.Context, p rpc.ConfigExportParams) (rpc.Conf
 	if err != nil {
 		return rpc.ConfigExport{}, err
 	}
-	b := &bundle.Bundle{}
+	b := &bundle.Bundle{LeakGuardGroups: st.LeakGuardGroups}
 	if live, err := e.ConfigText(ctx, rpc.ConfigGetParams{Source: rpc.ConfigLive}); err == nil {
 		b.Config = live.Content
 	} else if re := (*rpc.Error)(nil); !errors.As(err, &re) || re.Code != rpc.CodeNotFound {
@@ -161,7 +161,8 @@ func resolution(p rpc.ConfigImportParams, kind, id string) string {
 // planImport decides each item's action against st. It reads the store
 // (layer contents, URLs) but writes nothing.
 func (e *Engine) planImport(b *bundle.Bundle, st *store.Settings, p rpc.ConfigImportParams) (*importPlan, error) {
-	pl := &importPlan{res: rpc.ConfigImportResult{Source: b.Source, Version: b.Version, App: b.App, Items: []rpc.ImportItem{}}}
+	pl := &importPlan{res: rpc.ConfigImportResult{Source: b.Source, Version: b.Version, App: b.App, Items: []rpc.ImportItem{},
+		LeakGuardGroups: b.LeakGuardGroups}}
 	// Ids in use: local ones and every id the file brings, so a rename
 	// never lands on an item imported in the same go.
 	layerTaken := map[string]bool{CoexistLayerID: true, LeakGuardLayerID: true}
