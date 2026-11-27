@@ -40,6 +40,7 @@ var windowsWording = map[string]func(*Strings){"zh-Hans": windowsZh, "en": windo
 
 // windowsZh: Windows words in Chinese.
 func windowsZh(s *Strings) {
+	s.HelperDeniedHint = "只有安装后台助手的用户，或以管理员身份运行的程序，可以管理网络配置"
 	s.TipAgentCLI = "在终端里用 twinnel 命令，Agent 的 MCP 配置也指向它。安装是把 Twinnel 的 bin 文件夹加入你的 PATH，之后新打开的终端才能找到它；随时可以移除。"
 	s.InfoExitNode = "让这台电脑的流量从 Tailscale 里的另一台设备出去。mihomo 的 TUN 开着时，两者都要接管默认路由，会互相冲突。"
 	s.ServiceInstallTitle = "为「%s」安装 Windows 服务？"
@@ -70,6 +71,7 @@ func windowsZh(s *Strings) {
 
 // windowsEn: Windows words in English.
 func windowsEn(s *Strings) {
+	s.HelperDeniedHint = "Only the user who installed the helper, or a program run as administrator, can manage the network setup"
 	s.TipAgentCLI = "Use twinnel in a terminal; the agents' MCP settings point to it too. Installing adds Twinnel's bin folder to your PATH, so terminals you open afterwards find it. You can remove it at any time."
 	s.SelfIP = "This PC's IP"
 	s.SelfName = "This PC's name"

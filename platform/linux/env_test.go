@@ -3,6 +3,7 @@ package linux
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -237,6 +238,9 @@ func TestEnvWithFakes(t *testing.T) {
 		if f, ok := files[p]; ok {
 			return fixture(t, f), nil
 		}
+		if !testOwned(p) {
+			return nil, fs.ErrNotExist // nothing of this host
+		}
 		return os.ReadFile(p)
 	}
 	lookPath := func(p string) (string, error) {
@@ -246,9 +250,9 @@ func TestEnvWithFakes(t *testing.T) {
 		}
 		return "", errors.New("not found")
 	}
-	env := New(Options{
+	env := testEnv(t, Options{
 		Controller: strings.TrimPrefix(srv.URL, "http://"),
-		Run:        fakeRunner(t), ReadFile: readFile, LookPath: lookPath,
+		Run:        fakeRunner(t), ReadFile: readFile, LookPath: lookPath, ResolvConf: "/etc/resolv.conf", // readFile maps it
 		UnitDirs:  []string{"testdata/units/etc", "testdata/units/lib"},
 		DNSServer: "127.0.0.1:1", // nothing listens: mihomo lookups fail fast
 	})
@@ -317,14 +321,16 @@ func TestMihomoConfigRefusesEscapingSymlink(t *testing.T) {
 	if err := os.Symlink(filepath.Join(dir, "secret"), link); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := New(Options{ConfigPath: link, UnitDirs: []string{}}).MihomoConfig(context.Background()); err == nil {
+	// The confined reader is New's own: New's defaults on purpose.
+	e := New(Options{ConfigPath: link, UnitDirs: []string{}, ResolvConf: link, UpstreamResolvConf: link, Controller: "127.0.0.1:1"}) // New's defaults on purpose
+	if _, err := e.MihomoConfig(context.Background()); err == nil {
 		t.Fatal("read a config through a symlink leaving its dir")
 	}
 }
 
 func TestTailscaleStatusOverride(t *testing.T) {
 	ran := false
-	e := New(Options{
+	e := testEnv(t, Options{
 		TailscaleBin: "/nonexistent/tailscale",
 		Run: func(context.Context, string, ...string) ([]byte, error) {
 			ran = true
@@ -342,7 +348,7 @@ func TestTailscaleStatusOverride(t *testing.T) {
 // wlan0 counts for the system-dns verdict (sysdns.LinkConnected, the
 // rule dns.status shares), so the unplugged port never decides it.
 func TestConnectedDevicesSkipsNoCarrier(t *testing.T) {
-	env := New(Options{Run: fakeRunner(t)})
+	env := testEnv(t, Options{})
 	got := health.ConnectedDevices(context.Background(), env)
 	if got["eth0"] || !got["wlan0"] {
 		t.Fatalf("connected: %v", got)

@@ -22,7 +22,7 @@ func TestDirectEgressBindsThePhysicalLink(t *testing.T) {
 	os.WriteFile(up, []byte("# resolved upstream\nnameserver 192.0.2.53\n"), 0o600)
 	settings := health.DefaultSettings()
 	settings.DirectDNS = []netip.Addr{netip.MustParseAddr("198.51.100.53")}
-	e := New(Options{Run: fakeRunner(t), UpstreamResolvConf: up, Settings: &settings, Direct: func(_ context.Context, _ string, gp egress.Path) (netip.Addr, error) {
+	e := testEnv(t, Options{UpstreamResolvConf: up, Settings: &settings, Direct: func(_ context.Context, _ string, gp egress.Path) (netip.Addr, error) {
 		p, got = gp, gp.Iface
 		return netip.MustParseAddr("203.0.113.9"), nil
 	}})

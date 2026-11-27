@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -24,16 +25,15 @@ const (
 	TSUnknown    = "unknown"
 )
 
-// TailscaleCandidates are the CLI paths searched when none is configured.
-var TailscaleCandidates = tailscaleCandidates()
-
-func tailscaleCandidates() []string {
-	if runtime.GOOS == "windows" {
-		pf := os.Getenv("ProgramFiles")
+// TailscaleCandidatesFor are the CLI paths searched on goos when none is
+// configured; getenv reads the environment (%ProgramFiles% on Windows).
+func TailscaleCandidatesFor(goos string, getenv func(string) string) []string {
+	if goos == "windows" {
+		pf := getenv("ProgramFiles")
 		if pf == "" {
 			pf = `C:\Program Files`
 		}
-		return []string{filepath.Join(pf, "Tailscale", "tailscale.exe")}
+		return []string{strings.TrimRight(pf, `\`) + `\Tailscale\tailscale.exe`}
 	}
 	return []string{
 		"/opt/homebrew/bin/tailscale",
@@ -54,11 +54,20 @@ type TailscaleInfo struct {
 }
 
 // TailscaleProbe reads the local Tailscale version and the newest published
-// one.
+// one. Everything it reads of the machine goes through its fields, so a
+// test can probe any system from any host.
 type TailscaleProbe struct {
-	Binary string // empty: search TailscaleCandidates, then Managed
+	Binary string // empty: search Candidates, then Managed
+	// GOOS is the system probed (default runtime.GOOS): where to search,
+	// how paths are joined, which package an absent install would get.
+	GOOS string
+	// Candidates are the CLI paths searched when Binary is empty (default
+	// TailscaleCandidatesFor(GOOS, Getenv)).
+	Candidates []string
+	// Getenv is os.Getenv; replaceable for tests.
+	Getenv func(string) string
 	// Managed is the CLI Twinnel installs (<state>/tailscale/current/
-	// tailscale), searched after TailscaleCandidates.
+	// tailscale), searched after Candidates.
 	Managed string
 	PkgsURL string // default https://pkgs.tailscale.com
 	Track   string // "stable" (default) or "unstable"
@@ -70,6 +79,42 @@ type TailscaleProbe struct {
 	Stat func(string) (os.FileInfo, error)
 	// EvalSymlinks is filepath.EvalSymlinks; replaceable for tests.
 	EvalSymlinks func(string) (string, error)
+}
+
+func (p *TailscaleProbe) goos() string {
+	if p.GOOS != "" {
+		return p.GOOS
+	}
+	return runtime.GOOS
+}
+
+func (p *TailscaleProbe) candidates() []string {
+	if p.Candidates != nil {
+		return p.Candidates
+	}
+	getenv := p.Getenv
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+	return TailscaleCandidatesFor(p.goos(), getenv)
+}
+
+// join and dir are path.Join and path.Dir in the probed system's style.
+func (p *TailscaleProbe) join(elem ...string) string {
+	if p.goos() == "windows" {
+		return strings.Join(elem, `\`)
+	}
+	return path.Join(elem...)
+}
+
+func (p *TailscaleProbe) dir(name string) string {
+	if p.goos() == "windows" {
+		if i := strings.LastIndexAny(name, `\/`); i >= 0 {
+			return name[:i]
+		}
+		return "."
+	}
+	return path.Dir(name)
 }
 
 func (p *TailscaleProbe) stat(name string) (os.FileInfo, error) {
@@ -87,7 +132,7 @@ func (p *TailscaleProbe) Find() string {
 		}
 		return ""
 	}
-	for _, c := range TailscaleCandidates {
+	for _, c := range p.candidates() {
 		if _, err := p.stat(c); err == nil {
 			return c
 		}
@@ -103,7 +148,7 @@ func (p *TailscaleProbe) Find() string {
 // FindExisting is Find without Binary and Managed: a Tailscale install that
 // Twinnel did not make.
 func (p *TailscaleProbe) FindExisting() string {
-	for _, c := range TailscaleCandidates {
+	for _, c := range p.candidates() {
 		if _, err := p.stat(c); err == nil {
 			return c
 		}
@@ -136,12 +181,12 @@ func (p *TailscaleProbe) Kind(path string) string {
 		return TSBrew
 	case strings.Contains(real, "Tailscale.app/"):
 		app := real[:strings.Index(real, "Tailscale.app/")+len("Tailscale.app")]
-		if _, err := p.stat(filepath.Join(app, "Contents", "_MASReceipt")); err == nil {
+		if _, err := p.stat(p.join(app, "Contents", "_MASReceipt")); err == nil {
 			return TSAppStore
 		}
 		return TSStandalone
 	}
-	if _, err := p.stat(filepath.Join(filepath.Dir(real), "tailscaled")); err == nil {
+	if _, err := p.stat(p.join(p.dir(real), "tailscaled")); err == nil {
 		return TSStatic
 	}
 	return TSUnknown
@@ -247,7 +292,7 @@ func (p *TailscaleProbe) Info(ctx context.Context) (TailscaleInfo, error) {
 	bin := p.Find()
 	if bin == "" {
 		kind := TSBrew // the open-source tailscaled Twinnel installs
-		if runtime.GOOS == "windows" {
+		if p.goos() == "windows" {
 			kind = TSWindows // the MSI
 		}
 		latest, err := p.Latest(ctx, kind)

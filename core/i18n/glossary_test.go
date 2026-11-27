@@ -7,23 +7,13 @@ import (
 	"testing"
 )
 
-// wordedFor returns a copy of a language's table worded for goos, as
-// that system's init would leave it (desktop.go); the real tables stay
-// this host's.
+// wordedFor is l's table as goos shows it, whatever system runs the test.
 func wordedFor(t *testing.T, l Lang, goos string) *Strings {
 	t.Helper()
-	c := *l.S
-	cloneMaps(&c)
-	if goos == Darwin {
-		return &c
-	}
-	w := map[string]map[string]func(*Strings){Linux: linuxWording, Windows: windowsWording}[goos]
-	fn := w[l.Tag]
-	if fn == nil {
+	if goos != Darwin && platformWording[goos][l.Tag] == nil {
 		t.Fatalf("%s: no %s wording", l.Tag, goos)
 	}
-	fn(&c)
-	return &c
+	return WordedFor(l.Tag, goos)
 }
 
 // TestPlatformGlossary: on each system, no text the app shows there
