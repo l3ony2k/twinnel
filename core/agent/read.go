@@ -29,9 +29,10 @@ online peers), the last health result and which agent tiers are on. Start here.`
 
 	addTool(s, rpc.TierRead, "version", "Versions",
 		`Versions of Twinnel, the helper (and its two binaries: the one shipped with Twinnel and the installed one,
-with a warning when they differ), the mihomo kernel (running, installed, previous), Tailscale, and the
-geo databases. With check_updates it also asks GitHub for the latest mihomo release and geo files
-(network requests; nothing is installed).`,
+with a warning when they differ), the mihomo kernel (running, installed, previous), Tailscale, the geo
+databases and the web dashboard (geo / dashboard: installed or not, date, source, the last update check
+and whether it found something newer). With check_updates it also asks GitHub for the latest mihomo
+release, geo files and dashboard (network requests; nothing is installed).`,
 		toolOpts{noHelper: true, openWorld: true}, s.version)
 
 	addTool(s, rpc.TierRead, "health", "Health checks",
@@ -58,7 +59,9 @@ since mihomo started.`,
 	addTool(s, rpc.TierRead, "logs", "Logs",
 		`Recent log lines. source "twinnel" (default): what the helper did (applies, subscription updates,
 health changes, agent actions), newest last. source "mihomo": mihomo's live log, listened to for about
-3 seconds (mihomo keeps no backlog), at level (debug, info, warning, error; default info).`,
+3 seconds (the stream has no backlog), at level (debug, info, warning, error; default info).
+source "mihomo-output": what mihomo's service wrote to its output file, startup errors included
+(a config mihomo refused at start shows up here, not in the live log); level filters it too.`,
 		toolOpts{}, s.logs)
 
 	addTool(s, rpc.TierRead, "subscriptions", "Subscriptions",
@@ -323,11 +326,20 @@ func (s *Server) version(c *call, in versionIn) (any, error) {
 			} else {
 				out["kernel_latest_error"] = err.Error()
 			}
-			var geo rpc.AccessoryCheck
-			if err := h.Call(c.ctx, rpc.MethodGeoCheck, nil, &geo); err == nil {
-				out["geo"] = geo.Files
+		}
+		for _, x := range []struct{ key, status, check string }{
+			{"geo", rpc.MethodGeoStatus, rpc.MethodGeoCheck},
+			{"dashboard", rpc.MethodUIStatus, rpc.MethodUICheck},
+		} {
+			method, params := x.status, any(nil)
+			if in.CheckUpdates {
+				method, params = x.check, rpc.AccessoryCheckParams{}
+			}
+			var r rpc.AccessoryCheck
+			if err := h.Call(c.ctx, method, params, &r); err == nil {
+				out[x.key] = r
 			} else {
-				out["geo_error"] = err.Error()
+				out[x.key+"_error"] = err.Error()
 			}
 		}
 	}
@@ -533,8 +545,8 @@ func (s *Server) traffic(c *call, _ noArgs) (any, error) {
 // ---- logs ----
 
 type logsIn struct {
-	Source string `json:"source,omitempty" jsonschema:"twinnel (default) or mihomo"`
-	Level  string `json:"level,omitempty" jsonschema:"mihomo only: debug, info (default), warning or error"`
+	Source string `json:"source,omitempty" jsonschema:"twinnel (default), mihomo or mihomo-output"`
+	Level  string `json:"level,omitempty" jsonschema:"mihomo and mihomo-output: debug, info (default), warning or error"`
 	Lines  int    `json:"lines,omitempty" jsonschema:"at most this many lines, newest (default 50, max 500)"`
 }
 
@@ -587,8 +599,22 @@ func (s *Server) logs(c *call, in logsIn) (any, error) {
 		if err != nil && ctx.Err() == nil {
 			return nil, err
 		}
+	case "mihomo-output":
+		lvl := orDefault(in.Level, "info")
+		var r rpc.ServiceLog
+		if err := c.rpc(rpc.MethodServiceLog, rpc.ServiceLogParams{Name: "mihomo", Lines: n}, &r); err != nil {
+			return nil, err
+		}
+		for _, f := range r.Files {
+			for _, e := range mihomo.ParseLogLines(f.Lines) {
+				if mihomo.LevelAtLeast(e.Type, lvl) {
+					out = append(out, logLine{Time: e.Time, Type: f.File, Level: e.Type, Text: s.redactString(e.Payload)})
+				}
+			}
+		}
+		sort.SliceStable(out, func(i, j int) bool { return out[i].Time.Before(out[j].Time) })
 	default:
-		return nil, fmt.Errorf("source must be twinnel or mihomo")
+		return nil, fmt.Errorf("source must be twinnel, mihomo or mihomo-output")
 	}
 	if len(out) > n {
 		out = out[len(out)-n:]

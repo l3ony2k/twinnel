@@ -37,6 +37,10 @@ type fakeEnv struct {
 	egressChain                 []string
 	egressErr                   error
 
+	// tun-dataplane probes (checks_dataplane_test.go); nil answers.
+	dialErr, proxyErr, pingErr error
+	dialed, proxied            []string
+
 	owner *foreign.Owner // nil: the env does not know the controller's owner
 }
 

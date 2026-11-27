@@ -20,6 +20,7 @@ type texts struct {
 	errRerun, auto, layerLoopback                  string
 	stepPortMove, stepPortWrite, stepPortRestart   string
 	stepPortNote                                   string
+	stepTUNStack, stepTUNRebuild, layerTUNStack    string
 }
 
 var zh = texts{
@@ -49,6 +50,9 @@ var zh = texts{
 	errRerun:              "已修复，但重新检查失败",
 	auto:                  "自动（DHCP）",
 	layerLoopback:         "控制接口只听本机",
+	stepTUNStack:          "加一个覆写：tun.stack 改为 gvisor",
+	stepTUNRebuild:        "TUN 会重建，网络断一两秒",
+	layerTUNStack:         "TUN 用 gvisor 栈",
 }
 
 var en = texts{
@@ -78,6 +82,9 @@ var en = texts{
 	errRerun:              "fixed, but checking again failed",
 	auto:                  "automatic (DHCP)",
 	layerLoopback:         "Controller on this computer only",
+	stepTUNStack:          "Add an override: tun.stack becomes gvisor",
+	stepTUNRebuild:        "The TUN is rebuilt; the network drops for a second or two",
+	layerTUNStack:         "TUN on the gvisor stack",
 }
 
 func tx(tag string) *texts {

@@ -73,13 +73,6 @@ const (
 	// controller-security
 	ReasonCtlExposed  = "controller-security/exposed"
 	ReasonCtlNoSecret = "controller-security/no-secret"
-
-	// controller-owner: another program's mihomo (Clash Party, Clash
-	// Verge Rev…) holds the controller address. Quitting it is up to the
-	// user (other-client); moving Twinnel's controller to a free port is
-	// one click (port-shared).
-	ReasonOwnerOtherClient = "controller-owner/other-client"
-	ReasonOwnerPortShared  = "controller-owner/port-shared"
 )
 
 // FixKind is how a reason is fixed.
@@ -104,8 +97,7 @@ const (
 	FixModeRule           = "mode-rule"           // switch mihomo back to rule mode
 	FixRestartMihomo      = "restart-mihomo"
 	FixRestartTailscaled  = "restart-tailscaled"
-	FixRerun              = "rerun"           // run the checks again
-	FixControllerPort     = "controller-port" // move Twinnel's controller to a free port (controller.move)
+	FixRerun              = "rerun" // run the checks again
 )
 
 // Guided targets (FixSpec.Target): where in the app the user changes it.
@@ -187,9 +179,6 @@ var fixCatalog = map[string]FixSpec{
 
 	ReasonCtlExposed:  {Kind: FixAuto, Action: FixControllerLoopback},
 	ReasonCtlNoSecret: {Kind: FixAuto, Action: FixController},
-
-	ReasonOwnerOtherClient: {Kind: FixManual, Action: FixRerun},
-	ReasonOwnerPortShared:  {Kind: FixAuto, Action: FixControllerPort},
 }
 
 // FixFor returns how reason is fixed on platform.

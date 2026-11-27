@@ -5,7 +5,7 @@ directory, never in this repo.
 
 | File | Layer | Notes |
 |---|---|---|
-| `base-tun-fakeip.yaml` | base (managed) | ports, controller, fake-ip DNS, TUN |
+| `base-tun-fakeip.yaml` | base (managed) | ports, controller, fake-ip DNS, TUN (stack `mixed`; `gvisor` on Windows, see `base.go`) |
 | `direct-rules.example.yaml` | user | example of prepending rules |
 
 The Tailscale coexistence layer and the leak guard are generated in code

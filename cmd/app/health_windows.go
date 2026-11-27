@@ -45,6 +45,7 @@ func devConfigPath() string {
 // iphlpapi and the registry, the tailscale CLI and GETs to the controller.
 func (realProbes) healthEnv(cfg status.Config, settings health.Settings) health.Env {
 	return windows.New(windows.Options{
+		Dataplane:       windows.Probes(),
 		Controller:      cfg.Controller,
 		Secret:          cfg.Secret,
 		ConfigPath:      devConfigPath(),

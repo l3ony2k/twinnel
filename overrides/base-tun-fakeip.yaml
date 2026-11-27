@@ -51,6 +51,7 @@ dns:
 
 tun:
   enable: true
+  # Windows gets gvisor instead (overrides/base.go, docs/tun-dataplane.md).
   stack: mixed
   auto-route: true
   auto-detect-interface: true

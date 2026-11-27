@@ -150,6 +150,9 @@ type ghRelease struct {
 		URL    string `json:"browser_download_url"`
 		Size   int64  `json:"size"`
 		Digest string `json:"digest"`
+		// UpdatedAt: when the asset was uploaded (a "latest" tag that is
+		// moved daily keeps its tag but not this).
+		UpdatedAt time.Time `json:"updated_at"`
 	} `json:"assets"`
 }
 

@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -100,3 +101,29 @@ func TestWithOwnerKeepsUnsupportedEgress(t *testing.T) {
 	rep := (&Runner{Registry: DefaultRegistry(), Only: []string{"leak-guard-egress"}}).Run(context.Background(), wrapped)
 	wantUnsupported(t, rep.Checks[0].Result, "owner-wrapped")
 }
+
+// The owner wrappers keep the dataplane probes of the wrapped Env.
+func TestWithOwnerKeepsDataplane(t *testing.T) {
+	env := WithOwner(NetProbesEnv{healthyEnv()}, func(context.Context) foreign.Owner { return foreign.Owner{Addr: "x:1", Verdict: foreign.Managed} })
+	if _, ok := env.(DataplaneEnv); !ok {
+		t.Fatal("dataplane lost")
+	}
+	tr := &trackEnv{Env: env}
+	if err := tr.DialTCP(context.Background(), "192.0.2.1:1"); err != errDialMarker {
+		t.Errorf("DialTCP not forwarded: %v", err)
+	}
+	if tr.used() {
+		t.Error("a plain dial counted as reading mihomo")
+	}
+}
+
+var errDialMarker = fmt.Errorf("dial marker")
+
+// NetProbesEnv is an Env whose DialTCP answers errDialMarker.
+type NetProbesEnv struct{ *fakeEnv }
+
+func (NetProbesEnv) DialTCP(context.Context, string) error { return errDialMarker }
+func (NetProbesEnv) DialViaProxy(context.Context, string, string, string) error {
+	return errDialMarker
+}
+func (NetProbesEnv) Ping(context.Context, string) error { return errDialMarker }
