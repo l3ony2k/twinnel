@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/bundle"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
@@ -98,10 +99,12 @@ type Helper struct {
 	Hash             string // compose.preview hash
 	Mode             string
 	Ctrl             string // controller address for controller.credentials
-	Imports          []rpc.ConfigImportParams
-	bus              *rpc.Bus
-	srv              *rpc.Server
-	listener         interface{ Close() error }
+	// Owner is status.get's controller owner (nil: not known).
+	Owner    *foreign.Owner
+	Imports  []rpc.ConfigImportParams
+	bus      *rpc.Bus
+	srv      *rpc.Server
+	listener interface{ Close() error }
 }
 
 // NewHelper starts a fake helper on a temp socket. ctrl is the controller
@@ -176,8 +179,9 @@ func (h *Helper) register() {
 		return rpc.Settings{Agent: h.Agent, HistoryKeep: 30}, nil
 	})
 	typed(h, rpc.MethodStatus, func(rpc.Empty) (rpc.Status, error) {
+		defer lock()()
 		return rpc.Status{HelperVersion: "0.9.0-test", ActiveSubscription: "main", Layers: 2,
-			Mihomo:    rpc.MihomoStatus{Controller: h.Ctrl, Reachable: true, Version: "v1.19.34"},
+			Mihomo:    rpc.MihomoStatus{Controller: h.Ctrl, Reachable: true, Version: "v1.19.34", Owner: h.Owner},
 			LastApply: &rpc.ApplyResult{Reason: "subscription " + SubURL, HistoryID: "h-1", Time: time.Unix(1_800_000_000, 0)}}, nil
 	})
 	typed(h, rpc.MethodControllerCredentials, func(rpc.Empty) (rpc.ControllerCredentials, error) {

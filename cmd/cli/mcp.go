@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/agent"
-	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/status"
 	"github.com/l3ony2k/twinnel/core/tailscale"
@@ -64,7 +63,7 @@ func runMCP(args []string) error {
 
 // mcpDeps wires the server to the helper on socket, the controller
 // (TWINNEL_CONTROLLER pins it, for development), Tailscale's LocalAPI (or
-// TWINNEL_TAILSCALE_STATUS_FILE) and the local doctor.
+// TWINNEL_TAILSCALE_STATUS_FILE) and doctor's run.
 func mcpDeps(socket string) agent.Deps {
 	d := agent.Deps{
 		Dial: func(ctx context.Context) (agent.Caller, func(), error) {
@@ -86,14 +85,12 @@ func mcpDeps(socket string) agent.Deps {
 		return collectHelperBinaries(ctx, 5*time.Second, running)
 	}
 	d.Doctor = func(ctx context.Context) (json.RawMessage, error) {
-		// The same run as `twinnel doctor`: the helper's settings and controller.
-		settings, _ := healthSettings(ctx, socket)
-		env, err := localHealthEnv(ctx, socket, "", "", &settings)
+		// The same run as `twinnel doctor`: the helper's, locally only
+		// when it does not answer (the report's source says which).
+		rep, err := doctorReport(ctx, doctorRequest{socket: socket, timeout: 15 * time.Second})
 		if err != nil {
 			return nil, err
 		}
-		runner := &health.Runner{Registry: health.DefaultRegistry(), Timeout: 15 * time.Second}
-		rep := runner.Run(ctx, env)
 		b, err := rep.JSON()
 		return json.RawMessage(b), err
 	}

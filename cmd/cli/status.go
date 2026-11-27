@@ -12,6 +12,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/mihomo"
 	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc/healthsrc"
 	"github.com/l3ony2k/twinnel/core/status"
 	"github.com/l3ony2k/twinnel/core/tailscale"
 )
@@ -38,13 +39,32 @@ func runStatus(args []string) error {
 		return err
 	}
 	install := tailscale.DetectInstall(runtime.GOOS, func(p string) bool { _, err := os.Stat(p); return err == nil })
-	mon := status.NewMonitor(status.Options{
-		Mihomo:       mh,
-		Tailscale:    tailscale.New(tailscale.LocalAPI(nil), false),
-		Install:      install,
-		PrimaryGroup: cfg.PrimaryGroup,
-	})
-	s := snapshotOnce(mon, *timeout)
+	o := status.Options{
+		Mihomo:           mh,
+		Tailscale:        tailscale.New(tailscale.LocalAPI(nil), false),
+		Install:          install,
+		PrimaryGroup:     cfg.PrimaryGroup,
+		ExitNodeAccepted: cfg.ExitNodeAccepted,
+		HealthInterval:   -1,
+	}
+	if cfg.Helper != nil {
+		// The helper's last health run (never a new one): the same
+		// count as the app's.
+		src := healthsrc.Source{Client: helperCaller(*socket)}
+		o.Health = status.HealthFunc(src.Last)
+	}
+	mon := status.NewMonitor(o)
+	// The helper's status rates the snapshot the way the app does:
+	// another program's mihomo on the controller, DNS held back by the
+	// watchdog, takeover not done yet.
+	if cfg.Helper != nil {
+		st := *cfg.Helper
+		st.Mihomo.Owner = cfg.Owner // nil unless the controller used is the helper's
+		mon.SetHelper(status.Helper{State: status.HelperConnected, Socket: *socket, Status: &st})
+	} else {
+		mon.SetHelper(status.Helper{State: status.HelperNotRunning, Socket: *socket})
+	}
+	s := hideForeign(snapshotOnce(mon, o.Health != nil, *timeout))
 	if *asJSON {
 		b, err := json.MarshalIndent(s, "", "  ")
 		if err != nil {
@@ -57,13 +77,24 @@ func runStatus(args []string) error {
 	return nil
 }
 
-// snapshotOnce runs the monitor until both sides answered (or timeout).
-func snapshotOnce(mon *status.Monitor, timeout time.Duration) status.Snapshot {
+// hideForeign drops what the controller answered when it is another
+// program's mihomo: never shown as Twinnel's (the reasons say who holds
+// it).
+func hideForeign(s status.Snapshot) status.Snapshot {
+	if fo := s.ForeignController(); fo != nil {
+		s.Mihomo = status.Mihomo{Err: fo.Label() + ": not Twinnel's mihomo"}
+	}
+	return s
+}
+
+// snapshotOnce runs the monitor until both sides answered and, withHealth,
+// the health source did too, or timeout.
+func snapshotOnce(mon *status.Monitor, withHealth bool, timeout time.Duration) status.Snapshot {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	ready := make(chan struct{}, 1)
 	unsub := mon.Subscribe(func() {
-		if mon.Snapshot().Loaded {
+		if s := mon.Snapshot(); s.Loaded && (!withHealth || !s.Health.Updated.IsZero()) {
 			select {
 			case ready <- struct{}{}:
 			default:
@@ -87,7 +118,16 @@ func statusText(s status.Snapshot) string {
 	}
 	m := s.Mihomo
 	b.WriteString("\nmihomo\n")
-	if !m.Reachable {
+	if fo := s.ForeignController(); fo != nil {
+		fmt.Fprintf(&b, "  controller  held by another mihomo: %s\n", fo.Label())
+		if fo.Exe != "" {
+			fmt.Fprintf(&b, "  program     %s\n", fo.Exe)
+		}
+		if fo.Parent != "" {
+			fmt.Fprintf(&b, "  started by  %s\n", fo.Parent)
+		}
+		b.WriteString("  Twinnel does not read or reload it: twinnel doctor --fix controller-owner\n")
+	} else if !m.Reachable {
 		fmt.Fprintf(&b, "  unreachable: %s\n", m.Err)
 	} else {
 		fmt.Fprintf(&b, "  version     %s\n", m.Version)

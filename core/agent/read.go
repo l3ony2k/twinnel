@@ -100,8 +100,9 @@ peer-relay, idle), whether it is or may be an exit node. online_only limits the 
 
 	if s.d.Doctor != nil {
 		addTool(s, rpc.TierRead, "doctor", "Doctor",
-			"Runs `twinnel doctor` here: the same coexistence checks as health, run by this process against the "+
-				"running mihomo and Tailscale (read-only). Use it when the helper is not reachable.",
+			"Runs `twinnel doctor`: the helper runs the coexistence checks now (the same report as health with run=true). "+
+				"When the helper does not answer, this process runs them itself against the running mihomo and Tailscale; "+
+				"the report's source then says local-no-helper, and checks that need the helper's knowledge skip (read-only).",
 			toolOpts{noHelper: true}, s.doctor)
 	}
 
@@ -221,7 +222,11 @@ func (s *Server) status(c *call, _ noArgs) (any, error) {
 			out.Health = summarizeHealth(hr)
 		}
 	}
-	if mc, err := c.mihomo(false); err != nil {
+	if o := out.Mihomo.Owner; o.IsForeign() {
+		// What the controller says is the other program's mihomo, not
+		// Twinnel's: its mode, TUN and groups are left out.
+		out.Mihomo.Error = foreignOwnerError(*o).Error()
+	} else if mc, err := c.mihomo(false); err != nil {
 		out.Mihomo.Error = err.Error()
 	} else if v, err := mc.Version(c.ctx); err != nil {
 		out.Mihomo.Error = err.Error()
@@ -310,6 +315,10 @@ func (s *Server) version(c *call, in versionIn) (any, error) {
 		if h.Call(c.ctx, rpc.MethodStatus, nil, &st) == nil {
 			out["helper"] = st.HelperVersion
 			out["mihomo_running"] = st.Mihomo.Version
+			if o := st.Mihomo.Owner; o.IsForeign() {
+				// The version that answered is the other program's mihomo.
+				out["mihomo_running_owner"] = o
+			}
 			if st.ServiceHost != nil {
 				// Windows: the helper's copy that runs mihomo.
 				out["service_host"] = st.ServiceHost
