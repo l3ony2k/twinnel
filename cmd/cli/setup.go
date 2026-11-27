@@ -148,7 +148,7 @@ func runSetupFlow(args []string, statusOnly bool) error {
 	}, f.o)
 	flow.Detect(ctx)
 	if statusOnly {
-		return printSetup(flow, cf.json, nil)
+		return printSetup(flow, cf.json, true, nil)
 	}
 	if !cf.json {
 		flow.OnChange = progressPrinter(flow)
@@ -173,7 +173,7 @@ func runSetupFlow(args []string, statusOnly bool) error {
 			break
 		}
 	}
-	return printSetup(flow, cf.json, err)
+	return printSetup(flow, cf.json, false, err)
 }
 
 // maxImportZip bounds an export zip read into memory.
@@ -260,19 +260,27 @@ func progressPrinter(flow *setup.Flow) func() {
 			case setup.Failed:
 				fmt.Fprintf(stdout, "[%d/%d] %s ✗ %s\n", i+1, len(setup.Order), s.ID, s.Error)
 			case setup.Skipped:
-				fmt.Fprintf(stdout, "[%d/%d] %s skipped\n", i+1, len(setup.Order), s.ID)
+				why := "not available on this system"
+				if s.Code == setup.CodeUserSkipped {
+					why = "your choice"
+				}
+				fmt.Fprintf(stdout, "[%d/%d] %s skipped (%s)\n", i+1, len(setup.Order), s.ID, why)
 			}
 		}
 	}
 }
 
-func printSetup(flow *setup.Flow, asJSON bool, err error) error {
+func printSetup(flow *setup.Flow, asJSON bool, statusOnly bool, err error) error {
 	if asJSON {
+		// complete: every step done. Skipped steps (by choice or because
+		// this system lacks them) are listed in remaining, never counted
+		// as done.
 		out := struct {
-			Complete bool              `json:"complete"`
-			Steps    []setup.StepState `json:"steps"`
-			Error    string            `json:"error,omitempty"`
-		}{flow.Complete(), flow.Steps(), ""}
+			Complete  bool              `json:"complete"`
+			Steps     []setup.StepState `json:"steps"`
+			Remaining []setup.Left      `json:"remaining,omitempty"`
+			Error     string            `json:"error,omitempty"`
+		}{flow.AllDone(), flow.Steps(), flow.Remaining(), ""}
 		if err != nil {
 			out.Error = err.Error()
 		}
@@ -280,11 +288,7 @@ func printSetup(flow *setup.Flow, asJSON bool, err error) error {
 		fmt.Fprintln(stdout, string(b))
 		return err
 	}
-	if err == nil && flow.Complete() {
-		fmt.Fprintln(stdout, "Setup complete.")
-		return nil
-	}
-	if err == nil { // status
+	if statusOnly {
 		for _, s := range flow.Steps() {
 			fmt.Fprintf(stdout, "  %-12s %s", s.ID, s.State)
 			if s.Detail != "" {
@@ -292,6 +296,8 @@ func printSetup(flow *setup.Flow, asJSON bool, err error) error {
 			}
 			fmt.Fprintln(stdout)
 		}
+		fmt.Fprintln(stdout)
 	}
+	fmt.Fprintln(stdout, flow.Summary())
 	return err
 }

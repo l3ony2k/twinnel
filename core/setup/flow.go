@@ -261,7 +261,9 @@ func (f *Flow) set(id Step, fn func(*StepState)) {
 	}
 }
 
-// Complete reports whether every step is done or skipped.
+// Complete reports whether every step is done or skipped: nothing is left
+// to run. It does not mean the machine is set up: a skipped step is still
+// missing (AllDone, Remaining).
 func (f *Flow) Complete() bool {
 	for _, s := range f.Steps() {
 		if s.State != Done && s.State != Skipped {
@@ -322,12 +324,20 @@ func (f *Flow) Detect(ctx context.Context) {
 		}
 	}
 	if f.Opts.NoDNS {
-		f.skip(StepDNS, "")
+		f.skip(StepDNS, CodeUserSkipped)
+	} else if f.dnsUnsupported(ctx, hc) {
+		f.skip(StepDNS, CodeUnsupported)
 	}
 	if f.Opts.NoTailscale {
-		f.skip(StepTailscale, "")
-		f.skip(StepLogin, "")
+		f.skip(StepTailscale, CodeUserSkipped)
+		f.skip(StepLogin, CodeUserSkipped)
 	}
+}
+
+// dnsUnsupported: the helper says this platform cannot set the system DNS.
+func (f *Flow) dnsUnsupported(ctx context.Context, hc Caller) bool {
+	var d rpc.DNSStatus
+	return hc.Call(ctx, rpc.MethodDNSStatus, nil, &d) == nil && !d.Supported
 }
 
 func (f *Flow) skip(id Step, code string) {
@@ -432,7 +442,7 @@ func (f *Flow) RunStep(ctx context.Context, id Step) error {
 		switch se.Code {
 		case CodeNeedsSubscription:
 			state = Waiting
-		case CodeUnsupported:
+		case CodeUnsupported, CodeUserSkipped:
 			state = Skipped
 		}
 		f.set(id, func(s *StepState) { s.State, s.Error, s.Code, s.Detail = state, cleanErr(se.Err), se.Code, detail })
@@ -693,7 +703,7 @@ func (f *Flow) runApply(ctx context.Context, hc Caller) (string, error) {
 
 func (f *Flow) runDNS(ctx context.Context, hc Caller) (string, error) {
 	if f.Opts.NoDNS {
-		return "", &StepError{Code: CodeUnsupported, Err: errors.New("left alone (--no-dns)")}
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("left alone (--no-dns)")}
 	}
 	var d rpc.DNSStatus
 	if err := hc.Call(ctx, rpc.MethodDNSStatus, nil, &d); err != nil {
@@ -713,7 +723,7 @@ func (f *Flow) runDNS(ctx context.Context, hc Caller) (string, error) {
 
 func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 	if f.Opts.NoTailscale {
-		return "", &StepError{Code: CodeUnsupported, Err: errors.New("skipped (--no-tailscale)")}
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("skipped (--no-tailscale)")}
 	}
 	var r rpc.TailscaleInstallResult
 	if err := hc.Call(ctx, rpc.MethodTailscaleInstall, rpc.TailscaleInstallParams{Proxy: f.Opts.Proxy}, &r); err != nil {
@@ -747,7 +757,7 @@ func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 
 func (f *Flow) runLogin(ctx context.Context, hc Caller) (string, error) {
 	if f.Opts.NoTailscale {
-		return "", &StepError{Code: CodeUnsupported, Err: errors.New("skipped (--no-tailscale)")}
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("skipped (--no-tailscale)")}
 	}
 	state := func(start bool) (rpc.TailscaleLoginResult, error) {
 		var ls rpc.TailscaleLoginResult

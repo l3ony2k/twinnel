@@ -86,3 +86,13 @@ func TestURLOpener(t *testing.T) {
 		}
 	}
 }
+
+func TestSetupStatusNeverClaimsComplete(t *testing.T) {
+	buf, _ := setupFakes(t)
+	if err := runSetup([]string{"status"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "Setup complete") || !strings.Contains(buf.String(), "Setup not finished") {
+		t.Fatalf("%s", buf)
+	}
+}
