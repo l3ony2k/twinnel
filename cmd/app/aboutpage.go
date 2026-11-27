@@ -45,6 +45,21 @@ type aboutView struct {
 // aboutTakeoverAnchor is 接管是什么, the target of 了解接管 (接管 page).
 const aboutTakeoverAnchor = "takeover"
 
+// aboutFAQAnchor prefixes a question of 常见问题 as a reveal anchor
+// (openAboutFAQ).
+const aboutFAQAnchor = "faq:"
+
+// openAboutFAQ opens 关于 scrolled to the question q of 常见问题, open:
+// an ⓘ's 了解更多 where the FAQ says more.
+func (a *app) openAboutFAQ(q string) {
+	if a.about.faqOpen == nil {
+		a.about.faqOpen = map[string]bool{}
+	}
+	a.about.faqOpen[q] = true
+	a.about.reveal = aboutFAQAnchor + q
+	a.showPage(pageAbout)
+}
+
 // appIconImage is the app icon, decoded once.
 var appIconImage = func() ui.ImageSource {
 	img, err := ui.DecodeImage(appicon.MacPNG)
@@ -327,7 +342,7 @@ func (a *app) aboutFAQ(c *ui.Context) {
 	listCard(c, listHead(c, nil, T.FAQ, nil), func() {
 		for _, qa := range qs {
 			open := a.about.faqOpen[qa[0]]
-			ui.Column(c.Key("faq:" + qa[0])).Gap(4).PaddingY(8).Clip().Transition(expandFor(open)).Children(func() {
+			item := ui.Column(c.Key("faq:" + qa[0])).Gap(4).PaddingY(8).Clip().Transition(expandFor(open)).Children(func() {
 				head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(22).
 					Role(ui.RoleDisclosure).Label(qa[0]).Expanded(open).Focusable().FocusRingOffset(2)
 				head.Children(func() {
@@ -345,6 +360,10 @@ func (a *app) aboutFAQ(c *ui.Context) {
 					}
 				}
 			})
+			if a.about.reveal == aboutFAQAnchor+qa[0] {
+				a.about.reveal = ""
+				item.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollCenter, Animation: &rowMove})
+			}
 		}
 	})
 }

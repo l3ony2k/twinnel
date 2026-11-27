@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+
+	"github.com/l3ony2k/duet/core/i18n"
 )
 
 // A flyout row that toggles as a whole (TUN) holds an ⓘ: clicking the ⓘ
@@ -22,7 +24,7 @@ func TestPanelRowInfoTipDoesNotToggle(t *testing.T) {
 			toggles++
 		}
 	}, 320, 80)
-	if err := tr.Click(" what TUN does"); err != nil {
+	if err := tr.Click(i18n.T.InfoTipLabel); err != nil {
 		t.Fatal(err)
 	}
 	if toggles != 0 {

@@ -125,6 +125,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 	}
 	detail := headedCard(c, func() {
 		ui.Text(c, T.HistoryEntry).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
+		infoTipAbout(c, T.HistoryRollback, T.TipHistRollback, nil)
 		if entry.BeforeDuet {
 			tag(c, T.HistBeforeDuet)
 		}

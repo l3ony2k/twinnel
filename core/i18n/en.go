@@ -545,6 +545,7 @@ var en = Strings{
 	ConfigUIStrings:        enConfigUI,
 	LifecycleStrings:       enLifecycle,
 	TakeoverExplainStrings: enTakeoverExplain,
+	InfoTipStrings:         enInfoTips,
 	StatusStrings:          enStatus,
 	SidebarStrings:         enSidebar,
 }

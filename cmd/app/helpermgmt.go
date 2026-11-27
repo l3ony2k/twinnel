@@ -466,7 +466,7 @@ func (a *app) helperSection(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	v := &a.hm
 	h := s.Helper
-	cardWith(c, T.HelperSection, nil, func() {
+	cardTipWith(c, T.HelperSection, T.TipHelper, nil, nil, func() {
 		kvWith(c, T.State, func() {
 			m, col := markDown, t.TextMuted
 			switch h.State {
@@ -571,7 +571,7 @@ func (a *app) loginSection(c *ui.Context) {
 		ok := appBundled()
 		on := ok && a.openAtLogin()
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, T.OpenAtLogin).Grow(1)
+			switchLabel(c, T.OpenAtLogin, T.TipOpenAtLogin, func() { a.openAboutFAQ(T.FAQQuitQ) })
 			if !ok {
 				tag(c, T.NotificationsUnsupported).Tooltip(T.OpenAtLoginUnsupportedTip)
 			}

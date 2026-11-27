@@ -317,7 +317,7 @@ func (a *app) undoCard(c *ui.Context, s status.Snapshot) {
 	v := &a.hd.leave
 	adopted := v.inv != nil && v.inv.Adopted != ""
 	hardened := v.inv != nil && v.inv.Hardened
-	card(c, T.LeaveUndo, func() {
+	cardTip(c, T.LeaveUndo, T.TipLeaveUndo, a.openAboutTakeover, func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			switch {
 			case hardened:
@@ -446,7 +446,7 @@ func (a *app) uninstallCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	hm := &a.hm
-	card(c, T.LeaveUninstall, func() {
+	cardTip(c, T.LeaveUninstall, T.TipLeaveUninstall, nil, func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Success)
 			ui.Text(c, T.LeaveKeepsRunning).Grow(1).Shrink(1)
@@ -465,7 +465,7 @@ func (a *app) removeAllCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	hm := &a.hm
-	card(c, T.LeaveRemoveAll, func() {
+	cardTip(c, T.LeaveRemoveAll, T.TipLeaveRemoveAll, nil, func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Success)
 			ui.Text(c, T.LeaveKeepsRunning).Grow(1).Shrink(1)
@@ -488,7 +488,7 @@ func (a *app) exportCard(c *ui.Context, s status.Snapshot) {
 			n++
 		}
 	}
-	card(c, T.LeaveExport, func() {
+	cardTip(c, T.LeaveExport, T.TipLeaveExport, nil, func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, i18n.F(T.LeaveExportWhat, n)).Grow(1).Shrink(1)
 			if pushButton(c.Key("export"), T.LeaveExportRun).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {

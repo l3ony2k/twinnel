@@ -116,7 +116,9 @@ func (a *app) exitNodeAcceptedRow(c *ui.Context, s status.Snapshot) {
 	groupBox(c, t).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, iconSkip).FontSize(iconNav).TextColor(t.TextMuted).Shrink(0)
-			ui.Text(c, fmt.Sprintf(T.ExitNodeAcceptedRow, name)).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
+			ui.Text(c, fmt.Sprintf(T.ExitNodeAcceptedRow, name)).Shrink(1).Wrap().LineHeight(lineText)
+			infoTipAbout(c, T.ExitNode, T.TipExitAccepted, nil)
+			ui.Spacer(c)
 			if pushButton(c.Key("exit-off"), T.ExitNodeTurnOff).Disabled(!s.Can().Tailscale).Clicked() {
 				a.turnOffExitNode()
 			}

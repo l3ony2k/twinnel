@@ -237,7 +237,7 @@ func (a *app) serviceOp(method, name, label string) {
 // --- geo databases and external UI ---
 
 type accessoryKind struct {
-	title         string
+	title, tip    string
 	icon          *ui.SVG
 	check, update string
 	view          func(a *app) *accessoryView
@@ -245,7 +245,7 @@ type accessoryKind struct {
 
 func geoKind() accessoryKind {
 	return accessoryKind{
-		title: i18n.T.GeoTitle, icon: iconGeo,
+		title: i18n.T.GeoTitle, tip: i18n.T.TipGeo, icon: iconGeo,
 		check: rpc.MethodGeoCheck, update: rpc.MethodGeoUpdate,
 		view: func(a *app) *accessoryView { return &a.hd.kern.geo },
 	}
@@ -264,7 +264,7 @@ func (a *app) accessoryCard(c *ui.Context, s status.Snapshot, k accessoryKind) {
 	d := &a.hd
 	v := k.view(a)
 	w := a.helperWrites(s)
-	listCard(c, listHead(c, k.icon, k.title, func() {
+	listCard(c, listHeadTip(c, k.icon, k.title, k.tip, func() {
 		if a.opButton(c.Key("check"), iconRefresh, T.KernelCheck, false, k.title+" · "+T.KernelCheck).Disabled(d.busy != "").Clicked() {
 			a.accessoryCheck(k)
 		}

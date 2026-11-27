@@ -84,7 +84,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 			// Before the takeover the running mihomo is the user's own:
 			// duet's kernel (k.Active) is not what runs.
 			own := !s.TakenOver()
-			kvWith(c, T.State, func() {
+			kvTipWith(c, T.State, T.TipKernelState, nil, func() {
 				state := T.KernelStateManaged
 				switch {
 				case own:
