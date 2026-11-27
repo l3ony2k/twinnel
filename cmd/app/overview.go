@@ -708,20 +708,15 @@ func (a *app) healthValue(c *ui.Context, s status.Snapshot) {
 		ui.Text(c, T.HealthRunning).TextColor(t.TextMuted).SingleLine()
 		return
 	}
-	text, lvl := T.OvHealthOK, status.LevelOK
-	if _, l := s.HealthBadge(); l != status.LevelOK {
-		lvl = l
-		for _, r := range s.Reasons {
-			if r.Code == status.ReasonHealth {
-				text = healthReasonShort(r)
-			}
-		}
+	text, lvl, icon := T.OvHealthOK, status.LevelOK, iconOK
+	if r, ok := healthReason(s); ok {
+		text, lvl, icon = healthReasonShort(r), r.Level, healthReasonIcon(r)
 	} else if rep.Counts()[health.StatusOK] == 0 {
 		text, lvl = T.HealthSkip, status.LevelUnknown
 	}
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(1).MinWidth(0).Children(func() {
 		if lvl != status.LevelUnknown {
-			ui.Icon(c, levelIcon(lvl)).FontSize(iconInline).TextColor(levelText(t, lvl)).Shrink(0)
+			ui.Icon(c, icon).FontSize(iconInline).TextColor(levelText(t, lvl)).Shrink(0)
 		}
 		e := ui.Text(c, text).SingleLine().Shrink(1)
 		if lvl != status.LevelOK && lvl != status.LevelUnknown {
@@ -743,14 +738,31 @@ func levelIcon(l status.Level) *ui.SVG {
 	return iconSkip
 }
 
-// healthReasonShort words the health reason for the row labelled 健康检查:
-// its count at its level (1 个问题 for a warning, whether the checks
-// found failures before takeover or warnings; 1 项失败 for an error).
-func healthReasonShort(r status.Reason) string {
-	if r.Level == status.LevelError {
-		return fmt.Sprintf(i18n.T.OvHealthFail, r.Count)
+// healthReason is the snapshot's health reason, if any.
+func healthReason(s status.Snapshot) (status.Reason, bool) {
+	for _, r := range s.Reasons {
+		if r.Code == status.ReasonHealth && r.Count > 0 {
+			return r, true
+		}
 	}
-	return i18n.F(i18n.T.OvHealthIssues, r.Count)
+	return status.Reason{}, false
+}
+
+// healthReasonShort words the health reason for a place labelled 健康检查:
+// everything that needs attention, split into failures and warnings when
+// both are in it (4 项需要处理：2 项失败、2 项警告); before takeover 发现 4
+// 个问题….
+func healthReasonShort(r status.Reason) string {
+	return i18n.T.HealthCount(r.Fail, r.Warn, r.Found)
+}
+
+// healthReasonIcon is ⊗ when failures are in the number, else ⚠: the
+// shape says it, whatever the color.
+func healthReasonIcon(r status.Reason) *ui.SVG {
+	if r.Fail > 0 {
+		return iconError
+	}
+	return iconWarning
 }
 
 // --- 最近活动 ---

@@ -240,14 +240,11 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	// The one number (status.Snapshot.HealthBadge): the badge, the
 	// overview and the health page show the same.
-	n, lvl := s.HealthBadge()
-	_, fail := s.Health.Counts()
-	icon, col, text := iconWarning, levelColor(t, status.LevelWarn), i18n.F(T.PanelHealthWarn, n)
-	if fail > 0 {
-		icon, col, text = iconError, levelColor(t, lvl), fmt.Sprintf(T.PanelHealthFail, n)
-		if lvl == status.LevelWarn {
-			icon = iconWarning // before takeover: findings, not faults
-		}
+	r, _ := healthReason(s)
+	icon, col := healthReasonIcon(r), levelColor(t, r.Level)
+	text := fmt.Sprintf(T.HealthLine, healthReasonShort(r))
+	if r.Found {
+		text = healthReasonShort(r) // 发现 … says whose it is
 	}
 	row := panelRow(c.Key("health-line"), text).Role(ui.RoleButton)
 	row.Children(func() {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -133,16 +134,13 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 	groupBox(c, t).Children(func() {
 		icon, col, label := healthStatusLook(t, rep.Overall)
 		head := healthHeadline(label, cnt)
-		// The headline is the one number the banner and the sidebar show,
-		// at their level (Snapshot.HealthBadge): a finding they call a
-		// warning is a warning here too, not 1 项失败 in red (R-kubai-6).
-		if n, l := s.HealthBadge(); n > 0 && l != status.LevelOK {
-			icon, col = levelIcon(l), levelColor(t, l)
-			for _, r := range s.Reasons {
-				if r.Code == status.ReasonHealth {
-					head = healthReasonShort(r)
-				}
-			}
+		// The headline is the one number the banner, the sidebar, the
+		// overview and the flyout show (Snapshot.HealthBadge: failures
+		// and warnings together, split in words), in their level's color
+		// (a finding before takeover is a warning: R-kubai-6), with ⊗
+		// when failures are in it.
+		if r, ok := healthReason(s); ok {
+			icon, col, head = healthReasonIcon(r), levelColor(t, r.Level), healthReasonShort(r)
 		}
 		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
 			ui.Icon(c, icon).FontSize(iconLarge).TextColor(col).Shrink(0)
@@ -198,6 +196,10 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			}
 		})
 	}
+	// Failures first, then warnings, each in report order.
+	sort.SliceStable(problems, func(i, j int) bool {
+		return problems[i].Status == health.StatusFail && problems[j].Status != health.StatusFail
+	})
 	list(T.HealthProblems, "", problems, nil)
 	// An accepted exit node: its check, and the checks it breaks grouped
 	// under it, folded; none of them counts.
@@ -259,11 +261,12 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 	expandable := len(cr.Evidence) > 0 || fix || reasons ||
 		cr.Summary != "" && cr.Status != health.StatusSkip && cr.Status != health.StatusAccepted ||
 		egress && !off && cr.Summary != ""
-	look := cr.Status
-	if demote && look == health.StatusFail {
-		look = health.StatusWarn
+	// A failure keeps its ⊗ shape; before takeover it wears the
+	// warning's color, as the banner rates it (R-kubai-6).
+	icon, col, _ := healthStatusLook(t, cr.Status)
+	if demote && cr.Status == health.StatusFail {
+		_, col, _ = healthStatusLook(t, health.StatusWarn)
 	}
-	icon, col, _ := healthStatusLook(t, look)
 	_, _, stateText := healthStatusLook(t, cr.Status)
 	if off {
 		// Not tested yet: a setting, not a finding. The power glyph,
@@ -448,10 +451,8 @@ func healthAge(s status.Snapshot) string {
 func healthHeadline(label string, cnt map[health.Status]int) string {
 	T := i18n.T
 	switch {
-	case cnt[health.StatusFail] > 0:
-		return i18n.F(T.HealthFailN, cnt[health.StatusFail])
-	case cnt[health.StatusWarn] > 0:
-		return i18n.F(T.HealthWarnN, cnt[health.StatusWarn])
+	case cnt[health.StatusFail]+cnt[health.StatusWarn] > 0:
+		return T.HealthCount(cnt[health.StatusFail], cnt[health.StatusWarn], false)
 	case cnt[health.StatusOK] > 0:
 		return T.PanelHealthOK
 	}
@@ -464,7 +465,7 @@ func healthCountsText(cnt map[health.Status]int) string {
 	for _, k := range []struct {
 		st    health.Status
 		label string
-	}{{health.StatusWarn, T.HealthWarn}, {health.StatusFail, T.HealthFail}, {health.StatusSkip, T.HealthSkip}} {
+	}{{health.StatusFail, T.HealthFail}, {health.StatusWarn, T.HealthWarn}, {health.StatusSkip, T.HealthSkip}} {
 		if n := cnt[k.st]; n > 0 {
 			parts = append(parts, fmt.Sprintf("%s %d", k.label, n))
 		}

@@ -22,6 +22,13 @@ type HealthFixStrings struct {
 	FixFailed     string // toast title: the fix failed (%s: the check)
 	FixDetails    string // the check's own summary, under the reasons
 	FixLoading    string // the preview is being prepared
+	// HealthSplit is the health checks' one number when both failures
+	// and warnings are in it: %d all, %d failed, %d warnings.
+	HealthSplit string
+	// HealthFound is HealthSplit before takeover (what was found on this
+	// computer, not something that broke).
+	HealthFound string
+	HealthLine  string // %s: HealthCount, on a line that does not say 健康检查 already
 }
 
 var zhHealthFix = HealthFixStrings{
@@ -43,6 +50,9 @@ var zhHealthFix = HealthFixStrings{
 	FixFailed:     "修复 %s 失败",
 	FixDetails:    "检查结果",
 	FixLoading:    "正在准备…",
+	HealthSplit:   "%d 项需要处理：%d 项失败、%d 项警告",
+	HealthFound:   "发现 %d 个问题：%d 项失败、%d 项警告",
+	HealthLine:    "健康检查：%s",
 }
 
 var enHealthFix = HealthFixStrings{
@@ -64,4 +74,25 @@ var enHealthFix = HealthFixStrings{
 	FixFailed:     "Couldn't fix %s",
 	FixDetails:    "Check result",
 	FixLoading:    "Preparing…",
+	HealthSplit:   "%d need{s|} attention: %d failed, %d warning{s}",
+	HealthFound:   "%d issue{s} found: %d failed, %d warning{s}",
+	HealthLine:    "Health: %s",
+}
+
+// HealthCount words the health checks' one number (fail + warn), split
+// when both are in it, so every place that shows the number says the
+// same: the health page, the overview, the flyout and the banner. found:
+// before takeover (what was found here, not something that broke).
+func (s *Strings) HealthCount(fail, warn int, found bool) string {
+	switch {
+	case fail > 0 && warn > 0 && found:
+		return F(s.HealthFound, fail+warn, fail, warn)
+	case fail > 0 && warn > 0:
+		return F(s.HealthSplit, fail+warn, fail, warn)
+	case found:
+		return F(s.OvHealthIssues, fail+warn)
+	case fail > 0:
+		return F(s.HealthFailN, fail)
+	}
+	return F(s.HealthWarnN, warn)
 }
