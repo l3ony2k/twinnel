@@ -4,11 +4,13 @@ package main
 // external UI and health.
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
 
+	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/rpc/healthsrc"
 )
@@ -128,4 +130,56 @@ func printHealth(w io.Writer, r rpc.HealthReport) {
 		fmt.Fprintf(t, "%s\t%s\t%s\n", c.Status, c.ID, c.Summary)
 	}
 	t.Flush()
+}
+
+// runHelperEgress runs the egress test once in the helper (health.egress):
+// one HTTPS request to an IP-echo address directly and one through mihomo.
+// It prints the egress check alone; --json prints it as JSON.
+func runHelperEgress(args []string) error {
+	fs, cf := newFlagSet("helper egress", "usage: duet helper egress [--json]\n\nRun the egress test once: one HTTPS request to an IP-echo address directly\nand one through mihomo. The result stays in the helper's health report.\n\n")
+	if _, done, err := parse(fs, args); done || err != nil {
+		return err
+	}
+	var r rpc.HealthReport
+	if err := cf.call(rpc.MethodHealthEgress, rpc.HealthEgressParams{}, &r); err != nil {
+		return err
+	}
+	cr, err := egressCheck(r)
+	if err != nil {
+		return err
+	}
+	if cf.json {
+		b, _ := json.MarshalIndent(cr, "", "  ")
+		fmt.Fprintln(stdout, string(b))
+		return nil
+	}
+	printEgress(stdout, cr)
+	return nil
+}
+
+// egressCheck is the egress check in a health.egress answer.
+func egressCheck(r rpc.HealthReport) (health.CheckReport, error) {
+	rep, err := healthsrc.Decode(r)
+	if err != nil {
+		return health.CheckReport{}, err
+	}
+	if rep != nil {
+		for _, c := range rep.Checks {
+			if c.ID == (health.LeakEgress{}).ID() {
+				return c, nil
+			}
+		}
+	}
+	return health.CheckReport{}, errors.New("the helper's report has no egress check")
+}
+
+func printEgress(w io.Writer, cr health.CheckReport) {
+	at := ""
+	if !cr.At.IsZero() {
+		at = ", " + cr.At.Local().Format("15:04:05")
+	}
+	fmt.Fprintf(w, "%s%s: %s\n", cr.Status, at, cr.Summary)
+	for _, e := range cr.Evidence {
+		fmt.Fprintf(w, "  %s\n", e)
+	}
 }

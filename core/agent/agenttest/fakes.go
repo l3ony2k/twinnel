@@ -183,6 +183,9 @@ func (h *Helper) register() {
 	typed(h, rpc.MethodHealthLast, func(rpc.HealthLastParams) (rpc.HealthReport, error) {
 		return rpc.HealthReport{Report: report, Reason: "scheduled", At: time.Unix(1_800_000_000, 0)}, nil
 	})
+	typed(h, rpc.MethodHealthEgress, func(rpc.HealthEgressParams) (rpc.HealthReport, error) {
+		return rpc.HealthReport{Report: json.RawMessage(`{"overall":"ok","checks":[{"id":"leak-guard-egress","status":"ok","summary":"egress differs"}]}`), Reason: "egress"}, nil
+	})
 	typed(h, rpc.MethodHealthRun, func(rpc.HealthRunParams) (rpc.HealthReport, error) {
 		return rpc.HealthReport{Report: report, Reason: "agent"}, nil
 	})

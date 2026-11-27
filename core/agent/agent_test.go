@@ -158,7 +158,7 @@ func TestEveryToolRedacts(t *testing.T) {
 		"history": {"diff": "h-1"}, "preview": nil, "takeover_plans": nil, "tailnet_peers": nil, "doctor": nil,
 		"agent_activity": nil, "admin_only": {"action": "kernel_install"},
 		"set_mode": {"mode": "global"}, "select_node": {"group": "Proxy", "node": "US 1"},
-		"delay_test": {"group": "Proxy"}, "set_tun": {"enabled": false}, "tailscale_up": nil, "tailscale_down": nil,
+		"delay_test": {"group": "Proxy"}, "health_egress_run": nil, "set_tun": {"enabled": false}, "tailscale_up": nil, "tailscale_down": nil,
 		"set_exit_node": {"peer": "exit-jp"}, "clear_exit_node": nil, "refresh_subscription": nil, "flush_fakeip": nil,
 		"layer_put":    {"id": "extra", "content": "proxies:\n  - {name: X, type: ss, password: " + agenttest.NodePassword + "}\n"},
 		"layer_remove": {"id": "nodes"}, "layer_enable": {"id": "extra", "enabled": false},
@@ -281,6 +281,10 @@ func TestOperateRecordsAndUndo(t *testing.T) {
 	if e.ctrl.Flushes != 1 {
 		t.Fatal("fake-ip cache not flushed")
 	}
+	m = e.ok("health_egress_run", nil)
+	if ck, _ := m["check"].(map[string]any); ck["id"] != "leak-guard-egress" || ck["status"] != "ok" {
+		t.Fatalf("health_egress_run = %v", m)
+	}
 	e.h.Mu.Lock()
 	recs := append([]rpc.AgentAction(nil), e.h.Records...)
 	e.h.Mu.Unlock()
@@ -294,7 +298,7 @@ func TestOperateRecordsAndUndo(t *testing.T) {
 			t.Errorf("record %+v: want client test-agent 1.0, source agent", r)
 		}
 	}
-	want := "set_mode select_node select_node select_node set_exit_node set_exit_node flush_fakeip"
+	want := "set_mode select_node select_node select_node set_exit_node set_exit_node flush_fakeip health_egress_run"
 	if strings.Join(tools, " ") != want {
 		t.Fatalf("recorded %v, want %s", tools, want)
 	}

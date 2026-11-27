@@ -64,7 +64,7 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 | `agent_activity` | what agents changed, newest first |
 | `admin_only` | where the person does an action agents never get |
 
-**operate**: `set_mode`, `select_node`, `delay_test`, `set_tun`, `tailscale_up`, `tailscale_down`, `set_exit_node`, `clear_exit_node`, `refresh_subscription`, `flush_fakeip`.
+**operate**: `set_mode`, `select_node`, `delay_test`, `health_egress_run` (two GETs to an IP-echo address; operate because it sends traffic out), `set_tun`, `tailscale_up`, `tailscale_down`, `set_exit_node`, `clear_exit_node`, `refresh_subscription`, `flush_fakeip`.
 
 **configure**: `layer_put`, `layer_remove`, `layer_enable`, `layer_order`, `sub_put`, `sub_activate`, `sub_remove`, `apply`, `history_rollback`, `settings_update` (no agent fields).
 

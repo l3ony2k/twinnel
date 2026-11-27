@@ -777,6 +777,8 @@ func runHelper(args []string) error {
 		return runHelperRestart(args)
 	case "health":
 		return runHelperHealth(args)
+	case "egress":
+		return runHelperEgress(args)
 	case "adopt":
 		return runHelperAdopt(args)
 	case "plans":
@@ -794,6 +796,7 @@ func runHelper(args []string) error {
        duet helper upgrade [--check] [--force] [--dry-run] [--yes] [--json]   (the helper next to this duet)
        duet helper restart [--yes]
        duet helper health [--run] [--json]
+       duet helper egress [--json]   (the egress test once: two HTTPS requests to an IP-echo address)
        duet helper plans [PLAN_ID] [--json]
        duet helper adopt PLAN_ID [--yes] [--skip-health]
        duet helper discard PLAN_ID [--force]

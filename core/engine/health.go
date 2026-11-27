@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -158,6 +159,7 @@ const EgressKeep = 24 * time.Hour
 func (e *Engine) HealthEgress(ctx context.Context, lang string) (rpc.HealthReport, error) {
 	s := e.healthSched()
 	if s == nil || e.EgressProbe == nil {
+		e.log().Warn("egress test", "err", "not available (health checks off)")
 		return rpc.HealthReport{}, rpc.Errorf(rpc.CodeFailed, "the egress test is not available in this helper")
 	}
 	if lang != "" {
@@ -168,9 +170,16 @@ func (e *Engine) HealthEgress(ctx context.Context, lang string) (rpc.HealthRepor
 	defer cancel()
 	cr := e.EgressProbe(ctx)
 	if ctx.Err() != nil {
+		e.log().Warn("egress test", "err", ctx.Err())
 		return rpc.HealthReport{}, rpc.Errorf(rpc.CodeFailed, "egress test cancelled: %v", ctx.Err())
 	}
 	cr.At = e.now().UTC()
+	// The summary names no IP (MaskIP'd evidence stays in the file).
+	lv := slog.LevelInfo
+	if cr.Status != health.StatusOK {
+		lv = slog.LevelWarn
+	}
+	e.log().Log(ctx, lv, "egress test", "status", cr.Status, "summary", cr.Summary)
 	if err := e.Store.WriteJSON(egressFile, cr); err != nil {
 		e.log().Warn("save egress result", "err", err)
 	}
