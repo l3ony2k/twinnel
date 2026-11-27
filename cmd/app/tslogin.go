@@ -462,7 +462,10 @@ func (a *app) tsLoginPanel(c *ui.Context, s status.Snapshot, o tsPanelOpts) {
 			secondary("ts-cancel", T.Cancel, a.cancelTSLogin)
 		}
 	case f.state == flowFailed:
-		title, body, raw = T.TSLFailedTitle, f.errMsg, f.raw
+		title, body, raw = T.TSLFailedTitle, T.TSLFailedBody, f.raw
+		if f.errMsg == T.WritesDisabledHint {
+			body = f.errMsg
+		}
 		icon, iconCol = iconError, pal(t).badText
 		actions = func() {
 			primary("ts-login", T.Retry, func() { a.startTSLogin(s, f.reauth) })
@@ -529,7 +532,7 @@ func (a *app) tsLoginPanel(c *ui.Context, s status.Snapshot, o tsPanelOpts) {
 		}
 	}
 	a.tsPanelBox(c, o, tsBox{title: title, body: body, icon: icon, iconCol: iconCol, raw: raw, busy: busy, actions: actions,
-		tip: ph == tsNotInstalled || ph == tsNeedsLogin})
+		tip: f.state == flowIdle && (ph == tsNotInstalled || ph == tsNeedsLogin)})
 }
 
 // tsBox is what one state of the panel shows.

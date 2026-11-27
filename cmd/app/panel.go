@@ -446,6 +446,12 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 	ts := s.Tailscale
 	st := ts.State
 	summary, detail := T.Unreachable, ts.Err
+	switch tsPhaseOf(s) {
+	case tsNotInstalled:
+		summary = T.TSLShortNotInstalled
+	case tsDaemonDown:
+		summary = T.TSLShortDown
+	}
 	if ts.Reachable {
 		summary = T.TSState(st.BackendState)
 		if st.Running() {

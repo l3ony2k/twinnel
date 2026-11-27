@@ -54,9 +54,12 @@ type TSLoginStrings struct {
 	TSLTimedOutTitle string
 	TSLTimedOutBody  string
 
-	TSLFailedTitle  string
-	TSLLoggedIn     string // toast: %s is the tailnet ("" → TSLLoggedInBare)
-	TSLLoggedInBare string
+	TSLFailedTitle       string
+	TSLFailedBody        string // what to do; the system's text is behind 详细信息
+	TSLShortNotInstalled string // the flyout header's summary
+	TSLShortDown         string
+	TSLLoggedIn          string // toast: %s is the tailnet ("" → TSLLoggedInBare)
+	TSLLoggedInBare      string
 }
 
 var zhTSLogin = TSLoginStrings{
@@ -106,9 +109,12 @@ var zhTSLogin = TSLoginStrings{
 	TSLTimedOutTitle: "登录超时",
 	TSLTimedOutBody:  "这个登录链接已失效。",
 
-	TSLFailedTitle:  "没能开始登录",
-	TSLLoggedIn:     "已登录 Tailscale · %s",
-	TSLLoggedInBare: "已登录 Tailscale",
+	TSLFailedTitle:       "没能开始登录",
+	TSLFailedBody:        "Tailscale 没有接受登录请求。稍后再试，或者打开 Tailscale 自己的应用登录。",
+	TSLShortNotInstalled: "未安装",
+	TSLShortDown:         "未运行",
+	TSLLoggedIn:          "已登录 Tailscale · %s",
+	TSLLoggedInBare:      "已登录 Tailscale",
 }
 
 var enTSLogin = TSLoginStrings{
@@ -158,7 +164,10 @@ var enTSLogin = TSLoginStrings{
 	TSLTimedOutTitle: "Login Timed Out",
 	TSLTimedOutBody:  "This login link has expired.",
 
-	TSLFailedTitle:  "Couldn't Start the Login",
-	TSLLoggedIn:     "Logged in to Tailscale · %s",
-	TSLLoggedInBare: "Logged in to Tailscale",
+	TSLFailedTitle:       "Couldn't Start the Login",
+	TSLFailedBody:        "Tailscale didn't accept the login request. Try again, or log in from Tailscale's own app.",
+	TSLShortNotInstalled: "Not installed",
+	TSLShortDown:         "Not running",
+	TSLLoggedIn:          "Logged in to Tailscale · %s",
+	TSLLoggedInBare:      "Logged in to Tailscale",
 }
