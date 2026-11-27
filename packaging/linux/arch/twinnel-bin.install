@@ -1,0 +1,25 @@
+# pacman install hooks of twinnel-bin. The helper (a root systemd service
+# that applies Twinnel's changes) is installed by Twinnel itself, not by
+# the package, as on the other platforms.
+
+post_install() {
+	if [ ! -f /etc/systemd/system/twinnel-helper.service ]; then
+		echo '==> Open Twinnel and click Install Helper (安装后台助手), or run:'
+		echo '      sudo twinnel helper install --helper-bin /opt/twinnel/bin/twinnel-helper'
+	fi
+}
+
+post_upgrade() {
+	if [ -f /etc/systemd/system/twinnel-helper.service ]; then
+		echo '==> To update the helper too, open Twinnel (Settings > Helper > Update), or run:'
+		echo '      sudo twinnel helper upgrade --helper-bin /opt/twinnel/bin/twinnel-helper'
+	fi
+}
+
+pre_remove() {
+	if [ -f /etc/systemd/system/twinnel-helper.service ]; then
+		echo '==> The helper stays installed. To remove it (and put back what Twinnel changed),'
+		echo '    run this before removing the package, or later with a twinnel binary:'
+		echo '      sudo twinnel helper uninstall'
+	fi
+}

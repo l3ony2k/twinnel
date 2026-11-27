@@ -207,6 +207,7 @@ func (a *app) runCLIInstall(dir string, remove []string) {
 	if v.cliBusy || !a.cfg.AllowWrites || a.shotMode {
 		return
 	}
+	ts := tailscaleTool(managedTailscale(a.mon.Snapshot()))
 	v.cliBusy, v.cliErr = true, ""
 	go func() {
 		var (
@@ -219,8 +220,14 @@ func (a *app) runCLIInstall(dir string, remove []string) {
 					err = errors.Join(err, os.Remove(p))
 				}
 			}
+			removeTailscaleLinks()
 		} else {
 			dst, err = installCLI(dir)
+			if err == nil && fileExists(ts.Target) {
+				// The tailscale CLI a setup installed, beside it (never
+				// over another tailscale; a failure here is not the CLI's).
+				_, _ = ts.Link([]string{dir})
+			}
 		}
 		mygo.RunOnMain(func() {
 			v.cliBusy = false

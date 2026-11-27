@@ -19,6 +19,9 @@ it starts normally.
 | `Twinnel_<版本>_macos_universal.dmg` 或 `.zip` | Twinnel.app，macOS 15 及以上，Apple 芯片和 Intel 通用 |
 | `twinnel_<版本>_darwin_<arm64\|amd64>.tar.gz` | 只要 macOS 命令行（`twinnel`、`twinnel-helper`） |
 | `twinnel_<版本>_linux_<amd64\|arm64>.tar.gz` | Linux 命令行和后台助手（systemd） |
+| `Twinnel_<版本>_linux_<amd64\|arm64>_app.tar.gz` | Linux 版 Twinnel（应用、命令行、后台助手） |
+| `Twinnel_<版本>_linux_<amd64\|arm64>.AppImage` | 同一个应用，单个文件 |
+| `PKGBUILD`、`twinnel-bin.install` | Arch Linux 软件包 |
 | `SHA256SUMS` | 校验文件 |
 
 校验下载（可选）：
@@ -62,7 +65,48 @@ twinnel helper install --helper-bin "$PWD/twinnel-helper"                  # 弹
 twinnel version
 ```
 
-### Linux
+### Linux：安装 Twinnel
+
+需要 systemd，以及下面「运行库」里的库（桌面发行版一般都已装好）。
+
+```sh
+tar -xzf Twinnel_<版本>_linux_amd64_app.tar.gz
+cd Twinnel_<版本>_linux_amd64_app
+./install.sh --dry-run    # 先看会做什么，不改动任何东西
+./install.sh              # 装到 ~/.local，再安装后台助手（弹一次管理员密码框）
+```
+
+- 应用装在 `~/.local/lib/twinnel`，`twinnel` 命令链接到 `~/.local/bin`，「应用程序」菜单里出现 Twinnel。
+- `sudo ./install.sh`（或 `./install.sh --system`）给所有用户装到 `/usr/local`。
+- `--no-helper` 只装应用；`--yes` 不再询问。
+- 后台助手装到 `/usr/local/libexec/twinnel-helper`，服务是 `twinnel-helper.service`，数据在 `/var/lib/twinnel`。密码框来自 pkexec（polkit），没有就用 sudo。
+- 更新：解压新版本，再运行一次 `./install.sh`（后台助手一并更新）。
+- 卸载：`./uninstall.sh`（先卸载后台助手，还原 Twinnel 改过的设置）；`--keep-helper` 保留后台助手，`--purge` 同时删除 `/var/lib/twinnel`。
+
+**AppImage**：`chmod +x Twinnel_<版本>_linux_amd64.AppImage` 后双击或直接运行。需要 FUSE 2（见下表）。
+安装后台助手：`sudo ./Twinnel_<版本>_linux_amd64.AppImage cli helper install`。
+
+**Arch Linux**：把 `PKGBUILD` 和 `twinnel-bin.install` 下载到同一个空目录，运行 `makepkg -si`
+（它会下载并校验 `_app` 压缩包）。应用装在 `/opt/twinnel`，然后安装后台助手：
+`sudo twinnel helper install --helper-bin /opt/twinnel/bin/twinnel-helper`。
+
+#### 运行库
+
+Twinnel 是纯 Go 程序，运行时加载这些库：
+
+| 用途 | Debian / Ubuntu | Fedora | Arch | openSUSE |
+|---|---|---|---|---|
+| 窗口（GTK 3，含 Pango、Cairo、GdkPixbuf） | `libgtk-3-0`（Ubuntu 24.04 起 `libgtk-3-0t64`） | `gtk3` | `gtk3` | `libgtk-3-0` |
+| 绘制（OpenGL / EGL） | `libepoxy0 libegl1` | `libepoxy mesa-libEGL` | `libepoxy libglvnd` | `libepoxy0 libEGL1` |
+| 菜单栏图标 | `libayatana-appindicator3-1` | `libayatana-appindicator-gtk3` | `libayatana-appindicator` | `libayatana-appindicator3-1` |
+| 管理员密码框 | `pkexec`（旧版本叫 `policykit-1`） | `polkit` | `polkit` | `polkit` |
+| 通知（可选） | `libnotify4` | `libnotify` | `libnotify` | `libnotify4` |
+| AppImage | `libfuse2`（Ubuntu 24.04 起 `libfuse2t64`） | `fuse-libs` | `fuse2` | `libfuse2` |
+
+X11 和 Wayland 都支持（GTK 自己选）。GNOME 显示菜单栏图标需要 AppIndicator 扩展
+（`gnome-shell-extension-appindicator`；Ubuntu 默认已开启）。
+
+### Linux：只用命令行
 
 需要 systemd。
 
@@ -80,8 +124,6 @@ twinnel version
 
 卸载：`sudo ./install.sh --uninstall`（加 `--purge` 同时删除 `/var/lib/twinnel` 里的数据）。
 
-Linux 上没有图形界面。
-
 ---
 
 ## English
@@ -95,6 +137,9 @@ From the GitHub Releases page:
 | `Twinnel_<version>_macos_universal.dmg` or `.zip` | Twinnel.app for macOS 15 and later, Apple silicon and Intel |
 | `twinnel_<version>_darwin_<arm64\|amd64>.tar.gz` | macOS command line only (`twinnel`, `twinnel-helper`) |
 | `twinnel_<version>_linux_<amd64\|arm64>.tar.gz` | Linux command line and helper (systemd) |
+| `Twinnel_<version>_linux_<amd64\|arm64>_app.tar.gz` | Twinnel for Linux (app, command line, helper) |
+| `Twinnel_<version>_linux_<amd64\|arm64>.AppImage` | the same app in one file |
+| `PKGBUILD`, `twinnel-bin.install` | Arch Linux package |
 | `SHA256SUMS` | checksums |
 
 Check the download (optional):
@@ -144,7 +189,51 @@ twinnel helper install --helper-bin "$PWD/twinnel-helper"                  # one
 twinnel version
 ```
 
-### Linux
+### Linux: install Twinnel
+
+Needs systemd and the libraries under "Runtime libraries" below (desktop distributions have them).
+
+```sh
+tar -xzf Twinnel_<version>_linux_amd64_app.tar.gz
+cd Twinnel_<version>_linux_amd64_app
+./install.sh --dry-run    # print every step; changes nothing
+./install.sh              # into ~/.local, then the helper (one administrator password dialog)
+```
+
+- The app goes to `~/.local/lib/twinnel`, the `twinnel` command is linked into `~/.local/bin`, and
+  Twinnel appears in the applications menu.
+- `sudo ./install.sh` (or `./install.sh --system`) installs it for every user under `/usr/local`.
+- `--no-helper` installs the app only; `--yes` does not ask.
+- The helper goes to `/usr/local/libexec/twinnel-helper`, as the service `twinnel-helper.service`,
+  with its data in `/var/lib/twinnel`. The password dialog is pkexec's (polkit), else sudo's.
+- To update: extract the new version and run `./install.sh` again (it updates the helper too).
+- To uninstall: `./uninstall.sh` (removes the helper first, which puts back what Twinnel changed);
+  `--keep-helper` keeps the helper, `--purge` also deletes `/var/lib/twinnel`.
+
+**AppImage**: `chmod +x Twinnel_<version>_linux_amd64.AppImage`, then run it. It needs FUSE 2 (see
+the table). Install the helper with `sudo ./Twinnel_<version>_linux_amd64.AppImage cli helper install`.
+
+**Arch Linux**: download `PKGBUILD` and `twinnel-bin.install` into an empty folder and run
+`makepkg -si` (it downloads the `_app` archive and checks it). The app is in `/opt/twinnel`; then
+install the helper: `sudo twinnel helper install --helper-bin /opt/twinnel/bin/twinnel-helper`.
+
+#### Runtime libraries
+
+Twinnel is pure Go and loads these libraries when it runs:
+
+| For | Debian / Ubuntu | Fedora | Arch | openSUSE |
+|---|---|---|---|---|
+| windows (GTK 3, with Pango, Cairo, GdkPixbuf) | `libgtk-3-0` (`libgtk-3-0t64` on Ubuntu 24.04+) | `gtk3` | `gtk3` | `libgtk-3-0` |
+| drawing (OpenGL / EGL) | `libepoxy0 libegl1` | `libepoxy mesa-libEGL` | `libepoxy libglvnd` | `libepoxy0 libEGL1` |
+| the tray icon | `libayatana-appindicator3-1` | `libayatana-appindicator-gtk3` | `libayatana-appindicator` | `libayatana-appindicator3-1` |
+| the password dialog | `pkexec` (`policykit-1` on older releases) | `polkit` | `polkit` | `polkit` |
+| notifications (optional) | `libnotify4` | `libnotify` | `libnotify` | `libnotify4` |
+| the AppImage | `libfuse2` (`libfuse2t64` on Ubuntu 24.04+) | `fuse-libs` | `fuse2` | `libfuse2` |
+
+X11 and Wayland both work (GTK picks). On GNOME the tray icon needs the AppIndicator extension
+(`gnome-shell-extension-appindicator`; on by default in Ubuntu).
+
+### Linux: command line only
 
 Needs systemd.
 
@@ -162,5 +251,3 @@ same unit, for reading); data lives in `/var/lib/twinnel`. The socket belongs to
 (else `wheel`, else a new `twinnel` group), so members can use `twinnel` without root.
 
 Uninstall: `sudo ./install.sh --uninstall` (`--purge` also deletes the data in `/var/lib/twinnel`).
-
-There is no GUI on Linux.

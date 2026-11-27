@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/netip"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -28,7 +29,7 @@ type TailnetInfo struct {
 	// entries are generated for "<short>" and "<short>.<MagicDNSSuffix>", so
 	// mihomo answers peer names without any upstream query.
 	PeerAddrs    map[string][]string
-	ProcessNames []string // default ["tailscaled"]
+	ProcessNames []string // default DefaultProcessNames()
 	// Resolver is the nameserver used for tailnet names (MagicDNS suffix,
 	// single-label names, tailnet reverse zones) in dns.nameserver-policy.
 	// Default DefaultTailnetResolver. Do not use "system" on a machine whose
@@ -81,7 +82,7 @@ func TailscaleCoexist(info TailnetInfo) ([]byte, error) {
 	}
 	procs := info.ProcessNames
 	if len(procs) == 0 {
-		procs = []string{"tailscaled"}
+		procs = DefaultProcessNames()
 	}
 	resolver := orDefault(info.Resolver, DefaultTailnetResolver)
 	if iface := strings.TrimSpace(info.Interface); iface != "" && resolver == DefaultTailnetResolver {
@@ -464,4 +465,13 @@ func TailnetInfoFromStatus(statusJSON []byte) (TailnetInfo, error) {
 
 func newBool(b bool) *yaml.Node {
 	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: fmt.Sprint(b)}
+}
+
+// DefaultProcessNames is tailscaled's process name as mihomo's PROCESS-NAME
+// sees it on this OS: the executable's base name, with .exe on Windows.
+func DefaultProcessNames() []string {
+	if runtime.GOOS == "windows" {
+		return []string{"tailscaled.exe"}
+	}
+	return []string{"tailscaled"}
 }

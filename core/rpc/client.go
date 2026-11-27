@@ -14,9 +14,6 @@ import (
 	"time"
 )
 
-// DefaultSocket is where the installed helper listens on macOS and Linux.
-const DefaultSocket = "/var/run/twinnel/helper.sock"
-
 // SocketFromEnv returns $TWINNEL_SOCKET, else DefaultSocket, else (while
 // only a helper from before the rename runs) legacy.Socket.
 func SocketFromEnv() string {
@@ -55,7 +52,7 @@ type Client struct {
 // Dial connects to the helper at addr.
 func Dial(ctx context.Context, t Transport, addr string) (*Client, error) {
 	if t == nil {
-		t = NewUnixTransport()
+		t = DefaultTransport()
 	}
 	c, err := t.Dial(ctx, addr)
 	if err != nil {

@@ -1,4 +1,4 @@
-//go:build !darwin && !linux
+//go:build !darwin && !linux && !windows
 
 package main
 
@@ -49,11 +49,8 @@ func planHelperStart(string) ([]service.Step, error) {
 
 var dropLegacySecrets = func([]string) []string { return nil }
 
-// elevation: none yet on this platform; run Twinnel as an administrator.
-var elevation = elevator{
-	argv: func(string, []string) ([]string, error) {
-		return nil, errors.New("run this as an administrator: elevation is not implemented on this platform")
-	},
-	prompt:  "",
-	failure: func(int, string) (string, bool, bool) { return "", false, false },
+func serviceInstalled(label string) bool { return false }
+
+func removeTreeStep(dir string) service.Step {
+	return service.Step{Kind: service.StepRemoveAll, Path: dir}
 }

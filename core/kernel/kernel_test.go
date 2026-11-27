@@ -100,7 +100,7 @@ func (f *fakeGitHub) serve(w http.ResponseWriter, r *http.Request) {
 }
 
 func newManager(t *testing.T, gh *fakeGitHub, arch string) *Manager {
-	return &Manager{Dir: filepath.Join(t.TempDir(), "mihomo"), API: gh.URL, GOOS: "darwin", GOARCH: arch, HTTP: gh.Client()}
+	return &Manager{Dir: filepath.Join(t.TempDir(), "mihomo"), API: gh.URL, GOOS: "darwin", GOARCH: arch, HTTP: gh.Client(), X86V3: func() bool { return true }}
 }
 
 func stableAssets(v string, t *testing.T) map[string][]byte {

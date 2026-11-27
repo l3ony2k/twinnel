@@ -34,6 +34,8 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | `core/service` | Platform-neutral service `Spec`, `Manager` interface, `Plan` of explicit steps. |
 | `core/health` | Health check framework and the checks. |
 | `core/takeover` | Discovery of a hand-made setup and the takeover plan. |
+| `core/setup` | The fresh-setup flow (app 设置这台 Mac, `twinnel setup`): idempotent steps over the helper RPC and the Tailscale LocalAPI. |
+| `core/sysdns` | Point the system DNS at mihomo with a backup, and restore it. |
 | `core/status`, `core/mihomo`, `core/tailscale`, `core/i18n` | App-side status model and alerts, mihomo REST client, Tailscale LocalAPI client and install detection, UI strings. |
 | `platform/common` | Parsers shared by platforms (`tailscale status --json`, mihomo API and config file). |
 | `platform/darwin` | macOS facts for the health checks, network change watcher, egress test; `launchd/` service manager; `keychain/` secret store. |
@@ -57,12 +59,13 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | subscriptions | `subscription.list`, `subscription.put`, `subscription.delete`, `subscription.activate`, `subscription.refresh` |
 | settings | `settings.get`, `settings.update` (only leak-guard groups, coexist on/off, tailnet resolver, history size, kernel channel, auto-apply) |
 | tailnet | `tailnet.refresh` |
-| kernels | `kernel.list`, `kernel.check`, `kernel.install` (takes a channel and optionally the version that was shown, never a URL), `kernel.rollback` |
+| kernels | `kernel.list`, `kernel.check`, `kernel.install` (takes a channel, optionally the version that was shown and a download `proxy`: `direct`, `subscription` or a proxy URL; never a download URL), `kernel.rollback` |
 | accessories | `geo.check`, `geo.update {force}`, `ui.check`, `ui.update {force}` |
 | services | `service.status`, `service.start`, `service.stop`, `service.restart` (`mihomo`, `tailscaled`), `service.install`, `service.uninstall` (`mihomo` only). The client passes a name; labels come from settings. The helper's own service is refused (use `twinnel helper install/uninstall`). Without root the helper returns the plan with `dry_run: true` and runs nothing. |
 | health | `health.last` (the last report, no run), `health.run {reason}` (runs now, 2 min cap), `health.egress {lang}` (runs `leak-guard-egress` once now and keeps the result, see below) |
 | config | `config.get {source: live\|preview\|history, id}`: the config text with the top-level `secret` stripped |
 | info | `tailscale.info` |
+| setup | `tailscale.login {start}` (login state; with `start`, connect and start an interactive login as root — clients only open the AuthURL), `tailscale.install {proxy}` (the open-source tailscaled and its service, unless any Tailscale is installed), `dns.status`, `dns.point` (every active network service to 127.0.0.1, refused while mihomo's DNS does not answer; old values in `<state>/dns-backup.json`), `dns.restore`. Driven by `core/setup` (`docs/new-machine.md`) |
 | controller | `controller.credentials` (the controller address and the secret mihomo loaded, for the app; any authorized peer can already reconfigure mihomo), `controller.secure` (generate a secret, store it, write it into the config and reload; it takes effect at mihomo's next start) |
 | takeover | `takeover.plan` (discover, plan and keep the plan under `<state>/takeover/<id>/`), `takeover.plans`, `takeover.discard`, `takeover.adopt {plan_id, confirm_hash}`, `takeover.undo {dry_run}` (write back the pre-takeover copy, remove what adopt imported) (see [Takeover](#takeover)) |
 | harden | `service.harden.plan`, `service.harden.plans`, `service.harden.apply`: move an adopted mihomo to the managed kernel, a root-owned config dir and Twinnel's LaunchDaemon in one restart (macOS; see [Takeover](#takeover)) |
@@ -199,6 +202,10 @@ The helper and CLI pick these on Linux (`platform/linux/defaults.go`):
 
 Not on Linux yet: a network-change trigger for health and tailnet refresh (the helper relies on its interval and the 60 s tailnet poller), the egress test, a Secret Service store, a non-root elevation path for `twinnel helper install`, and the app. Nothing of this has run on a real Linux host so far; it is covered by fixture tests that run on every OS.
 
+## Windows
+
+The Windows port (helper as the `TwinnelHelper` service, named pipe `\\.\pipe\twinnel-helper`, SCM plans, mihomo under `twinnel-svchost.exe`, DPAPI secrets, `platform/windows` health facts, UAC elevation) is described in [windows-design.md](windows-design.md). It is cross-compiled and tested with fakes; it has not run on a real Windows machine yet.
+
 ## Data locations
 
 | What | Where |
@@ -209,7 +216,9 @@ Not on Linux yet: a network-change trigger for health and tailnet refresh (the h
 | Helper binary and service | macOS `/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper`, LaunchDaemon `com.l3ony2k.twinnel.helper`; Linux `/usr/local/libexec/twinnel-helper`, unit `twinnel-helper.service` |
 | Helper log | `<state>/logs/helper.log` (on Linux the helper's stdout/stderr also go to the journal) |
 | mihomo and tailscaled services | labels from settings: macOS `com.l3ony2k.twinnel.mihomo`, `com.tailscale.tailscaled`; Linux `twinnel-mihomo`, `tailscaled` |
-| Managed mihomo kernels | `<state>/kernels/`, with `current` and `previous` symlinks |
+| Managed mihomo kernels | `<state>/kernels/`, with `current` and `previous` symlinks; an optional seed kernel for the temporary download proxy at `<state>/kernels/seed/mihomo` |
+| Tailscale installed by a setup | `<state>/tailscale/<version>/{tailscale,tailscaled}`, `current` symlink; LaunchDaemon `com.tailscale.tailscaled` |
+| System DNS backup | `<state>/dns-backup.json` (what `dns.point` replaced; uninstall writes it back first) |
 | Managed mihomo config dir (after harden) | `<state>/mihomo`, root-owned 0700; harden plans and the old plist copy in `<state>/harden/<id>/` |
 | App preferences | `<user config dir>/twinnel/app.json` |
 | Takeover plans | `twinnel takeover plan`: a new temp dir, or `--out`; `--via-helper`: `<state>/takeover/<id>/` (with `live-backup.yaml` after an adopt) |

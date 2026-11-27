@@ -93,6 +93,7 @@ type app struct {
 	about       aboutView                  // the 关于 page (aboutpage.go)
 	live        liveSetup                  // the running mihomo before takeover (livesetup.go)
 	hm          helperMgmtView             // 设置 → 后台助手 (helpermgmt.go)
+	setupV      setupView                  // 设置这台 Mac (setuppage.go)
 	agent       agentView                  // 设置 → 本地 Agent (agentsection.go)
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
