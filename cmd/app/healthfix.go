@@ -262,6 +262,25 @@ func (a *app) undoFix(id string, s status.Snapshot) {
 	}()
 }
 
+// guidedStep is the step a guided fix needs first: its place on 订阅与覆写
+// is empty until the helper is installed and the config taken over. nil:
+// go there now.
+func (a *app) guidedStep(rf rowFix, s status.Snapshot) *fixAction {
+	if guidedPage(rf.spec.Target) != pageConfig || a.fx.shotHelper != nil {
+		return nil
+	}
+	T := i18n.T
+	switch {
+	case a.freshMachine(s):
+		return &fixAction{label: T.SetupTitle, run: func() { a.openPage(pageSetup) }, off: !s.WritesAllowed}
+	case s.Helper.State == status.HelperNotInstalled:
+		return &fixAction{label: T.FixInstallHelper, run: func() { a.openPage(pageInstall) }, off: !s.WritesAllowed}
+	case !s.TakenOver():
+		return &fixAction{label: T.FixTakeOver, run: func() { a.openPage(pageTakeover) }, off: !s.WritesAllowed}
+	}
+	return nil
+}
+
 // guidedPage is the page a guided fix's target is on ("" for none).
 func guidedPage(target string) string {
 	switch target {
@@ -291,7 +310,7 @@ func (a *app) goFix(rf rowFix, param string) {
 		}
 		a.openPage(pageProxies)
 	}
-	a.toast = rf.text.How
+	a.toastHint = rf.text.How
 	if spot != "" {
 		a.fx.spot, a.fx.spotTill = spot, time.Now().Add(4*time.Second)
 		go func() {
@@ -310,8 +329,11 @@ func (a *app) spotRing(c *ui.Context, e ui.Element, key string) {
 
 // systemSettingsURL opens a manual fix's system setting on this
 // platform; "" where there is no such link.
-func systemSettingsURL(open string) string {
-	switch runtime.GOOS + "|" + open {
+func systemSettingsURL(open, platform string) string {
+	if platform != runtime.GOOS {
+		return "" // a report from another machine: nothing to open here
+	}
+	switch platform + "|" + open {
 	case "darwin|" + health.OpenVPNSettings:
 		return "x-apple.systempreferences:com.apple.NetworkExtensionSettingsUI.NESettingsUIExtension"
 	case "darwin|" + health.OpenNetworkSettings:
@@ -339,7 +361,7 @@ func (a *app) reasonFixes(c *ui.Context, cr health.CheckReport, s status.Snapsho
 	T := i18n.T
 	platform := reportPlatform(s)
 	for _, rf := range rowFixes(cr, platform) {
-		ui.Column(c.Key("fix:"+rf.reason)).Gap(6).Children(func() {
+		ui.Column(c.Key("fix:" + rf.reason)).Gap(6).Children(func() {
 			ui.Text(c, rf.text.Plain).Wrap().LineHeight(lineText).Selectable()
 			switch rf.spec.Kind {
 			case health.FixAuto:
@@ -358,6 +380,13 @@ func (a *app) reasonFixes(c *ui.Context, cr health.CheckReport, s status.Snapsho
 				}
 			case health.FixGuided:
 				ui.Row(c).Children(func() {
+					if step := a.guidedStep(rf, s); step != nil {
+						// The place is empty until the step before it is done.
+						if pushButton(c.Key("fix-step"), step.label).Disabled(step.off).Clicked() {
+							step.run()
+						}
+						return
+					}
 					if pushButton(c.Key("fix-go"), T.FixGo).Tooltip(rf.text.How).Clicked() {
 						a.goFix(rf, fixParam(cr))
 					}
@@ -380,7 +409,7 @@ func (a *app) reasonFixes(c *ui.Context, cr health.CheckReport, s status.Snapsho
 						commandBox(c, cr.Fix.Command)
 					}
 					ui.Row(c).Gap(8).Children(func() {
-						if u := systemSettingsURL(rf.spec.Open); u != "" && pushButton(c.Key("fix-open"), T.FixOpenSystem).Clicked() {
+						if u := systemSettingsURL(rf.spec.Open, platform); u != "" && pushButton(c.Key("fix-open"), T.FixOpenSystem).Clicked() {
 							_ = mygo.Shell.OpenExternal(u)
 						}
 						if rf.spec.Action == health.FixRerun && pushButton(c.Key("fix-rerun"), T.FixRerun).Disabled(s.Health.Running).Clicked() {

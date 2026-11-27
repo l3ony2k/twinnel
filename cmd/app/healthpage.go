@@ -319,6 +319,12 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 					}
 				}
 			}
+			if a.fx.undo[cr.ID] != nil && !reasons {
+				// Fixed: the way back stays on the row, wherever it moved.
+				if busyButton(c.Key("fix-undo-inline"), T.FixUndo, false, a.fx.running, a.fx.running).Clicked() {
+					a.undoFix(cr.ID, s)
+				}
+			}
 			if expandable {
 				disclosure(c, open).Shrink(0)
 			}

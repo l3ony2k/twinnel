@@ -12,7 +12,7 @@ type texts struct {
 	stepCoexistOn, stepCoexistRegen, stepApply     string
 	stepGuard, stepLoopback                        string
 	stepSecret, stepSecretNote                     string
-	stepDNS, stepDNSService, stepDNSBackup         string
+	stepDNS, stepDNSService                        string
 	stepModeRule, stepExitOff                      string
 	stepRestartMihomo, stepRestartTailscaled       string
 	blockedHelper, blockedMihomo, blockedTailscale string
@@ -32,7 +32,6 @@ var zh = texts{
 	stepSecretNote:        "网页面板、脚本等其他控制工具需要换用新密钥",
 	stepDNS:               "把活动网络连接的 DNS 指向 mihomo",
 	stepDNSService:        "%s：%s → %s",
-	stepDNSBackup:         "先备份原来的 DNS 设置，可以撤销",
 	stepModeRule:          "把 mihomo 切到规则模式",
 	stepExitOff:           "Tailscale 停用出口节点",
 	stepRestartMihomo:     "重启 mihomo（网络会断几秒）",
@@ -58,7 +57,6 @@ var en = texts{
 	stepSecretNote:        "Other controller tools (a web dashboard, scripts) need the new secret",
 	stepDNS:               "Point the DNS of the active network connections at mihomo",
 	stepDNSService:        "%s: %s → %s",
-	stepDNSBackup:         "The old DNS settings are backed up first; you can undo",
 	stepModeRule:          "Switch mihomo to rule mode",
 	stepExitOff:           "Stop using the Tailscale exit node",
 	stepRestartMihomo:     "Restart mihomo (the network drops for a few seconds)",

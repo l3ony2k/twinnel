@@ -180,7 +180,6 @@ func (f *Fixer) Plan(ctx context.Context, cr health.CheckReport, reason string) 
 		if len(p.Steps) == 0 {
 			p.Steps = []string{L.stepDNS}
 		}
-		p.Steps = append(p.Steps, L.stepDNSBackup)
 		p.Undo = true
 	case health.FixModeRule:
 		need(f.Mihomo != nil, L.blockedMihomo)
