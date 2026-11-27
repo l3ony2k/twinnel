@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Twinnel
+Comment=mihomo and Tailscale, side by side on one computer
+Comment[zh_CN]=让 mihomo 与 Tailscale 在同一台电脑上和平共处
+Exec=/opt/twinnel/Twinnel
+Icon=twinnel
+Terminal=false
+Categories=Network;
+Keywords=mihomo;Clash;Tailscale;proxy;VPN;
+StartupNotify=false
+StartupWMClass=Twinnel
