@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"unsafe"
 
@@ -115,7 +116,8 @@ func (p proc) Wait() error { return p.cmd.Wait() }
 func (p proc) Kill() error { return p.cmd.Process.Kill() }
 
 func (h *handler) start(job windows.Handle) (Process, error) {
-	cmd := exec.Command(h.o.Argv[0], h.o.Argv[1:]...)
+	argv := ResolveProgram(h.o.Argv, filepath.EvalSymlinks) // the image path the firewall sees
+	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Stdout, cmd.Stderr = h.out, h.out
 	cmd.SysProcAttr = &windows.SysProcAttr{CreationFlags: windows.CREATE_NO_WINDOW | windows.CREATE_NEW_PROCESS_GROUP}
 	if err := cmd.Start(); err != nil {
