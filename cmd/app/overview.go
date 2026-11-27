@@ -182,6 +182,7 @@ func (a *app) bannerOffers(s status.Snapshot, key string) bool {
 
 // testAll tests every node once in the background.
 func (a *app) testAll() {
+	a.markDailyUsed()
 	mon := a.mon
 	go func() {
 		// The tests are bound to the monitor: they stop when the app

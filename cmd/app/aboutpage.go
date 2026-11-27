@@ -304,11 +304,12 @@ func (a *app) aboutStepList(s status.Snapshot) ([]aboutStep, map[string]string) 
 	setUp := helperOK && a.hd.loaded && len(a.hd.subs) > 0
 	_, fails := s.Health.Counts()
 	healthy := s.Health.Report != nil && fails == 0
+	daily := a.cfg.DailyUsed
 	steps := []aboutStep{
 		{T.StepHelper, &helperOK, []string{pageInstall}},
 		{T.StepSetup, &setUp, []string{pageTakeover, pageConfig}},
 		{T.StepHealth, &healthy, []string{pageHealth}},
-		{T.StepDaily, nil, []string{pageProxies, pageTailscale}},
+		{T.StepDaily, &daily, []string{pageProxies, pageTailscale}},
 	}
 	names := map[string]string{pageInstall: T.StepInstall}
 	for _, sec := range navSections(0, 0, toneNeutral) {

@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/duet/core/status"
 )
 
 // Optimistic controls (kubai 017 e): a switch, segmented control or select
@@ -97,6 +99,7 @@ func (a *app) optimistic(key string, val any, failed string, fn func(ctx context
 				a.pend.errs[key] = fmt.Sprintf(failed, controlReason(key, err))
 			} else {
 				e.until = time.Now().Add(pendingHold)
+				a.markDailyUsed()
 				time.AfterFunc(pendingHold+50*time.Millisecond, func() { mygo.RunOnMain(a.invalidate) })
 			}
 			a.invalidate()
@@ -175,4 +178,19 @@ func (a *app) endOp() {
 	if left := d.span.start.Add(busyDelay + busyMin).Sub(d.span.end); left > 0 && d.span.visible(d.span.end) {
 		time.AfterFunc(left+10*time.Millisecond, func() { mygo.RunOnMain(a.invalidate) })
 	}
+}
+
+// markDailyUsed records the first everyday operation (关于 → 入门, step 4).
+// Saved once; a failure is logged and tried again next time.
+func (a *app) markDailyUsed() {
+	if a.shotMode || a.cfg.DailyUsed {
+		return
+	}
+	cfg := a.cfg
+	cfg.DailyUsed = true
+	if err := status.SaveConfig(a.cfgPath, cfg); err != nil {
+		log.Printf("daily step: %v", err)
+		return
+	}
+	a.cfg = cfg
 }

@@ -40,6 +40,10 @@ type Config struct {
 	// the default (the platform's, wider in some languages).
 	Sidebar      string  `json:"sidebar,omitempty"`
 	SidebarWidth float32 `json:"sidebarWidth,omitempty"`
+	// DailyUsed is set the first time the user does an everyday operation
+	// in duet (node, mode, TUN, Tailscale, exit node, delay test): 关于 →
+	// 入门's last step reads it.
+	DailyUsed bool `json:"dailyUsed,omitempty"`
 
 	// From the environment only, never saved. AllowWrites is on unless
 	// DUET_READ_ONLY=1: a deny switch for development and test runs

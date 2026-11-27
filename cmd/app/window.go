@@ -856,6 +856,7 @@ func tileStep(i, cols, n int, up, down bool) (int, bool) {
 // GET /proxies/<node>/delay, shared with tests already running), and
 // opens the group to show the results.
 func (a *app) testGroup(name string) {
+	a.markDailyUsed()
 	mon := a.mon
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -867,6 +868,7 @@ func (a *app) testGroup(name string) {
 
 // testNode delay-tests one node (GET /proxies/<name>/delay).
 func (a *app) testNode(name string) {
+	a.markDailyUsed()
 	mon := a.mon
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
