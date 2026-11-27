@@ -402,7 +402,7 @@ func (a *app) agentActivityRows(c *ui.Context) {
 					if !act.OK {
 						ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(t.Warning).Shrink(0).Label(T.ErrorPrefix)
 					}
-					ui.Text(c, agentActionText(act)).SingleLine().Shrink(1).Tooltip(strings.TrimSpace(act.Args + "\n" + act.Error))
+					ui.Text(c, agentActionText(act)).SingleLine().Shrink(1).Tooltip(agentActionTip(act))
 				})
 			}
 			if n := len(v.activity) - agentShownActions; n > 0 {
@@ -414,6 +414,18 @@ func (a *app) agentActivityRows(c *ui.Context) {
 			}
 		})
 	})
+}
+
+// agentActionTip is an action's tooltip: its arguments, its error and the
+// account the agent ran as, one per line.
+func agentActionTip(act rpc.AgentAction) string {
+	var lines []string
+	for _, s := range []string{act.Args, act.Error, act.Caller} {
+		if s != "" {
+			lines = append(lines, s)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // agentActionText is one action in words: who and what.

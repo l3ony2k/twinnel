@@ -38,6 +38,19 @@
 - 用户覆写在基础层之后，用户自己写的 `tun.stack` 照样生效。
 - 已经装好的 Windows 机器不会被悄悄改：如果真遇到这个故障，`tun-dataplane` 会报出来并给一键修复。
 
+### 结论（Windows 实机第 2 轮，2026-11-28）：保留 gvisor 作 Windows 默认
+
+根因已确认是候选 1 的一个变体：**Windows 防火墙规则指向的是符号链接路径**。sing-tun 启动 system/mixed 栈时会为 mihomo 的可执行文件建一条入站放行规则（`sing-tun (<路径>)`）。第 1 轮 mihomo 从 `kernels\mihomo\current\mihomo.exe` 启动，规则就建在这个链接路径上；而 Windows 防火墙按进程的真实映像路径匹配，`current` 是链接，真实路径是 `kernels\mihomo\<版本>\mihomo.exe`，规则对不上，system 栈的入站被静默丢弃。升级后 `twinnel-svchost` 先解析链接、用真实路径启动 mihomo，sing-tun 为真实路径建了新规则，同一台机器上 `tun.stack: mixed` 经 TUN 的 TCP 立刻正常（`tun-dataplane` OK，握手不到 1 ms）。旧的 `current` 路径规则还留着，无害，不归 Twinnel 管。
+
+即便如此，Windows 默认仍是 gvisor，不改回 mixed：
+
+1. **mixed 依赖一条我们不掌控的防火墙规则**。规则是 sing-tun 在每次启动时按可执行文件路径建的，每装一个新版本内核就是一个新路径、一条新规则。组策略或企业管理的设备禁止本地规则、第三方防火墙接管了过滤、或规则创建失败时，mixed 下 TCP 会再次全死而 ICMP 和控制面全部正常，正是第 1 轮那种「全绿但上不了网」。gvisor 在用户态直接读写 wintun，不经过 Windows 防火墙的入站过滤，没有这类依赖。
+2. **mixed 的失败现在能被看见和修复**。用户自己在覆写里写 `tun.stack: mixed`（或接管来的配置就是 mixed）时，`tun-dataplane` 会发现 TCP 不通，并给一键 `tun-stack-gvisor`；所以默认保守不会让想要 mixed 的人吃亏。
+3. **改默认的收益小**。桌面上的吞吐和延迟，gvisor 与 mixed 的差别不足以抵消第 1 点的风险；也没有用户反馈 gvisor 不够用。
+4. **不动已有安装**。基础层只在没有时写入，改默认也只影响新装；与其让新旧机器默认不同，不如保持一致。
+
+以后如果要改回 mixed，前提是助手自己维护一条按服务 SID（`NT SERVICE\<mihomo 服务名>`）而不是按路径的放行规则，装、升级、卸载时一起管，并在 `tun-dataplane` 里把「规则缺失」作为单独证据报出来。
+
 ## mihomo 的启动输出
 
 故障期间 mihomo 启动阶段的输出没人看得到（控制接口的日志流要等 mihomo 起来才有，ProgramData 下的文件非管理员读不了）。现在：
@@ -45,8 +58,9 @@
 - 服务定义把 stdout/stderr 写到 `<state>/logs/mihomo.out.log`（macOS/Linux 另有 `mihomo.err.log`）。Windows 上 `twinnel-svchost` 写这个文件，运行中超过 10 MB 就转到 `.1`；macOS/Linux 由助手每 10 分钟检查一次，超过 10 MB 复制到 `.1` 再截断（launchd/systemd 以追加方式打开，会接着写）。
 - `service.log {name: mihomo}`：助手返回文件末尾（不够时连上 `.1`），URL 去掉 user info 和 query。
 - 日志 → mihomo：先列文件里比日志流第一条更早的行（mihomo 没起来时就是全部），按所选级别过滤，清空/暂停同样作用；MCP `logs source=mihomo-output`。
+- 助手自己的日志同样不再只有管理员能看：`service.log {name: helper}`、日志 → 后台助手、`twinnel service log helper`、MCP `logs source=helper`。
 
-## 根因候选（待 Windows 实机验证）
+## 根因候选（第 1 轮时；候选 1 已在第 2 轮确认，见上文「结论」）
 
 报告里的对照：Clash Party 2.0.5 自带的 `mihomo.exe` 也是 v1.19.34（go1.26.11），同机 mixed 正常。
 
@@ -68,4 +82,4 @@
 3. 构建（候选 2）：以管理员运行两边 `mihomo.exe -v`，`Get-FileHash` 比较；把 Clash Party 的 `mihomo.exe` 临时装进 Twinnel 的内核目录（或反过来）各测一次。
 4. 配置（候选 3，mixed 下逐项、各测一次）：`route-exclude-address` 置空 → 去掉其中 IPv6 项 → `dns-hijack` 置空 → `device: Mihomo`。
 5. 每次失败后取 日志 → mihomo（或 `logs source=mihomo-output`）里的启动输出，看有没有 TUN/stack 初始化的报错或告警。
-6. 结论回填本文档，并决定 Windows 默认是否改回 mixed（若防火墙规则能彻底解决）。
+6. 结论回填本文档，并决定 Windows 默认是否改回 mixed（若防火墙规则能彻底解决）。已完成：见「Windows 默认 gvisor → 结论」，保留 gvisor。

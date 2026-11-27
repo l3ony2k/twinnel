@@ -66,6 +66,7 @@ type Engine struct {
 	NetChanges <-chan string
 	// RotateServiceLogs: the helper rotates mihomo's output files
 	// (servicelog.go); macOS and Linux, where launchd/systemd write them.
+	// Its own log it rotates either way.
 	RotateServiceLogs bool
 
 	// NewController builds the controller client for an address and secret
@@ -426,7 +427,7 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 		return rpc.Status{}, err
 	}
 	out := rpc.Status{
-		HelperVersion: HelperVersion, PID: os.Getpid(), UID: os.Getuid(),
+		HelperVersion: HelperVersion, PID: os.Getpid(), UID: os.Getuid(), RunsAs: rpc.Self().Caller(),
 		StateDir: e.Store.Dir, StartedAt: e.started.UTC(), Layers: len(st.Layers),
 	}
 	out.Mihomo.ConfigPath = st.Mihomo.ConfigFile

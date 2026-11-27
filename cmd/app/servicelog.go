@@ -11,12 +11,14 @@ import (
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
-// mihomo's service output (service.log): what mihomo wrote to stdout and
-// stderr, its startup errors included, which the controller's stream
-// never carries (it starts once mihomo runs, and the app connects later
-// still). 日志 → mihomo shows it before the stream: the lines older than
-// the stream's first, at the chosen level; with mihomo down it is all
-// there is.
+// Log files the helper keeps, read over service.log. mihomo's service
+// output: what mihomo wrote to stdout and stderr, its startup errors
+// included, which the controller's stream never carries (it starts once
+// mihomo runs, and the app connects later still). 日志 → mihomo shows it
+// before the stream: the lines older than the stream's first, at the
+// chosen level; with mihomo down it is all there is. The helper's own
+// log is 日志 → 后台助手 (on Windows and Linux only administrators can
+// open the file).
 
 // serviceLogEvery is how often the page fetches it again while shown.
 const serviceLogEvery = 10 * time.Second
@@ -24,13 +26,14 @@ const serviceLogEvery = 10 * time.Second
 type serviceLog struct {
 	entries  []mihomo.LogEntry
 	fetching bool
+	failed   bool      // the last fetch failed (an older helper, or none)
 	at       time.Time // the last fetch
 	cleared  time.Time // 清空: hide what came before
 }
 
-// fetchServiceLog fetches the output through the helper when it is due.
-func (a *app) fetchServiceLog() {
-	s := &a.logs.svc
+// fetchServiceLog fetches log name (rpc.ServiceLogSources) into s through
+// the helper when it is due.
+func (a *app) fetchServiceLog(name string, s *serviceLog) {
 	if s.fetching || !a.hd.connected || a.hc == nil || a.shotMode || time.Since(s.at) < serviceLogEvery {
 		return
 	}
@@ -40,10 +43,10 @@ func (a *app) fetchServiceLog() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		var r rpc.ServiceLog
-		err := hc.Call(ctx, rpc.MethodServiceLog, rpc.ServiceLogParams{Name: "mihomo", Lines: 500}, &r)
+		err := hc.Call(ctx, rpc.MethodServiceLog, rpc.ServiceLogParams{Name: name, Lines: 500}, &r)
 		mygo.RunOnMain(func() {
-			s.fetching, s.at = false, time.Now()
-			if err != nil { // an older helper, or none: the stream alone
+			s.fetching, s.at, s.failed = false, time.Now(), err != nil
+			if err != nil {
 				return
 			}
 			s.entries = serviceEntries(r)

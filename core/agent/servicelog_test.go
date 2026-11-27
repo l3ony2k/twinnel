@@ -21,3 +21,16 @@ func TestLogsMihomoOutput(t *testing.T) {
 		t.Fatalf("token in output: %s", out)
 	}
 }
+
+// logs source=helper reads the helper's own log the same way.
+func TestLogsHelper(t *testing.T) {
+	e := newEnv(t, nil)
+	e.setAgent(rpc.AgentSettings{MCP: true})
+	out, isErr := e.call("logs", map[string]any{"source": "helper", "level": "warning"})
+	if isErr || !strings.Contains(out, "subscription fetch") || strings.Contains(out, "compose.apply") {
+		t.Fatalf("%v %s", isErr, out)
+	}
+	if strings.Contains(out, agenttest.SubToken) {
+		t.Fatalf("token in output: %s", out)
+	}
+}

@@ -55,7 +55,7 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 | `proxies` | groups, current node, members, last delays; `group` for one with its chain |
 | `connections` | open connections summarized: top destinations, rules, chains, processes |
 | `traffic` | throughput over ~3 s and totals |
-| `logs` | `source=twinnel` (the helper's events), `source=mihomo` (live log for ~3 s, `level`) or `source=mihomo-output` (the service's output file, startup errors included, `level`) |
+| `logs` | `source=twinnel` (the helper's events), `source=mihomo` (live log for ~3 s, `level`) `source=mihomo-output` (the service's output file, startup errors included, `level`) or `source=helper` (the helper's own log, `level`) |
 | `subscriptions` | id, name, active, interval, last fetch/error (never the URL) |
 | `layers` | the overrides; `id` returns one with its content (credentials redacted) |
 | `history` | applied configs; `diff=<id>` (and `against=<id>`) gives a semantic diff |
@@ -86,7 +86,7 @@ Managed overrides (Tailscale coexist, leak guard) cannot be edited or removed th
 ## Safety model
 
 - **Tiers** as above; the agent cannot change them (`settings_update` has no agent field; the helper's `settings.update` is only sent with one by the app or `twinnel settings`).
-- **Logged**: every operate/configure call that runs, whether it succeeds or fails, goes to the helper's agent log (`agent.record`: time, client name and version from MCP, tool, redacted arguments, result, undo). It shows in 日志 → Twinnel (chip "Agent") and in 设置 → 本地 Agent → 最近操作. The log keeps the last 200 (`<state>/agent-activity.json`).
+- **Logged**: every operate/configure call that runs, whether it succeeds or fails, goes to the helper's agent log (`agent.record`: time, client name and version from MCP, the account the MCP server ran as (the helper reads it from the connection: uid or SID and account name, never from the request), tool, redacted arguments, result, undo). It shows in 日志 → Twinnel (chip "Agent") and in 设置 → 本地 Agent → 最近操作. The log keeps the last 200 (`<state>/agent-activity.json`).
 - **Redacted**: nothing leaves `twinnel mcp` without passing the redactor: the controller secret (and any secret the server has seen, such as a URL passed to `sub_put`) is replaced, values under credential keys (`password`, `uuid`, `secret`, `token`, `private-key`, `psk`, `auth`, `short-id`, …) become `<redacted>`, URL user info and query strings are stripped, proxy provider URLs lose their path, and token-shaped path segments in free text are hidden. Configs are shown as semantic diffs, which never render node contents. `core/agent` tests call every tool against fixtures full of secrets and fail if any appears in any output or log record.
 - **Not a security boundary**: an agent that runs as the person can run the CLI (or anything else) directly. The tiers keep a well-behaved agent inside what the person agreed to; they do not contain a hostile one. The helper itself only serves the admin group.
 

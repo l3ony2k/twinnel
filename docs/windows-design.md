@@ -45,7 +45,7 @@ The service definition, written with the Service Control Manager:
 - `helper.restart` ends `run`; the service exits with a non-zero
   service-specific code so the failure actions start it again.
 
-Logging: the helper writes `<state>\logs\helper.log` as on macOS. No event
+Logging: the helper writes `<state>\logs\helper.log` as on macOS (rotated at 10 MB) and serves it over `service.log {helper}` to the app and CLI, whose users cannot open the file. Callers are named by the pipe client's token: SID and `DOMAIN\name` (`rpc.Peer.Caller`), never `uid=-1`. No event
 log source is registered (no installer-time registry writes beyond the
 service itself); the SCM's own events (start/stop/crash) land in the System
 log anyway.

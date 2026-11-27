@@ -19,7 +19,7 @@ func (e *Engine) HelperInfo(ctx context.Context) (rpc.HelperInfo, error) {
 	info := rpc.HelperInfo{
 		Version:       HelperVersion,
 		StateDir:      e.Store.Dir,
-		LogFile:       e.Store.Path("logs", "helper.log"),
+		LogFile:       HelperLogFile(e.Store),
 		Label:         st.HelperLabel,
 		Mihomo:        rpc.HelperMihomoService{Label: st.Mihomo.ServiceLabel, Adopted: st.Mihomo.ServiceAdopted, Controller: st.Mihomo.Controller},
 		Subscriptions: len(st.Subscriptions),

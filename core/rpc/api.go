@@ -122,11 +122,14 @@ type Empty struct{}
 // ---- status ----
 
 type Status struct {
-	HelperVersion string    `json:"helper_version"`
-	PID           int       `json:"pid"`
-	UID           int       `json:"uid"`
-	StateDir      string    `json:"state_dir"`
-	StartedAt     time.Time `json:"started_at"`
+	HelperVersion string `json:"helper_version"`
+	PID           int    `json:"pid"`
+	UID           int    `json:"uid"`
+	// RunsAs names the helper's account (Self().Caller()): "root (uid 0)",
+	// `NT AUTHORITY\SYSTEM (S-1-5-18)`. Empty from an older helper.
+	RunsAs    string    `json:"runs_as,omitempty"`
+	StateDir  string    `json:"state_dir"`
+	StartedAt time.Time `json:"started_at"`
 
 	Mihomo             MihomoStatus   `json:"mihomo"`
 	ActiveSubscription string         `json:"active_subscription,omitempty"`
