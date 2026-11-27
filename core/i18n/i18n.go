@@ -78,6 +78,7 @@ type Strings struct {
 	HealthLastRun                       string // %s: time, %s: duration
 	HealthRunning, HealthRerun          string
 	HealthCopyReport, Copied            string
+	LearnMore                           string // the link in an ⓘ popover (infoTip)
 	HealthEvidence, HealthFix, CopyCmd  string
 	HealthNever, HealthUnavailable      string
 	HealthError                         string // %s
@@ -382,6 +383,7 @@ var zh = Strings{
 	HealthRerun:        "重新检查",
 	HealthCopyReport:   "复制报告",
 	Copied:             "已复制",
+	LearnMore:          "了解更多",
 	HealthEvidence:     "依据",
 	HealthFix:          "修复建议",
 	CopyCmd:            "复制命令",
