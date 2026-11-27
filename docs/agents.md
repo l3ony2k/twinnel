@@ -9,7 +9,7 @@ There are two ways in:
 
 ## Set up
 
-1. In twinnel: **设置 → 本地 Agent** (Settings → Local agents) → turn on **允许 MCP**. Optionally turn off **操作** (operate) or turn on **修改配置** (configure).
+1. In Twinnel: **设置 → 本地 Agent** (Settings → Local agents) → turn on **允许 MCP**. Optionally turn off **操作** (operate) or turn on **修改配置** (configure).
 2. Install the command line tool from the same section (a symlink to the CLI inside Twinnel.app, in `/usr/local/bin` or `~/.local/bin`; **移除** takes it away; 完全移除 Twinnel removes it too).
 3. Add Twinnel to your client. The section shows these with the right path and a copy button; Twinnel never edits another app's config:
 

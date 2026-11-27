@@ -239,7 +239,7 @@ func (a *app) logsEmpty(c *ui.Context, title, hint string) {
 	})
 }
 
-// eventsList is 日志 → twinnel: newest first, one row each: time · kind ·
+// eventsList is 日志 → Twinnel: newest first, one row each: time · kind ·
 // what happened; a click goes where it happened (a history entry, a page).
 func (a *app) eventsList(c *ui.Context) {
 	t := c.Theme()

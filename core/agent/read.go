@@ -21,7 +21,7 @@ type noArgs struct{}
 
 func (s *Server) registerRead() {
 	addTool(s, rpc.TierRead, "status", "Status",
-		`One snapshot of twinnel: the helper, mihomo (mode, TUN, version, the node each selector group uses),
+		`One snapshot of Twinnel: the helper, mihomo (mode, TUN, version, the node each selector group uses),
 the stored configuration (subscription, overrides, last apply, drift), Tailscale (state, exit node,
 online peers), the last health result and which agent tiers are on. Start here.`,
 		toolOpts{noHelper: true}, s.status)
@@ -65,7 +65,7 @@ never shown.`,
 		toolOpts{}, s.subscriptions)
 
 	addTool(s, rpc.TierRead, "layers", "Overrides",
-		`The overrides (layers) twinnel composes on top of the subscription, in order: id, name, stage, format,
+		`The overrides (layers) Twinnel composes on top of the subscription, in order: id, name, stage, format,
 enabled, managed. With id, that override's YAML content (credentials redacted).`,
 		toolOpts{}, s.layers)
 

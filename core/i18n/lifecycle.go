@@ -422,7 +422,7 @@ var enLifecycle = LifecycleStrings{
 	KernelFirstBody:      "External binary → %s · mihomo restarts (about 1 s offline)\nThe external binary is kept; you can switch back.",
 
 	FAQLeaveQ:       "How do I stop using Twinnel completely?",
-	FAQLeaveA:       "Settings → Stop Using twinnel: undo the takeover, uninstall the helper, or remove everything.",
+	FAQLeaveA:       "Settings → Stop Using Twinnel: undo the takeover, uninstall the helper, or remove everything.",
 	AppPrefs:        "Twinnel preferences",
 	MihomoConfigRow: "mihomo config",
 	ShowInFinder:    "Show in Finder",

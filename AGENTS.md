@@ -1,4 +1,4 @@
-# twinnel: rules for coding agents
+# Twinnel: rules for coding agents
 
 Read `docs/requirements.md` and `docs/tech.md` first. They are written in Chinese; code, comments, commit messages and identifiers are in English. UI text is Chinese, kept in one place (`core/i18n` or the UI package's strings file) so English can be added later.
 

@@ -90,9 +90,9 @@ var enTakeoverExplain = TakeoverExplainStrings{
 
 	TipFound:   "The binary and config file your mihomo service runs. Takeover rewrites only this config file; making a plan changes nothing.",
 	TipEffects: "What each piece is now and what happens to it after takeover. Items marked Kept are not changed.",
-	TipBase:    "The subscription file your config was built from. twinnel composes it with the overrides to rebuild the config you run now.",
+	TipBase:    "The subscription file your config was built from. Twinnel composes it with the overrides to rebuild the config you run now.",
 	TipLayers:  "Your own changes on top of the original subscription; they keep working after takeover. Managed ones are generated and kept up by Twinnel, such as Tailscale coexistence.",
-	TipVerdict: "The config twinnel composes, compared with the running one item by item. Deliberate changes are what Twinnel adds for Tailscale coexistence.",
+	TipVerdict: "The config Twinnel composes, compared with the running one item by item. Deliberate changes are what Twinnel adds for Tailscale coexistence.",
 	TipAdopt:   "Backs up config.yaml, imports the original subscription and overrides, writes the config in place and reloads mihomo. If the coexistence checks get worse, the backup is written back.",
 	TipSecure:  "Sets a secret on mihomo's controller so other programs can't switch nodes or change the config. Twinnel uses it on its own.",
 	TipPlans:   "A plan only records what takeover would do; nothing is changed. Until you take over you can delete it and make a new one.",

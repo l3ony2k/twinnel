@@ -7,7 +7,7 @@ var en = Strings{
 	ControlStrings: enControls,
 	ErrorStrings:   enErrors,
 
-	AppName: "twinnel",
+	AppName: "Twinnel",
 
 	StatusOK:      "All good",
 	StatusWarn:    "Needs attention",
@@ -378,7 +378,7 @@ var en = Strings{
 		"adopt-profiles":   "Found %s subscription profiles. Subscription URLs aren't imported; add them in Subscriptions & Overrides after takeover",
 		"adopt-disrupts":   "The takeover reload briefly interrupts the network",
 		"adopt-differs":    "Tailnet devices or interfaces changed after the plan was made; takeover built the config from what is there now, so there is no need to make a new plan",
-		"binary-writable":  "The mihomo binary %s can be replaced without root (%s), and the service runs it as root; install a twinnel-managed core under Core",
+		"binary-writable":  "The mihomo binary %s can be replaced without root (%s), and the service runs it as root; install a Twinnel-managed core under Core",
 		"plain-http":       "The subscription URL uses plain http and can be read or changed in transit; switch to https if the provider supports it",
 		"secret-clients":   "Web dashboards, scripts and other clients need the new secret; read it with %s",
 	},

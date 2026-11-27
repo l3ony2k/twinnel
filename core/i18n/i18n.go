@@ -275,7 +275,7 @@ var zh = Strings{
 	ControlStrings: zhControls,
 	ErrorStrings:   zhErrors,
 
-	AppName: "twinnel",
+	AppName: "Twinnel",
 
 	StatusOK:      "一切正常",
 	StatusWarn:    "需要注意",

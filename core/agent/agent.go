@@ -104,7 +104,7 @@ func New(d Deps) *Server {
 	for _, x := range d.Secrets {
 		s.addSecret(x)
 	}
-	s.MCP = mcp.NewServer(&mcp.Implementation{Name: ServerName, Title: "twinnel", Version: d.Version}, &mcp.ServerOptions{
+	s.MCP = mcp.NewServer(&mcp.Implementation{Name: ServerName, Title: "Twinnel", Version: d.Version}, &mcp.ServerOptions{
 		Instructions: instructions,
 	})
 	s.registerRead()
@@ -176,7 +176,7 @@ func (c *call) helper() (Caller, error) {
 }
 
 func helperDown(err error) error {
-	return fmt.Errorf("the twinnel helper is not reachable (%v). Open the Twinnel app: it shows how to start or install the helper", err)
+	return fmt.Errorf("the Twinnel helper is not reachable (%v). Open the Twinnel app: it shows how to start or install the helper", err)
 }
 
 // rpc calls the helper.

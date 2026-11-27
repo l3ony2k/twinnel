@@ -23,7 +23,7 @@ type InfoTipStrings struct {
 	TipHelper                        string // 设置 → 后台助手
 	TipInstallPlan                   string // 安装后台助手 → 安装时会做什么
 
-	// 停止使用 twinnel: what each way out does and leaves.
+	// 停止使用 Twinnel: what each way out does and leaves.
 	TipLeaveUndo, TipLeaveUninstall, TipLeaveRemoveAll, TipLeaveExport string
 }
 
@@ -68,7 +68,7 @@ var enInfoTips = InfoTipStrings{
 	TipEgress:         "Test Egress sends one HTTPS request directly and one through mihomo to an IP echo service (1.1.1.1) and compares the two public IPs, to see whether the sensitive groups leave from this network. With Test Periodically on, every health check tests it; when off, it runs only when you click Test Egress, and the result is kept for 24 hours.",
 	TipHistRollback:   "Rolling back makes this entry's config, with the overrides it had, the current config and reloads mihomo. The config you have now stays in history. “Before Twinnel” is the original config backed up at takeover.",
 
-	TipKernelState: "Managed by twinnel: Twinnel downloads and verifies mihomo and can update or roll it back.\nExternal binary: the service still runs your own binary, which Twinnel doesn't update.\nRestart pending: a new version is installed and takes effect when mihomo restarts.",
+	TipKernelState: "Managed by Twinnel: Twinnel downloads and verifies mihomo and can update or roll it back.\nExternal binary: the service still runs your own binary, which Twinnel doesn't update.\nRestart pending: a new version is installed and takes effect when mihomo restarts.",
 	TipGeo:         "The data files that GEOIP and GEOSITE rules use, downloaded from the config's geox-url. Files marked Verifiable are checked against a published digest.",
 
 	TipLogs: "mihomo shows the core's live log from when you open this page.\nTwinnel shows what the helper has done.\nThe level only filters what shows here; mihomo's config is not changed.",

@@ -1,4 +1,4 @@
-# Publishing twinnel: pre-publish checklist
+# Publishing Twinnel: pre-publish checklist
 
 Everything here is still to do: no remote exists, nothing has been pushed, and the history has
 not been rewritten. The numbers come from read-only scans of a mirror clone made on 2026-11-27
@@ -132,7 +132,7 @@ Run on the full history of a mirror clone, with `--redact`:
 
 ## 5. Licence and third-party notices
 
-- twinnel: MIT (`LICENSE`, "the Twinnel authors"). Decide whether the copyright line names a person.
+- Twinnel: MIT (`LICENSE`, "the Twinnel authors"). Decide whether the copyright line names a person.
 - `THIRD_PARTY_NOTICES.md` covers the Kubai Icons (MIT). It does not yet cover the Go modules
   compiled into the binaries. All of them are permissive, but MIT, BSD and ISC require their
   notices in binary distributions:

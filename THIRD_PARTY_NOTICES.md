@@ -4,7 +4,7 @@
 
 Source: https://github.com/kubai087/kubai-icons (line style, `icons-line/`).
 
-Covers every `assets/icons/*.svg` except the ones drawn for twinnel: `twinnel.svg`,
+Covers every `assets/icons/*.svg` except the ones drawn for Twinnel: `twinnel.svg`,
 `shield-droplet.svg`, `tunnel.svg`, `nodes-direct.svg`, `nodes-relay.svg` (and `drawn/`),
 the tray marks and the app icon, which are ours under the repo's licence.
 

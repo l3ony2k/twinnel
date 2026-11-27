@@ -75,7 +75,7 @@ func newInstallFlags(name string, withBin bool) (*flag.FlagSet, *installFlags) {
 	return fs, f
 }
 
-// rootArgs are the flags passed to the elevated copy of twinnel: every path
+// rootArgs are the flags passed to the elevated copy of Twinnel: every path
 // absolute, so the root shell's working directory does not matter.
 func (f *installFlags) rootArgs(sub string) ([]string, error) {
 	args := []string{"helper", sub, "--as-root", "--yes"}

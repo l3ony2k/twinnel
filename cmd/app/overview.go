@@ -632,7 +632,7 @@ func shortTSVersion(v string) string {
 // and the health checks, each with the one action that moves it on.
 func (a *app) twinnelCard(c *ui.Context, s status.Snapshot) ui.Element {
 	T := i18n.T
-	return ovCard(c, "twinnel", "", func() {
+	return ovCard(c, "Twinnel", "", func() {
 		if pushButton(c.Key("health-rerun"), T.OvHealthRerun).Clicked() {
 			a.rerunHealth()
 		}

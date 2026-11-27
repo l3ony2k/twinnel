@@ -42,7 +42,7 @@ refresh_subscription downloads it; apply uses it when it is active.`,
 		toolOpts{idempotent: true, openWorld: true}, s.subPut)
 
 	addTool(s, rpc.TierConfigure, "sub_activate", "Activate subscription",
-		`Makes a subscription the one twinnel composes from. Stored only: call preview, then apply.
+		`Makes a subscription the one Twinnel composes from. Stored only: call preview, then apply.
 Undo: sub_activate with the previous id in the result.`,
 		toolOpts{idempotent: true}, s.subActivate)
 

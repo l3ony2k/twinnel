@@ -316,7 +316,7 @@ var zhConfigUI = ConfigUIStrings{
 	ApplyFailedRestore: "新配置出错，已恢复旧配置",
 
 	LogsSourceMihomo:  "mihomo",
-	LogsSourceTwinnel: "twinnel",
+	LogsSourceTwinnel: "Twinnel",
 	LogSearch:         "搜索",
 	LogNoMatch:        "没有匹配的条目",
 	EventsEmpty:       "还没有事件",
@@ -533,7 +533,7 @@ var enConfigUI = ConfigUIStrings{
 	ApplyFailedRestore: "The new config failed; the old one was restored",
 
 	LogsSourceMihomo:  "mihomo",
-	LogsSourceTwinnel: "twinnel",
+	LogsSourceTwinnel: "Twinnel",
 	LogSearch:         "Search",
 	LogNoMatch:        "No matching entries",
 	EventsEmpty:       "No events yet",

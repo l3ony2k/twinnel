@@ -110,7 +110,7 @@ func TestGuardCandidates(t *testing.T) {
 }
 
 func TestGeneratedText(t *testing.T) {
-	in := "# Managed by twinnel: Tailscale coexistence. Regenerated…\n\ntun:\n  route-exclude-address+:\n    - 100.64.0.0/10\n"
+	in := "# Managed by Twinnel: Tailscale coexistence. Regenerated…\n\ntun:\n  route-exclude-address+:\n    - 100.64.0.0/10\n"
 	got := generatedText(in)
 	if strings.Contains(got, "#") || !strings.HasPrefix(got, "tun:") {
 		t.Fatalf("generatedText kept the header: %q", got)

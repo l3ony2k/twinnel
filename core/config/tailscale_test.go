@@ -17,7 +17,7 @@ func TestTailscaleCoexist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `# Managed by twinnel: Tailscale coexistence. Regenerated when the tailnet changes; do not edit.
+	want := `# Managed by Twinnel: Tailscale coexistence. Regenerated when the tailnet changes; do not edit.
 tun:
   route-exclude-address+:
     - 100.64.0.0/10

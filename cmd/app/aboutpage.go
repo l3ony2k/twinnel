@@ -156,7 +156,7 @@ func (a *app) aboutHeader(c *ui.Context) {
 	groupBox(c, t).Padding(16, groupPadX).Children(func() {
 		ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() {
 			if appIconImage != nil {
-				ui.Image(c, appIconImage).Size(64, 64).Shrink(0).Label("twinnel")
+				ui.Image(c, appIconImage).Size(64, 64).Shrink(0).Label("Twinnel")
 			}
 			ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 				ui.Text(c, T.AppName).FontSize(plat.titleSize).FontWeight(plat.titleWeight).SingleLine()
@@ -488,7 +488,7 @@ func aboutLinks(c *ui.Context) {
 }
 
 // pathRow is a file row: its name (the path in the tooltip) and 在
-// Finder 中显示 as a muted icon at the row's end, as on 停止使用 twinnel: the
+// Finder 中显示 as a muted icon at the row's end, as on 停止使用 Twinnel: the
 // accent stays for actions (R-unslop-10).
 func pathRow(c *ui.Context, key, label, path string) {
 	kvWith(c.Key(key), label, func() {
