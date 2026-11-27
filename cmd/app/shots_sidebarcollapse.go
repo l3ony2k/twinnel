@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 )
 
 // sidebarCollapseShots captures the sidebar's three modes (expanded, icons
@@ -11,6 +12,7 @@ import (
 // DUET_SHOTS_FLOW=sidecollapse. The window is the hidden shot window.
 func (a *app) sidebarCollapseShots(save func(*mygo.Window, string)) {
 	yes := true
+	shotLights = true
 	for _, m := range []struct {
 		name string
 		mode sidebarMode
@@ -28,5 +30,26 @@ func (a *app) sidebarCollapseShots(save func(*mygo.Window, string)) {
 			time.Sleep(700 * time.Millisecond)
 			save(a.win, "side-"+m.name+"-"+page)
 		}
+	}
+}
+
+// shotLights draws the traffic lights into the shot window (lightsOverlay):
+// a hidden window's capture shows none, and the toolbar is placed by them.
+var shotLights bool
+
+// lightsOverlay is a calibration overlay of the traffic lights where the
+// system draws them: from TitleBar() and the lights' measured size and
+// pitch (sidebar.go). Shots only.
+func lightsOverlay(c *ui.Context) {
+	bar := c.TitleBar()
+	if bar.Left == 0 {
+		return
+	}
+	cols := []ui.Color{ui.Hex("#ff5f57"), ui.Hex("#febc2e"), ui.Hex("#28c840")}
+	top := bar.Bottom - trafficLightD
+	for i, col := range cols {
+		left := bar.Left - trafficLightD - float32(2-i)*trafficLightPitch
+		ui.Box(c).Absolute().Left(left).Top(top).Size(trafficLightD, trafficLightD).
+			Radius(trafficLightD / 2).Background(col).PassThrough().AccessHidden(true)
 	}
 }
