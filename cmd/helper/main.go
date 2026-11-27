@@ -214,7 +214,7 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", o.socket, err)
 	}
-	log.Info("helper started", "version", engine.HelperVersion, "pid", os.Getpid(), "uid", os.Getuid(),
+	log.Info("helper started", "version", engine.HelperVersion, "as", rpc.Self(),
 		"state_dir", st.Dir, "socket", o.socket, "group", o.group, "config", settings.Mihomo.ConfigFile)
 	e.Bus.Publish(rpc.EventHelperStarted, map[string]any{"version": engine.HelperVersion, "pid": os.Getpid()})
 

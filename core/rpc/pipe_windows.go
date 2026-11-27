@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 
 	winio "github.com/tailscale/go-winio"
 	"golang.org/x/sys/windows"
@@ -122,4 +123,16 @@ func currentSID() (string, error) {
 		return "", err
 	}
 	return u.User.Sid.String(), nil
+}
+
+// Self is this process's identity in Peer form (logs, status): its
+// token's SID and account name, and its pid; never uid -1 in what it
+// prints.
+func Self() Peer {
+	p := Peer{UID: -1, PID: os.Getpid()}
+	if u, err := windows.GetCurrentProcessToken().GetTokenUser(); err == nil {
+		p.SID = u.User.Sid.String()
+		p.User = accountName(u.User.Sid)
+	}
+	return p
 }

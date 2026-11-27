@@ -161,7 +161,11 @@ func runHelperStatus(args []string) error {
 	var s rpc.Status
 	return cf.callPrint(rpc.MethodStatus, nil, &s, func() {
 		w := tw()
-		fmt.Fprintf(w, "helper\t%s (pid %d, uid %d), up since %s\n", s.HelperVersion, s.PID, s.UID, s.StartedAt.Local().Format("15:04:05"))
+		runsAs := s.RunsAs
+		if runsAs == "" { // an older helper
+			runsAs = fmt.Sprintf("uid %d", s.UID)
+		}
+		fmt.Fprintf(w, "helper\t%s (pid %d, %s), up since %s\n", s.HelperVersion, s.PID, runsAs, s.StartedAt.Local().Format("15:04:05"))
 		fmt.Fprintf(w, "state dir\t%s\n", s.StateDir)
 		if s.Mihomo.Reachable {
 			fmt.Fprintf(w, "mihomo\trunning %s, controller %s\n", s.Mihomo.Version, s.Mihomo.Controller)

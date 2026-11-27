@@ -126,3 +126,16 @@ func TestPeerCallerAndLogValue(t *testing.T) {
 		}
 	}
 }
+
+// The helper names itself the same way it names callers: never uid -1.
+func TestSelf(t *testing.T) {
+	s := Self()
+	if s.PID == 0 || s.Caller() == "unknown" || strings.HasPrefix(s.Caller(), "pid ") {
+		t.Fatalf("Self() = %+v, caller %q", s, s.Caller())
+	}
+	var b bytes.Buffer
+	slog.New(slog.NewTextHandler(&b, nil)).Info("x", "as", s)
+	if strings.Contains(b.String(), "uid=-1") {
+		t.Fatal(b.String())
+	}
+}
