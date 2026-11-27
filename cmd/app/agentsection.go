@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -222,6 +223,9 @@ func (a *app) runCLIInstall(dir string, remove []string) {
 			switch {
 			case err != nil:
 				v.cliErr = err.Error()
+				if errors.Is(err, fs.ErrPermission) && remove == nil && v.target == 0 && len(cliTargets()) > 1 {
+					v.target = 1 // a folder of the person's own: offered next
+				}
 			case remove != nil:
 				a.toast = i18n.T.AgentCLIRemoved
 			default:

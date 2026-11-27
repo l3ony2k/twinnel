@@ -110,6 +110,8 @@ duet helper harden apply         # one restart of mihomo, a few seconds offline
 
 Commands that ask `Proceed? [y/N]` need `--yes` when stdin is not a terminal.
 
+AI agents (Claude Code, Codex, Cursor, …) can read and, within limits you set, operate duet over MCP (`duet mcp`): see [docs/agents.md](docs/agents.md).
+
 ## Health checks
 
 `tailnet-route`, `tun-route-exclude`, `tailscale-direct-rules`, `magicdns`, `peer-short-names`, `tailnet-resolver-binding`, `fake-ip-filter-mode`, `system-dns`, `vpn-conflict`, `leak-guard`, `leak-guard-egress` (opt-in), `controller-security`. Each reports a status, the evidence it read, and a fix hint. See [docs/architecture.md](docs/architecture.md#health-checks) for what each one checks.
