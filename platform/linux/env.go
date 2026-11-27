@@ -89,6 +89,9 @@ type Options struct {
 	UnitDirs []string
 	// Settings are check preferences. Default: health.DefaultSettings().
 	Settings *health.Settings
+	// Dataplane runs the tun-dataplane probes (health.NetProbes on a real
+	// machine). Nil: the check is skipped, so tests never dial out.
+	Dataplane health.DataplaneEnv
 
 	Run      CommandRunner
 	HTTP     *http.Client

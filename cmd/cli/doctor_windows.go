@@ -10,5 +10,5 @@ import (
 const configDiscovery = `%ProgramData%\Twinnel\mihomo\config.yaml, else %USERPROFILE%\.config\mihomo\config.yaml`
 
 func newHealthEnv(o healthEnvOptions) (health.Env, error) {
-	return windows.New(windows.Options{Controller: o.Controller, ConfigPath: o.ConfigPath, Settings: o.Settings}), nil
+	return windows.New(windows.Options{Controller: o.Controller, ConfigPath: o.ConfigPath, Settings: o.Settings, Dataplane: windows.Probes()}), nil
 }

@@ -24,6 +24,7 @@
 | `system-dns` | dns.point（预览逐条列出 服务：旧 DNS → 新 DNS） | dns.restore |
 | `mode-rule` | mihomo 切回 rule 模式 | 切回原模式 |
 | `exit-node-off` | Tailscale 停用出口节点 | 重新选回原出口节点 |
+| `tun-stack-gvisor` | 加覆写 `tun-stack`：`tun.stack: gvisor`；compose.apply（TUN 重建，网络断一两秒） | 删掉这个覆写再应用 |
 | `restart-mihomo` / `restart-tailscaled` | service.restart（网络/tailnet 断几秒，预览里说明） | 无需撤销 |
 | `egress-probe` | health.egress 再测一次出口 | 无需撤销 |
 | `rerun` | 重新运行检查 | 无需撤销 |
@@ -63,6 +64,9 @@
 | `tailscale-direct-rules/not-direct` | Tailscale 的连接会被规则送去代理，tailnet 可能连不上或很慢。 | 一键修复 `tailscale-coexist-override` | 重新生成「Tailscale 共存」覆写并应用：把 Tailscale 的直连规则放到最前面。 |  |
 | `tailscale-direct-rules/shadowed` | 前面有规则可能抢先截走 Tailscale 的连接。 | 一键修复 `tailscale-coexist-override` | 重新生成「Tailscale 共存」覆写并应用：把 Tailscale 的直连规则放到最前面。 |  |
 | `tun-route-exclude/missing` | mihomo 的 TUN 会把 tailnet 流量也抢过去。 | 一键修复 `tailscale-coexist-override` | 重新生成「Tailscale 共存」覆写并应用：它在 TUN 的排除网段里加上 tailnet。 |  |
+| `tun-dataplane/dial-failed` | 经 TUN 的测试连接出错，这次没测出结果。 | 一键修复 `rerun` | 重新检查一次。 |  |
+| `tun-dataplane/tcp-dead` | TUN 开着，但经它的 TCP 连接没有应答，上网会超时。 | 一键修复 `tun-stack-gvisor` | 改用 gvisor 栈：加一个覆写把 tun.stack 设为 gvisor 并应用，TUN 会重建，网络断一两秒。可以撤销。 |  |
+| `tun-dataplane/tcp-dead-gvisor` | TUN 开着，但经它的 TCP 连接没有应答，上网会超时。 | 一键修复 `restart-mihomo` | 重启 mihomo，让它重建 TUN。期间网络会断几秒。 |  |
 | `vpn-conflict/exit-node` | Tailscale 正在用出口节点，它和 mihomo 的 TUN 都想接管全部流量。 | 一键修复 `exit-node-off` | 停用出口节点。之后在 Tailscale 页可以随时再选回来。 |  |
 | `vpn-conflict/other-tunnel` | 另一个隧道接管了默认路由，流量没有经过 mihomo。 | 无法自动修复 `` | 这个隧道属于别的 VPN 应用，Twinnel 不去关它。在那个应用里断开，或在 系统设置 → VPN 里关掉。 | windows 另有措辞；linux 另有措辞 |
 | `vpn-conflict/other-vpn` | 另一个 VPN 已连接，它和 mihomo 抢同一条路。 | 无法自动修复 `` | 这个 VPN 是你另外装的应用，Twinnel 不去断开别人的连接。在那个 VPN 应用里断开，或在 系统设置 → VPN 里关掉它。 | windows 另有措辞；linux 另有措辞 |

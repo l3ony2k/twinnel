@@ -85,7 +85,7 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 func healthOptions(e *engine.Engine, opts *options) darwin.Options {
 	// The checks run the tailscale CLI, which Homebrew installs owned by
 	// the user: never as root.
-	o := darwin.Options{Run: takeoverprobe.SafeRunner(8 * time.Second), TailscaleStatus: devTailnetStatus(e, opts)}
+	o := darwin.Options{Run: takeoverprobe.SafeRunner(8 * time.Second), TailscaleStatus: devTailnetStatus(e, opts), Dataplane: health.NetProbes{}}
 	settings := health.DefaultSettings()
 	o.Settings = &settings
 	st, err := e.Store.Settings()
