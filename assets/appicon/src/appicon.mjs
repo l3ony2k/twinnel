@@ -95,4 +95,36 @@ const svg = (size, defs, body) => `<svg xmlns="http://www.w3.org/2000/svg" viewB
   fs.writeFileSync(path.join(here, 'linux.svg'), svg(128, grad('plate', 0, 12, 0, 112) + m.defs,
     `<path d="${rrect(12, 14, 104, 104, 18)}" fill="${COLORS.edge}"/><path d="${rrect(12, 10, 104, 104, 18)}" fill="url(#plate)"/>` + m.body));
 }
-console.log('mac.svg win.svg win-small.svg linux.svg →', here);
+// macOS 26 layered icon (Icon Composer): the rings as two flat layers on a 1024 canvas, no plate,
+// no masks (Icon Composer draws the background, shape, glass and shadow itself). Each ring is
+// one filled outline: the annulus with its gap cut by the other ring's band, as in rings() above.
+// icon.json in ../duet.icon is hand-written; this only refreshes the layer artwork.
+{
+  const R = 6.75, s = 2.5, r = R - s / 2, w = s + 0.5 * s + 0.75, k = 26, o = 512 - 12 * k;
+  const L = [o + (2 + R) * k, 512], Rc = [o + (22 - R) * k, 512];
+  // the outline of the ring round c whose gap is the band (radius r ± w/2) round the other centre
+  // oc, on the side ys (+1 bottom crossing, -1 top crossing)
+  const cut = (c, oc, ys) => {
+    const ro = (r + s / 2) * k, ri = (r - s / 2) * k, bo = (r + w / 2) * k, bi = (r - w / 2) * k;
+    const d = Math.abs(oc[0] - c[0]), dir = Math.sign(oc[0] - c[0]);
+    // intersection of the circle radius a round c with radius b round oc, on side ys
+    const meet = (a, b) => { const x = (a * a - b * b + d * d) / (2 * d); return [c[0] + dir * x, c[1] + ys * Math.sqrt(a * a - x * x)]; };
+    const ang = (p) => Math.atan2(p[1] - c[1], p[0] - c[0]);
+    const P = (p) => `${f(p[0])} ${f(p[1])}`;
+    const oIn = meet(ro, bi), oOut = meet(ro, bo), iIn = meet(ri, bi), iOut = meet(ri, bo);
+    let gap = ang(oIn) - ang(oOut);
+    gap = Math.atan2(Math.sin(gap), Math.cos(gap));
+    // go the long way round, in the positive direction, from the end the gap leaves from
+    const [oA, oB, iA, iB, bA, bB] = gap > 0 ? [oIn, oOut, iIn, iOut, bi, bo] : [oOut, oIn, iOut, iIn, bo, bi];
+    const sw = (p, q) => ((p[0] - oc[0]) * (q[1] - oc[1]) - (p[1] - oc[1]) * (q[0] - oc[0]) > 0 ? 1 : 0);
+    return `M${P(oA)}A${f(ro)} ${f(ro)} 0 1 1 ${P(oB)}A${f(bB)} ${f(bB)} 0 0 ${sw(oB, iB)} ${P(iB)}` +
+      `A${f(ri)} ${f(ri)} 0 1 0 ${P(iA)}A${f(bA)} ${f(bA)} 0 0 ${sw(iA, oA)} ${P(oA)}Z`;
+  };
+  const dir = path.join(here, '..', 'duet.icon', 'Assets');
+  fs.mkdirSync(dir, { recursive: true });
+  const layer = (name, d, col) => fs.writeFileSync(path.join(dir, name),
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><path d="${d}" fill="${col}"/></svg>\n`);
+  layer('mihomo-ring.svg', cut(L, Rc, 1), COLORS.left);
+  layer('tailscale-ring.svg', cut(Rc, L, -1), COLORS.right);
+}
+console.log('mac.svg win.svg win-small.svg linux.svg duet.icon/Assets/*.svg →', here);
