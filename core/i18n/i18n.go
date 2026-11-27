@@ -256,11 +256,13 @@ type Strings struct {
 	InfoTipStrings         // infotips.go
 	StatusStrings          // status.go
 	SidebarStrings         // sidebar.go
+	ErrorStrings           // errors.go
 }
 
 // zh is the Chinese text.
 var zh = Strings{
 	ControlStrings: zhControls,
+	ErrorStrings:   zhErrors,
 
 	AppName: "duet",
 

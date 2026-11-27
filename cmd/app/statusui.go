@@ -139,7 +139,7 @@ func (a *app) mihomoService(method, label string) {
 		// (actionNotes), not only on the page that was open.
 		a.actionErr = ""
 		if err != nil {
-			a.actionErr = i18n.T.ErrorPrefix + helperError(err)
+			a.actionErr = helperError(err)
 		}
 		a.mon.Refresh()
 	})

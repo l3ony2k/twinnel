@@ -838,7 +838,7 @@ func (a *app) loadLayerContent(id string) {
 			}
 			v.loading = false
 			if err != nil {
-				a.hd.msg, a.hd.msgErr = i18n.Cur().ErrorPrefix+helperError(err), true
+				a.hd.msg, a.hd.msgErr = helperError(err), true
 				a.invalidate()
 				return
 			}
@@ -1248,7 +1248,7 @@ func (a *app) saveLayer() {
 	}, func(err error) {
 		if err != nil {
 			// The refusal belongs to the editor, at its line (U35).
-			m := errorMsg(helperError(err), nil)
+			m := helperMsg(err)
 			v.saveErr, v.saveErrBuf = &m, ver
 			a.hd.msg, a.hd.msgErr = "", false
 			return

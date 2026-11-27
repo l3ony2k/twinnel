@@ -35,8 +35,10 @@ func (s *Strings) Msg(m rpc.Msg) (string, bool) {
 		return "", false
 	}
 	tmpl, ok := s.WarningTexts[m.Code]
+	isErr := false
 	if !ok {
 		tmpl, ok = s.MsgTexts[m.Code]
+		isErr = true
 	}
 	if !ok {
 		return "", false
@@ -50,7 +52,26 @@ func (s *Strings) Msg(m rpc.Msg) (string, bool) {
 	for i, v := range m.Args {
 		args[i] = strings.ReplaceAll(v, "\n", s.ListSep)
 	}
+	if loc := tailVerb.FindStringIndex(tmpl); isErr && loc != nil && len(m.Args) > 0 {
+		// An error's tail is the system's error (Go's English): its
+		// reason in words, or nothing.
+		why := s.reasonOf(m.Args[len(m.Args)-1])
+		if why == "" {
+			tmpl, args = tmpl[:loc[0]], args[:len(args)-1]
+		} else {
+			args[len(args)-1] = why
+		}
+	}
 	return F(tmpl, args...), true
+}
+
+// reasonOf is why a system call or a connection failed, in words; "" when
+// duet does not know the error.
+func (s *Strings) reasonOf(raw string) string {
+	if why := netReason(s, raw); why != "" {
+		return why
+	}
+	return s.sysReason(raw)
 }
 
 var tailVerb = regexp.MustCompile(`(：|: )%(\[\d+\])?s$`)
@@ -87,7 +108,7 @@ func (s *Strings) MsgText(m rpc.Msg, warning bool) (text string, raw bool) {
 	if warning {
 		return s.MsgUnknownWarn, true
 	}
-	return s.MsgUnknown, true
+	return s.RPCErrorText(0, m.Text), true
 }
 
 // --- history reasons ---

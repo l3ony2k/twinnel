@@ -5,6 +5,7 @@ package i18n
 // sentence case, as macOS does.
 var en = Strings{
 	ControlStrings: enControls,
+	ErrorStrings:   enErrors,
 
 	AppName: "duet",
 

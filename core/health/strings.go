@@ -223,7 +223,7 @@ var zhTexts = texts{
 	labelSkip:        "跳过",
 	msgCounts:        "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
 	msgNotOnPlatform: "不适用于 %s",
-	msgCheckPanicked: "检查自身出错（panic）",
+	msgCheckPanicked: "检查自身出错",
 	msgCheckTimeout:  "检查超时（%s）",
 
 	// Check titles.
@@ -233,7 +233,7 @@ var zhTexts = texts{
 	titleMagicDNS:       "MagicDNS 解析",
 	titlePeerNames:      "设备短名同步",
 	titleSystemDNS:      "系统 DNS",
-	titleVPNConflict:    "没有冲突的 VPN",
+	titleVPNConflict:    "VPN 冲突",
 	titleLeakGuard:      "防泄漏",
 	titleController:     "控制接口安全",
 	titleResolverBind:   "tailnet DNS 出口绑定",
@@ -369,19 +369,19 @@ var zhTexts = texts{
 	fixDNSLinux:       "把这些连接的 DNS 设为 %s。NetworkManager：nmcli connection modify <连接名> ipv4.dns %s ipv4.ignore-auto-dns yes，再 nmcli connection up <连接名>；只有 systemd-resolved 时：在 /etc/systemd/resolved.conf 写 DNS=%s 和 Domains=~.，再 systemctl restart systemd-resolved（resolvectl dns <网卡> <地址> 只到重启为止）。",
 
 	// vpn-conflict
-	msgVPNOK:          "没有其他 VPN 在运行，Tailscale 没用 exit node",
+	msgVPNOK:          "没有其他 VPN 在运行，Tailscale 没用出口节点",
 	msgVPNConnected:   "%s 已连接",
 	msgVPNTailscaleNE: "%s 是 Tailscale 的 NetworkExtension 版本，会占用系统 VPN 通道",
-	msgExitNode:       "Tailscale 正在使用 exit node %s",
+	msgExitNode:       "Tailscale 正在使用出口节点 %s",
 	msgOtherTUN:       "默认路由在 %s 上，不是 mihomo 的 TUN",
 	msgTUNNotDefault:  "mihomo TUN（%s）没有拿到默认路由（现在是 %s）",
 	evConnected:       "已连接",
 	evTSNE:            "Tailscale NetworkExtension 版",
 	evNoVPN:           "没有系统 VPN 配置",
-	evNoExitNode:      "Tailscale：没有使用 exit node",
+	evNoExitNode:      "Tailscale：没有使用出口节点",
 	evDefaultRoute:    "1.1.1.1 的路由：%s",
 	evNotMihomoTUN:    "不是 mihomo TUN",
-	fixVPN:            "断开其他 VPN；需要 exit node 时先确认它和 mihomo TUN 的冲突。",
+	fixVPN:            "断开其他 VPN；需要出口节点时先确认它和 mihomo TUN 的冲突。",
 
 	// leak-guard
 	msgNoSensitive:  "没有配置敏感策略组",
@@ -398,14 +398,14 @@ var zhTexts = texts{
 	fixLeak:         "从敏感策略组里去掉 DIRECT，没有可用节点时用 REJECT（启用「防泄漏」覆写）。",
 
 	// controller-security
-	msgCtlOK:       "external-controller 只监听本机并设置了 secret",
+	msgCtlOK:       "external-controller 只监听本机并设置了密钥",
 	msgCtlDisabled: "没有开启 external-controller",
 	msgCtlExposed:  "external-controller 监听在 %s，不只是本机",
-	msgCtlNoSecret: "external-controller 没有设置 secret，本机任何程序都能控制 mihomo",
+	msgCtlNoSecret: "external-controller 没有设置密钥，本机任何程序都能控制 mihomo",
 	evSecretSet:    "已设置",
 	evSecretEmpty:  "空",
-	evCtlNoAuth:    "不带 secret 的请求被接受",
-	fixCtl:         "external-controller 只绑定 127.0.0.1，并设置随机 secret（由 helper 生成并存入钥匙串）。",
+	evCtlNoAuth:    "不带密钥的请求被接受",
+	fixCtl:         "external-controller 只绑定 127.0.0.1，并设置随机密钥（由后台助手生成并存入钥匙串）。",
 }
 
 // textTables maps a language tag (core/i18n's) to its texts.

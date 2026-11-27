@@ -397,7 +397,7 @@ func (a *app) askUndo() {
 		var dry rpc.TakeoverUndoResult
 		err := hc.Call(ctx, rpc.MethodTakeoverUndo, rpc.TakeoverUndoParams{DryRun: true}, &dry)
 		if err != nil {
-			mygo.RunOnMain(func() { v.undoBusy, v.undoErr = false, T.ErrorPrefix+helperError(err); a.invalidate() })
+			mygo.RunOnMain(func() { v.undoBusy, v.undoErr = false, helperError(err); a.invalidate() })
 			return
 		}
 		var lines []string

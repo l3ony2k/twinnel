@@ -26,7 +26,7 @@ var enTexts = texts{
 	titleMagicDNS:       "MagicDNS lookups",
 	titlePeerNames:      "Device short names",
 	titleSystemDNS:      "System DNS",
-	titleVPNConflict:    "No conflicting VPN",
+	titleVPNConflict:    "VPN conflicts",
 	titleLeakGuard:      "Leak guard",
 	titleController:     "Controller security",
 	titleResolverBind:   "Tailnet DNS interface",
