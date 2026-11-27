@@ -574,25 +574,22 @@ func (a *app) helperUpdateButton(c *ui.Context, s status.Snapshot, key string) {
 	}
 }
 
-// loginSection is the 通用 card: 登录时打开 (a packaged app only).
-func (a *app) loginSection(c *ui.Context) {
+// loginRow is 设置 → 通用 → 登录时打开 (a packaged app only).
+func (a *app) loginRow(c *ui.Context) {
 	T := i18n.T
-	card(c, T.General, func() {
-		ok := appBundled()
-		on := ok && a.openAtLogin()
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			switchLabel(c, T.OpenAtLogin, T.TipOpenAtLogin, func() { a.openAboutFAQ(T.FAQQuitQ) })
-			if tg := needsBundleTag(ok); tg != "" {
-				tag(c, tg).Tooltip(T.OpenAtLoginUnsupportedTip)
-			}
-			if ui.Switch(c.Key("login"), &on).Label(T.OpenAtLogin).Disabled(!ok).Changed() {
-				a.setOpenAtLogin(on)
-			}
-		})
-		if a.hm.loginErr != "" {
-			errorNote(c, a.hm.loginErr)
+	ok := appBundled()
+	on := ok && a.openAtLogin()
+	settingsRow(c, T.OpenAtLogin, T.TipOpenAtLogin, func() { a.openAboutFAQ(T.FAQQuitQ) }, func() {
+		if tg := needsBundleTag(ok); tg != "" {
+			tag(c, tg).Tooltip(T.OpenAtLoginUnsupportedTip)
+		}
+		if ui.Switch(c.Key("login"), &on).Label(T.OpenAtLogin).Disabled(!ok).Changed() {
+			a.setOpenAtLogin(on)
 		}
 	})
+	if a.hm.loginErr != "" {
+		errorNote(c, a.hm.loginErr)
+	}
 }
 
 // openAtLogin reads the login item state (a system call: only for a

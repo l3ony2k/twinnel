@@ -154,8 +154,9 @@ func langOptions() (labels, values []string) {
 	return labels, values
 }
 
-// languageCard is 设置 → 语言.
-func (a *app) languageCard(c *ui.Context) {
+// languageRow is 设置 → 通用 → 界面语言: a pop-up, the macOS convention
+// for a language (kubai R-26 left as is on purpose).
+func (a *app) languageRow(c *ui.Context) {
 	T := i18n.T
 	labels, values := langOptions()
 	sel := labels[0]
@@ -166,16 +167,13 @@ func (a *app) languageCard(c *ui.Context) {
 			}
 		}
 	}
-	card(c, T.Language, func() {
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, T.LanguageLabel).Grow(1)
-			if ui.Select(c.Key("language"), &sel, labels).Label(T.Language).Changed() {
-				for i, l := range labels {
-					if l == sel {
-						a.setLanguage(values[i])
-					}
+	settingsRow(c, T.LanguageLabel, "", nil, func() {
+		if ui.Select(c.Key("language"), &sel, labels).Label(T.Language).Changed() {
+			for i, l := range labels {
+				if l == sel {
+					a.setLanguage(values[i])
 				}
 			}
-		})
+		}
 	})
 }
