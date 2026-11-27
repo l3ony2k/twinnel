@@ -55,7 +55,7 @@ func newRig(t *testing.T) *rig {
 	r := &rig{t: t, now: time.Date(2026, 11, 28, 10, 0, 0, 0, time.UTC), answers: true}
 	r.dns = &fakeDNS{svcs: map[string][]string{"Wi-Fi": {"127.0.0.1"}, "Ethernet": {"127.0.0.1"}}}
 	r.backup = &sysdns.Backup{At: r.now, Services: []sysdns.Service{
-		{Name: "Wi-Fi", Servers: nil},                      // automatic (DHCP)
+		{Name: "Wi-Fi", Servers: nil},                       // automatic (DHCP)
 		{Name: "Ethernet", Servers: []string{"192.0.2.53"}}, // manual
 	}}
 	r.svc = Service{Known: true, Running: true, PID: 100, Runs: 1}
