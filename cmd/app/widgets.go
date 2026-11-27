@@ -57,11 +57,11 @@ func pal(t *ui.Theme) palette {
 
 // Spacing steps (4 px grid).
 const (
-	gapRow     = 8  // between rows inside a group (System Settings' rhythm)
-	gapGroup   = 20 // between groups on a page
-	groupPadX  = 16 // a group's side padding; its heading lines up with it
-	groupPadY  = 12
-	gapSub     = 2  // between a line and the secondary line under it
+	gapRow    = 8  // between rows inside a group (System Settings' rhythm)
+	gapGroup  = 20 // between groups on a page
+	groupPadX = 16 // a group's side padding; its heading lines up with it
+	groupPadY = 12
+	gapSub    = 2 // between a line and the secondary line under it
 )
 
 // labelWidth is the label column of kv rows: as wide as the current
