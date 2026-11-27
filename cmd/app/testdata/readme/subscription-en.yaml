@@ -1,0 +1,34 @@
+# Synthetic subscription for the README screenshots (scripts/readme-shots.sh).
+# Invented node names, documentation addresses (RFC 5737), no real server or credential.
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+proxies:
+  - {name: "Hong Kong 01", type: trojan, server: 198.51.100.11, port: 443, password: example, sni: example.com}
+  - {name: "Hong Kong 02", type: trojan, server: 198.51.100.12, port: 443, password: example, sni: example.com}
+  - {name: "Hong Kong 03 IPLC", type: ss, server: 198.51.100.13, port: 8388, cipher: aes-128-gcm, password: example}
+  - {name: "Tokyo 01", type: vless, server: 198.51.100.14, port: 443, uuid: 00000000-0000-4000-8000-000000000000, tls: true, servername: example.com}
+  - {name: "Osaka 02", type: vless, server: 198.51.100.15, port: 443, uuid: 00000000-0000-4000-8000-000000000000, tls: true, servername: example.com}
+  - {name: "Singapore 01", type: trojan, server: 198.51.100.16, port: 443, password: example, sni: example.com}
+  - {name: "Singapore 02", type: trojan, server: 198.51.100.17, port: 443, password: example, sni: example.com}
+  - {name: "US West 01", type: hysteria2, server: 198.51.100.18, port: 443, password: example, sni: example.com}
+  - {name: "US West 02", type: hysteria2, server: 198.51.100.19, port: 443, password: example, sni: example.com}
+  - {name: "Taipei 01", type: ss, server: 198.51.100.20, port: 8388, cipher: aes-128-gcm, password: example}
+  - {name: "London 01", type: vless, server: 198.51.100.21, port: 443, uuid: 00000000-0000-4000-8000-000000000000, tls: true, servername: example.com}
+  - {name: "Frankfurt 01", type: vless, server: 198.51.100.22, port: 443, uuid: 00000000-0000-4000-8000-000000000000, tls: true, servername: example.com}
+proxy-groups:
+  - {name: PROXY, type: select, proxies: ["Auto", "Hong Kong", "DIRECT", "Hong Kong 01", "Hong Kong 02", "Hong Kong 03 IPLC", "Tokyo 01", "Osaka 02", "Singapore 01", "Singapore 02", "US West 01", "US West 02", "Taipei 01", "London 01", "Frankfurt 01"]}
+  - {name: "Auto", type: url-test, url: "https://www.gstatic.com/generate_204", interval: 300, proxies: ["Hong Kong 01", "Hong Kong 02", "Hong Kong 03 IPLC", "Tokyo 01", "Osaka 02", "Singapore 01", "Singapore 02", "US West 01", "US West 02", "Taipei 01", "London 01", "Frankfurt 01"]}
+  - {name: "Hong Kong", type: url-test, url: "https://www.gstatic.com/generate_204", interval: 300, proxies: ["Hong Kong 01", "Hong Kong 02", "Hong Kong 03 IPLC"]}
+  - {name: OpenAI, type: select, proxies: ["US West 01", "US West 02", "Tokyo 01", "PROXY"]}
+  - {name: Apple, type: select, proxies: ["DIRECT", "PROXY", "Hong Kong"]}
+  - {name: Telegram, type: select, proxies: ["Singapore 01", "Singapore 02", "PROXY"]}
+  - {name: "Final", type: select, proxies: [PROXY, DIRECT]}
+rules:
+  - DOMAIN-SUFFIX,openai.com,OpenAI
+  - DOMAIN-SUFFIX,apple.com,Apple
+  - DOMAIN-SUFFIX,telegram.org,Telegram
+  - GEOSITE,cn,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,Final
