@@ -88,7 +88,13 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			if h.Running {
 				label = T.HealthRunning
 			}
-			if iconButton(c.Key("rerun"), iconRefresh, label, false).Disabled(h.Running).Clicked() {
+			b := pushButton(c.Key("rerun"), "").Label(label).Disabled(h.Running)
+			spin := showBusy(c, b, h.Running)
+			b.Children(func() {
+				turningIcon(c, iconRefresh, spin) // the refresh icon turns while the checks run
+				ui.Text(c, label).SingleLine()
+			})
+			if b.Clicked() {
 				a.rerunHealth()
 			}
 		}
@@ -123,12 +129,25 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 	}
 	rep := h.Report
 	cnt := rep.Counts()
+	demote := healthDemoted(s)
 	groupBox(c, t).Children(func() {
 		icon, col, label := healthStatusLook(t, rep.Overall)
+		head := healthHeadline(label, cnt)
+		// The headline is the one number the banner and the sidebar show,
+		// at their level (Snapshot.HealthBadge): a finding they call a
+		// warning is a warning here too, not 1 项失败 in red (R-kubai-6).
+		if n, l := s.HealthBadge(); n > 0 && l != status.LevelOK {
+			icon, col = levelIcon(l), levelColor(t, l)
+			for _, r := range s.Reasons {
+				if r.Code == status.ReasonHealth {
+					head = healthReasonShort(r)
+				}
+			}
+		}
 		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
 			ui.Icon(c, icon).FontSize(iconLarge).TextColor(col).Shrink(0)
 			ui.Column(c).Gap(4).Grow(1).Children(func() {
-				ui.Text(c, healthHeadline(label, cnt)).FontSize(plat.leadSize).FontWeight(600)
+				ui.Text(c, head).FontSize(plat.leadSize).FontWeight(600)
 				num(small(c, healthCountsText(cnt)))
 				last := fmt.Sprintf(T.HealthLastRunAt, rep.Started.Format("15:04:05"))
 				if rep.Duration >= 100*time.Millisecond { // "用时 0.0 秒" says nothing
@@ -172,7 +191,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			num(small(c, fmt.Sprint(len(crs))))
 		}), func() {
 			for _, cr := range crs {
-				a.healthCheckRow(c.Key("check:"+cr.ID), cr, s)
+				a.healthCheckRow(c.Key("check:"+cr.ID), cr, s, demote)
 			}
 			if extra != nil {
 				extra()
@@ -195,7 +214,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			if open {
 				ui.Column(c).MarginStart(26).Children(func() {
 					for _, cr := range caused {
-						a.healthCheckRow(c.Key("caused:"+cr.ID), cr, s)
+						a.healthCheckRow(c.Key("caused:"+cr.ID), cr, s, demote)
 					}
 				})
 			}
@@ -204,7 +223,18 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 	list(T.HealthPassed, "", rest, nil)
 }
 
-func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snapshot) {
+// healthDemoted: the banner rates the checks' failures as warnings (a
+// finding before takeover), so their rows wear the warning's glyph and
+// color too: one problem, one severity everywhere (R-kubai-6).
+func healthDemoted(s status.Snapshot) bool {
+	_, l := s.HealthBadge()
+	if l != status.LevelWarn || s.Health.Report == nil {
+		return false
+	}
+	return s.Health.Report.Counts()[health.StatusFail] > 0
+}
+
+func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snapshot, demote bool) {
 	t := c.Theme()
 	T := i18n.T
 	p := pal(t)
@@ -212,8 +242,17 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 	if !set { // problems start expanded
 		open = cr.Status == health.StatusWarn || cr.Status == health.StatusFail
 	}
-	expandable := len(cr.Evidence) > 0 || cr.Fix != nil
-	icon, col, _ := healthStatusLook(t, cr.Status)
+	// Every row with something more to say opens: its sentence stays
+	// one line in the list, whole in the tooltip and in the opened row,
+	// and the chevron is always there (kubai R-20). A skipped or accepted
+	// row with nothing else has no chevron.
+	expandable := len(cr.Evidence) > 0 || cr.Fix != nil ||
+		cr.Summary != "" && cr.Status != health.StatusSkip && cr.Status != health.StatusAccepted
+	look := cr.Status
+	if demote && look == health.StatusFail {
+		look = health.StatusWarn
+	}
+	icon, col, _ := healthStatusLook(t, look)
 	_, _, stateText := healthStatusLook(t, cr.Status)
 	ui.Column(c).PaddingY(listRowPadY).Gap(8).Clip().Transition(expandFor(open)).Children(func() {
 		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).MinHeight(20).Label(stateText + T.LabelSep + cr.Title)
@@ -235,10 +274,6 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 				tag(c, cr.Summary).Shrink(1)
 			case cr.Status == health.StatusAccepted:
 				tag(c, T.HealthAccepted)
-			case !expandable:
-				// Nothing to open, so nothing may be cut off: the
-				// sentence wraps under itself.
-				ui.Text(c, cr.Summary).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Shrink(1).Selectable()
 			case !open:
 				// Cut to one line; the whole sentence on hover, as
 				// macOS shows a truncated cell's text.
@@ -269,9 +304,6 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 			return
 		}
 		ui.Column(c).Gap(10).MarginStart(26).Children(func() {
-			if !expandable {
-				return // the head wraps the whole sentence already
-			}
 			if cr.Status != health.StatusSkip {
 				ui.Text(c, cr.Summary).Wrap().LineHeight(lineText).Selectable()
 			}
