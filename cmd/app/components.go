@@ -62,7 +62,8 @@ type accessoryView struct {
 	tooOld   bool                // the helper has no *.status: only 检查更新 works
 
 	res     *rpc.AccessoryUpdateResult // the last download's result
-	failErr string                     // the last download's failure (raw)
+	failErr string                     // the last download's failure (raw, behind 复制详情)
+	failWhy string                     // the same in plain words
 	prog    *rpc.AccessoryProgress     // the running download's stage
 	proxy   string                     // the route of the last download (retry keeps it)
 
@@ -134,6 +135,17 @@ func (a *app) takeAccessoryProgress(evs []rpc.Event) []rpc.Event {
 		a.invalidate()
 	}
 	return out
+}
+
+// accessoryOpShown: op is a component download, whose row shows its
+// progress (opNotes does not repeat it at the top of the page).
+func accessoryOpShown(op string) bool {
+	for _, k := range accessoryKinds() {
+		if op == k.opUpdate() {
+			return true
+		}
+	}
+	return false
 }
 
 func (k accessoryKind) opUpdate() string { return k.title + " · " + i18n.T.CompUpdate }
@@ -252,13 +264,8 @@ func (a *app) accessoryRows(c *ui.Context, s status.Snapshot, k accessoryKind) {
 			switch {
 			case ck == nil && v.loading:
 				small(c, T.Loading)
-			case ck == nil:
 			case none:
 				tag(c, T.AccessoryMissing)
-			case sum.version != "":
-				num(monoText(c, sum.version).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine())
-			case sum.date != "":
-				num(small(c, sum.date).SingleLine())
 			}
 		})
 		if ck == nil {
@@ -271,12 +278,13 @@ func (a *app) accessoryRows(c *ui.Context, s status.Snapshot, k accessoryKind) {
 			hintText(c, k.what)
 		}
 		if !none {
-			if sum.version != "" || sum.date != "" {
-				val := sum.version
-				if sum.date != "" {
-					val = strings.TrimPrefix(val+" · "+sum.date, " · ")
-				}
-				kvMono(c, T.CompVersion, val)
+			switch {
+			case sum.version != "" && sum.date != "":
+				kvMono(c, T.CompVersion, sum.version+" · "+sum.date)
+			case sum.version != "":
+				kvMono(c, T.CompVersion, sum.version)
+			case sum.date != "":
+				kvMono(c, T.CompDate, sum.date)
 			}
 			src := T.CompSourceOther
 			if sum.source != "" {
@@ -290,9 +298,11 @@ func (a *app) accessoryRows(c *ui.Context, s status.Snapshot, k accessoryKind) {
 				ui.Text(c, T.CompUINotServed).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Wrap().LineHeight(lineText)
 			}
 		}
-		if running {
+		switch {
+		case running:
 			a.accessoryProgressRow(c, k, v)
-		} else {
+		case none && v.failErr != "": // the failed row below is the action
+		default:
 			a.accessoryActionRow(c, s, k, v, sum, none, w)
 		}
 	})
@@ -351,8 +361,8 @@ func (a *app) accessoryActionRow(c *ui.Context, s status.Snapshot, k accessoryKi
 				a.accessoryUpdate(k, v.proxy)
 			}
 		}
-		if label := downloadLabel(sum, none); label != "" {
-			if a.opButton(c.Key("download"), iconOK, label, true, k.opUpdate()).Disabled(!w).Clicked() {
+		if label := downloadLabel(sum, none); label != "" && v.failErr == "" {
+			if a.opButton(c.Key("download"), iconDownload, label, true, k.opUpdate()).Disabled(!w).Clicked() {
 				a.accessoryUpdate(k, v.proxy)
 			}
 		}
@@ -538,7 +548,7 @@ func (a *app) accessoryFailed(c *ui.Context, k accessoryKind, v *accessoryView) 
 	T := i18n.T
 	busy := a.hd.busy != ""
 	ui.Column(c).Gap(8).Children(func() {
-		failedRowWhy(c.Key("dl-failed"), i18n.F(T.CompFailed, k.title), helperErrorText(v.failErr), v.failErr, func() { a.accessoryUpdate(k, v.proxy) }, busy)
+		failedRowWhy(c.Key("dl-failed"), i18n.F(T.CompFailed, k.title), v.failWhy, v.failErr, func() { a.accessoryUpdate(k, v.proxy) }, busy)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 			if v.proxy != rpc.ProxySubscription && pushButton(c.Key("via-sub"), T.CompViaSub).Disabled(busy).Clicked() {
 				a.accessoryUpdate(k, rpc.ProxySubscription)
@@ -558,12 +568,6 @@ func (a *app) accessoryFailed(c *ui.Context, k accessoryKind, v *accessoryView) 
 			})
 		}
 	})
-}
-
-// helperErrorText is helperError's wording for a raw message kept as
-// text (a failure from an earlier frame).
-func helperErrorText(raw string) string {
-	return i18n.PlainNetError(raw)
 }
 
 // applyForce runs compose.apply with force (reload even when the file is
@@ -609,7 +613,7 @@ func (a *app) accessoryCheck(k accessoryKind) {
 // GEO databases are reloaded into mihomo at once.
 func (a *app) accessoryUpdate(k accessoryKind, proxy string) {
 	v := k.view(a)
-	v.prog, v.res, v.failErr, v.proxy = nil, nil, "", proxy
+	v.prog, v.res, v.failErr, v.failWhy, v.proxy = nil, nil, "", "", proxy
 	var r rpc.AccessoryUpdateResult
 	a.helperOp(k.opUpdate(), 15*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
 		return hc.Call(ctx, k.update, rpc.AccessoryUpdateParams{Proxy: proxy, Reload: k.kind == rpc.AccessoryGeo}, &r)
@@ -619,7 +623,7 @@ func (a *app) accessoryUpdate(k accessoryKind, proxy string) {
 			v.check.Files = r.Files
 		}
 		if err != nil {
-			v.failErr = rawError(err)
+			v.failErr, v.failWhy = rawError(err), failReason(err)
 			a.hd.msg, a.hd.msgErr = "", false // the section says it
 			a.loadAccessories()
 			return
@@ -627,6 +631,19 @@ func (a *app) accessoryUpdate(k accessoryKind, proxy string) {
 		v.res = &r
 		a.loadAccessories()
 	})
+}
+
+// failReason words a failed download: the network cause when there is
+// one (timeouts, DNS, refused), else the helper's error.
+func failReason(err error) string {
+	raw := rawError(err)
+	if why := i18n.PlainNetError(raw); why != "" {
+		return why
+	}
+	if why := i18n.NetReason(raw); why != "" {
+		return why
+	}
+	return helperError(err)
 }
 
 // rawError is the helper's own message (behind 复制详情).

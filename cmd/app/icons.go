@@ -53,6 +53,7 @@ var (
 	iconRollback   = svgIcon("undo-2")
 	iconService    = svgIcon("server")
 	iconGeo        = svgIcon("map")
+	iconDownload   = svgIcon("import") // an arrow into a tray: a download
 	iconDashboard  = svgIcon("app-window")
 	iconSecure     = svgIcon("key-round")
 	iconLock       = svgIcon("lock") // a control that needs the helper

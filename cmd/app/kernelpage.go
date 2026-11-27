@@ -72,7 +72,7 @@ func (a *app) kernelPage(c *ui.Context, s status.Snapshot) {
 func (a *app) componentsCard(c *ui.Context, s status.Snapshot) {
 	listCard(c, listHead(c, nil, i18n.T.PgComponents, nil), func() {
 		for _, k := range accessoryKinds() {
-			if a.section(k.check) {
+			if a.section(k.check) || a.section("components") {
 				ui.Column(c.Key(k.check)).Children(func() { a.accessoryRows(c, s, k) })
 			}
 		}

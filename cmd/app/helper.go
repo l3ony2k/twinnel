@@ -399,7 +399,7 @@ func (a *app) helperWrites(s status.Snapshot) bool {
 func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	d := &a.hd
-	if d.busy != "" && !d.busyOnButton && d.span.visible(time.Now()) {
+	if d.busy != "" && !d.busyOnButton && !accessoryOpShown(d.busy) && d.span.visible(time.Now()) {
 		// No opButton shows this operation: say it here (after busyDelay).
 		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Children(func() {
 			ui.Spinner(c)

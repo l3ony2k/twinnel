@@ -86,3 +86,10 @@ func TestTakeAccessoryProgress(t *testing.T) {
 		t.Errorf("evs %v prog %+v", evs, a.hd.kern.geo.prog)
 	}
 }
+
+func TestFailReason(t *testing.T) {
+	err := rpc.Errorf(rpc.CodeFailed, "geosite: download https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat: dial tcp 140.82.112.4:443: i/o timeout")
+	if why := failReason(err); why == "" || strings.Contains(why, "dial tcp") {
+		t.Errorf("why %q", why)
+	}
+}

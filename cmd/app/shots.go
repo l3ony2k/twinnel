@@ -125,6 +125,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"derpinfo":        a.derpInfoShots,        // shots_derpinfo.go
 		"flyout":          a.flyoutShots,          // shots_flyout.go
 		"tslogin":         a.tsLoginShots,         // shots_tslogin.go
+		"components":      a.componentShots,       // shots_components.go
 		"foundations":     a.foundationsShots,     // shots_foundations.go
 		"surfaces":        a.surfacesShots,        // shots_surfaces.go
 		"agent":           a.agentShots,           // shots_agent.go

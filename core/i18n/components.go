@@ -17,6 +17,7 @@ type ComponentStrings struct {
 
 	CompInstalled    string // label: 已安装
 	CompVersion      string // label: 版本
+	CompDate         string // label: 日期 (data without a version, e.g. GEO)
 	CompSource       string // label: 来源
 	CompSourceOther  string // installed by mihomo itself or by hand
 	CompUpToDate     string // %s: HH:MM or a date
@@ -75,6 +76,7 @@ var zhComponents = ComponentStrings{
 
 	CompInstalled:    "已安装",
 	CompVersion:      "版本",
+	CompDate:         "日期",
 	CompSource:       "来源",
 	CompSourceOther:  "不是 Twinnel 下载的",
 	CompUpToDate:     "已是最新 · 检查于 %s",
@@ -129,6 +131,7 @@ var enComponents = ComponentStrings{
 
 	CompInstalled:    "Installed",
 	CompVersion:      "Version",
+	CompDate:         "Date",
 	CompSource:       "Source",
 	CompSourceOther:  "Not downloaded by Twinnel",
 	CompUpToDate:     "Up to date · checked %s",
