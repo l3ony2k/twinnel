@@ -13,10 +13,11 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/l3ony2k/twinnel/core/binswap"
 )
 
 // Spec describes one service.
@@ -352,13 +353,10 @@ func (OSFiles) WriteFile(p string, b []byte, m fs.FileMode) error {
 	}
 	return os.Rename(tmp, p)
 }
-func (f OSFiles) Copy(src, dst string, m fs.FileMode) error {
-	b, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	return f.WriteFile(dst, b, m)
+
+// Copy replaces dst with a copy of src even while dst runs (Windows: the
+// service host while mihomo runs, a helper not yet unloaded): the running
+// file is moved aside and deleted on a later copy (core/binswap).
+func (OSFiles) Copy(src, dst string, m fs.FileMode) error {
+	return binswap.Replace(src, dst, m)
 }

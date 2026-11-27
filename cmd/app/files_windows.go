@@ -26,16 +26,22 @@ func init() {
 
 // removeAppBundle deletes the install folder once the app has quit (a
 // running .exe cannot be deleted or recycled): a hidden PowerShell waits
-// for this process, then removes the folder, install.ps1's Start menu
-// shortcut and its PATH entry (appRemovalScript).
+// for this process, then runs the install's install.ps1 -Uninstall
+// (appRemovalScript), logging to %TEMP%\twinnel-remove.log. The PATH
+// entry goes here too, through the same code as 设置 → 命令行工具, so a
+// folder without install.ps1 loses it as well.
 func removeAppBundle(dir string) {
-	script, err := appRemovalScript(os.Getpid(), dir, startMenuShortcut())
+	if _, err := userPath.Remove(winpath.Join(dir, "bin")); err != nil {
+		log.Printf("remove app: PATH: %v", err)
+	}
+	script, err := appRemovalScript(os.Getpid(), dir, startMenuShortcut(), winpath.Join(os.TempDir(), "twinnel-remove.log"))
 	if err != nil {
 		log.Printf("remove app: %v", err)
 		return
 	}
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
 		"-WindowStyle", "Hidden", "-EncodedCommand", encodePowerShell(script))
+	cmd.Dir = os.TempDir() // not the install folder, which is about to go
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	if err := cmd.Start(); err != nil {
 		log.Printf("remove app: %v", err)

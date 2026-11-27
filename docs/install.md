@@ -140,6 +140,9 @@ twinnel version
    加 `-DryRun` 只打印步骤。`twinnel` 命令在这个窗口和之后新打开的终端里可用；已经开着的终端
    （以及 VS Code 这类编辑器）要重开才找得到它。Twinnel 的 设置 → 本地 Agent → 命令行工具 也能把
    `bin\` 加进或移出 PATH。
+
+   更新时不用先关掉 Agent：正在运行的 `twinnel mcp` 继续用旧版本，重启后用新版本。要么全部换成新版本，
+   要么出错时全部保持旧版本。正在运行的 Twinnel 会被重新启动（加了 `-NoLaunch` 也会）。
 3. Twinnel 的图标在任务栏右侧的通知区域（可能收在 ^ 里）。第一次打开时点「安装后台助手」，Windows
    会弹一次「用户账户控制」，同意后后台助手作为 Windows 服务 `TwinnelHelper` 运行。
 
@@ -162,7 +165,7 @@ Windows 上有两份 `twinnel-helper.exe`：
 
 卸载：在 Twinnel 的 设置 → 停止使用 Twinnel 里选「完全移除 Twinnel」；或者运行
 `powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\Twinnel\install.ps1" -Uninstall`。
-mihomo 和 Tailscale 不受影响。
+两者都会先停掉从安装文件夹运行的 Twinnel 程序（包括 Agent 的 `twinnel mcp`）。mihomo 和 Tailscale 不受影响。
 
 ---
 
@@ -308,6 +311,10 @@ Uninstall: `sudo ./install.sh --uninstall` (`--purge` also deletes the data in `
    window and in terminals you open afterwards; terminals (and editors such as VS Code) that were
    already open must be restarted to find it. Settings → Local agents → Command line tool in Twinnel
    also adds `bin\` to PATH or removes it.
+
+   You can update without closing your agents: a running `twinnel mcp` keeps the old version until it
+   restarts. The update replaces every file or, if something fails, none. A running Twinnel is
+   restarted (also with `-NoLaunch`).
 3. Twinnel's icon is in the notification area of the taskbar (maybe behind the ^). On first run,
    click Install Helper: Windows shows one User Account Control prompt, and the helper then runs as
    the Windows service `TwinnelHelper`.
@@ -333,4 +340,5 @@ what it installs, so the warning does not come back.
 
 Uninstall: Settings → Stop Using Twinnel → Remove Twinnel completely in the app, or
 `powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\Twinnel\install.ps1" -Uninstall`.
+Both first stop Twinnel's programs that run from the install folder (including agents' `twinnel mcp`).
 mihomo and Tailscale are left alone.

@@ -8,26 +8,39 @@ import (
 )
 
 func TestAppRemovalScript(t *testing.T) {
-	s, err := appRemovalScript(42, `C:\Users\o'neil\AppData\Local\Programs\Twinnel\`, `C:\Users\o'neil\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Twinnel.lnk`)
+	s, err := appRemovalScript(42, `C:\Users\o'neil\AppData\Local\Programs\Twinnel\`, `C:\Users\o'neil\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Twinnel.lnk`,
+		`C:\Users\o'neil\AppData\Local\Temp\twinnel-remove.log`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
 		"Wait-Process -Id 42",
-		`if (Test-Path -LiteralPath 'C:\Users\o''neil\AppData\Local\Programs\Twinnel\.twinnel-install') { Remove-Item -LiteralPath 'C:\Users\o''neil\AppData\Local\Programs\Twinnel' -Recurse -Force }`,
+		"Set-Location -LiteralPath $env:TEMP",
+		`$dir = 'C:\Users\o''neil\AppData\Local\Programs\Twinnel'`,
+		`$ps1 = 'C:\Users\o''neil\AppData\Local\Programs\Twinnel\install.ps1'`,
+		`$log = 'C:\Users\o''neil\AppData\Local\Temp\twinnel-remove.log'`,
+		// The install's own uninstall, which stops what still runs from
+		// the folder (an agent's twinnel mcp) before removing it.
+		"& $ps1 -Uninstall -InstallDir $dir *> $log",
+		// Without install.ps1: the folder (only one with the marker) and the shortcut.
+		`if (Test-Path -LiteralPath (Join-Path $dir '.twinnel-install')) { Remove-Item -LiteralPath $dir -Recurse -Force }`,
 		`Twinnel.lnk' -Force`,
-		`$bin = 'C:\Users\o''neil\AppData\Local\Programs\Twinnel\bin'`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("missing %q in\n%s", want, s)
 		}
 	}
+	// The PATH is not rewritten here: [Environment]::SetEnvironmentVariable
+	// would turn REG_EXPAND_SZ into REG_SZ (removeAppBundle uses userpath).
+	if strings.Contains(s, "SetEnvironmentVariable") {
+		t.Errorf("PATH rewritten by the script:\n%s", s)
+	}
 	for _, bad := range []string{`C:\`, `C:\Twinnel\..\Windows`, `C:\Program Files`, `/Users/x/Twinnel`, `\\server\share\Twinnel`, `Twinnel`, ""} {
-		if _, err := appRemovalScript(42, bad, ""); err == nil {
+		if _, err := appRemovalScript(42, bad, "", ""); err == nil {
 			t.Errorf("%q accepted", bad)
 		}
 	}
-	if _, err := appRemovalScript(0, `C:\Apps\Twinnel`, ""); err == nil {
+	if _, err := appRemovalScript(0, `C:\Apps\Twinnel`, "", ""); err == nil {
 		t.Error("pid 0 accepted")
 	}
 }

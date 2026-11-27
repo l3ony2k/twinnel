@@ -343,12 +343,14 @@ Rules that came out of round 1:
 - `%ProgramData%\TwinnelQA` is made Administrators/SYSTEM only: the snapshot's
   export zip holds node credentials and subscription URLs. Screenshots name
   the tailnet and nodes: keep them outside the repo.
-- An agent's `twinnel mcp` keeps `bin\twinnel.exe` open, and `install.ps1`
-  then fails half way. `windows-deploy.sh` renames locked exes aside
-  (`*.old-<ts>`, removed on the next deploy) instead of stopping someone's
-  agent session.
-- `install.ps1` stops a running Twinnel. Start it again in the user session
-  afterwards (`windows-gui.ps1 launch`) if it was running before.
+- An agent's `twinnel mcp` keeps `bin\twinnel.exe` open. Since fx-installps1,
+  `install.ps1` renames running files aside itself (`*.old-<digits>`, the same
+  names as `core/binswap`, removed on the next run) and swaps all or none;
+  `windows-deploy.sh`'s own rename-aside is now redundant but harmless.
+- `install.ps1` stops a Twinnel running in its own session and starts it
+  again. Over SSH the app runs in another session: it is left running on its
+  renamed-aside old image; restart it in the user session
+  (`windows-gui.ps1 launch`) to get the new version.
 - Screenshots fail with "The handle is invalid" when the input desktop is not
   `Default`: a running screensaver (desktop `Screen-saver`) or a locked
   session. A non-secure screensaver can be ended (it comes back after the
