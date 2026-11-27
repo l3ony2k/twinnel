@@ -181,7 +181,7 @@ func (h *Helper) register() {
 	typed(h, rpc.MethodControllerCredentials, func(rpc.Empty) (rpc.ControllerCredentials, error) {
 		return rpc.ControllerCredentials{Controller: h.Ctrl, Secret: ControllerSecret, Source: "store"}, nil
 	})
-	report := json.RawMessage(`{"overall":"warn","checks":[{"id":"dns.tailnet","title":"Tailnet names","status":"warn","summary":"resolver at https://u:` + QueryToken + `@dns.example.com/q?key=` + QueryToken + `"},{"id":"mihomo.up","status":"ok","summary":"ok"}]}`)
+	report := json.RawMessage(`{"overall":"warn","checks":[{"id":"dns.tailnet","title":"Tailnet names","status":"warn","reasons":["vpn-conflict/exit-node"],"summary":"resolver at https://u:` + QueryToken + `@dns.example.com/q?key=` + QueryToken + `"},{"id":"mihomo.up","status":"ok","summary":"ok"}]}`)
 	typed(h, rpc.MethodHealthLast, func(rpc.HealthLastParams) (rpc.HealthReport, error) {
 		return rpc.HealthReport{Report: report, Reason: "scheduled", At: time.Unix(1_800_000_000, 0)}, nil
 	})

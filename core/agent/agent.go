@@ -110,6 +110,7 @@ func New(d Deps) *Server {
 	s.registerRead()
 	s.registerOperate()
 	s.registerConfigure()
+	s.registerHealthFix()
 	s.registerAdminOnly()
 	s.registerResources()
 	s.registerPrompts()
