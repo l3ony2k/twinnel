@@ -53,6 +53,7 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	pageTitle(c, T.PageOverview)
 	a.backfillEvents() // 最近活动 reads the helper's recent events
+	a.keepExitFresh(s)
 	w := a.ovWidth
 	tiles := 2
 	if w == 0 || w >= ovTilesWide {
@@ -254,19 +255,12 @@ type ovTile struct {
 
 // glanceTiles are the numbers a user checks first, cols to a row.
 func (a *app) glanceTiles(c *ui.Context, s status.Snapshot, cols int) {
-	t := c.Theme()
 	T := i18n.T
 	m, ts := s.Mihomo, s.Tailscale
-	exit := ovTile{key: "tile-exit", label: T.OvTileExit, figure: status.NoDelay, page: pageProxies}
 	conns := ovTile{key: "tile-conns", label: T.Connections, figure: status.NoDelay}
 	mem := ovTile{key: "tile-mem", label: T.OvTileMemory, figure: status.NoDelay, page: pageKernel}
 	peers := ovTile{key: "tile-peers", label: T.OnlinePeers, figure: status.NoDelay, page: pageTailscale}
 	if m.Reachable {
-		if p := m.Primary; p != nil {
-			exit.figure, exit.sub = p.DelayText(), p.Node
-			exit.figColor = delayColor(t, p.Delay, p.Tested)
-			exit.tip = strings.Join(append([]string{p.Name}, p.Chain...), " → ")
-		}
 		conns.figure = strconv.Itoa(m.Connections)
 		conns.sub = fmt.Sprintf(T.OvTileTotal, status.Bytes(m.Traffic.DownTotal), status.Bytes(m.Traffic.UpTotal))
 		conns.tip = T.Total + " " + conns.sub
@@ -280,7 +274,7 @@ func (a *app) glanceTiles(c *ui.Context, s status.Snapshot, cols int) {
 			mem.tip = fmt.Sprintf(T.OvMemoryTip, status.Bytes(m.Memory), status.Bytes(m.Process.RSS))
 		}
 	} else {
-		exit.sub, conns.sub, mem.sub = T.Unreachable, T.Unreachable, T.Unreachable
+		conns.sub, mem.sub = T.Unreachable, T.Unreachable
 	}
 	if ts.Reachable && ts.State.Running() {
 		peers.figure = fmt.Sprintf("%d / %d", ts.State.OnlinePeers(), len(ts.State.Peers))
@@ -294,7 +288,8 @@ func (a *app) glanceTiles(c *ui.Context, s status.Snapshot, cols int) {
 		}
 	}
 	ui.Grid(c.Key("tiles")).Columns(cols).Gap(ovTileGap).Children(func() {
-		for _, tl := range []ovTile{exit, conns, mem, peers} {
+		a.exitTile(c, s)
+		for _, tl := range []ovTile{conns, mem, peers} {
 			a.tile(c, tl)
 		}
 	})

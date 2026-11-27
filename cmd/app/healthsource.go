@@ -28,7 +28,7 @@ type helperHealth struct {
 func (s *helperHealth) Run(ctx context.Context) (*health.Report, error) {
 	fresh := s.fresh.Swap(false)
 	if s.hc != nil && s.hc.State().Connected() {
-		rep, err := healthsrc.Source{Client: s.hc, Fresh: fresh, Reason: "app", Lang: i18n.Tag()}.Run(ctx)
+		rep, err := healthsrc.Source{Client: s.hc, Fresh: fresh, Reason: "app", Lang: i18n.Tag(), IPs: true}.Run(ctx)
 		var re *rpc.Error
 		if err == nil || !errors.As(err, &re) || re.Code != rpc.CodeMethodNotFound {
 			s.fromHelpr.Store(err == nil)

@@ -145,13 +145,13 @@ func (e *Engine) Register(s *rpc.Server) {
 	e.registerAgent(s)
 
 	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, p rpc.HealthLastParams) (rpc.HealthReport, error) {
-		return e.HealthLast(p.Lang)
+		return e.withEgressIPs(e.HealthLast(p.Lang))(p.IPs)
 	})
 	rpc.Typed(s, rpc.MethodHealthRun, func(ctx context.Context, p rpc.HealthRunParams) (rpc.HealthReport, error) {
-		return e.HealthRun(ctx, p.Reason, p.Lang)
+		return e.withEgressIPs(e.HealthRun(ctx, p.Reason, p.Lang))(p.IPs)
 	})
 	rpc.Typed(s, rpc.MethodHealthEgress, func(ctx context.Context, p rpc.HealthEgressParams) (rpc.HealthReport, error) {
-		return e.HealthEgress(ctx, p.Lang)
+		return e.withEgressIPs(e.HealthEgress(ctx, p.Lang))(p.IPs)
 	})
 
 	rpc.Typed(s, rpc.MethodEventsWait, func(ctx context.Context, p rpc.EventsWaitParams) (rpc.EventsWaitResult, error) {

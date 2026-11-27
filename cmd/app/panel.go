@@ -336,6 +336,7 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	a.controlError(c, pendMode)
 	a.tunRow(c, s)
 	a.controlError(c, pendTun)
+	a.keepExitFresh(s)
 	if p := m.Primary; p != nil {
 		a.nodeRow(c, s, p)
 		a.controlError(c, nodeKey(p.Name))
@@ -404,7 +405,10 @@ func (a *app) nodeRow(c *ui.Context, s status.Snapshot, p *status.Group) {
 	can := s.Can().Mihomo && p.Selectable()
 	via := p.Node != "" && p.Node != sel
 	delay := func() {
-		num(ui.Text(c, p.DelayText()).FontSize(plat.calloutSize).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
+		d := num(ui.Text(c, p.DelayText()).FontSize(plat.calloutSize).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
+		if p.Tested && !p.DelayAt.IsZero() {
+			d.Tooltip(status.Ago(s.Time, p.DelayAt)) // how old the figure is
+		}
 	}
 	row := panelMenuRow(c.Key("node"), T.Node, !can, func(m *ui.Menu) {
 		for _, mem := range p.Members {

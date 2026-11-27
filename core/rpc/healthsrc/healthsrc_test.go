@@ -93,3 +93,57 @@ func TestSourceLangOldHelper(t *testing.T) {
 		t.Errorf("calls %v langs %q", o.calls, o.sawLang)
 	}
 }
+
+// ipsHelper answers health.last with an egress check and, when asked
+// (IPs), its unmasked addresses; a helper from before IPs rejects the
+// field, and the source asks again without it.
+type ipsHelper struct {
+	old  bool
+	asks []bool
+}
+
+func (h *ipsHelper) Call(_ context.Context, method string, params, result any) error {
+	p, _ := params.(rpc.HealthLastParams)
+	h.asks = append(h.asks, p.IPs)
+	if h.old && p.IPs {
+		return &rpc.Error{Code: rpc.CodeInvalidParams, Message: "invalid params"}
+	}
+	rep := health.Report{Checks: []health.CheckReport{
+		{ID: "mihomo-running", Result: health.Result{Status: health.StatusOK}},
+		{ID: health.LeakEgress{}.ID(), Result: health.Result{Status: health.StatusOK, Summary: "differs"}},
+	}}
+	out := rpc.HealthReport{}
+	out.Report, _ = json.Marshal(rep)
+	if p.IPs {
+		out.Egress = &rpc.EgressIPs{Proxied: "203.0.113.50", Direct: "198.51.100.7", Node: "node-a"}
+	}
+	*(result.(*rpc.HealthReport)) = out
+	return nil
+}
+
+func TestSourceEgressIPs(t *testing.T) {
+	h := &ipsHelper{}
+	rep, err := Source{Client: h, IPs: true}.Last(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Checks[0].Egress != nil {
+		t.Error("addresses on another check")
+	}
+	if ips := rep.Checks[1].Egress; ips == nil || ips.Proxied.String() != "203.0.113.50" || ips.Direct.String() != "198.51.100.7" || ips.Node != "node-a" {
+		t.Errorf("egress addresses %+v", ips)
+	}
+	// Not asked: none.
+	if rep, _ := (Source{Client: h}).Last(context.Background()); rep.Checks[1].Egress != nil {
+		t.Error("addresses without asking")
+	}
+	// An old helper: the report, without them.
+	old := &ipsHelper{old: true}
+	rep, err = Source{Client: old, IPs: true}.Last(context.Background())
+	if err != nil || rep == nil || rep.Checks[1].Egress != nil || len(old.asks) != 2 {
+		t.Errorf("old helper: %v %+v asks %v", err, rep, old.asks)
+	}
+	if EgressIPs(&rpc.EgressIPs{Node: "n"}) != nil {
+		t.Error("nothing measured should be nil")
+	}
+}
