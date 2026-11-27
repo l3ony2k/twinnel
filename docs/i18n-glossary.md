@@ -52,7 +52,13 @@ terms. Keep them when adding strings, and add new terms here.
 | 控制接口地址 | controller address |
 | 密钥 | secret |
 | 订阅 / 订阅地址 | subscription / subscription URL |
-| 覆写 | override |
+| 覆写 | override (never 层 / 分层 in Chinese UI) |
+| 订阅原文 | original subscription (the file takeover used as the base; never 基础订阅) |
+| 基础设置 | base settings (the base-stage layer) |
+| 用户覆写 | user overrides |
+| 未应用的改动 / 放弃改动 | unapplied changes / Discard Changes |
+| 还原为已应用版本 | Revert to Applied Version |
+| 接管前 | Before duet (history chip) |
 | 托管（覆写） | managed (override) |
 | 阶段 | stage |
 | 基础 / 用户 | Base / User |
