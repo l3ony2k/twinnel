@@ -70,7 +70,7 @@ func TestWizardOSFor(t *testing.T) {
 		t.Errorf("en freebsd: %q", got)
 	}
 	Set("zh")
-	if got := WizardOSFor("darwin").Machine; got != "这台 Mac" {
+	if got := WizardOSFor("darwin").Machine; got != "这台 Mac " {
 		t.Errorf("zh darwin: %q", got)
 	}
 }

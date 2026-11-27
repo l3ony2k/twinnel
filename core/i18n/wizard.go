@@ -36,7 +36,7 @@ type WizardStrings struct {
 	WizHelperHead, WizHelperBody                         string
 	WizHelperInstall, WizHelperInstalling, WizHelperDone string
 	WizHelperChanges                                     string // the disclosure over the install plan
-	WizHelperFailed, WizHelperRetryHint                  string
+	WizHelperFailed, WizHelperCancelled                  string
 
 	// ③ 代理内核
 	WizMihomoHead, WizMihomoBody                           string
@@ -59,6 +59,8 @@ type WizardStrings struct {
 	WizSubReady                   string // %s nodes, %s rules
 	WizNode, WizNodes             string
 	WizSubCounting, WizSubNoNodes string
+	WizSubRunning                 string // started; the count could not be read
+	WizSubNeedsURL                string // the picked file had no subscription
 	WizSubProgressHead            string
 	WizSubDownloadLater           string // mihomo waits for the subscription's nodes
 
@@ -120,7 +122,7 @@ var zhWizard = WizardStrings{
 	WizHelperDone:       "后台助手已安装，正在运行",
 	WizHelperChanges:    "会做哪些改动",
 	WizHelperFailed:     "后台助手没有装好",
-	WizHelperRetryHint:  "如果关掉了授权窗口，点「重试」再来一次。",
+	WizHelperCancelled:  "授权窗口被关掉了，什么都没有改。点「重试」再来一次。",
 
 	WizMihomoHead:        "代理内核 mihomo",
 	WizMihomoBody:        "mihomo 是真正转发代理流量的程序。Twinnel 从 mihomo 官方的 GitHub 发布页下载它，校验后安装，以后在「内核」页更新。",
@@ -150,6 +152,8 @@ var zhWizard = WizardStrings{
 	WizNode:             "%d 个节点",
 	WizNodes:            "%d 个节点",
 	WizSubCounting:      "代理已启动，正在读取节点…",
+	WizSubRunning:       "代理已启动",
+	WizSubNeedsURL:      "这个文件里没有订阅。再粘贴订阅链接，然后点「保存并启动代理」。",
 	WizSubNoNodes:       "订阅里没有节点。检查链接是否完整，或联系服务商。",
 	WizSubProgressHead:  "进度",
 	WizSubDownloadLater: "mihomo 会通过订阅的节点下载",
@@ -228,7 +232,7 @@ var enWizard = WizardStrings{
 	WizHelperDone:       "The helper is installed and running",
 	WizHelperChanges:    "What it changes",
 	WizHelperFailed:     "The helper wasn't installed",
-	WizHelperRetryHint:  "If you closed the approval window, click Retry to try again.",
+	WizHelperCancelled:  "The approval window was closed, so nothing changed. Click Retry to try again.",
 
 	WizMihomoHead:        "The mihomo Proxy Core",
 	WizMihomoBody:        "mihomo is the program that actually carries proxy traffic. Twinnel downloads it from mihomo's official GitHub releases, verifies it and installs it; you can update it later on the Core page.",
@@ -258,6 +262,8 @@ var enWizard = WizardStrings{
 	WizNode:             "%d node",
 	WizNodes:            "%d node{s}",
 	WizSubCounting:      "The proxy is running; reading the nodes…",
+	WizSubRunning:       "The proxy is running",
+	WizSubNeedsURL:      "This file has no subscription. Paste the subscription link too, then click Save and Start the Proxy.",
 	WizSubNoNodes:       "The subscription has no nodes. Check that the link is complete, or ask your provider.",
 	WizSubProgressHead:  "Progress",
 	WizSubDownloadLater: "mihomo downloads through the subscription's nodes",
@@ -305,7 +311,10 @@ var enWizard = WizardStrings{
 
 // WizardOS are the wizard's texts that name the platform.
 type WizardOS struct {
-	Machine      string // 这台 Mac, this PC: WizWelcomeBody's %s
+	// Machine is 这台 Mac, this PC: WizWelcomeBody's %s. In Chinese
+	// a name ending in a Latin word ends in a space, so the Chinese that
+	// follows is spaced from it (这台 Mac 上, 这台电脑上).
+	Machine      string
 	AdminPrompt  string // what happens when the helper installs
 	TSInstallHow string // how Tailscale gets installed
 	TrayWhere    string // where the tray / menu bar icon lives
@@ -315,7 +324,7 @@ type WizardOS struct {
 var wizardOS = map[string]map[string]WizardOS{
 	"zh-Hans": {
 		"darwin": {
-			Machine:      "这台 Mac",
+			Machine:      "这台 Mac ",
 			AdminPrompt:  "点「安装」后，macOS 会弹窗请你输入这台 Mac 的登录密码。",
 			TSInstallHow: "装的是开源版 tailscaled，作为系统服务运行，不占用系统的 VPN 通道。",
 			TrayWhere:    "Twinnel 住在屏幕右上角的菜单栏里。点它的图标看状态、换节点；关掉这个窗口，它照样在后台工作。",

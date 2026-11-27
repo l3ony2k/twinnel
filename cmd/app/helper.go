@@ -423,7 +423,7 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 	case status.HelperConnected:
 		return true
 	case status.HelperNotInstalled:
-		a.onboarding(c, s)
+		a.wizardGate(c) // the first-run wizard installs it (wizard.go)
 		return false
 	}
 	t := c.Theme()

@@ -54,6 +54,10 @@ func (a *app) helperLock(c *ui.Context, s status.Snapshot) bool {
 // openHelperSetup opens where the helper gets installed (not installed)
 // or managed (installed but down: 设置 → 后台助手).
 func (a *app) openHelperSetup(s status.Snapshot) {
+	if need, known := needsSetup(s); known && need {
+		a.openWizard()
+		return
+	}
 	if s.Helper.State == status.HelperNotInstalled {
 		a.openPage(pageInstall)
 		return
@@ -227,8 +231,8 @@ func (a *app) fixAction(cr health.CheckReport, s status.Snapshot) *fixAction {
 	}
 	helperStep := func(label string, run func()) *fixAction {
 		switch {
-		case a.freshMachine(s): // nothing to take over: set it up
-			return &fixAction{label: T.SetupTitle, run: func() { a.openPage(pageSetup) }, off: !s.WritesAllowed}
+		case a.wizardPending(s) && !s.TakenOver(): // not set up yet: the wizard
+			return &fixAction{label: T.WizResume, run: a.openWizard}
 		case s.Helper.State == status.HelperNotInstalled:
 			return &fixAction{label: T.FixInstallHelper, run: func() { a.openPage(pageInstall) }, off: !s.WritesAllowed}
 		case !s.TakenOver():
@@ -497,61 +501,24 @@ func (a *app) tsLogin(s status.Snapshot) {
 	})
 }
 
-// gettingStarted is the 开始使用 strip while Twinnel is not running the
-// show yet: three steps, each done or not, each opening its page. It
-// goes once all three are done.
+// gettingStarted is 总览's way back into the first-run wizard while
+// Twinnel is not set up (or the wizard was left before 完成): one quiet
+// row, where the setup stands and 继续设置. It goes once set up.
 func (a *app) gettingStarted(c *ui.Context, s status.Snapshot) {
-	if h := s.Helper.State; h != status.HelperNotInstalled && (h != status.HelperConnected || s.Helper.Status == nil) {
-		// Whether Twinnel took over is known only from a connected helper
-		// (or none installed): no strip that guesses.
-		return
-	}
-	T := i18n.T
-	installed := s.Helper.State != status.HelperNotInstalled
-	taken := installed && s.TakenOver()
-	// The step is done when nothing fails. Warnings stay on the health
-	// page and badge but must not keep onboarding open forever: some
-	// (network conditions, things the user chose) can't be cleared.
-	_, fails := s.Health.Counts()
-	clean := s.Health.Report != nil && fails == 0
-	if installed && taken && clean {
+	if !a.wizardPending(s) {
 		return
 	}
 	t := c.Theme()
-	steps := []struct {
-		label string
-		done  bool
-		page  string
-	}{
-		{T.StepHelper, installed, pageInstall},
-		{T.StepTakeOver, taken, pageTakeover},
-		{T.StepCheckCoexist, clean, pageHealth},
-	}
-	if a.freshMachine(s) {
-		// Nothing to take over: 设置这台 Mac installs the helper too.
-		steps[0].page = pageSetup
-		steps[1].label, steps[1].page = T.StepSetUpMac, pageSetup
-	}
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
-		ui.Text(c, T.GetStarted).FontWeight(600).Margin(0, 4, 0, 0).SingleLine()
-		for i, st := range steps {
-			if st.done {
-				// Done: ✓ and its name, no button (R-kubai-25, kubai 022):
-				// nothing is left to do there.
-				ui.Row(c.Key(fmt.Sprint("step", i))).Gap(6).AlignItems(ui.Center).PaddingX(4).Label(st.label).Children(func() {
-					ui.Icon(c, iconOK).FontSize(iconInline).TextColor(pal(t).okText)
-					ui.Text(c, st.label).TextColor(t.TextMuted).SingleLine()
-				})
-				continue
+	T := i18n.T
+	groupBox(c, t).Padding(10, groupPadX).Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, iconTwinnel).FontSize(iconInline + 2).TextColor(t.Accent).Shrink(0)
+			ui.Text(c, T.WizResumeHead).FontWeight(600).SingleLine().Shrink(1)
+			num(small(c, i18n.F(T.WizProgress, a.wiz.state.Step+1, wizSteps))).SingleLine()
+			ui.Spacer(c)
+			if ui.PrimaryButton(c.Key("wiz-resume"), T.WizResume).Clicked() {
+				a.openWizard()
 			}
-			page := st.page
-			b := pushFace(c.Key(fmt.Sprint("step", i)), ui.Button(c, "")).Label(st.label).Children(func() {
-				ui.Icon(c, iconSkip).FontSize(iconInline).TextColor(t.TextMuted)
-				ui.Text(c, st.label).SingleLine()
-			})
-			if b.Clicked() {
-				a.openPage(page)
-			}
-		}
+		})
 	})
 }

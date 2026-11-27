@@ -53,6 +53,11 @@ func (a *app) mainView(c *ui.Context) {
 		a.shotSnap(&s)
 	}
 	helperOutdatedNow = helperOutdated(s)
+	if a.page == pageWizard { // the first-run wizard: the whole window (wizard.go)
+		a.wizardWindow(c, s)
+		a.toasts(c)
+		return
+	}
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
 	}
@@ -236,8 +241,6 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 		a.installPage(c, s)
 	case pageLeave:
 		a.leavePage(c, s)
-	case pageSetup:
-		a.setupPage(c, s)
 	}
 }
 
@@ -375,7 +378,7 @@ func (a *app) pageChanged(old string) {
 	case pageTakeover, pageAbout, pageKernel:
 		a.detectLiveSetup() // again on each visit: the service may have changed
 	}
-	if a.page == pageSetup && old != pageSetup {
+	if a.page == pageWizard && old != pageWizard {
 		a.setupV.detected = false // find what is done again on each visit
 	}
 	if a.page == pageHealth && old != pageHealth {
