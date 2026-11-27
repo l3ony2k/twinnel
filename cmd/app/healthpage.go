@@ -100,9 +100,9 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 		// changed, the raw error secondary and selectable, and a retry.
 		groupBox(c, t).Children(func() {
 			ui.Column(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				emptyState(c, iconError, T.HealthFailedTitle, T.HealthFailedHint)
+				emptyState(c, iconError, T.HealthFailedTitle, "")
 				ui.Text(c, h.Err).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).TextAlign(ui.Center).
-					Wrap().MaxWidth(520).Selectable()
+					Wrap().LineHeight(lineText).MaxWidth(520).Selectable()
 				if a.healthSrc != nil && iconButton(c.Key("retry"), iconRefresh, T.HealthRerun, false).Disabled(h.Running).Clicked() {
 					a.rerunHealth()
 				}
@@ -129,9 +129,6 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 				ui.Text(c, healthHeadline(label, cnt)).FontSize(plat.leadSize).FontWeight(600)
 				num(small(c, healthCountsText(cnt)))
 				last := fmt.Sprintf(T.HealthLastRun, rep.Started.Format("15:04:05"), fmt.Sprintf(T.Seconds, rep.Duration.Seconds()))
-				if a.health != nil && a.health.FromHelper() {
-					last += " · " + T.HealthFromHelper
-				}
 				num(small(c, last))
 			})
 		})
@@ -193,7 +190,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 			case !expandable:
 				// Nothing to open, so nothing may be cut off: the
 				// sentence wraps under itself.
-				ui.Text(c, cr.Summary).TextColor(t.TextMuted).Wrap().Shrink(1).Selectable()
+				ui.Text(c, cr.Summary).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Shrink(1).Selectable()
 			case !open:
 				// Cut to one line; the whole sentence on hover, as
 				// macOS shows a truncated cell's text.
@@ -214,7 +211,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 			return
 		}
 		ui.Column(c).Gap(10).MarginStart(26).Children(func() {
-			ui.Text(c, cr.Summary).Wrap().Selectable()
+			ui.Text(c, cr.Summary).Wrap().LineHeight(lineText).Selectable()
 			if !expandable {
 				return
 			}
@@ -229,11 +226,11 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 			if f := cr.Fix; f != nil {
 				ui.Column(c).Gap(6).Children(func() {
 					small(c, T.HealthFix)
-					ui.Text(c, f.Text).Wrap().Selectable()
+					ui.Text(c, f.Text).Wrap().LineHeight(lineText).Selectable()
 					if f.Command != "" {
 						ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 							ui.Text(c, "$ "+strings.ReplaceAll(f.Command, "\n", "\n$ ")).Font("monospace").FontSize(plat.calloutSize).
-								Padding(8, 10).Radius(plat.innerRadius).Background(p.code).Border(1, p.groupLine).Grow(1).Wrap().Selectable()
+								Padding(8, 10).Radius(plat.innerRadius).Background(p.code).Border(1, p.groupLine).Grow(1).Wrap().LineHeight(lineText).Selectable()
 							if iconButton(c.Key("copy-cmd"), iconCopy, T.CopyCmd, false).Clicked() {
 								copyText(c, f.Command)
 							}
@@ -359,12 +356,12 @@ func evidenceLines(c *ui.Context, lines []string) {
 			lb, val = splitFirstWord(l)
 		}
 		if !padded || lb == "" {
-			ui.Text(c, l).Font("monospace").FontSize(plat.smallSize).Wrap().Selectable()
+			ui.Text(c, l).Font("monospace").FontSize(plat.smallSize).Wrap().LineHeight(lineText).Selectable()
 			continue
 		}
 		ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
 			ui.Text(c, lb).FontSize(plat.smallSize).TextColor(t.TextMuted).Width(56).Shrink(0).SingleLine()
-			ui.Text(c, val).Font("monospace").FontSize(plat.smallSize).Grow(1).Shrink(1).Wrap().Selectable()
+			ui.Text(c, val).Font("monospace").FontSize(plat.smallSize).Grow(1).Shrink(1).Wrap().LineHeight(lineText).Selectable()
 		})
 	}
 }

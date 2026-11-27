@@ -63,7 +63,7 @@ func (a *app) panelView(c *ui.Context) {
 				small(c, fmt.Sprintf("… +%d", len(reasons)-3))
 				break
 			}
-			ui.Text(c, r.Text).FontSize(plat.calloutSize).TextColor(levelText(t, r.Level)).Wrap()
+			ui.Text(c, r.Text).FontSize(plat.calloutSize).TextColor(levelText(t, r.Level)).Wrap().LineHeight(lineText)
 		}
 		a.healthLine(c, s)
 		a.helperLine(c, s)
@@ -73,9 +73,9 @@ func (a *app) panelView(c *ui.Context) {
 		a.panelTailscale(c, s)
 		sep()
 		if !s.WritesAllowed {
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key("ro")).Gap(6).AlignItems(ui.Center).Tooltip(T.WritesDisabledHint).Children(func() {
 				ui.Icon(c, iconSecure).FontSize(iconSmall).TextColor(t.TextMuted)
-				small(c, T.ReadOnlyShort).Grow(1).Wrap()
+				small(c, T.ReadOnlyShort).Grow(1)
 			})
 		}
 		if a.actionErr != "" {

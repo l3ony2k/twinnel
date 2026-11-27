@@ -41,7 +41,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		return // no false 还没有历史记录 before the first load
 	}
 	if len(d.history) == 0 {
-		groupBox(c, t).Children(func() { emptyState(c, iconHistory, T.HistoryEmpty, T.HistoryEmptyHint) })
+		groupBox(c, t).Children(func() { emptyState(c, iconHistory, T.HistoryEmpty, "") })
 		return
 	}
 	hist := d.history // newest first, as history.list returns it
@@ -129,7 +129,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 			kv(c, T.HistoryReason, entry.Reason)
 		}
 		if v.diffErr != "" && v.diffID == entry.ID {
-			ui.Text(c, v.diffErr).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap()
+			ui.Text(c, v.diffErr).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 		}
 		if v.diff != nil && v.diffID == entry.ID {
 			add, del := v.diff.Stats()

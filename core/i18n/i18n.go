@@ -75,7 +75,6 @@ type Strings struct {
 	// Health page.
 	HealthSummary                       string // %d ok, warn, fail, skip
 	HealthLastRun                       string // %s: time, %s: duration
-	HealthFromHelper                    string
 	HealthRunning, HealthRerun          string
 	HealthCopyReport, Copied            string
 	HealthEvidence, HealthFix, CopyCmd  string
@@ -97,11 +96,10 @@ type Strings struct {
 	LogLevel, LogClear, LogPause, LogResume, LogEmpty string
 
 	// Settings page.
-	Controller, Secret, SecretHint, ConfigFile, Save, Saved, SaveFailed string
-	ControllerFromHelper                                                string
-	MihomoBinary, MihomoConfigDir, TailscaleSocket, AllowWrites         string
-	SettingsRestartHint                                                 string
-	Notifications, NotificationsHint, NotificationsUnsupported          string
+	Controller, Secret, ConfigFile, Save, Saved, SaveFailed              string
+	ControllerFromHelper                                                 string
+	MihomoBinary, MihomoConfigDir, TailscaleSocket, AllowWrites          string
+	Notifications, NotificationsUnsupported, NotificationsUnsupportedTip string
 
 	// Helper connection.
 	Helper, HelperChecking, HelperConnected, HelperNotInstalled string
@@ -126,12 +124,12 @@ type Strings struct {
 	SubFileChosen                                                      string // %s: file, %s: size
 
 	// Layers and the layer editor.
-	Layers, LayersHint, LayerNew, LayerEdit, LayerGenerated, LayerEnabled string
+	Layers, LayerNew, LayerEdit, LayerGenerated, LayerEnabled             string
 	LayerManaged, LayerManagedHint, LayerID, LayerName, LayerStage        string
 	LayerFormat, FormatMerge, FormatVerge, MoveUp, MoveDown, LayerReorder string
 	LayerToggle                                                           string // %s: layer
 	LayerRemoveTitle                                                      string // %s: layer
-	LayerRemoveBody, LayerTemplate                                        string
+	LayerTemplate                                                         string
 	Stages                                                                map[string]string
 
 	// Override lint (status.LintOverride).
@@ -141,7 +139,7 @@ type Strings struct {
 	LintLine                             string // %d
 
 	// Preview and apply.
-	PreviewApply, Preview, PreviewHint, DiffStats, DiffUnavailable  string
+	PreviewApply, Preview, DiffStats, DiffUnavailable               string
 	ConfigTextUnsupported, ComposeLayers, ComposeHash, ComposeValid string
 	ComposeChanged, ValidOK, ValidFail, ApplyReason, Apply          string
 	ApplyReasonPlaceholder, ApplyReasonDefault                      string
@@ -162,7 +160,7 @@ type Strings struct {
 	KernelRollbackTitle, KernelUpdate, KernelInstall, KernelInstallTitle                        string // %s: version
 	KernelFirstInstall, KernelUpToDate, KernelLatest, KernelAsset, KernelDigest, KernelNoDigest string
 	KernelInstallBody, KernelInstallOK                                                          string
-	TSVersionHint, TSNotInstalled, UpdateAvailable                                              string
+	TSNotInstalled, UpdateAvailable                                                             string
 	TSInstallKinds, TSUpdateHints                                                               map[string]string
 
 	// Helper warnings (warnings.go): kind → template, captures in order.
@@ -170,24 +168,24 @@ type Strings struct {
 	ListSep      string // joins a list in running text
 
 	// Services card (kernel page).
-	Services, ServicesHint, Refresh, ServiceRunning, ServiceStopped, ServiceLoaded string
-	ServiceNotInstalled, ServiceStart, ServiceStop, ServiceRestart                 string
-	ServiceInstall, ServiceUninstall, ServiceLabel, ServiceExit, ServiceProgram    string
-	ServiceDefinition, ServiceDryRun, ServiceDryRunHint                            string
-	ServiceStopTitle, ServiceRestartTitle, ServiceInstallTitle                     string // %s: service
-	ServiceUninstallTitle                                                          string // %s: service
-	ServiceStopBody, ServiceRestartBody, ServiceInstallBody                        string
-	ServiceUninstallBody                                                           string // %s: label, %s: plist
-	ServiceOpHead                                                                  string // %s: op, %s: service
+	Services, Refresh, ServiceRunning, ServiceStopped, ServiceLoaded            string
+	ServiceNotInstalled, ServiceStart, ServiceStop, ServiceRestart              string
+	ServiceInstall, ServiceUninstall, ServiceLabel, ServiceExit, ServiceProgram string
+	ServiceDefinition, ServiceDryRun, ServiceDryRunHint                         string
+	ServiceStopTitle, ServiceRestartTitle, ServiceInstallTitle                  string // %s: service
+	ServiceUninstallTitle                                                       string // %s: service
+	ServiceStopBody, ServiceRestartBody                                         string
+	ServiceUninstallBody                                                        string // %s: label, %s: plist
+	ServiceOpHead                                                               string // %s: op, %s: service
 
 	// Geo databases and external UI cards.
-	GeoTitle, GeoHint, UITitle, UIHint, AccessoryDir, AccessoryForce             string
-	AccessoryUpdate, AccessoryUpToDate, AccessoryCurrent, AccessoryError         string
-	AccessoryMissing, AccessoryVerifiable, AccessoryUnverifiable, AccessoryLocal string
-	AccessoryRemote, AccessoryNothing, AccessoryRolledBack                       string
-	AccessoryUpdated, AccessorySkipped                                           string // %s: names
-	AccessoryReloadNeeded, AccessoryApply, AccessoryApplyReason                  string
-	HelperTooOld                                                                 string
+	GeoTitle, UITitle, AccessoryDir, AccessoryForce                                                  string
+	AccessoryUpdate, AccessoryUpToDate, AccessoryCurrent, AccessoryError                             string
+	AccessoryMissing, AccessoryVerifiable, AccessoryUnverifiable, AccessoryLocal, AccessoryUnchecked string
+	AccessoryRemote, AccessoryNothing, AccessoryRolledBack                                           string
+	AccessoryUpdated, AccessorySkipped                                                               string // %s: names
+	AccessoryReloadNeeded, AccessoryApply, AccessoryApplyReason                                      string
+	HelperTooOld                                                                                     string
 
 	// Takeover page.
 	PageTakeover, TakeoverFixture, TakeoverTitle, TakeoverIntro, TakeoverTooOld       string
@@ -204,13 +202,12 @@ type Strings struct {
 	TakeoverOtherChanges, TakeoverNoChanges, TakeoverShowText, TakeoverHideText       string
 	TakeoverAdopt                                                                     string
 	TakeoverAdoptedAt                                                                 string // %s: time
-	TakeoverBackup, TakeoverReplan, TakeoverAdoptHint, TakeoverNotValid               string
+	TakeoverBackup, TakeoverReplan, TakeoverNotValid                                  string
 	TakeoverCheckChanges, TakeoverAdoptTitle                                          string
 	TakeoverAdoptBody                                                                 string // %s: live config path
 	TakeoverResult, TakeoverDone, TakeoverRolledBack, TakeoverFailed, TakeoverHistory string
 	TakeoverHealth, TakeoverHealthBefore, TakeoverHealthAfter, TakeoverHealthRollback string
 	TakeoverWorse                                                                     string // %s: check ids
-	TakeoverAdoptSteps                                                                []string
 	PlanStates                                                                        map[string]string
 	SecureTitle, SecureHint, SecureRun, SecureBody, SecureDone, SecureReplaced        string
 
@@ -227,14 +224,14 @@ type Strings struct {
 	InDays, InHours                                    string // %d
 
 	// Sidebar sections, empty states, reload impact.
-	SidebarHelper, SidebarApp               string
-	LogEmptyHint, NoPeersHint, NoGroupsHint string
-	ImpactGentle, ImpactDisruptive          string
-	ImpactRestart, ImpactLabel              string
-	ReadOnlyShort, TSConnect, Devices       string
-	SecretFromEnv, NotificationsSwitch      string
-	AboutApp                                string
-	HealthProblems, HealthPassed            string
+	SidebarHelper, SidebarApp          string
+	LogEmptyHint, NoGroupsHint         string
+	ImpactGentle, ImpactDisruptive     string
+	ImpactRestart, ImpactLabel         string
+	ReadOnlyShort, TSConnect, Devices  string
+	SecretFromEnv, NotificationsSwitch string
+	AboutApp                           string
+	HealthProblems, HealthPassed       string
 
 	// Texts kept in their own files (one per area, so parallel work does
 	// not collide here). Fields are promoted: T.X reads them.
@@ -258,12 +255,12 @@ var zh = Strings{
 	ReasonMihomoDown:     "连不上 mihomo 控制接口：%s",
 	ReasonMihomoAuth:     "mihomo 控制接口的密钥不对",
 	ReasonTunOff:         "mihomo TUN 未开启",
-	ReasonPrimaryDead:    "策略组 %s 当前节点测速失败",
+	ReasonPrimaryDead:    "策略组「%s」当前节点测速失败",
 	ReasonTSDown:         "连不上 Tailscale：%s",
 	ReasonTSNotInstalled: "没有找到 Tailscale",
 	ReasonTSNeedsLogin:   "Tailscale 需要登录",
 	ReasonTSStopped:      "Tailscale 已断开",
-	ReasonTSExitNode:     "Tailscale 正在使用出口节点 %s，可能和代理冲突",
+	ReasonTSExitNode:     "Tailscale 正在使用出口节点「%s」，可能和代理冲突",
 	ReasonTSKeyExpiry:    "Tailscale 密钥将在 %s 过期",
 	ReasonTSHealth:       "Tailscale：%s",
 	ReasonTSSystemVPN:    "Tailscale 使用系统 VPN 通道，建议改用 tailscaled",
@@ -321,7 +318,7 @@ var zh = Strings{
 	TSDown:             "断开",
 	OpenMainWindow:     "打开主窗口",
 	Quit:               "退出",
-	WritesDisabledHint: "只读模式：设置 DUET_ALLOW_WRITES=1 后再打开 duet 才能操作",
+	WritesDisabledHint: "设置 DUET_ALLOW_WRITES=1 后重新打开 duet 才能操作",
 	ErrorPrefix:        "错误：",
 
 	TSStates: map[string]string{
@@ -372,7 +369,6 @@ var zh = Strings{
 
 	HealthSummary:      "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
 	HealthLastRun:      "上次检查 %s · 用时 %s",
-	HealthFromHelper:   "来自后台助手",
 	HealthRunning:      "正在检查…",
 	HealthRerun:        "重新检查",
 	HealthCopyReport:   "复制报告",
@@ -400,7 +396,7 @@ var zh = Strings{
 	Done:                  "已完成",
 	ExitNodeNone:          "不使用",
 	ExitNodeConflictTitle: "使用出口节点会和 mihomo 冲突",
-	ExitNodeConflictBody:  "出口节点会接管本机的默认路由，和 mihomo 的 TUN 抢同一份流量：代理规则可能失效，部分连接会直接从出口节点出去。确定要使用 %s 吗？",
+	ExitNodeConflictBody:  "出口节点会接管默认路由，和 mihomo 的 TUN 抢同一份流量，代理规则可能失效。仍要使用「%s」吗？",
 	ExitNodeConfirm:       "仍然使用",
 	Cancel:                "取消",
 	TestNodeDelay:         "测速",
@@ -411,22 +407,20 @@ var zh = Strings{
 	LogResume: "继续",
 	LogEmpty:  "还没有日志",
 
-	Controller:               "控制接口地址",
-	Secret:                   "密钥",
-	SecretHint:               "也可用环境变量 DUET_MIHOMO_SECRET 提供",
-	ControllerFromHelper:     "已连接后台助手：控制接口地址和密钥由它提供，这里的设置只在没有后台助手时使用。",
-	ConfigFile:               "配置文件",
-	Save:                     "保存",
-	Saved:                    "已保存",
-	SaveFailed:               "保存失败：",
-	MihomoBinary:             "mihomo 程序",
-	MihomoConfigDir:          "mihomo 配置目录",
-	TailscaleSocket:          "Tailscale 安装",
-	AllowWrites:              "允许操作",
-	SettingsRestartHint:      "控制接口设置保存后立即生效",
-	Notifications:            "系统通知",
-	NotificationsHint:        "mihomo 断开、健康检查新出现失败、Tailscale 需要登录或密钥 3 天内过期时提醒；同一件事 30 分钟内只提醒一次",
-	NotificationsUnsupported: "当前以开发方式运行，macOS 只给打包后的 app（mygo build）显示通知",
+	Controller:                  "控制接口地址",
+	Secret:                      "密钥",
+	ControllerFromHelper:        "由后台助手提供",
+	ConfigFile:                  "配置文件",
+	Save:                        "保存",
+	Saved:                       "已保存",
+	SaveFailed:                  "保存失败：",
+	MihomoBinary:                "mihomo 程序",
+	MihomoConfigDir:             "mihomo 配置目录",
+	TailscaleSocket:             "Tailscale 安装",
+	AllowWrites:                 "允许操作",
+	Notifications:               "系统通知",
+	NotificationsUnsupported:    "需打包版",
+	NotificationsUnsupportedTip: "macOS 只给打包后的 app 显示通知",
 
 	Helper:                "后台助手",
 	HelperChecking:        "正在连接",
@@ -435,8 +429,8 @@ var zh = Strings{
 	HelperNotRunning:      "未运行",
 	HelperDenied:          "无权限",
 	HelperNotConnectedErr: "后台助手未连接",
-	HelperNotRunningHint:  "后台助手已安装，但现在连不上。它由 launchd 守护，通常几秒后会自动恢复；一直这样请看日志 /Library/Application Support/duet/logs/helper.log。",
-	HelperDeniedHint:      "后台助手拒绝了当前用户：只有管理员组（admin）的用户可以管理网络配置。",
+	HelperNotRunningHint:  "通常几秒后自动恢复。一直连不上请看 /Library/Application Support/duet/logs/helper.log",
+	HelperDeniedHint:      "只有管理员（admin 组）用户可以管理网络配置",
 	HelperRetry:           "重新连接",
 	HelperSocket:          "套接字",
 	Subscription:          "订阅",
@@ -461,8 +455,8 @@ var zh = Strings{
 	SubActive:          "使用中",
 	SubRefresh:         "更新",
 	SubActivate:        "设为使用中",
-	SubRemoveTitle:     "删除订阅 %s？",
-	SubRemoveBody:      "订阅地址和已下载的内容都会从后台助手删除，已应用的配置不受影响。",
+	SubRemoveTitle:     "删除订阅「%s」？",
+	SubRemoveBody:      "订阅地址和下载的内容会被删除，已应用的配置不受影响。",
 	SubFromURL:         "订阅地址已保存",
 	SubFromFile:        "本地文件",
 	SubManual:          "手动更新",
@@ -476,18 +470,17 @@ var zh = Strings{
 	SubInterval:        "更新间隔（分钟，0 = 手动）",
 	SubURL:             "订阅地址",
 	SubImportFile:      "从文件导入…",
-	SubURLHint:         "订阅地址只交给后台助手保存，保存后不会再显示。保存后会立即下载一次。",
+	SubURLHint:         "保存后不再显示",
 	SubSave:            "保存订阅",
 	SubFileChosen:      "已选择 %s（%s）",
 
 	Layers:           "覆写",
-	LayersHint:       "按顺序叠加在订阅之上；托管层由 duet 生成",
 	LayerNew:         "新建覆写",
 	LayerEdit:        "编辑覆写",
 	LayerGenerated:   "生成的内容",
 	LayerEnabled:     "启用",
 	LayerManaged:     "托管",
-	LayerManagedHint: "托管层由 duet 根据 Tailscale 状态和设置生成，只读。Tailscale 共存可以用左侧开关关闭。",
+	LayerManagedHint: "由 duet 生成，只读",
 	LayerID:          "ID",
 	LayerName:        "名称",
 	LayerStage:       "阶段",
@@ -498,8 +491,7 @@ var zh = Strings{
 	MoveDown:         "下移",
 	LayerReorder:     "调整顺序",
 	LayerToggle:      "切换 %s",
-	LayerRemoveTitle: "删除覆写 %s？",
-	LayerRemoveBody:  "删除后需要重新应用才会从当前配置里去掉。",
+	LayerRemoveTitle: "删除覆写「%s」？",
 	LayerTemplate:    "# 覆写（Clash Party 语法）\n# +rules 前置，rules+ 追加，key! 整体替换；字面量键写成 '<+.lan>'\n+rules:\n  - DOMAIN-SUFFIX,example.com,DIRECT\n",
 	Stages: map[string]string{
 		"base":    "基础",
@@ -518,17 +510,16 @@ var zh = Strings{
 
 	PreviewApply:           "预览与应用",
 	Preview:                "预览",
-	PreviewHint:            "预览会合成订阅和覆写，用 mihomo -t 校验，并和当前生效的配置对比；不会写入任何文件。",
 	DiffStats:              "新增 %d 行 · 删除 %d 行",
 	DiffUnavailable:        "无法显示差异：%s",
-	ConfigTextUnsupported:  "后台助手版本较旧，还不能读取配置全文（config.get）",
+	ConfigTextUnsupported:  "后台助手版本较旧，不能显示配置全文",
 	ComposeLayers:          "合成顺序",
 	ComposeHash:            "哈希",
 	ComposeValid:           "mihomo -t",
 	ComposeChanged:         "有变化",
 	ValidOK:                "通过",
 	ValidFail:              "未通过",
-	ApplyReason:            "说明（写入历史）",
+	ApplyReason:            "说明",
 	Apply:                  "应用",
 	ApplyReasonPlaceholder: "例如：加了公司内网规则",
 	ApplyReasonDefault:     "从 app 应用",
@@ -545,13 +536,13 @@ var zh = Strings{
 	HistorySize:          "大小",
 	HistoryHash:          "哈希",
 	HistoryReason:        "说明",
-	HistoryPick:          "点一行查看、对比或回滚",
+	HistoryPick:          "选一条记录查看",
 	HistoryEntry:         "记录",
 	HistoryDiff:          "与当前对比",
-	HistoryDiffHint:      "旧：这条记录 · 新：当前生效的配置",
+	HistoryDiffHint:      "这条记录 → 当前配置",
 	HistoryRollback:      "回滚到这里",
 	HistoryRollbackTitle: "回滚到 %s 的配置？",
-	HistoryRollbackBody:  "后台助手会校验并写入这份配置、重载 mihomo；失败时自动恢复。当前配置会留在历史里。",
+	HistoryRollbackBody:  "mihomo 会重载；当前配置保留在历史里。",
 	HistoryKinds: map[string]string{
 		"applied":  "应用",
 		"backup":   "备份",
@@ -571,19 +562,18 @@ var zh = Strings{
 	KernelCheck:         "检查更新",
 	KernelRollback:      "回滚内核",
 	KernelRollbackTitle: "回滚到内核 %s？",
-	KernelRollbackBody:  "切换内核不会重启 mihomo 服务，下次启动时生效。",
+	KernelRollbackBody:  "下次启动 mihomo 时生效。",
 	KernelUpdate:        "有新版本 %s",
 	KernelUpToDate:      "已是最新",
-	KernelFirstInstall:  "可以安装由 duet 管理的内核 %s（现在用的是外部程序）",
+	KernelFirstInstall:  "可以安装由 duet 管理的内核 %s",
 	KernelLatest:        "最新版本",
 	KernelAsset:         "文件",
 	KernelDigest:        "SHA-256",
-	KernelNoDigest:      "（GitHub 没有提供校验值，不会安装）",
+	KernelNoDigest:      "无校验值，不能安装",
 	KernelInstall:       "安装 %s",
 	KernelInstallTitle:  "安装 mihomo %s？",
-	KernelInstallBody:   "后台助手从 GitHub 下载、校验 SHA-256 并检查版本后切换；旧版本保留，可以回滚。不会重启正在运行的 mihomo。",
+	KernelInstallBody:   "下次启动 mihomo 时生效；旧版本保留，可以回滚。",
 	KernelInstallOK:     "安装",
-	TSVersionHint:       "Tailscale 由它自己的方式更新（Homebrew、App Store 或官方安装包），这里只显示版本。",
 	TSNotInstalled:      "未安装",
 	UpdateAvailable:     "可更新",
 	TSInstallKinds: map[string]string{
@@ -603,28 +593,27 @@ var zh = Strings{
 	WarningTexts: map[string]string{
 		"group-missing":    "防泄漏：找不到策略组「%s」",
 		"group-empty":      "防泄漏：策略组「%s」去掉直连后没有成员了，已改为 REJECT",
-		"group-direct":     "防泄漏：策略组「%s」仍能经由 %s 走直连（嵌套的策略组可能还承载别的流量，没有改动）",
-		"nested-shared":    "防泄漏：嵌套策略组「%s」运行时没有成员就会走直连；它也承载别的流量，所以没有改动",
-		"nested-direct":    "防泄漏：嵌套策略组「%s」运行时没有成员就会走直连。打开 leak_guard_nested 后，只被受保护策略组使用的嵌套组会加上 empty-fallback: REJECT",
-		"fakeip-whitelist": "dns.fake-ip-filter-mode 是 whitelist，Tailscale 的 fake-ip-filter 条目没有加入（白名单模式下它们会让 tailnet 名字拿到 fake-ip）。请确认白名单里没有覆盖 ts.net 或单段名字的条目",
-		"fakeip-unknown":   "不认识的 dns.fake-ip-filter-mode「%s」，Tailscale 的 fake-ip-filter 条目没有加入",
-		"new-secret":       "已生成新的控制接口密钥，保存在后台助手的密钥库里",
+		"group-direct":     "防泄漏：策略组「%s」仍能经由 %s 走直连（嵌套策略组还承载别的流量，没有改动）",
+		"nested-shared":    "防泄漏：嵌套策略组「%s」没有成员时会走直连（它还承载别的流量，没有改动）",
+		"nested-direct":    "防泄漏：嵌套策略组「%s」没有成员时会走直连；开启 leak_guard_nested 可以修复",
+		"fakeip-whitelist": "dns.fake-ip-filter-mode 是 whitelist，没有加入 Tailscale 的 fake-ip-filter 条目；请确认白名单不包含 ts.net 或单段名字",
+		"fakeip-unknown":   "不认识的 dns.fake-ip-filter-mode「%s」，没有加入 Tailscale 的 fake-ip-filter 条目",
+		"new-secret":       "已生成新的控制接口密钥",
 		"reload-disrupts":  "这次重载会短暂中断网络：%s",
-		"restart-needed":   "热重载不会应用 %s；控制接口的地址和密钥在 mihomo 重启后才变",
+		"restart-needed":   "%s 要在 mihomo 重启后才生效",
 		"mihomo-stopped":   "mihomo 没有运行（%s）；配置已写入，下次启动时生效",
 		"exposed":          "%s：%s 可以从网络访问，只有密钥保护",
 		"adopt-refuses":    "接管会拒绝这套配置：%s",
-		"adopt-profiles":   "找到 %s 个订阅配置；接管不导入订阅地址，之后用 duet sub put 设置",
+		"adopt-profiles":   "找到 %s 个订阅配置；订阅地址不会导入，接管后在「订阅与覆写」添加",
 		"adopt-disrupts":   "接管时的重载会短暂中断网络：%s",
 		"adopt-differs":    "应用的配置和计划里的 composed.yaml 不同：做计划之后 tailnet 设备或网卡变了",
-		"binary-writable":  "mihomo 程序 %s 不需要 root 就能被替换（%s），而服务以 root 运行它：能以那个用户运行的程序都能拿到 root。要消除这个风险，安装一个由 duet 管理的内核（duet kernel install），并让服务改用它",
-		"plain-http":       "订阅地址用的是明文 http：网络上的任何一方都能读到它，也能替换返回的配置。服务商支持的话请改用 https",
-		"secret-clients":   "控制接口的客户端（网页面板、本 app、脚本）需要新密钥。它保存在后台助手的密钥库里，可用 %s 读取",
+		"binary-writable":  "mihomo 程序 %s 不需要 root 就能被替换（%s），而服务以 root 运行它；请在「内核」安装由 duet 管理的内核",
+		"plain-http":       "订阅地址是明文 http，可能被读取或篡改；服务商支持的话请改用 https",
+		"secret-clients":   "网页面板、脚本等客户端需要新密钥，可用 %s 读取",
 	},
 	ListSep: "、",
 
 	Services:              "服务",
-	ServicesHint:          "由 launchd 管理的服务。停止或重启 mihomo 会让网络短暂中断。",
 	Refresh:               "刷新",
 	ServiceRunning:        "运行中",
 	ServiceStopped:        "已停止",
@@ -640,21 +629,18 @@ var zh = Strings{
 	ServiceProgram:        "程序",
 	ServiceDefinition:     "定义文件",
 	ServiceDryRun:         "仅预演",
-	ServiceDryRunHint:     "后台助手没有以 root 运行（开发模式），下面的步骤没有执行。",
-	ServiceStopTitle:      "停止 %s？",
-	ServiceRestartTitle:   "重启 %s？",
-	ServiceInstallTitle:   "为 %s 安装 LaunchDaemon？",
-	ServiceUninstallTitle: "卸载 %s 服务？",
-	ServiceStopBody:       "停止后，依赖它的网络会中断，直到再次启动。",
+	ServiceDryRunHint:     "后台助手不是以 root 运行，步骤没有执行",
+	ServiceStopTitle:      "停止「%s」？",
+	ServiceRestartTitle:   "重启「%s」？",
+	ServiceInstallTitle:   "为「%s」安装 LaunchDaemon？",
+	ServiceUninstallTitle: "卸载「%s」服务？",
+	ServiceStopBody:       "依赖它的网络会中断，直到再次启动。",
 	ServiceRestartBody:    "重启时网络会短暂中断。",
-	ServiceInstallBody:    "后台助手按当前设置生成 plist（内核、配置目录、日志目录）并加载。",
-	ServiceUninstallBody:  "会停止服务（%s）并删除定义文件 %s，网络会中断。内核和配置文件保留。",
+	ServiceUninstallBody:  "网络会中断。内核和配置文件保留。",
 	ServiceOpHead:         "%s %s",
 
 	GeoTitle:              "GEO 数据库",
-	GeoHint:               "mihomo 的 GeoIP / GeoSite / ASN 数据。有校验值的文件会按 GitHub 发布的 SHA-256 校验，替换后用 mihomo -t 检查，失败自动恢复。",
 	UITitle:               "控制面板（external UI）",
-	UIHint:                "mihomo 自带网页面板的文件，更新后立即生效。",
 	AccessoryDir:          "目录",
 	AccessoryForce:        "强制重新下载",
 	AccessoryUpdate:       "更新",
@@ -664,70 +650,63 @@ var zh = Strings{
 	AccessoryMissing:      "未安装",
 	AccessoryVerifiable:   "可校验",
 	AccessoryUnverifiable: "无校验值",
+	AccessoryUnchecked:    "未检查",
 	AccessoryLocal:        "本地",
 	AccessoryRemote:       "远端",
 	AccessoryNothing:      "没有需要更新的文件",
 	AccessoryRolledBack:   "有文件失败，本次替换的文件都已恢复",
 	AccessoryUpdated:      "已更新：%s",
 	AccessorySkipped:      "跳过：%s",
-	AccessoryReloadNeeded: "mihomo 重新加载配置后才会使用新数据。",
+	AccessoryReloadNeeded: "新数据还没生效",
 	AccessoryApply:        "应用以生效",
 	AccessoryApplyReason:  "更新 GEO 数据",
-	HelperTooOld:          "后台助手版本较旧，不支持这个操作，请更新后台助手",
+	HelperTooOld:          "后台助手版本较旧，不支持这个操作",
 
-	PageTakeover:          "接管",
-	TakeoverFixture:       "示例数据（DUET_TAKEOVER_FIXTURE），不会发送任何操作",
-	TakeoverTitle:         "接管现有配置",
-	TakeoverIntro:         "后台助手只读地检查现在的 mihomo 安装（配置、服务、内核、订阅文件），把它拆成基础订阅和覆写分层，并用 mihomo -t 和语义对比确认合成结果与现在的行为一致。生成计划不会改动任何东西。",
-	TakeoverTooOld:        "后台助手版本较旧，还不支持接管（takeover.*）。请先更新后台助手。",
-	TakeoverPlan:          "生成接管计划",
-	TakeoverNoPlans:       "还没有接管计划",
-	TakeoverPlans:         "接管计划",
-	TakeoverOpen:          "查看",
-	TakeoverDiscardTitle:  "删除接管计划 %s？",
-	TakeoverDiscardBody:   "只删除后台助手保存的计划文件，不影响现在的配置。",
-	TakeoverFound:         "现有安装",
-	TakeoverLive:          "配置文件",
-	TakeoverMihomoSvc:     "mihomo 服务",
-	TakeoverBinary:        "mihomo 程序",
-	TakeoverController:    "控制接口",
-	TakeoverSecretSet:     "已设密钥",
-	TakeoverNoSecret:      "控制接口没有密钥：本机任何程序都能控制 mihomo",
-	TakeoverTSSvc:         "Tailscale 服务",
-	TakeoverSubNoURL:      "没有找到订阅地址（作为本地文件导入）",
-	TakeoverSubURL:        "找到订阅地址，接管时存入钥匙串",
-	TakeoverBase:          "基础订阅",
-	TakeoverBaseChosen:    "已选用",
-	TakeoverNoCandidates:  "这个后台助手版本没有列出其他候选文件。",
-	TakeoverCandidates:    "候选文件",
-	TakeoverUseBase:       "改用这个",
-	TakeoverCandScore:     "节点 %d/%d · 策略组 %d/%d · 规则尾部 %d/%d（前面另有 %d 条）",
-	TakeoverNoLayers:      "没有分层",
-	TakeoverRules:         "%d 条规则",
-	TakeoverVerdict:       "对比结果",
-	TakeoverEquivalent:    "合成结果与现在的配置行为一致（除下面列出的有意修改）",
-	TakeoverNotEquivalent: "合成结果与现在的配置有差异，请看下面的变化",
-	TakeoverDeliberate:    "有意的修改",
-	TakeoverOtherChanges:  "其他差异",
-	TakeoverNoChanges:     "没有行为差异",
-	TakeoverShowText:      "显示完整报告",
-	TakeoverHideText:      "收起报告",
-	TakeoverAdopt:         "接管",
-	TakeoverAdoptedAt:     "已于 %s 接管",
-	TakeoverBackup:        "备份",
-	TakeoverReplan:        "请重新生成计划",
-	TakeoverAdoptHint:     "接管时后台助手会：",
-	TakeoverAdoptSteps: []string{
-		"再次检查现在的配置，和计划时不一样就停止（需要重新生成计划）",
-		"备份现在的配置文件",
-		"导入基础订阅和分层，沿用现有的 mihomo 服务和内核",
-		"合成、用 mihomo -t 校验、写入并重载",
-		"对比接管前后的健康检查，变差就自动恢复备份",
-	},
+	PageTakeover:           "接管",
+	TakeoverFixture:        "示例数据，不会发送任何操作",
+	TakeoverTitle:          "接管现有配置",
+	TakeoverIntro:          "生成计划不会改动任何东西",
+	TakeoverTooOld:         "后台助手版本较旧，不支持接管",
+	TakeoverPlan:           "生成接管计划",
+	TakeoverNoPlans:        "还没有接管计划",
+	TakeoverPlans:          "接管计划",
+	TakeoverOpen:           "查看",
+	TakeoverDiscardTitle:   "删除接管计划「%s」？",
+	TakeoverDiscardBody:    "不影响现在的配置。",
+	TakeoverFound:          "现有安装",
+	TakeoverLive:           "配置文件",
+	TakeoverMihomoSvc:      "mihomo 服务",
+	TakeoverBinary:         "mihomo 程序",
+	TakeoverController:     "控制接口",
+	TakeoverSecretSet:      "已设密钥",
+	TakeoverNoSecret:       "没有密钥：本机任何程序都能控制 mihomo",
+	TakeoverTSSvc:          "Tailscale 服务",
+	TakeoverSubNoURL:       "没有找到订阅地址（作为本地文件导入）",
+	TakeoverSubURL:         "找到订阅地址，接管时存入钥匙串",
+	TakeoverBase:           "基础订阅",
+	TakeoverBaseChosen:     "已选用",
+	TakeoverNoCandidates:   "没有其他候选文件",
+	TakeoverCandidates:     "候选文件",
+	TakeoverUseBase:        "改用这个",
+	TakeoverCandScore:      "节点 %d/%d · 策略组 %d/%d · 规则尾部 %d/%d（前面另有 %d 条）",
+	TakeoverNoLayers:       "没有分层",
+	TakeoverRules:          "%d 条规则",
+	TakeoverVerdict:        "对比结果",
+	TakeoverEquivalent:     "合成结果与现在的配置行为一致（除下面列出的有意修改）",
+	TakeoverNotEquivalent:  "合成结果与现在的配置有差异，请看下面的变化",
+	TakeoverDeliberate:     "有意的修改",
+	TakeoverOtherChanges:   "其他差异",
+	TakeoverNoChanges:      "没有行为差异",
+	TakeoverShowText:       "显示完整报告",
+	TakeoverHideText:       "收起报告",
+	TakeoverAdopt:          "接管",
+	TakeoverAdoptedAt:      "已于 %s 接管",
+	TakeoverBackup:         "备份",
+	TakeoverReplan:         "请重新生成计划",
 	TakeoverNotValid:       "合成结果没有通过 mihomo -t，不能接管",
 	TakeoverCheckChanges:   "有未说明的差异，确认没问题再接管",
 	TakeoverAdoptTitle:     "接管现有配置？",
-	TakeoverAdoptBody:      "后台助手会备份并改写 %s，然后重载 mihomo，网络可能短暂中断。健康检查变差时自动恢复。",
+	TakeoverAdoptBody:      "会备份并改写 %s，重载时网络可能短暂中断；健康检查变差会自动恢复。",
 	TakeoverResult:         "接管结果",
 	TakeoverDone:           "接管完成",
 	TakeoverRolledBack:     "健康检查变差，已恢复原配置",
@@ -745,23 +724,23 @@ var zh = Strings{
 		"failed":      "失败",
 	},
 	SecureTitle:    "加固控制接口",
-	SecureHint:     "为 mihomo 控制接口生成新的随机密钥，存进系统钥匙串并应用。duet app 会自动从后台助手取得新密钥；网页面板、脚本等其他客户端需要填新密钥（可以用 sudo security find-generic-password -a duet -s duet.controller-secret -w /Library/Keychains/System.keychain 查看）。",
+	SecureHint:     "生成新的随机密钥；网页面板、脚本等要改用新密钥",
 	SecureRun:      "生成密钥并应用",
-	SecureBody:     "新密钥写入配置后，要等 mihomo 下次启动才生效，在那之前旧密钥仍然可用。duet app 会自动改用新密钥，网页面板、脚本等其他客户端要手动更新。",
+	SecureBody:     "mihomo 下次启动后生效。网页面板、脚本等要手动换新密钥。",
 	SecureDone:     "已设置新的控制接口密钥",
 	SecureReplaced: "已替换控制接口密钥",
 
 	OnboardTitle: "安装后台助手",
-	OnboardIntro: "改网络配置需要管理员权限。duet 把这些操作交给一个常驻的后台助手（root 运行的 LaunchDaemon），app 本身不需要权限：",
+	OnboardIntro: "修改网络配置需要一个以 root 运行的后台助手：",
 	OnboardPoints: []string{
-		"合成订阅和覆写、用 mihomo -t 校验后写入配置并重载，失败自动恢复",
-		"定时更新订阅、跟随 Tailscale 状态生成共存规则",
-		"保存每次应用的历史，可以对比和回滚",
-		"下载、校验和切换 mihomo 内核",
+		"应用订阅和覆写，出错自动恢复",
+		"定时更新订阅，自动和 Tailscale 共存",
+		"保留历史，可以对比和回滚",
+		"安装和切换 mihomo 内核",
 	},
-	OnboardReadOnly:   "不安装也可以用：总览、策略组、Tailscale、健康检查和日志都只读取状态。",
+	OnboardReadOnly:   "不安装也能查看状态",
 	OnboardPlan:       "安装时会做什么",
-	OnboardPlanHint:   "这些步骤来自 duet helper install --dry-run，现在什么都没有执行。点击安装后会弹出一次管理员密码框，然后依次执行。",
+	OnboardPlanHint:   "点击安装后会要求输入一次管理员密码",
 	OnboardInstall:    "安装后台助手",
 	OnboardInstalling: "正在安装…",
 	OnboardOpen:       "了解并安装",
@@ -788,17 +767,16 @@ var zh = Strings{
 
 	SidebarHelper:       "配置",
 	SidebarApp:          "应用",
-	LogEmptyHint:        "mihomo 有新日志时会显示在这里，可以调低日志级别看到更多",
-	NoPeersHint:         "这台设备的 tailnet 里还没有其他设备",
-	NoGroupsHint:        "当前配置里没有策略组，或者 mihomo 还没加载配置",
-	ImpactGentle:        "不会中断网络（重载时有几毫秒暂停）",
+	LogEmptyHint:        "调低级别可以看到更多日志",
+	NoGroupsHint:        "mihomo 可能还没加载配置",
+	ImpactGentle:        "不会中断网络",
 	ImpactDisruptive:    "会短暂中断网络",
 	ImpactRestart:       "需要重启 mihomo 才生效",
 	ImpactLabel:         "网络影响",
-	ReadOnlyShort:       "只读模式，设置 DUET_ALLOW_WRITES=1 后可操作",
+	ReadOnlyShort:       "只读",
 	TSConnect:           "连接 Tailscale",
 	Devices:             "设备",
-	SecretFromEnv:       "已从环境变量 DUET_MIHOMO_SECRET 读取",
+	SecretFromEnv:       "来自环境变量 DUET_MIHOMO_SECRET",
 	NotificationsSwitch: "出现故障时发通知",
 	AboutApp:            "关于 duet",
 	HealthProblems:      "需要处理",

@@ -27,12 +27,10 @@ type ConfigStrings struct {
 	LayersNone string
 
 	// History.
-	HistoryEmptyHint string
 
 	// Health.
 	HealthCopySummary string
 	HealthFailedTitle string
-	HealthFailedHint  string
 
 	// Sidebar state, as a tooltip and spoken label: "mihomo：运行中".
 	StateLabel string // %s: name, %s: state
@@ -42,7 +40,7 @@ var zhConfig = ConfigStrings{
 	LogLevelNames: []string{"调试", "信息", "警告", "错误"},
 	LogPaused:     "已暂停：新日志不会显示",
 
-	LayerRemoveDetail: "覆写内容会从后台助手里删除，不能恢复。正在使用的配置要等下次应用后才会去掉它。",
+	LayerRemoveDetail: "删除后不能恢复；下次应用时从配置里去掉。",
 	LayerOpen:         "打开",
 	LayerEnable:       "启用",
 	LayerDisable:      "停用",
@@ -53,13 +51,10 @@ var zhConfig = ConfigStrings{
 	CopyLine:          "复制这一行",
 	CopyText:          "复制",
 
-	LayersNone: "还没有自己的覆写，用「新建覆写」写第一层",
-
-	HistoryEmptyHint: "每次应用配置都会在这里留一条记录，可以对比或回滚到任一条。",
+	LayersNone: "还没有覆写",
 
 	HealthCopySummary: "复制这项检查",
 	HealthFailedTitle: "没能完成健康检查",
-	HealthFailedHint:  "检查本身出了错，网络设置没有被改动。可以重新检查一次。",
 
 	StateLabel: "%s：%s",
 }

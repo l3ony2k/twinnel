@@ -39,10 +39,10 @@ func (a *app) unreachableState(c *ui.Context, svc netService, err string) {
 		ui.Column(c).Gap(6).AlignItems(ui.Center).Padding(28, 16).Children(func() {
 			ui.Icon(c, iconError).FontSize(iconLarge).TextColor(t.TextMuted)
 			ui.Text(c, title).FontWeight(500)
-			ui.Text(c, body).FontSize(plat.calloutSize).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().MaxWidth(420)
+			ui.Text(c, body).FontSize(plat.calloutSize).TextColor(t.TextMuted).TextAlign(ui.Center).Wrap().LineHeight(lineText).MaxWidth(420)
 			if err != "" {
 				ui.Text(c, err).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).
-					TextAlign(ui.Center).Wrap().MaxWidth(420).Selectable().Label(T.UnreachableDetail + "：" + err)
+					TextAlign(ui.Center).Wrap().LineHeight(lineText).MaxWidth(420).Selectable().Label(T.UnreachableDetail + "：" + err)
 			}
 			ui.Row(c).Gap(8).Margin(8, 0, 0, 0).Children(func() {
 				a.retryButton(c.Key("retry-" + title))

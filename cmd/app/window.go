@@ -354,7 +354,7 @@ func (a *app) verdict(c *ui.Context, s status.Snapshot) {
 				head, reasons := levelHeadline(s)
 				ui.Text(c, head).FontSize(plat.leadSize).FontWeight(600)
 				for _, r := range reasons {
-					ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().Selectable()
+					ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
 				}
 			})
 		})
@@ -931,7 +931,7 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 		if len(peers) == 0 {
 			// In a card under the account's: the card size of an empty
 			// state (one row, the title alone), not a page's.
-			cardEmpty(c, iconTailscale, T.NoPeers).Tooltip(T.NoPeersHint)
+			cardEmpty(c, iconTailscale, T.NoPeers)
 			return
 		}
 		a.peers.RowHeight = 32
@@ -1033,11 +1033,14 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	f := &a.settings
 	pageTitle(c, T.PageSettings)
-	field := func(key, label, hint string, v *string, password bool) {
+	// fromHelper: the helper provides the controller and its secret, so
+	// those fields do nothing while it is connected: shown locked.
+	fromHelper := a.creds.cur != nil
+	field := func(key, label, hint string, v *string, password, locked bool) {
 		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
 			ui.Text(c, label).TextColor(t.TextMuted).Width(labelWidth + 24).Shrink(0).MarginY(5)
-			ui.Column(c).Gap(4).Grow(1).Children(func() {
-				in := ui.TextInput(c.Key(key), v).Label(label)
+			ui.Column(c).Gap(gapSub).Grow(1).Children(func() {
+				in := ui.TextInput(c.Key(key), v).Label(label).Disabled(locked)
 				if password {
 					in.Password()
 				}
@@ -1048,23 +1051,21 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 		})
 	}
 	card(c, T.Mihomo, func() {
-		if a.creds.cur != nil {
-			small(c, T.ControllerFromHelper).Wrap()
-		}
-		field("controller", T.Controller, "", &f.controller, false)
-		secretHint := T.SecretHint
-		if a.cfg.SecretFromEnv {
+		ctlHint, secretHint := "", ""
+		if fromHelper {
+			secretHint = T.ControllerFromHelper // once, under the pair it locks
+		} else if a.cfg.SecretFromEnv {
 			secretHint = T.SecretFromEnv
 		}
-		field("secret", T.Secret, secretHint, &f.secret, true)
-		field("primary", T.PrimaryGroup, "", &f.primary, false)
-		field("binary", T.MihomoBinary, "", &f.mihomoBinary, false)
-		field("confdir", T.MihomoConfigDir, "", &f.mihomoConfigDir, false)
+		field("controller", T.Controller, ctlHint, &f.controller, false, fromHelper)
+		field("secret", T.Secret, secretHint, &f.secret, true, fromHelper || a.cfg.SecretFromEnv)
+		field("primary", T.PrimaryGroup, "", &f.primary, false, false)
+		field("binary", T.MihomoBinary, "", &f.mihomoBinary, false, false)
+		field("confdir", T.MihomoConfigDir, "", &f.mihomoConfigDir, false, false)
 		ui.Row(c).Gap(12).AlignItems(ui.Center).PaddingStart(labelWidth + 36).Children(func() {
 			if ui.PrimaryButton(c.Key("save"), T.Save).Clicked() {
 				a.saveSettings()
 			}
-			small(c, T.SettingsRestartHint).Grow(1).Wrap()
 		})
 		if f.msg != "" && f.failed {
 			errorNote(c, f.msg)
@@ -1072,18 +1073,18 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 	})
 	card(c, T.Notifications, func() {
 		on := !a.cfg.NotificationsOff
+		ok := notificationsSupported()
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Column(c).Gap(2).Grow(1).Children(func() {
-				ui.Text(c, T.NotificationsSwitch)
-				small(c, T.NotificationsHint).Wrap()
-			})
-			if ui.Switch(c.Key("notify"), &on).Label(T.Notifications).Disabled(!notificationsSupported()).Changed() {
+			ui.Text(c, T.NotificationsSwitch).Grow(1)
+			if !ok {
+				// Dev runs cannot post notifications: the switch is off
+				// limits, and the tag says why (the tooltip, how).
+				tag(c, T.NotificationsUnsupported).Tooltip(T.NotificationsUnsupportedTip)
+			}
+			if ui.Switch(c.Key("notify"), &on).Label(T.Notifications).Disabled(!ok).Changed() {
 				a.setNotifications(on)
 			}
 		})
-		if !notificationsSupported() {
-			small(c, T.NotificationsUnsupported).Wrap()
-		}
 	})
 	card(c, T.Tailscale, func() {
 		in := s.Tailscale.Install
@@ -1108,11 +1109,9 @@ func (a *app) setNotifications(on bool) {
 	a.cfg = cfg
 }
 
-// actionNotes shows the read-only notice and the last action's error.
+// actionNotes shows the last action's error. Read-only mode is shown
+// once, in the sidebar's state footer (duetPair).
 func (a *app) actionNotes(c *ui.Context, s status.Snapshot) {
-	if !s.WritesAllowed {
-		notice(c, iconSecure, i18n.T.WritesDisabledHint)
-	}
 	if a.actionErr != "" {
 		errorNote(c, a.actionErr)
 	}

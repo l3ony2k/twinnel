@@ -10,13 +10,13 @@ import (
 func TestWarningKnown(t *testing.T) {
 	for in, want := range map[string]string{
 		`proxy group "PROXY" not found`: "防泄漏：找不到策略组「PROXY」",
-		`leak-guard: proxy group "A B" can still reach DIRECT through [x y] (nested groups are not changed: they may carry other traffic)`: "防泄漏：策略组「A B」仍能经由 x、y 走直连（嵌套的策略组可能还承载别的流量，没有改动）",
-		"generated a new controller secret (kept in the helper's secret store)":                                                            "已生成新的控制接口密钥，保存在后台助手的密钥库里",
-		"3 subscription profiles found; adopt does not import a subscription URL (set one later with `duet sub put`)":                      "找到 3 个订阅配置；接管不导入订阅地址，之后用 duet sub put 设置",
+		`leak-guard: proxy group "A B" can still reach DIRECT through [x y] (nested groups are not changed: they may carry other traffic)`: "防泄漏：策略组「A B」仍能经由 x、y 走直连（嵌套策略组还承载别的流量，没有改动）",
+		"generated a new controller secret (kept in the helper's secret store)":                                                            "已生成新的控制接口密钥",
+		"3 subscription profiles found; adopt does not import a subscription URL (set one later with `duet sub put`)":                      "找到 3 个订阅配置；订阅地址不会导入，接管后在「订阅与覆写」添加",
 		"external-controller: 0.0.0.0:9090 is reachable from the network (protected by the secret only)":                                   "external-controller：0.0.0.0:9090 可以从网络访问，只有密钥保护",
 		"something new: keep me": "something new: keep me",
-		"the subscription URL uses plain http: anyone on the network path can read it and replace the config it returns; use https if the provider offers it":                                        "订阅地址用的是明文 http：网络上的任何一方都能读到它，也能替换返回的配置。服务商支持的话请改用 https",
-		"clients of the controller (the web dashboard, the app, scripts) need the new secret; it is in the helper's secret store (macOS: sudo security find-generic-password -s duet.controller -w)": "控制接口的客户端（网页面板、本 app、脚本）需要新密钥。它保存在后台助手的密钥库里，可用 sudo security find-generic-password -s duet.controller -w 读取",
+		"the subscription URL uses plain http: anyone on the network path can read it and replace the config it returns; use https if the provider offers it":                                        "订阅地址是明文 http，可能被读取或篡改；服务商支持的话请改用 https",
+		"clients of the controller (the web dashboard, the app, scripts) need the new secret; it is in the helper's secret store (macOS: sudo security find-generic-password -s duet.controller -w)": "网页面板、脚本等客户端需要新密钥，可用 sudo security find-generic-password -s duet.controller -w 读取",
 	} {
 		if got := T.Warning(in); got != want {
 			t.Errorf("Warning(%q)\n got %q\nwant %q", in, got, want)

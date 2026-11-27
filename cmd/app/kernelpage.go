@@ -133,7 +133,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 				}
 				ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Children(func() {
 					dot(c, col, 8)
-					ui.Text(c, head).FontWeight(600).Grow(1).Wrap()
+					ui.Text(c, head).FontWeight(600).Grow(1).Wrap().LineHeight(lineText)
 					if r.UpdateAvailable {
 						rel := *r
 						if a.opButton(c.Key("k-install"), iconOK, fmt.Sprintf(T.KernelInstall, r.Version), true, fmt.Sprintf(T.KernelInstall, r.Version)).Disabled(!w).Clicked() {
@@ -204,7 +204,6 @@ func (a *app) tailscaleVersionCard(c *ui.Context, s status.Snapshot) {
 			a.tailscaleCheck()
 		}
 	}), func() {
-		listRow(c).Children(func() { hintText(c, T.TSVersionHint) })
 		info := v.ts
 		if info == nil {
 			return

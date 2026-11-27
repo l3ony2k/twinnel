@@ -37,10 +37,10 @@ type ControlStrings struct {
 
 var zhControls = ControlStrings{
 	UnreachableMihomoTitle: "无法连接 mihomo",
-	UnreachableMihomoBody:  "duet 连不上 mihomo 的控制器。mihomo 可能没在运行，或者设置里的控制器地址、密钥不对。",
-	UnreachableMihomoShort: "连不上 mihomo 的控制器",
+	UnreachableMihomoBody:  "mihomo 可能没在运行，或者设置里的控制接口地址、密钥不对。",
+	UnreachableMihomoShort: "连不上 mihomo 控制接口",
 	UnreachableTSTitle:     "无法连接 Tailscale",
-	UnreachableTSBody:      "duet 连不上 tailscaled。Tailscale 可能没在运行，或者没有安装。",
+	UnreachableTSBody:      "Tailscale 可能没在运行，或者没有安装。",
 	UnreachableTSShort:     "连不上 tailscaled",
 	UnreachableDetail:      "详细信息",
 	Retry:                  "重试",
