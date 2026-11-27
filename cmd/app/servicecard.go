@@ -253,6 +253,8 @@ func (a *app) accessoryCard(c *ui.Context, s status.Snapshot, k accessoryKind) {
 		listRow(c).Children(func() {
 			if ck := v.check; ck != nil && ck.Dir != "" {
 				kv(c, T.AccessoryDir, ck.Dir)
+			} else if ck == nil {
+				small(c, T.AccessoryUnchecked) // state, before the first check
 			}
 		})
 		if ck := v.check; ck != nil {

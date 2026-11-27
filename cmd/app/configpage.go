@@ -848,7 +848,9 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 				codeFrame(c, 380, func() { editor.DiffView(c.Key("preview-diff"), v.diff).Grow(1) })
 			}
 		}
-		ui.Divider(c)
+		if v.preview != nil || v.diffErr != "" || v.diff != nil {
+			ui.Divider(c) // only between a preview and the apply row
+		}
 		ui.Row(c).Gap(8).AlignItems(ui.End).Children(func() {
 			ui.Column(c).Gap(4).Grow(1).Children(func() {
 				ui.Text(c, T.ApplyReason).FontSize(plat.calloutSize).TextColor(t.TextMuted)

@@ -179,13 +179,13 @@ type Strings struct {
 	ServiceOpHead                                                               string // %s: op, %s: service
 
 	// Geo databases and external UI cards.
-	GeoTitle, UITitle, AccessoryDir, AccessoryForce                              string
-	AccessoryUpdate, AccessoryUpToDate, AccessoryCurrent, AccessoryError         string
-	AccessoryMissing, AccessoryVerifiable, AccessoryUnverifiable, AccessoryLocal string
-	AccessoryRemote, AccessoryNothing, AccessoryRolledBack                       string
-	AccessoryUpdated, AccessorySkipped                                           string // %s: names
-	AccessoryReloadNeeded, AccessoryApply, AccessoryApplyReason                  string
-	HelperTooOld                                                                 string
+	GeoTitle, UITitle, AccessoryDir, AccessoryForce                                                  string
+	AccessoryUpdate, AccessoryUpToDate, AccessoryCurrent, AccessoryError                             string
+	AccessoryMissing, AccessoryVerifiable, AccessoryUnverifiable, AccessoryLocal, AccessoryUnchecked string
+	AccessoryRemote, AccessoryNothing, AccessoryRolledBack                                           string
+	AccessoryUpdated, AccessorySkipped                                                               string // %s: names
+	AccessoryReloadNeeded, AccessoryApply, AccessoryApplyReason                                      string
+	HelperTooOld                                                                                     string
 
 	// Takeover page.
 	PageTakeover, TakeoverFixture, TakeoverTitle, TakeoverIntro, TakeoverTooOld       string
@@ -650,6 +650,7 @@ var zh = Strings{
 	AccessoryMissing:      "未安装",
 	AccessoryVerifiable:   "可校验",
 	AccessoryUnverifiable: "无校验值",
+	AccessoryUnchecked:    "未检查",
 	AccessoryLocal:        "本地",
 	AccessoryRemote:       "远端",
 	AccessoryNothing:      "没有需要更新的文件",
@@ -678,7 +679,7 @@ var zh = Strings{
 	TakeoverBinary:         "mihomo 程序",
 	TakeoverController:     "控制接口",
 	TakeoverSecretSet:      "已设密钥",
-	TakeoverNoSecret:       "控制接口没有密钥：本机任何程序都能控制 mihomo",
+	TakeoverNoSecret:       "没有密钥：本机任何程序都能控制 mihomo",
 	TakeoverTSSvc:          "Tailscale 服务",
 	TakeoverSubNoURL:       "没有找到订阅地址（作为本地文件导入）",
 	TakeoverSubURL:         "找到订阅地址，接管时存入钥匙串",

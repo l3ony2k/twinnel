@@ -53,7 +53,7 @@ func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
 			// how to turn it off.
 			ui.Row(c.Key("ro")).Gap(6).AlignItems(ui.Center).Tooltip(T.WritesDisabledHint).
 				Label(T.ReadOnlyShort + "：" + T.WritesDisabledHint).Role(ui.RoleStatus).Children(func() {
-				ui.Icon(c, iconSecure).FontSize(iconSmall).TextColor(t.TextMuted).Width(8).Shrink(0)
+				ui.Icon(c, iconSecure).FontSize(iconSmall).TextColor(t.TextMuted).MarginStart(-2).Shrink(0)
 				ui.Text(c, T.ReadOnlyShort).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine()
 			})
 		}

@@ -1053,7 +1053,7 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 	card(c, T.Mihomo, func() {
 		ctlHint, secretHint := "", ""
 		if fromHelper {
-			ctlHint, secretHint = T.ControllerFromHelper, T.ControllerFromHelper
+			secretHint = T.ControllerFromHelper // once, under the pair it locks
 		} else if a.cfg.SecretFromEnv {
 			secretHint = T.SecretFromEnv
 		}
