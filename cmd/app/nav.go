@@ -86,10 +86,18 @@ func navList(c *ui.Context, selected *string, sections []navSection, active bool
 	list.Children(func() {
 		for si, s := range sections {
 			if s.title != "" {
-				navHeader(c, s.title, si == 0)
+				if navRail { // icons only (sidebar.go)
+					railGap(c)
+				} else {
+					navHeader(c, s.title, si == 0)
+				}
 			}
 			for _, it := range s.items {
-				if navRow(c, it, *selected == it.id, active, hover == it.id) && (*selected != it.id || reselect) {
+				row := navRow
+				if navRail {
+					row = func(c *ui.Context, it navItem, chosen, active, _ bool) bool { return railRow(c, it, chosen, active) }
+				}
+				if row(c, it, *selected == it.id, active, hover == it.id) && (*selected != it.id || reselect) {
 					*selected, changed = it.id, true
 				}
 			}
