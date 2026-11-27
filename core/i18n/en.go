@@ -516,6 +516,9 @@ var en = Strings{
 	HoursAgo:   "%d h ago",
 	DaysAgo:    "%d d ago",
 	InDays:     "in %d days",
+	DurDays:    "%dd %dh",
+	DurHours:   "%dh %dm",
+	DurMinutes: "%d min",
 	InHours:    "in %d hours",
 
 	SidebarHelper:       "Configuration",

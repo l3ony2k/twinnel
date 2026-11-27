@@ -101,7 +101,16 @@ type Mihomo struct {
 	Primary      *Group // the configured primary group, or the first Selector
 	Traffic      TrafficSample
 	Connections  int
-	Updated      time.Time
+	// Memory is what mihomo says it uses (the memory field of
+	// /connections, Go's in-use heap); 0 when it does not say.
+	Memory int64
+	// Process is mihomo's process as the system lists it (resident
+	// memory, CPU, start); nil when not found or not read.
+	Process *Process
+	// DNSMode is the config file's DNS mode: fake-ip, redir-host,
+	// DNSModeNormal, DNSModeOff; "" when unknown.
+	DNSMode string
+	Updated time.Time
 }
 
 // Tailscale is Tailscale's part of a snapshot.
@@ -110,7 +119,10 @@ type Tailscale struct {
 	Err       string
 	Install   tailscale.Install
 	State     tailscale.State
-	Updated   time.Time
+	// Process is Tailscale's daemon as the system lists it; nil when not
+	// found or not read (the app builds run it as a system extension).
+	Process *Process
+	Updated time.Time
 }
 
 // Snapshot is everything the UI shows at one time.
