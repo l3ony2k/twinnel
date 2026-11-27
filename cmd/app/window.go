@@ -76,10 +76,11 @@ func (a *app) mainView(c *ui.Context) {
 					a.pageScroll[a.page] = st
 				}
 				ui.Scroll(c.Key("page:"+a.page)).TrackScroll(st).Grow(1).ScrollbarInsets(barH, 0, 0, 0).Children(func() {
-					// Left-anchored as System Settings' detail pane: every
-					// page, 日志 included, starts on one edge; the column
-					// stops growing at pageMaxWidth.
-					ui.Column(c).Padding(barH+4, plat.pagePadX, 32).AlignItems(ui.Start).Children(func() {
+					// The column stops growing at pageMaxWidth and is
+					// centered in the pane past it (full screen, wide
+					// displays): the slack splits equally left and right.
+					inset := columnInset(a.paneW, pageMaxWidth(a.page))
+					ui.Column(c).Padding(barH+4, inset, 32).AlignItems(ui.Start).Children(func() {
 						ui.Column(c).Gap(gapGroup).FillWidth().MaxWidth(pageMaxWidth(a.page)).Children(func() {
 							a.pageBody(c, s)
 						})
@@ -89,6 +90,10 @@ func (a *app) mainView(c *ui.Context) {
 			}
 			a.toolbar(c, barH, scrolled)
 		})
+		if w := content.Bounds().W; w > 0 && w != a.paneW { // the pane's width changed: center again
+			a.paneW = w
+			c.Invalidate()
+		}
 	})
 	a.sidebarChrome(c, toolbarHeight(c)) // the sidebar toggle and the divider's grip
 	a.toasts(c)                          // toast.go
@@ -126,14 +131,18 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 	}
 	spec := pageBar
 	// The title and the actions line up with the page's column: over its
-	// left and right edges at every width, as the column is left-anchored
-	// and no wider than pageMaxWidth. Logs fill the pane, and so does their
-	// bar.
+	// left and right edges at every width (columnInset), the title only
+	// moving right to clear the traffic lights and the sidebar toggle.
+	// Logs fill the pane, and so does their bar.
 	inner := pageMaxWidth(a.page)
 	if a.page == pageLogs {
 		inner = 0
 	}
-	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).Padding(0, plat.pagePadX, 0, a.toolbarLead(c)).
+	inset := plat.pagePadX
+	if inner > 0 {
+		inset = columnInset(a.paneW, inner)
+	}
+	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).Padding(0, inset, 0, max(inset, a.toolbarLead(c))).
 		AlignItems(ui.Start).Justify(ui.Center).DragWindow().Role(ui.RoleToolbar).Label(spec.title).Children(func() {
 		row := ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center)
 		if inner > 0 {
@@ -161,6 +170,15 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 			}
 		})
 	})
+}
+
+// columnInset is the page column's inset from each side of a content
+// pane paneW wide: the page padding, plus half the slack once the pane
+// is wider than the column (maxW) and its padding, so the column sits in
+// the middle of the pane. Before the first layout (paneW 0) it is the
+// padding alone.
+func columnInset(paneW, maxW float32) float32 {
+	return plat.pagePadX + max(0, (paneW-2*plat.pagePadX-maxW)/2)
 }
 
 // inToolbar is true while the toolbar's actions are built: buttons and
