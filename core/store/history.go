@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // History kinds.
@@ -119,7 +121,7 @@ func (s *Store) SaveLayerBlob(data []byte) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 		return "", err
 	}
-	return h, WriteFileAtomic(p, data, 0o600)
+	return h, privfile.WriteFile(p, data)
 }
 
 // ReadLayerBlob returns a layer content kept for a manifest.
@@ -182,7 +184,7 @@ func (s *Store) AddHistoryMeta(kind string, meta HistoryMeta, data []byte, at ti
 		}
 		id = fmt.Sprintf("%s-%d", base, n)
 	}
-	if err := WriteFileAtomic(s.Path("history", id+".yaml"), data, 0o600); err != nil {
+	if err := privfile.WriteFile(s.Path("history", id+".yaml"), data); err != nil {
 		return HistoryEntry{}, err
 	}
 	e := HistoryEntry{ID: id, Time: at, Hash: h, Size: len(data), Kind: kind, Reason: meta.Reason,

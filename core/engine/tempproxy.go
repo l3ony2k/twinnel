@@ -14,6 +14,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/config"
 	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // TempProxyConfig turns a composed config into the config of a temporary
@@ -75,13 +76,13 @@ func startTempMihomo(ctx context.Context, bin string, cfg []byte, port int) (fun
 	if err != nil {
 		return nil, err
 	}
-	dir, err := os.MkdirTemp("", "twinnel-proxy-")
+	dir, err := privfile.MkdirTemp("", "twinnel-proxy-")
 	if err != nil {
 		return nil, err
 	}
 	cleanup := func() { os.RemoveAll(dir) }
 	cfgPath := filepath.Join(dir, "config.yaml")
-	if err := os.WriteFile(cfgPath, cfg, 0o600); err != nil {
+	if err := privfile.WriteFile(cfgPath, cfg); err != nil {
 		cleanup()
 		return nil, err
 	}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/privfile/privfiletest"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/tailscale"
 )
@@ -280,9 +281,7 @@ func TestConfig(t *testing.T) {
 	if err := SaveConfig(path, c); err != nil {
 		t.Fatal(err)
 	}
-	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o600 {
-		t.Errorf("mode %v", fi.Mode())
-	}
+	privfiletest.AssertPrivate(t, path, false) // it can hold the controller secret
 	env[EnvSecret], env[EnvReadOnly] = "env-secret", "1"
 	c, _ = LoadConfig(path, getenv)
 	if c.Controller != "127.0.0.1:9999" || c.Secret != "env-secret" || !c.SecretFromEnv || c.AllowWrites {

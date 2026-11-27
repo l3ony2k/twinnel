@@ -31,6 +31,8 @@ import (
 	"path/filepath"
 	"slices"
 	"time"
+
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // Service is one network service and its DNS servers; no servers means
@@ -195,14 +197,10 @@ func (m *Manager) writeBackup(bk *Backup) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(m.Path), 0o700); err != nil {
+	if err := privfile.MkdirAll(filepath.Dir(m.Path)); err != nil {
 		return err
 	}
-	tmp := m.Path + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, m.Path)
+	return privfile.WriteFile(m.Path, append(b, '\n'))
 }
 
 // Status reads the services and the backup.

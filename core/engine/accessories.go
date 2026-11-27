@@ -15,6 +15,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/config"
 	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/privfile"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/store"
 	"gopkg.in/yaml.v3"
@@ -148,12 +149,8 @@ func (e *Engine) editAccState(fn func(s *accState)) {
 	}
 	fn(&s)
 	b, _ := json.MarshalIndent(s, "", "  ")
-	tmp := e.accStatePath() + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err == nil {
-		err = os.Rename(tmp, e.accStatePath())
-		if err != nil {
-			e.log().Warn("accessories record", "err", err)
-		}
+	if err := privfile.WriteFile(e.accStatePath(), b); err != nil {
+		e.log().Warn("accessories record", "err", err)
 	}
 }
 

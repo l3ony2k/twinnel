@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // ValidateOption configures Validate.
@@ -100,7 +102,7 @@ func Validate(ctx context.Context, mihomoBin string, config []byte, opts ...Vali
 			tmpRoot = ""
 		}
 	}
-	dir, err := os.MkdirTemp(tmpRoot, "twinnel-validate-")
+	dir, err := privfile.MkdirTemp(tmpRoot, "twinnel-validate-")
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +115,7 @@ func Validate(ctx context.Context, mihomoBin string, config []byte, opts ...Vali
 		}
 	}
 	cfg := filepath.Join(dir, "config.yaml")
-	if err := os.WriteFile(cfg, config, 0o600); err != nil {
+	if err := privfile.WriteFile(cfg, config); err != nil {
 		return nil, err
 	}
 

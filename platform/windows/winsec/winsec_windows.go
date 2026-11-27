@@ -7,6 +7,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // entropy ties the blobs to Twinnel: another program running as
@@ -47,21 +49,8 @@ func Unprotect(b []byte) ([]byte, error) {
 
 // SecureStateDir replaces the state dir's DACL with StateDirSDDL (and makes
 // Administrators its owner), so files the helper writes there are not
-// readable by other users. Needs to run elevated or as LocalSystem.
+// readable by other users. Needs to run elevated or as LocalSystem. The
+// user side's private files use the same machinery (core/privfile).
 func SecureStateDir(dir string) error {
-	sd, err := windows.SecurityDescriptorFromString(StateDirSDDL)
-	if err != nil {
-		return err
-	}
-	dacl, _, err := sd.DACL()
-	if err != nil {
-		return err
-	}
-	admins, err := windows.CreateWellKnownSid(windows.WinBuiltinAdministratorsSid)
-	if err != nil {
-		return err
-	}
-	return windows.SetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT,
-		windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION|windows.OWNER_SECURITY_INFORMATION,
-		admins, nil, dacl, nil)
+	return privfile.SetSecurity(dir, "O:BA"+StateDirSDDL)
 }

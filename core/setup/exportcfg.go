@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/bundle"
+	"github.com/l3ony2k/twinnel/core/privfile"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/version"
 )
@@ -32,19 +31,11 @@ func ExportConfig(ctx context.Context, hc Caller, p rpc.ConfigExportParams) (rpc
 	return x, err
 }
 
-// SaveExport writes zip to path, readable by its owner only (0600), with
-// no half-written file left on an error.
+// SaveExport writes zip to path, readable by its owner only from the
+// moment it exists (core/privfile: 0600, an owner-only DACL on Windows),
+// with no half-written file left on an error.
 func SaveExport(path string, zip []byte) error {
-	tmp := filepath.Join(filepath.Dir(path), "."+filepath.Base(path)+".tmp")
-	if err := os.WriteFile(tmp, zip, 0o600); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return nil
+	return privfile.WriteFile(path, zip)
 }
 
 // ExportFileName is the default name of an export made at t.
