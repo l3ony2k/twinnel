@@ -1,0 +1,17 @@
+# Reference copy of the unit `sudo ./install.sh` (twinnel helper install)
+# writes to /etc/systemd/system/twinnel-helper.service. You do not need to
+# copy it by hand. --group is sudo, else wheel, else a new twinnel group.
+# Written by Twinnel. Local changes are overwritten; use a drop-in instead.
+[Unit]
+Description=twinnel: helper
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/twinnel-helper --state-dir /var/lib/twinnel --socket /var/run/twinnel/helper.sock --group sudo
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

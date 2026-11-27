@@ -165,10 +165,9 @@ Run on the full history of a mirror clone, with `--redact`:
   (hardened runtime on `Twinnel.app`, the CLI and the helper; the helper's launchd plist points at a
   path under `/Library/PrivilegedHelperTools`, so the installed copy must carry the same
   signature). In CI that means the certificate and an App Store Connect API key as secrets and a
-  temporary keychain. Until then, release notes must say "right-click → Open".
-- Layered icon: `Assets.car` needs `actool` from Xcode 26. The draft release job in
-  `docs/release.md` runs on `macos-26` with `TWINNEL_REQUIRE_LAYERED_ICON=1`; enable it as
-  `.github/workflows/release.yml` once tags are pushed.
+  temporary keychain. Until then, `docs/install.md` explains how to open an unsigned build (the release notes link it).
+- Layered icon: `Assets.car` needs `actool` from Xcode 26. `.github/workflows/release.yml` builds
+  the app on `macos-26` with `TWINNEL_REQUIRE_LAYERED_ICON=1` (docs/release.md).
 
 ## 7. Rename checklist (if the name or owner changes again)
 

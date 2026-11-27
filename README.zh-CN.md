@@ -48,6 +48,10 @@ Twinnel 在桌面上同时跑**官方的** [mihomo](https://github.com/MetaCubeX
 | 菜单栏 App：单色状态图标（不同状态只靠形状区分：角标、断开的环、不同符号）和弹出面板；主窗口有总览（出口节点的延迟，按需检测出口 IP）、策略组、Tailscale 设备、健康检查、日志、设置（登录时打开、程序坞图标、界面语言：中文或英文、通过 MCP 接入本地 Agent），以及经 helper 的订阅与覆写、历史、内核、接管；helper 未安装时显示首次使用页 | macOS；控件在它作用的对象能操作时可用（mihomo 控制接口、Tailscale LocalAPI、后台助手）；开发和测试运行用 `TWINNEL_READ_ONLY=1` 关掉所有写操作 |
 | 凭证（controller secret、订阅地址） | macOS：helper 以 root 运行时存在系统钥匙串（System keychain）；Linux 和开发用的 helper：状态目录里一个 0600 权限的 `secrets.json`（以后接 Secret Service） |
 
+## 安装
+
+从 [Releases](https://github.com/l3ony2k/twinnel/releases) 下载 `Twinnel_<版本>_macos_universal.dmg`（macOS 15 及以上，Apple 芯片和 Intel 通用）或 Linux 的 `.tar.gz`。这些构建没有公证，macOS 上第一次打开要多一步（系统设置 → 隐私与安全性 → 仍要打开，或 `xattr -dr com.apple.quarantine /Applications/Twinnel.app`）。详细步骤和 Linux 安装见 [docs/install.md](docs/install.md#中文)。
+
 ## 从源码安装
 
 需要 Go（版本见 `go.mod`），不需要 cgo，也不需要其他工具链。
@@ -66,7 +70,7 @@ scripts/build-release.sh            # 输出到 dist/，附 SHA256SUMS
 scripts/build-release.sh --no-app   # 只构建 CLI 和 helper（任何系统都能跑）
 ```
 
-`.app` 以及其中的 CLI 和 helper 都是 ad hoc 签名（设置 `SIGN_IDENTITY` 和 `NOTARY_PROFILE` 可换成 Developer ID 签名并公证），没有公证。自己构建的副本没有隔离标记，可以直接打开；下载来的第一次要右键选"打开"。
+`.app` 以及其中的 CLI 和 helper 都是 ad hoc 签名（设置 `SIGN_IDENTITY` 和 `NOTARY_PROFILE` 可换成 Developer ID 签名并公证），没有公证。自己构建的副本没有隔离标记，可以直接打开；下载来的要先放行一次（[docs/install.md](docs/install.md#中文)）。推送 `v*` 标签后 GitHub Actions 会构建全部文件并创建一个草稿 Release（[docs/release.md](docs/release.md)）。
 
 ### 日常使用与开发并存
 
