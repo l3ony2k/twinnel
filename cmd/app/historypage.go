@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -48,11 +49,18 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 	}
 	hist := d.history // newest first, as history.list returns it
 	// No hash column (U40): it is in the detail, copyable.
+	// Time, kind and size as wide as their values (tablecols.go), every
+	// kind measured so the column does not jump; the reason takes the rest.
+	times, sizes := make([]string, len(hist)), make([]string, len(hist))
+	for i, e := range hist {
+		times[i], sizes[i] = historyTime(e.Time), status.Bytes(int64(e.Size))
+	}
+	kinds := slices.Collect(maps.Values(T.HistoryKinds))
 	cols := []ui.TableColumn{
-		{Title: T.HistoryTime, Width: 150},
-		{Title: T.HistoryKind, Width: 80},
-		{Title: T.HistorySize, Width: 80},
-		{Title: T.HistoryReason},
+		fitColumn(c, T.HistoryTime, ui.Span{Features: "tnum"}, 0, times...), // as num() draws it
+		fitColumn(c, T.HistoryKind, ui.Span{}, 0, kinds...),
+		fitColumn(c, T.HistorySize, monoSpan(), 0, sizes...),
+		nameColumn(c, T.HistoryReason, 120),
 	}
 	v.list.RowHeight = 30
 	// The chosen row is the table's own selection (the accent row, as
@@ -71,7 +79,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 			var el ui.Element
 			switch col {
 			case 0:
-				el = num(cell(c, e.Time.Local().Format("01-02 15:04:05")))
+				el = num(cell(c, historyTime(e.Time)))
 			case 1:
 				el = cell(c, T.HistoryKindName(e.Kind))
 			case 2:
@@ -356,3 +364,6 @@ func rollbackEffects(target *rpc.LayerManifest, cur []rpc.Layer) []string {
 	}
 	return out
 }
+
+// historyTime is a 历史 row's time.
+func historyTime(t time.Time) string { return t.Local().Format("01-02 15:04:05") }

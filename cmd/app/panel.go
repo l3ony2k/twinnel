@@ -403,14 +403,14 @@ func (a *app) nodeRow(c *ui.Context, s status.Snapshot, p *status.Group) {
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).PaddingY(4).Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, p.Name).SingleLine().Shrink(0)
-				ui.Text(c, sel).TextColor(t.TextMuted).Grow(1).Shrink(1).TextAlign(ui.End).SingleLine()
+				middleText(c, sel).TextColor(t.TextMuted).Grow(1).TextAlign(ui.End)
 				if !via {
 					delay()
 				}
 			})
 			if via {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					small(c, p.Node).Grow(1).Shrink(1).TextAlign(ui.End).SingleLine()
+					small(c, p.Node).Grow(1).Shrink(1).MinWidth(0).TextAlign(ui.End).SingleLine().TruncateMiddle().Tooltip(p.Node)
 					delay()
 				})
 			}
@@ -450,8 +450,8 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 	if ip := st.Self.IPv4(); ip.IsValid() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).MinHeight(panelRowH).Children(func() {
 			leading(c, iconTailscale, t.TextMuted)
-			ui.Text(c, st.Self.Name).Grow(1).Shrink(1).SingleLine()
-			num(ui.Text(c, ip.String()).TextColor(t.TextMuted).SingleLine().Selectable())
+			middleText(c, st.Self.Name).Grow(1)
+			num(ui.Text(c, ip.String()).TextColor(t.TextMuted).SingleLine().Shrink(0).Selectable())
 		})
 	}
 	a.exitNodeRow(c, s)

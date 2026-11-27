@@ -538,8 +538,8 @@ func (a *app) takeoverBaseCard(c *ui.Context, p *rpc.TakeoverPlan) {
 			for i, cd := range others {
 				ui.Row(c.Key(fmt.Sprint("cand", i))).Gap(10).AlignItems(ui.Center).PaddingY(6).Children(func() {
 					ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).Children(func() {
-						ui.Text(c, filepath.Base(cd.Path)).SingleLine().Selectable().Tooltip(cd.Path)
-						meta(c, filepath.Dir(cd.Path)).Shrink(1)
+						middleText(c, filepath.Base(cd.Path)).Selectable().Tooltip(cd.Path)
+						meta(c, filepath.Dir(cd.Path)).TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(cd.Path)
 					})
 					candVerdict(c, cd)
 					if cd.Error == "" && pushButton(c.Key("use"), T.TakeoverUseBase).Disabled(!canPlan).Clicked() {

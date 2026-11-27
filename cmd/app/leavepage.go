@@ -312,7 +312,7 @@ func (a *app) inventoryCard(c *ui.Context, s status.Snapshot) {
 					} else if it.Label != "" && it.Kind != invLaunchAgent {
 						detail = it.Label
 					}
-					mono(ui.Text(c, tildePath(detail))).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Grow(1).Shrink(1).Selectable().Tooltip(it.Path)
+					mono(ui.Text(c, tildePath(detail))).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().TruncateMiddle().Grow(1).Shrink(1).MinWidth(0).Selectable().Tooltip(it.Path)
 					switch {
 					case it.Count > 0 && it.Size > 0:
 						num(meta(c, i18n.F(T.InvCount, it.Count)+" · "+status.Bytes(it.Size)))

@@ -412,7 +412,7 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 		// on hover.
 		route := strings.Join(append([]string{p.Name}, p.Chain...), " → ")
 		kvWith(c, T.Exit, func() {
-			ui.Text(c, p.Node).SingleLine().Shrink(1).MinWidth(0).Tooltip(route)
+			ui.Text(c, p.Node).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(route)
 			ui.Spacer(c)
 			monoText(c, p.DelayText()).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0)
 		})
@@ -501,7 +501,7 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 		kvWith(c, T.OvTailnet, func() { monoText(c, st.Tailnet).SingleLine().Shrink(1).Selectable() })
 	}
 	kvWith(c, T.OvThisDevice, func() {
-		ui.Text(c, st.Self.Name).SingleLine().Shrink(1).Selectable()
+		middleText(c, st.Self.Name).Selectable()
 		if ip := st.Self.IPv4(); ip.IsValid() {
 			monoText(c, ip.String()).TextColor(t.TextMuted).SingleLine().Shrink(0).Selectable()
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/l3ony2k/duet/core/i18n"
 	"github.com/l3ony2k/duet/core/mihomo"
 	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/duet/core/tailscale"
 )
 
 const (
@@ -696,7 +698,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			disclosure(c, open)
 			ui.Text(c, g.Name).FontWeight(500).SingleLine().Shrink(0) // a row title, not a heading (R-unslop-30)
 			typeMeta(c, g.Type)
-			ui.Text(c, chain).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(chain)
+			ui.Text(c, chain).TextColor(t.TextMuted).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(chain)
 			ui.Spacer(c)
 			num(ui.Text(c, g.DelayText()).TextColor(delayColor(t, g.Delay, g.Tested)).Shrink(0))
 			testing := a.mon.Testing(g.Name)
@@ -793,7 +795,7 @@ func (a *app) nodeTile(c *ui.Context, g status.Group, i, cols int, mem status.Me
 		}
 	})
 	chip.Children(func() {
-		ui.Text(c, mem.Name).SingleLine()
+		middleText(c, mem.Name)
 		ui.Row(c).Gap(6).Children(func() {
 			typeMeta(c, typ).Grow(1).Shrink(1)
 			num(ui.Text(c, delay).FontSize(plat.smallSize).TextColor(delayColor(t, mem.Delay, mem.Tested)))
@@ -939,21 +941,35 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 			if m.Item(T.CopyIP).Disabled(!ip.IsValid()).Chosen() {
 				copyText(c, ip.String())
 			}
+			// The IPv6 address has no column: it is here and in the IP's
+			// tooltip.
+			if v6 := peerIPv6(p); v6.IsValid() && m.Item(T.CopyIPv6).Chosen() {
+				copyText(c, v6.String())
+			}
 			if m.Item(T.CopyName).Chosen() {
 				copyText(c, p.Name)
 			}
 		}
-		// The name takes the room the others leave, so the table fits a
-		// narrow window (900 px) and the last column is never cut; the
-		// others are as wide as their longest value (windows, 中继 · tok)
-		// in either language (R-unslop-3).
+		// Only the name flexes; every other column is as wide as its
+		// widest value or its title (tablecols.go), so the IP is never
+		// cut: wide enough for any IPv4 (the IPv6 is in the tooltip and
+		// the menu). A long name loses its middle. 连接方式 is measured
+		// over every state it can show, so it does not jump.
+		seen := make([]string, len(peers))
+		var oses, relays []string
+		for i, p := range peers {
+			seen[i] = peerSeen(s, p)
+			oses, relays = append(oses, p.OS), append(relays, p.Relay)
+		}
+		paths := []string{T.Path("direct"), T.Path("derp"), T.Path("peer-relay"), T.Path("idle")}
+		muted := ui.Span{}
 		cols := []ui.TableColumn{
-			{Title: T.PeerName, MinWidth: 120},
-			{Title: T.PeerIP, Width: 120},
-			{Title: T.PeerOS, Width: 84},
-			{Title: T.PeerPath, Width: 96},
-			{Title: T.PeerRelay, Width: 56},
-			{Title: T.PeerLastSeen, Width: 88},
+			nameColumn(c, T.PeerName, 120),
+			fitColumn(c, T.PeerIP, monoSpan(), 0, widestIPv4),
+			fitColumn(c, T.PeerOS, muted, 0, oses...),
+			fitColumn(c, T.PeerPath, muted, 6+6, paths...), // the dot and its gap
+			fitColumn(c, T.PeerRelay, monoSpan(), 0, relays...),
+			fitColumn(c, T.PeerLastSeen, muted, 0, append(seen, T.Online, T.Offline)...),
 		}
 		ui.Table(c, &a.peers, cols, len(peers), func(row, col int) {
 			p := peers[row]
@@ -964,15 +980,15 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 					if p.Online {
 						col = t.Success
 					}
-					dot(c, col, 7)
-					ui.Text(c, p.Name).SingleLine().Tooltip(p.Name)
+					dot(c, col, 7).Shrink(0)
+					middleText(c, p.Name)
 				})
 			case 1:
-				ip := ""
+				ip, all := "", peerIPs(p)
 				if v4 := p.IPv4(); v4.IsValid() {
 					ip = v4.String()
 				}
-				monoText(c, ip).SingleLine().Selectable()
+				monoText(c, ip).SingleLine().Shrink(0).Selectable().Tooltip(all)
 			case 2:
 				ui.Text(c, p.OS).TextColor(t.TextMuted).SingleLine()
 			case 3:
@@ -990,22 +1006,48 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 					if mark != (ui.Color{}) {
 						dot(c, mark, 6).Shrink(0)
 					}
-					ui.Text(c, T.Path(p.Path())).TextColor(col).SingleLine().Tooltip(T.Path(p.Path()))
+					ui.Text(c, T.Path(p.Path())).TextColor(col).SingleLine()
 				})
 			case 4:
-				ui.Text(c, p.Relay).TextColor(t.TextMuted).SingleLine()
+				monoText(c, p.Relay).TextColor(t.TextMuted).SingleLine()
 			case 5:
-				seen := T.Online
-				if !p.Online {
-					seen = T.Offline
-					if !p.LastSeen.IsZero() {
-						seen = status.Ago(s.Time, p.LastSeen)
-					}
-				}
-				ui.Text(c, seen).TextColor(t.TextMuted).SingleLine()
+				ui.Text(c, seen[row]).TextColor(t.TextMuted).SingleLine()
 			}
 		}).Height(float32(min(len(peers), 14)*32 + 36)).Background(ui.Transparent).MarginX(-8)
 	})
+}
+
+// peerSeen is a device's 最后在线 cell: 在线, or how long ago it was, or
+// 离线 when control did not say.
+func peerSeen(s status.Snapshot, p tailscale.Peer) string {
+	T := i18n.T
+	switch {
+	case p.Online:
+		return T.Online
+	case p.LastSeen.IsZero():
+		return T.Offline
+	}
+	return status.Ago(s.Time, p.LastSeen)
+}
+
+// peerIPv6 is a device's first IPv6 address, or the zero Addr.
+func peerIPv6(p tailscale.Peer) netip.Addr {
+	for _, a := range p.IPs {
+		if a.Is6() {
+			return a
+		}
+	}
+	return netip.Addr{}
+}
+
+// peerIPs is every address of a device, one per line, for the IP cell's
+// tooltip.
+func peerIPs(p tailscale.Peer) string {
+	ips := make([]string, len(p.IPs))
+	for i, a := range p.IPs {
+		ips[i] = a.String()
+	}
+	return strings.Join(ips, "\n")
 }
 
 // --- settings ---
