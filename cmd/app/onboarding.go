@@ -198,55 +198,61 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 // installPlanCard is what installing does: the dry-run's steps in words,
 // one per row, the command under each, behind a disclosure.
 func (a *app) installPlanCard(c *ui.Context) {
-	t := c.Theme()
 	T := i18n.T
-	v := &a.hd.onb
-	steps, parsed := parsePlan(v.plan)
 	ui.Column(c).Gap(8).Children(func() {
 		groupHead(c).Children(func() {
 			ui.Text(c, T.OnboardPlan).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
 			infoTipAbout(c, T.OnboardPlan, T.TipInstallPlan, nil)
 		})
 		hintText(c, T.OnboardPlanHint)
-		listBox(c, t).Children(func() {
-			switch {
-			case v.loading && v.plan == "":
-				listRow(c).Children(func() {
-					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-						ui.Spinner(c).Label(T.Loading) // the spinner says it (R-unslop-29)
-					})
+		a.installPlanList(c)
+	})
+}
+
+// installPlanList is the plan's steps alone (the wizard's 会做哪些改动).
+func (a *app) installPlanList(c *ui.Context) {
+	t := c.Theme()
+	T := i18n.T
+	v := &a.hd.onb
+	steps, parsed := parsePlan(v.plan)
+	listBox(c, t).Children(func() {
+		switch {
+		case v.loading && v.plan == "":
+			listRow(c).Children(func() {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Spinner(c).Label(T.Loading) // the spinner says it (R-unslop-29)
 				})
-			case v.planErr != "" || v.timeout:
-				// What failed, why in words when known, 重试 and 复制详情
-				// (kubai R-10).
-				listRow(c).Children(func() {
-					head := T.InstallPlanFailed
-					if v.timeout {
-						head = T.InstallPlanTimeout
-					}
-					failedRow(c.Key("plan-failed"), head, v.planErr, a.loadInstallPlan, v.loading)
-				})
-			case !parsed && v.plan != "":
-				listRow(c).Children(func() { codeBlock(c, v.plan) })
-			case parsed:
-				head := ui.Row(c.Key("steps")).Gap(8).AlignItems(ui.Center).PaddingY(listRowPadY).
-					Transition(colorMotion).Focusable().Role(ui.RoleDisclosure).Expanded(v.stepsOpen).Label(i18n.F(T.OnboardSteps, len(steps)))
-				rowFill(c, rowBleed(head), false)
-				head.Children(func() {
-					disclosure(c, v.stepsOpen).Shrink(0)
-					ui.Text(c, i18n.F(T.OnboardSteps, len(steps))).FontWeight(500)
-				})
-				if head.Clicked() {
-					v.stepsOpen = !v.stepsOpen
+			})
+		case v.planErr != "" || v.timeout:
+			// What failed, why in words when known, 重试 and 复制详情
+			// (kubai R-10).
+			listRow(c).Children(func() {
+				head := T.InstallPlanFailed
+				if v.timeout {
+					head = T.InstallPlanTimeout
 				}
-				if !v.stepsOpen {
-					return
-				}
-				for i, st := range steps {
-					a.installStepRow(c.Key(i18n.F("step%d", i)), i+1, st)
-				}
+				failedRow(c.Key("plan-failed"), head, v.planErr, a.loadInstallPlan, v.loading)
+			})
+		case !parsed && v.plan != "":
+			listRow(c).Children(func() { codeBlock(c, v.plan) })
+		case parsed:
+			head := ui.Row(c.Key("steps")).Gap(8).AlignItems(ui.Center).PaddingY(listRowPadY).
+				Transition(colorMotion).Focusable().Role(ui.RoleDisclosure).Expanded(v.stepsOpen).Label(i18n.F(T.OnboardSteps, len(steps)))
+			rowFill(c, rowBleed(head), false)
+			head.Children(func() {
+				disclosure(c, v.stepsOpen).Shrink(0)
+				ui.Text(c, i18n.F(T.OnboardSteps, len(steps))).FontWeight(500)
+			})
+			if head.Clicked() {
+				v.stepsOpen = !v.stepsOpen
 			}
-		})
+			if !v.stepsOpen {
+				return
+			}
+			for i, st := range steps {
+				a.installStepRow(c.Key(i18n.F("step%d", i)), i+1, st)
+			}
+		}
 	})
 }
 

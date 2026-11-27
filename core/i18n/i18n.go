@@ -273,6 +273,7 @@ type Strings struct {
 	AgentStrings           // agent.go
 	ImportStrings          // importcfg.go
 	PlatformStrings        // platform.go
+	WizardStrings          // wizard.go
 	TSLoginStrings         // tslogin.go
 }
 
@@ -829,6 +830,7 @@ var zh = Strings{
 	TakeoverStrings:        zhTakeover,
 	HelperMgmtStrings:      zhHelperMgmt,
 	SetupStrings:           zhSetup,
+	WizardStrings:          zhWizard,
 	ConfigUIStrings:        zhConfigUI,
 	ProgressStrings:        zhProgress,
 	HealthFixStrings:       zhHealthFix,

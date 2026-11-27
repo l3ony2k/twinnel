@@ -135,8 +135,8 @@ func (a *app) fixButton(cr health.CheckReport, rf rowFix, s status.Snapshot) *fi
 	}
 	if needsHelperAction(act) && a.fx.shotHelper == nil {
 		switch {
-		case a.freshMachine(s):
-			return &fixAction{label: T.SetupTitle, run: func() { a.openPage(pageSetup) }, off: !s.WritesAllowed}
+		case a.wizardPending(s) && !s.TakenOver(): // not set up yet: the wizard (as fixAction)
+			return &fixAction{label: T.WizResume, run: a.openWizard}
 		case s.Helper.State == status.HelperNotInstalled:
 			return &fixAction{label: T.FixInstallHelper, run: func() { a.openPage(pageInstall) }, off: !s.WritesAllowed}
 		case configAction(act) && !s.TakenOver():
@@ -271,8 +271,8 @@ func (a *app) guidedStep(rf rowFix, s status.Snapshot) *fixAction {
 	}
 	T := i18n.T
 	switch {
-	case a.freshMachine(s):
-		return &fixAction{label: T.SetupTitle, run: func() { a.openPage(pageSetup) }, off: !s.WritesAllowed}
+	case a.wizardPending(s) && !s.TakenOver():
+		return &fixAction{label: T.WizResume, run: a.openWizard}
 	case s.Helper.State == status.HelperNotInstalled:
 		return &fixAction{label: T.FixInstallHelper, run: func() { a.openPage(pageInstall) }, off: !s.WritesAllowed}
 	case !s.TakenOver():

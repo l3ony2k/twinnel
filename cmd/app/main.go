@@ -94,6 +94,7 @@ type app struct {
 	live        liveSetup                  // the running mihomo before takeover (livesetup.go)
 	hm          helperMgmtView             // 设置 → 后台助手 (helpermgmt.go)
 	setupV      setupView                  // 设置这台 Mac (setuppage.go)
+	wiz         wizardView                 // the first-run wizard (wizard.go)
 	agent       agentView                  // 设置 → 本地 Agent (agentsection.go)
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
@@ -188,6 +189,10 @@ func newApp(getenv func(string) string) (*app, error) {
 		}
 	}
 	a.cfgPath = filepath.Join(dir, "twinnel", "app.json")
+	if !a.shotMode { // shots never read or write the person's setup state
+		a.wiz.path = wizardStatePath(a.cfgPath)
+		a.wiz.state = loadWizardState(a.wiz.path)
+	}
 	a.cfg, err = status.LoadConfig(a.cfgPath, getenv)
 	if err != nil {
 		log.Printf("config %s: %v (using defaults)", a.cfgPath, err)
@@ -370,6 +375,7 @@ func (a *app) changed(mon *status.Monitor) {
 			a.tray.SetToolTip(tip)
 		}
 		a.syncExitNodeAcceptance(s)
+		a.wizardLaunchCheck(s) // the first launch of a machine not set up opens the wizard
 		if a.panel != nil {
 			a.panel.Invalidate()
 		}

@@ -62,9 +62,9 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 	pair := w == 0 || w >= 2*max(halfCardMin, 360)+gapGroup
 	col := ui.Column(c.Key("overview")).Gap(gapGroup).FillWidth()
 	col.Children(func() {
+		a.gettingStarted(c, s) // not set up yet: 继续设置 comes first
 		a.verdict(c, s)
 		a.exitNodeAcceptedRow(c, s)
-		a.gettingStarted(c, s)
 		a.actionNotes(c, s)
 		a.quickActions(c, s)
 		a.glanceTiles(c, s, tiles)

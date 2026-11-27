@@ -555,6 +555,7 @@ var en = Strings{
 	TakeoverStrings:        enTakeover,
 	HelperMgmtStrings:      enHelperMgmt,
 	SetupStrings:           enSetup,
+	WizardStrings:          enWizard,
 	ConfigUIStrings:        enConfigUI,
 	ProgressStrings:        enProgress,
 	HealthFixStrings:       enHealthFix,
