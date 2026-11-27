@@ -33,15 +33,16 @@ func TestTileStep(t *testing.T) {
 	}
 }
 
-// The sidebar's first nine pages get ⌘1…⌘9 in its order; 设置 has ⌘,.
+// The sidebar's first nine pages get ⌘1…⌘9 in its order; 设置 has ⌘,;
+// 关于, the last row, has none (the app menu's 关于 duet opens it).
 func TestNavSectionsDigits(t *testing.T) {
 	want := []string{pageOverview, pageProxies, pageTailscale, pageHealth, pageConfig, pageHistory, pageKernel, pageTakeover, pageLogs}
 	n := 0
 	for _, sec := range navSections(0, 0, toneNeutral) {
 		for _, it := range sec.items {
-			if it.id == pageSettings {
+			if it.id == pageSettings || it.id == pageAbout {
 				if it.digit != 0 {
-					t.Errorf("settings has ⌘%d", it.digit)
+					t.Errorf("%s has ⌘%d", it.id, it.digit)
 				}
 				continue
 			}
@@ -53,6 +54,11 @@ func TestNavSectionsDigits(t *testing.T) {
 	}
 	if n != len(want) {
 		t.Errorf("%d numbered pages, want %d", n, len(want))
+	}
+	secs := navSections(0, 0, toneNeutral)
+	last := secs[len(secs)-1].items
+	if last[len(last)-1].id != pageAbout || last[len(last)-2].id != pageSettings {
+		t.Error("关于 must be the last row, after 设置")
 	}
 	if digitKeys[0] != ui.Key1 || digitKeys[8] != ui.Key9 {
 		t.Error("digit keys")

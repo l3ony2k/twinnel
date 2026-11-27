@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	coreversion "github.com/l3ony2k/duet/core/version"
 	"strings"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ func TestVersionAllReachable(t *testing.T) {
 		func() (string, error) { return "1.90.0", nil },
 	)
 	rep := collectVersions(context.Background(), time.Second, "/x.sock", "127.0.0.1:9090", "")
-	if rep.CLI.Version != version || rep.Helper.Version != "1.2.3" || rep.Mihomo.Version != "v1.19.0" || rep.Tailscale.Version != "1.90.0" {
+	if rep.CLI.Version != coreversion.String() || rep.Helper.Version != "1.2.3" || rep.Mihomo.Version != "v1.19.0" || rep.Tailscale.Version != "1.90.0" {
 		t.Fatalf("%+v", rep)
 	}
 	if !strings.Contains(rep.Mihomo.Detail, "managed kernel v1.19.0") {
@@ -38,7 +39,7 @@ func TestVersionAllReachable(t *testing.T) {
 	}
 	var b bytes.Buffer
 	writeVersions(&b, rep)
-	for _, s := range []string{"duet         " + version, "duet-helper  1.2.3", "mihomo       v1.19.0", "tailscale    1.90.0"} {
+	for _, s := range []string{"duet         " + coreversion.String(), "duet-helper  1.2.3", "mihomo       v1.19.0", "tailscale    1.90.0"} {
 		if !strings.Contains(b.String(), s) {
 			t.Errorf("output lacks %q:\n%s", s, b.String())
 		}

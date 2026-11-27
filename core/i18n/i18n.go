@@ -238,6 +238,7 @@ type Strings struct {
 	ControlStrings  // controls.go
 	ConfigStrings   // config.go
 	WindowStrings   // window.go
+	AboutStrings    // about.go
 	TakeoverStrings // takeover.go
 }
 
@@ -784,6 +785,7 @@ var zh = Strings{
 
 	ConfigStrings:   zhConfig,
 	WindowStrings:   zhWindow,
+	AboutStrings:    zhAbout,
 	TakeoverStrings: zhTakeover,
 }
 

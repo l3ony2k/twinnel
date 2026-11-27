@@ -79,6 +79,7 @@ type app struct {
 	healthOpen  map[string]bool            // check ID → expanded, once the user toggled it
 	exitPick    string                     // exit node select value (peer name or ExitNodeNone)
 	hd          helperData                 // what the helper pages show
+	about       aboutView                  // the 关于 page (aboutpage.go)
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
 	pend        pendingState               // optimistic control values and their errors (pending.go)
@@ -495,8 +496,25 @@ func (a *app) appMenu() *mygo.Menu {
 		}
 	}
 	pages = append(pages, mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen})
+	// The app menu as the default one, but 关于 duet opens the 关于 page,
+	// not the standard about panel.
+	about := &mygo.MenuItem{Label: i18n.T.AboutApp, Click: func(*mygo.MenuItem, *mygo.Window) {
+		a.openMain()
+		a.showPage(pageAbout)
+	}}
+	appMenu := []*mygo.MenuItem{
+		about,
+		mygo.Separator(),
+		{Role: mygo.RoleServices},
+		mygo.Separator(),
+		{Role: mygo.RoleHide},
+		{Role: mygo.RoleHideOthers},
+		{Role: mygo.RoleUnhide},
+		mygo.Separator(),
+		{Role: mygo.RoleQuit},
+	}
 	return mygo.NewMenu([]*mygo.MenuItem{
-		{Role: mygo.RoleAppMenu},
+		{Label: i18n.T.AppName, Submenu: appMenu},
 		{Role: mygo.RoleFileMenu},
 		{Role: mygo.RoleEditMenu},
 		{Label: i18n.T.ViewMenu, Submenu: pages},

@@ -29,6 +29,7 @@ const (
 	pageKernel    = "kernel"
 	pageTakeover  = "takeover"
 	pageSettings  = "settings"
+	pageAbout     = "about"
 )
 
 func (a *app) mainView(c *ui.Context) {
@@ -176,6 +177,8 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 		a.kernelPage(c, s)
 	case pageTakeover:
 		a.takeoverPage(c, s)
+	case pageAbout:
+		a.aboutPage(c, s)
 	}
 }
 
@@ -220,7 +223,8 @@ func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 
 // navSections are the sidebar's pages in order, with the counts their
 // rows show (Tailscale devices online, health problems). The first nine
-// pages get ⌘1…⌘9 (numberPages); 设置 has ⌘, as in every Mac app.
+// pages get ⌘1…⌘9 (numberPages); 设置 has ⌘, as in every Mac app; 关于,
+// the tenth, has none (the app menu's 关于 duet opens it).
 func navSections(ts, health int, healthTone navTone) []navSection {
 	T := i18n.T
 	sections := []navSection{
@@ -239,6 +243,7 @@ func navSections(ts, health int, healthTone navTone) []navSection {
 		{title: T.SidebarApp, items: []navItem{
 			{id: pageLogs, icon: iconLogs, label: T.PageLogs},
 			{id: pageSettings, icon: iconSettings, label: T.PageSettings},
+			{id: pageAbout, icon: iconAbout, label: T.PageAbout},
 		}},
 	}
 	n := 0
@@ -297,6 +302,9 @@ func (a *app) pageChanged(old string) {
 	}
 	if a.page == pageSettings {
 		a.settings.load(a.cfg)
+	}
+	if a.page == pageAbout {
+		a.aboutOpened()
 	}
 	if a.page == pageHealth && old != pageHealth {
 		a.runHealth()
@@ -1084,17 +1092,6 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 				a.setNotifications(on)
 			}
 		})
-	})
-	card(c, T.Tailscale, func() {
-		in := s.Tailscale.Install
-		kv(c, T.Install, T.InstallKind(string(in.Kind))+sourceSuffix(in.Source))
-		if in.Daemon != "" {
-			kv(c, "tailscaled", in.Daemon)
-		}
-	})
-	card(c, T.AboutApp, func() {
-		kv(c, T.ConfigFile, a.cfgPath)
-		kv(c, T.AllowWrites, onOff(a.cfg.AllowWrites))
 	})
 }
 

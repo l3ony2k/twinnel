@@ -56,6 +56,11 @@ func (a *app) shots(dir string) {
 			mygo.App.Quit()
 			return
 		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "about" { // shots_about.go
+			a.aboutShots(save)
+			mygo.App.Quit()
+			return
+		}
 		if os.Getenv("DUET_SHOTS_FLOW") == "delay" { // shots_delay.go
 			a.delayShots(save)
 			mygo.App.Quit()
@@ -66,7 +71,7 @@ func (a *app) shots(dir string) {
 			mygo.App.Quit()
 			return
 		}
-		for _, p := range []string{pageOverview, pageProxies, pageTailscale, pageHealth, pageLogs, pageSettings} {
+		for _, p := range []string{pageOverview, pageProxies, pageTailscale, pageHealth, pageLogs, pageSettings, pageAbout} {
 			mygo.RunOnMain(func() {
 				old := a.page
 				a.page = p

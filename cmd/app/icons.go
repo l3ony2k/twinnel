@@ -29,6 +29,7 @@ var (
 	iconTakeover  = svgIcon("import")
 	iconLogs      = svgIcon("list")
 	iconSettings  = svgIcon("settings")
+	iconAbout     = svgIcon("info")
 
 	iconRefresh   = svgIcon("rotate-cw")
 	iconCopy      = svgIcon("copy")

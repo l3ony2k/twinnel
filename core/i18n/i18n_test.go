@@ -27,3 +27,25 @@ func checkFilled(t *testing.T, v reflect.Value) {
 		}
 	}
 }
+
+// A field of an embedded per-area set (AboutStrings ...) must not share
+// its name with a field of Strings or of another set: Go then reads the
+// outer one (or none), and the text silently goes wrong.
+func TestNoShadowedStrings(t *testing.T) {
+	seen := map[string]string{}
+	var walk func(rt reflect.Type, owner string)
+	walk = func(rt reflect.Type, owner string) {
+		for i := 0; i < rt.NumField(); i++ {
+			f := rt.Field(i)
+			if f.Anonymous && f.Type.Kind() == reflect.Struct {
+				walk(f.Type, f.Type.Name())
+				continue
+			}
+			if prev, ok := seen[f.Name]; ok {
+				t.Errorf("%s is in both %s and %s", f.Name, prev, owner)
+			}
+			seen[f.Name] = owner
+		}
+	}
+	walk(reflect.TypeOf(Strings{}), "Strings")
+}
