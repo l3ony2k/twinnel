@@ -100,8 +100,10 @@ type Step struct {
 	RetryOn      []string
 	RetryBackoff time.Duration
 
-	// Until and Timeout (wait): see StepWait.
+	// Until and Timeout (wait): see StepWait. OrUntil are more strings any
+	// of which also ends the wait (e.g. "service does not exist").
 	Until   string
+	OrUntil []string
 	Timeout time.Duration
 }
 
@@ -146,7 +148,11 @@ func (s Step) String() string {
 		for i, a := range s.Argv {
 			q[i] = shellQuote(a)
 		}
-		out = fmt.Sprintf("wait until `%s` says %q (up to %s)", strings.Join(q, " "), s.Until, s.Timeout)
+		until := fmt.Sprintf("%q", s.Until)
+		for _, o := range s.OrUntil {
+			until += fmt.Sprintf(" or %q", o)
+		}
+		out = fmt.Sprintf("wait until `%s` says %s (up to %s)", strings.Join(q, " "), until, s.Timeout)
 	default:
 		out = string(s.Kind)
 	}
@@ -262,7 +268,7 @@ func waitUntil(ctx context.Context, s Step, ex Executor) error {
 	var last string
 	for waited := time.Duration(0); ; waited += WaitEvery {
 		out, _ := ex.Run(ctx, s.Argv)
-		if strings.Contains(string(out), s.Until) {
+		if strings.Contains(string(out), s.Until) || matchesAny(string(out), s.OrUntil) {
 			return nil
 		}
 		last = strings.TrimSpace(string(out))
