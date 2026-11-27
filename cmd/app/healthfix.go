@@ -238,8 +238,18 @@ func (a *app) fixerHasHelper() bool {
 	return a.hc != nil && !a.shotMode && a.hc.State().Connected()
 }
 
-// undoFix puts a check's last fix back.
+// undoFix asks, saying the undo goes back to the failing state, then
+// puts a check's last fix back.
 func (a *app) undoFix(id string, s status.Snapshot) {
+	u := a.fx.undo[id]
+	if u == nil || a.fx.running {
+		return
+	}
+	T := i18n.T
+	a.ask(T.FixUndoAsk, a.fixer(s).UndoPreview(u).Warning, T.FixUndo, func() { a.runFixUndo(id, s) })
+}
+
+func (a *app) runFixUndo(id string, s status.Snapshot) {
 	u := a.fx.undo[id]
 	if u == nil || a.fx.running {
 		return

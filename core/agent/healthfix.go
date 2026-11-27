@@ -34,8 +34,9 @@ the text says why and what to do outside). Reads only.`,
 		`Runs the one-click fix of a failure reason (check, reason from health_fixes) whose action only
 switches something reversible: rerun, egress-probe, mode-rule, exit-node-off, restart-mihomo,
 restart-tailscaled (a restart drops the network or tailnet for a few seconds). Then the checks run
-again; the result has the check's new status and, when it can be put back, undo: pass it as undo to
-this tool to revert. Config and system DNS fixes are health_fix_config.`,
+again; the result has the check's new status and, when it can be put back, undo (with undo_warning:
+undoing goes back to the failing state): pass it as undo to this tool to revert. Config and system
+DNS fixes are health_fix_config.`,
 		toolOpts{destructive: true}, s.healthFixOperate)
 
 	addTool(s, rpc.TierConfigure, "health_fix_config", "Fix a health check (config)",
@@ -44,7 +45,9 @@ or the system: tailscale-coexist-override, leak-guard-override, controller-loopb
 then an apply the helper validates and rolls back on failure), controller-secret (new controller
 secret: other controller clients need it), system-dns (point the system DNS at mihomo, backed up),
 tun-stack-gvisor (an override that switches the TUN to the gvisor stack; the TUN is rebuilt).
-Then the checks run again. Undo: pass the result's undo as undo (controller-secret has none).`,
+Then the checks run again. Undo: pass the result's undo as undo (controller-secret has none); it puts
+the overrides and settings back as they were before the fix and applies, and goes back to the failing
+state (undo_warning says so).`,
 		toolOpts{destructive: true}, s.healthFixConfigure)
 }
 
@@ -127,12 +130,13 @@ func (s *Server) healthFix(c *call, in healthFixIn, configure bool) (any, error)
 		if err := tierOK(in.Undo.Action); err != nil {
 			return nil, err
 		}
+		up := f.UndoPreview(in.Undo)
 		rep, err := f.Undo(c.ctx, in.Undo)
 		if err != nil {
 			return nil, err
 		}
 		c.undo = "health_fix again"
-		return map[string]any{"undone": in.Undo.Action, "overall": overall(rep)}, nil
+		return map[string]any{"undone": in.Undo.Action, "steps": up.Steps, "warning": up.Warning, "overall": overall(rep)}, nil
 	}
 	rep, err := s.lastReport(c)
 	if err != nil {
@@ -167,6 +171,7 @@ func (s *Server) healthFix(c *call, in healthFixIn, configure bool) (any, error)
 	res := map[string]any{"action": plan.Action, "steps": plan.Steps, "check": out.Check}
 	if out.Undo != nil {
 		res["undo"] = out.Undo
+		res["undo_warning"] = f.UndoPreview(out.Undo).Warning
 		c.undo = fmt.Sprintf("%s with undo", map[bool]string{true: "health_fix_config", false: "health_fix"}[configure])
 	}
 	if len(out.Notes) > 0 {

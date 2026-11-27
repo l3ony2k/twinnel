@@ -20,6 +20,18 @@ func TestHealthFixTiers(t *testing.T) {
 	if r["action"] != "exit-node-off" {
 		t.Fatalf("health_fix: %v", r)
 	}
+	// The undo says, before it is used, that it goes back to the failing state.
+	if u, ok := r["undo"]; ok {
+		if w, _ := r["undo_warning"].(string); !strings.Contains(w, "before the fix") {
+			t.Fatalf("undo without its warning: %v", r)
+		}
+		r = e.ok("health_fix", map[string]any{"undo": u})
+		if w, _ := r["warning"].(string); r["undone"] != "exit-node-off" || w == "" {
+			t.Fatalf("undo: %v", r)
+		}
+	} else {
+		t.Fatalf("exit-node-off without an undo: %v", r)
+	}
 	// Operate off: the fix is refused by the tier gate.
 	e.setAgent(rpc.AgentSettings{MCP: true})
 	e.fails("health_fix", map[string]any{"check": "dns.tailnet"}, "")

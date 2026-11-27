@@ -16,6 +16,7 @@ type HealthFixStrings struct {
 	FixApply      string // the preview's primary button
 	FixRunning    string // the button while the fix runs
 	FixUndo       string // the row's button after a fix
+	FixUndoAsk    string // the confirmation before an undo (its detail: healthfix.UndoPlan.Warning)
 	FixDone       string // toast: the check passes now
 	FixStill      string // toast: the fix ran, the check still fails
 	FixUndone     string // toast
@@ -44,6 +45,7 @@ var zhHealthFix = HealthFixStrings{
 	FixApply:      "修复",
 	FixRunning:    "正在修复…",
 	FixUndo:       "撤销修复",
+	FixUndoAsk:    "撤销这次修复？",
 	FixDone:       "已修复：%s",
 	FixStill:      "已执行，%s 仍未通过",
 	FixUndone:     "已撤销",
@@ -68,6 +70,7 @@ var enHealthFix = HealthFixStrings{
 	FixApply:      "Fix",
 	FixRunning:    "Fixing…",
 	FixUndo:       "Undo Fix",
+	FixUndoAsk:    "Undo this fix?",
 	FixDone:       "Fixed: %s",
 	FixStill:      "Done, but %s still fails",
 	FixUndone:     "Undone",

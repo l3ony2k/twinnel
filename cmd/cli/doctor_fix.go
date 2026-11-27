@@ -56,6 +56,22 @@ func runDoctorFix(o fixOptions) error {
 		if err := json.Unmarshal([]byte(o.undo), &u); err != nil {
 			return fmt.Errorf("--undo: %w", err)
 		}
+		// Say what the undo does, and that it goes back to the failing
+		// state, before it runs.
+		up := f.UndoPreview(&u)
+		fmt.Fprintf(w, "undo %s\n", u.Action)
+		for _, s := range up.Steps {
+			fmt.Fprintf(w, "  - %s\n", s)
+		}
+		fmt.Fprintf(w, "  ! %s\n", up.Warning)
+		if !o.yes {
+			fmt.Fprint(w, "  undo? [y/N] ")
+			line, _ := bufio.NewReader(o.in).ReadString('\n')
+			if a := strings.ToLower(strings.TrimSpace(line)); a != "y" && a != "yes" {
+				fmt.Fprintln(w, "  skipped")
+				return nil
+			}
+		}
 		rep, err := f.Undo(ctx, &u)
 		if err != nil {
 			return err
@@ -151,12 +167,19 @@ func runDoctorFix(o fixOptions) error {
 			fmt.Fprintf(w, "  note: %s\n", n)
 		}
 		if out.Undo != nil {
-			b, _ := json.Marshal(out.Undo)
-			fmt.Fprintf(w, "  undo: twinnel doctor --undo '%s'\n", b)
+			fmt.Fprintf(w, "  undo: twinnel doctor --undo '%s'\n", undoArg(out.Undo))
 		}
 		fmt.Fprintln(w)
 	}
 	return nil
+}
+
+// undoArg is u as the --undo argument, safe in single quotes in sh and
+// PowerShell alike: the JSON carries no quote of its own (a layer's
+// content may hold one).
+func undoArg(u *healthfix.Undo) string {
+	b, _ := json.Marshal(u)
+	return strings.ReplaceAll(string(b), "'", `\u0027`)
 }
 
 func printCheck(w io.Writer, rep *health.Report, _ string) {
