@@ -195,8 +195,11 @@ func (a *app) sidebarFrame(c *ui.Context, body func()) {
 	if key := i18n.T.PageOverview + i18n.T.Helper; key != s.needKey {
 		s.need, s.needKey = sidebarNeed(c), key
 	}
-	if plat.sidebarKey != 0 { // macOS: ⌃⌘S, as Finder's and Mail's Show Sidebar
-		c.OnWindowShortcut(plat.sidebarMods, plat.sidebarKey, a.toggleSidebar)
+	if ui.Cmd != ui.Ctrl { // macOS: ⌃⌘S, as Finder's and Mail's Show Sidebar
+		c.OnWindowShortcut(ui.Ctrl|ui.Cmd, ui.KeyS, a.toggleSidebar)
+	}
+	if plat.sidebarKey != 0 { // Linux: F9, as GNOME's apps (Files, Settings)
+		c.OnWindowShortcut(0, plat.sidebarKey, a.toggleSidebar)
 	}
 	frame := ui.Row(c.Key("side-frame")).Width(s.widthOf(s.mode)).Shrink(0).Clip().AlignItems(ui.Stretch)
 	if !s.dragging {
@@ -265,8 +268,16 @@ const (
 
 // trafficLightsMid is the traffic lights' center line from the window's
 // top: the line the toolbar's items are centered on. Without lights (full
-// screen, other platforms) it is a 52 pt band's middle.
+// screen, other platforms) it is a 52 pt band's middle; on Linux the
+// desktop's window buttons are centered in the title bar's height
+// (plat.titleBarHeight), the same band.
 func trafficLightsMid(c *ui.Context) float32 {
+	if !plat.trafficLights {
+		if h := c.TitleBar().Height; h > 52 {
+			return h / 2
+		}
+		return 26
+	}
 	if bar := c.TitleBar(); bar.Bottom > 0 {
 		return bar.Bottom - trafficLightD/2
 	}
@@ -282,8 +293,8 @@ func sidebarTop(c *ui.Context) float32 {
 // railWidth is the rail's width for this window (sideRailW).
 func railWidth(c *ui.Context) float32 {
 	bar := c.TitleBar()
-	if bar.Left <= 0 {
-		return sideRailMin
+	if bar.Left <= 0 || !plat.trafficLights {
+		return sideRailMin // window buttons on the left (Linux) are the toggle's business: sideToggleX
 	}
 	first := bar.Left - (2*trafficLightPitch + trafficLightD) // the red light's left edge
 	return max(sideRailMin, bar.Left+first)
@@ -294,10 +305,18 @@ func railWidth(c *ui.Context) float32 {
 // the rail, which the lights fill: at the start of the page's toolbar.
 // Without lights: the window's inset.
 func (a *app) sideToggleX(c *ui.Context) float32 {
+	l := c.TitleBar().Left
 	if a.side.mode == sideRail {
-		return sideRailW + sideToggleRailInset
+		x := sideRailW + sideToggleRailInset
+		if !plat.trafficLights && l > 0 { // the desktop's buttons on the left may be wider than the rail
+			x = max(x, l+sideToggleRailInset)
+		}
+		return x
 	}
-	if l := c.TitleBar().Left; l > 0 {
+	if l > 0 {
+		if !plat.trafficLights {
+			return l + sideToggleRailInset
+		}
 		return l + sideToggleGap
 	}
 	return 12

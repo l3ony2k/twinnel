@@ -1,16 +1,11 @@
 package i18n
 
-import (
-	"maps"
-	"runtime"
-)
+import "maps"
 
-// Texts that depend on the desktop Twinnel runs on. The tables in the
-// other files are written for macOS (Finder, Keychain, LaunchDaemon, the
-// menu bar, ⌘); on another system, platformLangs swaps each language's
-// table for a copy with that system's words (windowsZh, windowsEn), so
-// For, Set and Tag work unchanged. A system without a patch keeps the
-// macOS wording.
+// Windows texts: the steps only a Windows install plan has
+// (PlatformStrings), and the Windows wording of the texts the tables
+// write for macOS (windowsWording; desktop.go applies it, from
+// desktop_windows.go).
 
 // PlatformStrings are texts only another system shows. Their own struct,
 // embedded in Strings.
@@ -37,37 +32,13 @@ var enPlatform = PlatformStrings{
 	PlanSCDelete:      "Delete the service",
 }
 
-// platformPatches are the per-system rewrites of each language, by GOOS
-// and language tag.
-var platformPatches = map[string]map[string]func(*Strings){
-	"windows": {"zh-Hans": windowsZh, "en": windowsEn},
-}
+// windowsWording is the Windows text of each field that names a macOS
+// thing, per language tag (applied as linuxWording is, desktop.go):
+// Microsoft's terms (文件资源管理器, 任务栏, 通知区域, 设置 › 应用 › 启动,
+// "this PC").
+var windowsWording = map[string]func(*Strings){"zh-Hans": windowsZh, "en": windowsEn}
 
-// platformLangs returns ls with each language's table replaced by a
-// patched copy for goos, when goos has a patch for it.
-func platformLangs(goos string, ls []Lang) []Lang {
-	p := platformPatches[goos]
-	if p == nil {
-		return ls
-	}
-	out := make([]Lang, len(ls))
-	for i, l := range ls {
-		out[i] = l
-		if f := p[l.Tag]; f != nil {
-			s := *l.S
-			// The maps are shared with the original: a patch replaces
-			// them before changing an entry (cloneMaps).
-			f(&s)
-			out[i].S = &s
-		}
-	}
-	return out
-}
-
-var hostGOOS = runtime.GOOS
-
-// windowsZh: Windows words in Chinese (Microsoft's terms: 文件资源管理器,
-// 任务栏, 通知区域, 回收站, 设置 › 应用 › 启动).
+// windowsZh: Windows words in Chinese.
 func windowsZh(s *Strings) {
 	s.InfoExitNode = "让这台电脑的流量从 Tailscale 里的另一台设备出去。mihomo 的 TUN 开着时，两者都要接管默认路由，会互相冲突。"
 	s.ServiceInstallTitle = "为「%s」安装 Windows 服务？"

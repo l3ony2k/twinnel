@@ -287,9 +287,9 @@ func codeBlock(c *ui.Context, s string) ui.Element {
 }
 
 // installHelper runs `twinnel helper install`, which asks for the
-// administrator password (osascript; UAC on Windows) and sets up the
-// LaunchDaemon (the Windows service). Does nothing with
-// TWINNEL_READ_ONLY=1.
+// administrator password (osascript on macOS, polkit's pkexec on Linux,
+// UAC on Windows) and sets up the LaunchDaemon, the systemd unit or the
+// Windows service. Does nothing with TWINNEL_READ_ONLY=1.
 func (a *app) installHelper() {
 	v := &a.hd.onb
 	if !a.cfg.AllowWrites || v.running {

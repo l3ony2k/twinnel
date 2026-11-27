@@ -140,15 +140,14 @@ func TestResolve(t *testing.T) {
 func TestSet(t *testing.T) {
 	defer Set("zh-Hans")
 	Set("en-US")
-	en := langs[1].S // the platform's copy of en (platform.go)
-	if T != en || Cur() != en || Tag() != "en" || T.PageHealth != "Health" {
+	if T != &en || Cur() != &en || Tag() != "en" || T.PageHealth != "Health" {
 		t.Errorf("Set(en): T=%p Cur=%p Tag=%s", T, Cur(), Tag())
 	}
 	Set("zh-Hant")
-	if T != langs[0].S || Tag() != "zh-Hans" {
+	if T != &zh || Tag() != "zh-Hans" {
 		t.Error("Set(zh-Hant)")
 	}
-	if For("xx") != langs[0].S {
+	if For("xx") != &zh {
 		t.Error("unknown tag")
 	}
 }

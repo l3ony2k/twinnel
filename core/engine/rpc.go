@@ -152,6 +152,7 @@ func (e *Engine) Register(s *rpc.Server) {
 	})
 	e.registerCredentials(s)
 	e.registerAgent(s)
+	e.registerImport(s)
 
 	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, p rpc.HealthLastParams) (rpc.HealthReport, error) {
 		return e.withEgressIPs(e.HealthLast(p.Lang))(p.IPs)
@@ -195,4 +196,14 @@ func withResult(r *rpc.ApplyResult, err error) (*rpc.ApplyResult, error) {
 	}
 	re.Data = b
 	return nil, re
+}
+
+// registerImport wires config.export and config.import.
+func (e *Engine) registerImport(s *rpc.Server) {
+	rpc.Typed(s, rpc.MethodConfigExport, func(ctx context.Context, p rpc.ConfigExportParams) (rpc.ConfigExport, error) {
+		return e.Export(ctx, p)
+	})
+	rpc.Typed(s, rpc.MethodConfigImport, func(ctx context.Context, p rpc.ConfigImportParams) (rpc.ConfigImportResult, error) {
+		return e.Import(ctx, p)
+	})
 }

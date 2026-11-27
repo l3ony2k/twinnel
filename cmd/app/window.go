@@ -96,6 +96,7 @@ func (a *app) mainView(c *ui.Context) {
 		}
 	})
 	a.sidebarChrome(c, toolbarHeight(c)) // the sidebar toggle and the divider's grip
+	a.importSheet(c, s)                  // importsheet.go: over the whole window
 	a.toasts(c)                          // toast.go
 }
 
@@ -142,9 +143,7 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 	if inner > 0 {
 		inset = columnInset(a.paneW, inner)
 	}
-	// A hidden title bar's caption buttons (Windows, Linux) sit at the
-	// right: the actions stay clear of them.
-	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).Padding(0, max(inset, c.TitleBar().Right+8), 0, max(inset, a.toolbarLead(c))).
+	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).Padding(0, max(inset, c.TitleBar().Right+toolbarGap), 0, max(inset, a.toolbarLead(c))).
 		AlignItems(ui.Start).Justify(ui.Center).DragWindow().Role(ui.RoleToolbar).Label(spec.title).Children(func() {
 		row := ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center)
 		if inner > 0 {

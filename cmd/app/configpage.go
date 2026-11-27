@@ -68,6 +68,8 @@ type configView struct {
 	saveErrBuf uint64   // the buffer version it was for
 	baseIDs    []string // the stored base layers, in order (reorder sends them first)
 
+	imp importView // 导入配置 (importsheet.go)
+
 	// Managed layers' views.
 	showGen bool // the open managed layer shows its generated YAML
 	// What each stored layer does, by content hash (layersummary.go).
@@ -201,6 +203,9 @@ func (a *app) configEmpty(c *ui.Context, s status.Snapshot) {
 			if pushButton(c.Key("empty-takeover"), T.ConfigEmptyTakeover).Clicked() {
 				a.openPage(pageTakeover)
 			}
+			if pushButton(c.Key("empty-import"), T.ImportRun).Disabled(!w).Clicked() {
+				a.openImport()
+			}
 		})
 	})
 }
@@ -214,6 +219,9 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 	v := &d.cfg
 	w := a.helperWrites(s)
 	listCard(c, listHead(c, nil, T.Subscriptions, func() {
+		if !v.subOpen && pushButton(c.Key("sub-import"), T.ImportRun).Disabled(!w).Clicked() {
+			a.openImport()
+		}
 		if !v.subOpen && pushButton(c.Key("sub-add"), T.SubAdd).Disabled(!w).Clicked() {
 			v.subOpen, v.subMins = true, "1440"
 		}

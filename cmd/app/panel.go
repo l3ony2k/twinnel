@@ -529,12 +529,13 @@ func needsLogin(s status.Snapshot) bool {
 	return s.Tailscale.Reachable && (st == "NeedsLogin" || st == "NeedsMachineAuth")
 }
 
-// fitShotPanel sizes shot mode's stand-in for the flyout (a hidden window,
-// which does not fit its content) to the content's height, as the live
-// flyout's FitContent does, so a shot shows no empty space under it.
+// fitShotPanel sizes shot mode's stand-in for the flyout (a hidden window)
+// and the Linux panel (a window, panel_linux.go), which do not fit their
+// content, to the content's height, as the live flyout's FitContent does,
+// so neither shows empty space under it.
 func (a *app) fitShotPanel(box ui.Element) {
-	if !a.shotMode || a.panel == nil {
-		return
+	if !(a.shotMode || plat.panelWindow) || a.panel == nil {
+		return // a flyout fits its content itself (FitContent)
 	}
 	h := int(math.Ceil(float64(box.LayoutBounds().H)))
 	if h <= 0 || h == a.panelShotH {

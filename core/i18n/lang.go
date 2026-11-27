@@ -15,12 +15,11 @@ type Lang struct {
 // langs are the UI languages. Chinese is first: it is the reference every
 // other table is tested against (TestLanguagesComplete). To add a
 // language, write its Strings in a file of its own (as en.go does) and
-// list it here. On another system than macOS each table is that
-// system's copy (platform.go).
-var langs = platformLangs(hostGOOS, []Lang{
+// list it here.
+var langs = []Lang{
 	{Tag: "zh-Hans", Name: "简体中文", S: &zh},
 	{Tag: "en", Name: "English", S: &en},
-})
+}
 
 // Fallback is the language shown when none of the user's languages is one
 // the UI is written in.
@@ -57,8 +56,7 @@ func Resolve(preferred []string) string {
 	return Fallback
 }
 
-// For returns the texts of a language tag; an unknown tag gets Chinese
-// (the first table: on Windows its patched copy, not zh itself).
+// For returns the texts of a language tag; an unknown tag gets Chinese.
 func For(tag string) *Strings {
 	if m := Match(tag); m != "" {
 		for _, l := range langs {
@@ -67,7 +65,7 @@ func For(tag string) *Strings {
 			}
 		}
 	}
-	return langs[0].S
+	return &zh
 }
 
 // T is the current language's texts, for code on the app's main thread

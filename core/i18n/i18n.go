@@ -269,6 +269,7 @@ type Strings struct {
 	PagesStrings           // pages.go
 	ErrorStrings           // errors.go
 	AgentStrings           // agent.go
+	ImportStrings          // importcfg.go
 	PlatformStrings        // platform.go
 }
 
@@ -834,6 +835,7 @@ var zh = Strings{
 	OverviewStrings:        zhOverview,
 	PagesStrings:           zhPages,
 	AgentStrings:           zhAgent,
+	ImportStrings:          zhImport,
 	PlatformStrings:        zhPlatform,
 }
 

@@ -202,13 +202,25 @@ func (a *app) helperLogFile() string {
 	if i := a.hm.info; i != nil && i.LogFile != "" {
 		return i.LogFile
 	}
-	return filepath.Join(store.DefaultDir, "logs", "helper.log")
+	return filepath.Join(helperStateDir, "logs", "helper.log")
 }
+
+// helperStateDir is the installed helper's state dir (helper_linux.go sets
+// Linux's).
+var helperStateDir = store.DefaultDir
+
+// openHelperLogHook opens the helper's log another way where the platform
+// has one (Linux: the journal in a terminal when the file is unreadable);
+// it reports whether it did.
+var openHelperLogHook func(a *app, path string) bool
 
 // openHelperLog opens the log in its default app (Console); without the
 // file, its folder in Finder.
 func (a *app) openHelperLog() {
 	p := a.helperLogFile()
+	if openHelperLogHook != nil && openHelperLogHook(a, p) {
+		return
+	}
 	if fileExists(p) {
 		if err := mygo.Shell.OpenPath(p); err == nil {
 			return

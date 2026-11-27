@@ -65,3 +65,12 @@ func planHelperStart(string) ([]service.Step, error) {
 }
 
 var dropLegacySecrets = func([]string) []string { return nil }
+
+// elevation: polkit's pkexec, which asks the session's authentication
+// agent for an administrator's password. argv words are not quoted: no
+// shell runs between pkexec and Twinnel.
+var elevation = elevator{
+	argv:    linux.PkexecArgv,
+	prompt:  "polkit will ask for an administrator password",
+	failure: linux.PkexecFailure,
+}

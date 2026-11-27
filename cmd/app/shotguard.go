@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/tailscale"
@@ -56,6 +58,24 @@ func shotGuard(getenv func(string) string) error {
 	}
 	if real := realHome(); real != "" && filepath.Clean(home) == filepath.Clean(real) {
 		return errors.New("shots refuse HOME " + home + ": it is the real home; set HOME to a scratch directory")
+	}
+	if runtime.GOOS != "darwin" {
+		return xdgInsideHome(getenv, home)
+	}
+	return nil
+}
+
+// xdgInsideHome: off macOS the app's config dir is $XDG_CONFIG_HOME when
+// set (os.UserConfigDir), which a scratch HOME does not move. A shot run
+// must leave it unset or point it under the scratch HOME.
+func xdgInsideHome(getenv func(string) string, home string) error {
+	x := getenv("XDG_CONFIG_HOME")
+	if x == "" {
+		return nil
+	}
+	rel, err := filepath.Rel(filepath.Clean(home), filepath.Clean(x))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || !filepath.IsAbs(x) {
+		return errors.New("shots refuse XDG_CONFIG_HOME " + x + ": unset it or put it under the scratch HOME")
 	}
 	return nil
 }

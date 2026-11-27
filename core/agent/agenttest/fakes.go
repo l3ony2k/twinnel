@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/bundle"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
@@ -95,6 +96,7 @@ type Helper struct {
 	Hash     string // compose.preview hash
 	Mode     string
 	Ctrl     string // controller address for controller.credentials
+	Imports  []rpc.ConfigImportParams
 	bus      *rpc.Bus
 	srv      *rpc.Server
 	listener interface{ Close() error }
@@ -221,6 +223,50 @@ func (h *Helper) register() {
 			return l, rpc.ErrNotFound("layer", p.ID)
 		}
 		return l, nil
+	})
+	typed(h, rpc.MethodConfigImport, func(p rpc.ConfigImportParams) (rpc.ConfigImportResult, error) {
+		defer lock()()
+		h.Imports = append(h.Imports, p)
+		b, err := bundle.Parse(p.Name, p.Data)
+		if err != nil {
+			return rpc.ConfigImportResult{}, rpc.ErrInvalid("%v", err)
+		}
+		r := rpc.ConfigImportResult{DryRun: p.DryRun, Source: b.Source, Items: []rpc.ImportItem{}}
+		for _, l := range b.Layers {
+			it := rpc.ImportItem{Kind: rpc.ImportKindLayer, ID: l.ID, Name: l.Name, NewID: l.ID, Action: rpc.ImportAdd, Format: l.Format, Enabled: l.Enabled}
+			if _, taken := h.Layers[l.ID]; taken {
+				it.Action = p.Resolve["layer:"+l.ID]
+				if it.Action == "" {
+					it.Action = p.OnConflict
+				}
+				if it.Action == rpc.ImportRename {
+					it.NewID = l.ID + "-2"
+				}
+				if it.Action == "" || it.Action == rpc.ImportAsk {
+					it.Action = rpc.ImportConflict
+					r.Conflicts++
+				}
+			}
+			r.Items = append(r.Items, it)
+		}
+		for _, sub := range b.Subscriptions {
+			r.Items = append(r.Items, rpc.ImportItem{Kind: rpc.ImportKindSubscription, ID: sub.ID, Name: sub.Name, NewID: sub.ID,
+				Action: rpc.ImportAdd, HasURL: sub.URL != "", Active: sub.Active})
+		}
+		if b.HasSecrets() {
+			r.Warnings = append(r.Warnings, rpc.ImportWarnSecrets)
+		}
+		if !p.DryRun {
+			if r.Conflicts > 0 {
+				return rpc.ConfigImportResult{}, &rpc.Error{Code: rpc.CodeConflict, Message: "conflicts"}
+			}
+			for _, it := range r.Items {
+				if it.Action == rpc.ImportAdd || it.Action == rpc.ImportRename {
+					r.Stored++
+				}
+			}
+		}
+		return r, nil
 	})
 	typed(h, rpc.MethodLayerPut, func(p rpc.LayerPutParams) (rpc.Layer, error) {
 		defer lock()()

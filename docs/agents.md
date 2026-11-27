@@ -66,7 +66,7 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 
 **operate**: `set_mode`, `select_node`, `delay_test`, `health_egress_run` (two GETs to an IP-echo address; operate because it sends traffic out), `set_tun`, `tailscale_up`, `tailscale_down`, `set_exit_node`, `clear_exit_node`, `refresh_subscription`, `flush_fakeip`.
 
-**configure**: `layer_put`, `layer_remove`, `layer_enable`, `layer_order`, `sub_put`, `sub_activate`, `sub_remove`, `apply`, `history_rollback`, `settings_update` (no agent fields).
+**configure**: `layer_put`, `layer_remove`, `layer_enable`, `layer_order`, `sub_put`, `sub_activate`, `sub_remove`, `apply`, `history_rollback`, `settings_update` (no agent fields), `config_import` (plan first, then `confirm=true`).
 
 `apply` always takes two calls: without `preview_hash` it returns the preview (diff, validation, reload impact) for the agent to show the person; with that `preview_hash` it applies exactly that config, or refuses if the overrides changed since. The result has `history_id` and `rollback_id`; `history_rollback id=<rollback_id>` undoes it. An invalid config is never written; one that breaks mihomo after reload is restored by the helper.
 
