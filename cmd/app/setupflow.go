@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/msg"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/setup"
 )
@@ -68,6 +69,8 @@ func (a *app) setupFlow() *setup.Flow {
 			// cliLinks reads the file system only: safe off the main thread.
 			return tailscaleTool(cli).Link(a.linkTailscaleDirs())
 		},
+		// Windows: the login runs in this, the signed-in user's, process.
+		SessionLogin: setup.LocalSessionLogin,
 	}, setup.Options{})
 	v.flow.OnChange = func() { mygo.RunOnMain(a.invalidate) }
 	return v.flow
@@ -115,6 +118,13 @@ func setupReason(st setup.StepState) string {
 		return i18n.F(T.SetupWhyHealth, st.Error)
 	case setup.CodeNeedsSubscription:
 		return T.SetupNeedsSub
+	case setup.CodeInstallFailed:
+		// The helper's coded message (the installer's exit, a binary
+		// that does not run), worded when Twinnel knows it.
+		if m, ok := T.Msg(msg.Parse(st.Error)); ok {
+			return T.SetupWhyInstall + T.LabelSep + m
+		}
+		return T.SetupWhyInstall
 	}
 	return i18n.PlainNetError(st.Error)
 }
