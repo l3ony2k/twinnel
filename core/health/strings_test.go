@@ -53,7 +53,7 @@ func TestRunLang(t *testing.T) {
 	reg.Register(VPNConflict{})
 	r := &Runner{Registry: reg, Timeout: time.Second}
 	rep := r.Run(WithLang(context.Background(), "en"), platformOnly("plan9"))
-	if rep.Lang != "en" || rep.Checks[0].Title != enTexts.titleVPNConflict || rep.Checks[0].Summary != "Not available on plan9" {
+	if rep.Lang != "en" || rep.Checks[0].Title != enTexts.titleVPNConflict || rep.Checks[0].Summary != "This check can't run on plan9" {
 		t.Errorf("en run: %+v", rep)
 	}
 	rep = r.Run(context.Background(), platformOnly("plan9"))

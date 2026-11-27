@@ -15,7 +15,7 @@ var enTexts = texts{
 	labelFail:        "Failed",
 	labelSkip:        "Skipped",
 	msgCounts:        "%d passed · %d warnings · %d failed · %d skipped",
-	msgNotOnPlatform: "Not available on %s",
+	msgNotOnPlatform: "This check can't run on %s",
 	msgCheckPanicked: "The check itself crashed (panic)",
 	msgCheckTimeout:  "The check timed out (%s)",
 
