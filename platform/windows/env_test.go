@@ -230,7 +230,7 @@ func fakeController(t *testing.T) *httptest.Server {
 		case "/proxies":
 			w.Write([]byte(`{"proxies":{"DIRECT":{"name":"DIRECT","type":"Direct"},"REJECT":{"name":"REJECT","type":"Reject"},"node-a":{"name":"node-a","type":"Shadowsocks"},"PROXY":{"name":"PROXY","type":"Selector","now":"node-a","all":["node-a","REJECT"]}}}`))
 		case "/rules":
-			w.Write([]byte(`{"rules":[{"index":0,"type":"ProcessName","payload":"tailscaled.exe","proxy":"DIRECT"},{"index":1,"type":"DomainSuffix","payload":"tailscale.com","proxy":"DIRECT"},{"index":2,"type":"IPCIDR","payload":"100.64.0.0/10","proxy":"DIRECT"},{"index":3,"type":"Match","payload":"","proxy":"PROXY"}]}`))
+			w.Write([]byte(`{"rules":[{"index":0,"type":"ProcessName","payload":"tailscaled.exe","proxy":"DIRECT"},{"index":1,"type":"DomainSuffix","payload":"tailscale.com","proxy":"DIRECT"},{"index":2,"type":"IPCIDR","payload":"100.64.0.0/10","proxy":"DIRECT"},{"index":3,"type":"IPCIDR6","payload":"fd7a:115c:a1e0::/48","proxy":"DIRECT"},{"index":4,"type":"Match","payload":"","proxy":"PROXY"}]}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -286,7 +286,7 @@ func TestChecksCoexist(t *testing.T) {
 		t.Fatal(env.Platform())
 	}
 	byID := runChecks(t, env)
-	for _, id := range []string{"tailnet-route", "tun-route-exclude", "vpn-conflict", "system-dns", "controller-security"} {
+	for _, id := range []string{"tailnet-route", "tun-route-exclude", "tailscale-direct-rules", "vpn-conflict", "system-dns", "controller-security"} {
 		if r := byID[id]; r.Status != health.StatusOK {
 			t.Errorf("%s: %s %s %v", id, r.Status, r.Summary, r.Evidence)
 		}

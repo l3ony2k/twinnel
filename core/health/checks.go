@@ -240,8 +240,12 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 	if len(rules) == 0 {
 		return skipText(L.msgNoRules)
 	}
+	tsProcess := "tailscaled"
+	if env.Platform() == Windows {
+		tsProcess = "tailscaled.exe" // mihomo matches the executable's base name
+	}
 	probes := []probe{
-		{process: "tailscaled"},
+		{process: tsProcess},
 		{domain: "controlplane.tailscale.com"},
 		{domain: "login.tailscale.com"},
 		{domain: "derp1.tailscale.com"},
