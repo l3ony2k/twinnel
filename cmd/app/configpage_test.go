@@ -2,7 +2,10 @@ package main
 
 import (
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/l3ony2k/duet/core/status"
 )
 
 func TestReorderIDs(t *testing.T) {
@@ -80,5 +83,41 @@ func TestStepID(t *testing.T) {
 	}
 	if !slices.Equal(ids, []string{"a", "b", "c"}) {
 		t.Errorf("ids changed: %v", ids)
+	}
+}
+
+func TestGuardCandidates(t *testing.T) {
+	m := func(names ...string) []status.Member {
+		var out []status.Member
+		for _, n := range names {
+			out = append(out, status.Member{Name: n})
+		}
+		return out
+	}
+	groups := []status.Group{
+		{Name: "PROXY", Members: m("Auto", "node-a", "DIRECT")},
+		{Name: "Auto", Members: m("node-a", "node-b")},
+		{Name: "Domestic", Members: m("DIRECT", "PROXY")},
+		{Name: "GLOBAL", Members: m("DIRECT", "PROXY")},
+		{Name: "Hidden", Hidden: true, Members: m("DIRECT")},
+	}
+	got := guardCandidates(groups, []string{"Auto", "Gone"})
+	want := []string{"PROXY", "Auto", "Domestic", "Gone"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("guardCandidates = %v, want %v", got, want)
+	}
+}
+
+func TestGeneratedText(t *testing.T) {
+	in := "# Managed by duet: Tailscale coexistence. Regenerated…\n\ntun:\n  route-exclude-address+:\n    - 100.64.0.0/10\n"
+	got := generatedText(in)
+	if strings.Contains(got, "#") || !strings.HasPrefix(got, "tun:") {
+		t.Fatalf("generatedText kept the header: %q", got)
+	}
+	if h := generatedHeight(got); h != 3*19.5+16 {
+		t.Fatalf("generatedHeight = %v", h)
+	}
+	if h := generatedHeight(strings.Repeat("a\n", 100)); h != 360 {
+		t.Fatalf("generatedHeight is not capped: %v", h)
 	}
 }
