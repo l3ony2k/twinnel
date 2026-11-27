@@ -137,6 +137,8 @@ type Engine struct {
 	tailnetMu sync.Mutex
 	mu        sync.Mutex
 	lastApply *rpc.ApplyResult
+	// validOK are the keys (validKey) of the last passing mihomo -t runs.
+	validOK []string
 	// goodSecret is the controller secret the running mihomo last
 	// accepted (in memory only; see secretFallback).
 	goodSecret *string
