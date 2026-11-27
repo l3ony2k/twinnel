@@ -18,7 +18,7 @@ import (
 
 // Secrets stay in <state-dir>/secrets.json (0600, root-owned when
 // installed) on Linux; a Secret Service backend comes later.
-const hasKeychain = false
+const secureSecrets = "" // --secrets auto when running as root
 
 func newKeychain(string) (store.Secrets, error) {
 	return nil, errors.New("--secrets keychain is only available on macOS; Linux keeps secrets in <state-dir>/secrets.json")
