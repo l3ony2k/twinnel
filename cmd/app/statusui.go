@@ -375,8 +375,10 @@ func (a *app) tsLogin(s status.Snapshot) {
 // show yet: three steps, each done or not, each opening its page. It
 // goes once all three are done.
 func (a *app) gettingStarted(c *ui.Context, s status.Snapshot) {
-	if s.Helper.State == status.HelperUnknown {
-		return // not known yet: no strip that changes a moment later
+	if h := s.Helper.State; h != status.HelperNotInstalled && (h != status.HelperConnected || s.Helper.Status == nil) {
+		// Whether duet took over is known only from a connected helper
+		// (or none installed): no strip that guesses.
+		return
 	}
 	T := i18n.T
 	installed := s.Helper.State != status.HelperNotInstalled

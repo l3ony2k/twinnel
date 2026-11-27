@@ -256,11 +256,11 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 			return
 		}
 		ui.Column(c).Gap(10).MarginStart(26).Children(func() {
+			if !expandable {
+				return // the head wraps the whole sentence already
+			}
 			if cr.Status != health.StatusSkip {
 				ui.Text(c, cr.Summary).Wrap().LineHeight(lineText).Selectable()
-			}
-			if !expandable {
-				return
 			}
 			if len(cr.Evidence) > 0 {
 				// Repeated lines fold into one with a count; at most
