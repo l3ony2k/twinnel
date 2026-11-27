@@ -57,7 +57,7 @@ FRONT_BEFORE=$(front)
 
 helper_up() { # $1 run dir
 	"$S/bin/twinnel-helper" --state-dir "$1/state" --socket "$SOCK" --foreground --secrets file --group staff \
-		--tailnet-status-file "$TS" --no-health --tailnet-iface none \
+		--tailnet-status-file "$TS" --no-health --no-controller-owner --tailnet-iface none \
 		--takeover-services-dir "$1/empty" --takeover-home "$1/home" >>"$1/helper.log" 2>&1 &
 	HELPER=$!
 	PIDS+=("$HELPER")

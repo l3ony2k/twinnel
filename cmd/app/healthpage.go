@@ -361,6 +361,11 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 			if egress && cr.Egress != nil {
 				egressIPs(c, cr.Egress)
 			}
+			if cr.Controller != "" {
+				// Which mihomo the check read: Twinnel's, or another
+				// program's that holds the controller.
+				small(c, i18n.F(T.HealthEvidenceFrom, cr.Controller))
+			}
 			if len(cr.Evidence) > 0 {
 				// Repeated lines fold into one with a count; at most
 				// evidenceShown lines until 显示全部.
@@ -539,6 +544,9 @@ func checkText(cr health.CheckReport) string {
 	_, _, st := healthStatusLook(&ui.Theme{}, cr.Status)
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s%s%s\n%s\n", st, T.LabelSep, cr.Title, cr.Summary)
+	if cr.Controller != "" {
+		fmt.Fprintf(&b, "%s\n", i18n.F(T.HealthEvidenceFrom, cr.Controller))
+	}
 	if len(cr.Evidence) > 0 {
 		fmt.Fprintf(&b, "\n%s\n%s\n", T.HealthEvidence, strings.Join(cr.Evidence, "\n"))
 	}

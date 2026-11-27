@@ -3,6 +3,8 @@ package rpc
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/l3ony2k/twinnel/core/foreign"
 )
 
 // Methods served by the helper. This is the whole allowlist: the server
@@ -75,6 +77,9 @@ const (
 	MethodTakeoverAdopt   = "takeover.adopt"
 
 	MethodControllerSecure = "controller.secure"
+	// MethodControllerMove moves Twinnel's controller to a free port (the
+	// fix of a controller held by another program's mihomo).
+	MethodControllerMove = "controller.move"
 
 	// Moving an adopted mihomo to the managed kernel, a root-owned config
 	// dir and a Twinnel LaunchDaemon (security review finding 5).
@@ -99,6 +104,7 @@ const (
 	EventAccessoryChanged = "accessory.changed" // geo databases or the external UI were updated
 	EventServiceChanged   = "service.changed"
 	EventTakeoverChanged  = "takeover.changed" // a plan was made, discarded, adopted or rolled back
+	EventControllerOwner  = "controller.owner" // the controller's owner changed (data: foreign.Owner)
 	EventHelperStarted    = "helper.started"
 	EventHelperStopping   = "helper.stopping"
 	EventEventsTruncated  = "events.truncated" // the client asked for events older than the buffer
@@ -141,6 +147,10 @@ type MihomoStatus struct {
 	Reachable  bool   `json:"reachable"`
 	Version    string `json:"version,omitempty"` // from the controller's /version
 	Error      string `json:"error,omitempty"`
+	// Owner is who listens on the controller address: Twinnel's mihomo,
+	// another program's (Clash Party, Clash Verge Rev…: Twinnel then
+	// never reloads it), or unknown.
+	Owner *foreign.Owner `json:"owner,omitempty"`
 }
 
 type TailnetStatus struct {
@@ -238,6 +248,10 @@ type ApplyResult struct {
 	// Impact: what the hot reload did to the running mihomo (set when a
 	// previous config file existed to compare with).
 	Impact *ReloadImpact `json:"impact,omitempty"`
+	// Foreign: the apply stopped before writing and reloading because the
+	// controller belongs to another program's mihomo (ErrorMsg
+	// "controller-foreign").
+	Foreign *foreign.Owner `json:"foreign,omitempty"`
 }
 
 // ReloadImpact says what a hot reload (PUT /configs) of mihomo does to
@@ -963,6 +977,27 @@ type ControllerSecureResult struct {
 	Replaced bool         `json:"replaced"` // a secret existed before
 	Apply    *ApplyResult `json:"apply,omitempty"`
 	Warnings []string     `json:"warnings,omitempty"`
+}
+
+// ControllerMoveParams: move Twinnel's controller to Port on 127.0.0.1
+// (0: the first free port from 9097). DryRun only picks the port.
+type ControllerMoveParams struct {
+	Port   int  `json:"port,omitempty"`
+	DryRun bool `json:"dry_run,omitempty"`
+}
+
+// ControllerMoveResult reports controller.move. The new address is in an
+// override (controller-port) and in settings; the config is written for
+// Twinnel's mihomo (never reloaded through the old address, which another
+// program may hold) and Twinnel's mihomo service is restarted when it is
+// installed.
+type ControllerMoveResult struct {
+	From      string       `json:"from"`
+	To        string       `json:"to"`
+	DryRun    bool         `json:"dry_run,omitempty"`
+	Restarted bool         `json:"restarted,omitempty"`
+	Apply     *ApplyResult `json:"apply,omitempty"`
+	Warnings  []string     `json:"warnings,omitempty"`
 }
 
 // ---- service.harden ----

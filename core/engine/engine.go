@@ -21,6 +21,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/config"
 	"github.com/l3ony2k/twinnel/core/dnswatch"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/kernel"
 	"github.com/l3ony2k/twinnel/core/rpc"
@@ -131,6 +132,12 @@ type Engine struct {
 	// replaceable in tests.
 	Sleep func(ctx context.Context, d time.Duration) error
 
+	// PortOwner finds the process listening on a TCP port, for the
+	// foreign-controller preflight (foreign.LsofPortOwner, /proc,
+	// iphlpapi). nil: only a reload refused with SAFE_PATHS reveals another
+	// program's mihomo.
+	PortOwner func(ctx context.Context, port int) (*foreign.Process, error)
+
 	// EgressProbe runs the egress test (health.LeakEgress with the test
 	// on) once, for health.egress; nil where there is none.
 	EgressProbe func(ctx context.Context) health.CheckReport
@@ -151,9 +158,15 @@ type Engine struct {
 	// accepted (in memory only; see secretFallback).
 	goodSecret *string
 	tailnet    rpc.TailnetStatus
-	started    time.Time
-	health     healthState
-	dnsWatch   dnsWatchState
+	// owner is the last answer of the controller preflight; pendingAuto
+	// the newest auto-apply held back while the controller was another
+	// program's (foreign.go).
+	owner       *foreign.Owner
+	pendingAuto *rpc.ApplyParams
+	resumed     sync.WaitGroup // a held-back auto-apply running
+	started     time.Time
+	health      healthState
+	dnsWatch    dnsWatchState
 }
 
 // New returns an engine with defaults for everything optional.
@@ -419,6 +432,9 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 		out.Mihomo.Error = err.Error()
 	} else {
 		out.Mihomo.Reachable, out.Mihomo.Version = true, v
+	}
+	if o := e.recentOwner(ctx); o.Verdict != foreign.Unknown {
+		out.Mihomo.Owner = &o
 	}
 	if s, ok := st.ActiveSubscription(); ok {
 		out.ActiveSubscription = s.ID

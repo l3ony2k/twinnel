@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"errors"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -209,6 +210,16 @@ var reasonCases = map[string]reasonCase{
 		e.cfg.SecretSet = false
 		return e
 	}},
+	ReasonOwnerOtherClient: {ControllerOwnerCheck{}, foreignEnv},
+	ReasonOwnerPortShared:  {ControllerOwnerCheck{}, foreignEnv},
+}
+
+// foreignEnv: Clash Party's mihomo holds the controller (synthetic).
+func foreignEnv() Env {
+	e := healthyEnv()
+	e.owner = &foreign.Owner{Addr: "127.0.0.1:9090", Verdict: foreign.Foreign, Client: foreign.ClientClashParty, PID: 5150,
+		Exe: "/Applications/Clash Party.app/Contents/Resources/sidecar/mihomo", WorkDir: "/Users/someone/Library/Application Support/mihomo-party/work"}
+	return e
 }
 
 // TestEveryReasonHasAFix: each reason happens in its case, and has a fix

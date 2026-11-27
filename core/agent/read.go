@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"sort"
 	"strings"
 	"time"
@@ -134,6 +135,9 @@ type statusOut struct {
 		TUN       *bool      `json:"tun,omitempty"`
 		Groups    []groupNow `json:"selector_groups,omitempty"`
 		Error     string     `json:"error,omitempty"`
+		// Owner: who listens on the controller address. Foreign: another
+		// program's mihomo; what the controller reports is that program's.
+		Owner *foreign.Owner `json:"controller_owner,omitempty"`
 	} `json:"mihomo"`
 	Config *struct {
 		ActiveSubscription string     `json:"active_subscription,omitempty"`
@@ -189,6 +193,7 @@ func (s *Server) status(c *call, _ noArgs) (any, error) {
 		var st rpc.Status
 		if err := h.Call(c.ctx, rpc.MethodStatus, nil, &st); err == nil {
 			out.Helper.Version = st.HelperVersion
+			out.Mihomo.Owner = st.Mihomo.Owner
 			out.Config = &struct {
 				ActiveSubscription string     `json:"active_subscription,omitempty"`
 				Layers             int        `json:"layers"`

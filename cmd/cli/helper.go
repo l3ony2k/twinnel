@@ -168,6 +168,16 @@ func runHelperStatus(args []string) error {
 		} else {
 			fmt.Fprintf(w, "mihomo\tnot reachable at %s: %s\n", s.Mihomo.Controller, s.Mihomo.Error)
 		}
+		if o := s.Mihomo.Owner; o != nil {
+			line := string(o.Verdict) + ": " + o.Label()
+			if o.IsForeign() {
+				line += "; Twinnel does not reload it (twinnel doctor --fix controller-owner)"
+				if o.WorkDir != "" {
+					line += ", its work dir " + o.WorkDir
+				}
+			}
+			fmt.Fprintf(w, "controller owner\t%s\n", line)
+		}
 		fmt.Fprintf(w, "binary\t%s\n", orNone(s.Mihomo.Binary))
 		fmt.Fprintf(w, "config\t%s\n", s.Mihomo.ConfigPath)
 		fmt.Fprintf(w, "subscription\t%s\n", orNone(s.ActiveSubscription))

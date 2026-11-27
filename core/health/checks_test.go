@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"errors"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -39,6 +40,15 @@ type fakeEnv struct {
 	// tun-dataplane probes (checks_dataplane_test.go); nil answers.
 	dialErr, proxyErr, pingErr error
 	dialed, proxied            []string
+
+	owner *foreign.Owner // nil: the env does not know the controller's owner
+}
+
+func (f *fakeEnv) ControllerOwner(context.Context) (foreign.Owner, error) {
+	if f.owner == nil {
+		return foreign.Owner{}, ErrNotSupported
+	}
+	return *f.owner, nil
 }
 
 func (f *fakeEnv) DirectEgress(context.Context, string) (netip.Addr, error) {
@@ -75,6 +85,7 @@ func healthyEnv() *fakeEnv {
 	settings.Egress = true
 	return &fakeEnv{
 		settings:      settings,
+		owner:         &foreign.Owner{Addr: "127.0.0.1:9090", Verdict: foreign.Managed, PID: 4242, Exe: "/opt/twinnel/kernels/mihomo/current/mihomo"},
 		egressDirect:  a("198.51.100.7"),
 		egressProxied: a("203.0.113.50"),
 		egressChain:   []string{"node-a", "PROXY", "Final"},

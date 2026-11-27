@@ -18,6 +18,8 @@ type texts struct {
 	blockedHelper, blockedMihomo, blockedTailscale string
 	blockedDNS                                     string
 	errRerun, auto, layerLoopback                  string
+	stepPortMove, stepPortWrite, stepPortRestart   string
+	stepPortNote                                   string
 	stepTUNStack, stepTUNRebuild, layerTUNStack    string
 }
 
@@ -29,6 +31,10 @@ var zh = texts{
 	stepApply:             "检查并应用配置：mihomo 热重载，有毫秒级停顿；失败会自动回到原配置",
 	stepGuard:             "「防泄漏」覆写保护这些策略组：%s",
 	stepLoopback:          "加一个覆写：external-controller 改为 %s",
+	stepPortMove:          "Twinnel 的控制端口：%s → %s（覆写 controller-port）",
+	stepPortWrite:         "写入配置；占着 %s 的那个 mihomo 不去动它",
+	stepPortRestart:       "重启 Twinnel 的 mihomo，让它在新端口上监听（网络会断几秒）",
+	stepPortNote:          "不能撤销：旧端口还被那个软件占着。它的 TUN 和 DNS 仍会和 Twinnel 冲突",
 	stepSecret:            "生成随机的控制接口密钥，存进后台助手",
 	stepSecretNote:        "网页面板、脚本等其他控制工具需要换用新密钥",
 	stepDNS:               "把活动网络连接的 DNS 指向 mihomo",
@@ -57,6 +63,10 @@ var en = texts{
 	stepApply:             "Check and apply the config: mihomo reloads with a pause of milliseconds; a failure goes back to the old config",
 	stepGuard:             "The leak guard override protects these groups: %s",
 	stepLoopback:          "Add an override: external-controller becomes %s",
+	stepPortMove:          "Twinnel's controller port: %s → %s (override controller-port)",
+	stepPortWrite:         "Write the config; the mihomo holding %s is left alone",
+	stepPortRestart:       "Restart Twinnel's mihomo so it listens on the new port (the network drops for a few seconds)",
+	stepPortNote:          "Cannot be undone: the old port is still held by that app. Its TUN and DNS still conflict with Twinnel",
 	stepSecret:            "Generate a random controller secret and keep it in the helper",
 	stepSecretNote:        "Other controller tools (a web dashboard, scripts) need the new secret",
 	stepDNS:               "Point the DNS of the active network connections at mihomo",
