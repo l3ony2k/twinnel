@@ -107,6 +107,15 @@ var zhFixTexts = map[string]FixText{
 		"加一个覆写把控制接口只绑定到本机（127.0.0.1）并应用。可以撤销。"},
 	ReasonCtlNoSecret: {"mihomo 的控制接口没有密钥，本机任何程序都能控制它。",
 		"生成随机密钥并应用，密钥存在后台助手里。网页面板等其他工具之后需要新密钥。"},
+
+	ReasonOwnerOtherClient: {"控制端口被另一个代理软件的 mihomo 占着，Twinnel 的配置没有在运行。",
+		"Twinnel 不去关别的应用。在菜单栏点开那个软件（如 Clash Party、Clash Verge）选「退出」，并在它的设置里关掉开机启动；然后重新检查。"},
+	ReasonOwnerOtherClient + "@" + Windows: {"控制端口被另一个代理软件的 mihomo 占着，Twinnel 的配置没有在运行。",
+		"Twinnel 不去关别的应用。在任务栏通知区域右键那个软件（如 Clash Party、Clash Verge）选「退出」，并关掉它的开机启动（Clash Party 用的是任务计划程序里的 mihomo-party 任务）；然后重新检查。"},
+	ReasonOwnerOtherClient + "@" + Linux: {"控制端口被另一个代理软件的 mihomo 占着，Twinnel 的配置没有在运行。",
+		"Twinnel 不去关别的应用。从托盘退出那个软件（如 Clash Party、Clash Verge），并关掉它的开机启动（桌面的自动启动项或 systemd 用户服务）；然后重新检查。"},
+	ReasonOwnerPortShared: {"Twinnel 的 mihomo 和那个软件用的是同一个控制端口。",
+		"把 Twinnel 的控制端口换到一个空闲端口，写进配置，并重启 Twinnel 的 mihomo。那个软件的 TUN 和 DNS 仍会和 Twinnel 冲突，长期用 Twinnel 还是要退出它。"},
 }
 
 var enFixTexts = map[string]FixText{
@@ -164,6 +173,11 @@ var enFixTexts = map[string]FixText{
 
 	ReasonCtlExposed:  {"mihomo's controller is open to the local network; other devices may control it.", "Add an override that binds the controller to this computer (127.0.0.1) and apply it. You can undo."},
 	ReasonCtlNoSecret: {"mihomo's controller has no secret: any program on this computer can control it.", "Generate a random secret and apply it; the helper keeps it. Other tools such as a web dashboard need the new secret."},
+
+	ReasonOwnerOtherClient:                 {"Another proxy app's mihomo holds the controller port; Twinnel's config is not running.", "Twinnel does not quit other apps. Open that app from the menu bar (Clash Party, Clash Verge…), choose Quit, and turn off its launch at login in its settings; then check again."},
+	ReasonOwnerOtherClient + "@" + Windows: {"Another proxy app's mihomo holds the controller port; Twinnel's config is not running.", "Twinnel does not quit other apps. Right-click that app in the notification area (Clash Party, Clash Verge…), choose Quit, and turn off its start-up (Clash Party uses the mihomo-party task in Task Scheduler); then check again."},
+	ReasonOwnerOtherClient + "@" + Linux:   {"Another proxy app's mihomo holds the controller port; Twinnel's config is not running.", "Twinnel does not quit other apps. Quit that app from its tray icon (Clash Party, Clash Verge…) and turn off its autostart (desktop autostart entry or systemd user service); then check again."},
+	ReasonOwnerPortShared:                  {"Twinnel's mihomo is set to the same controller port as that app.", "Move Twinnel's controller to a free port, write it into the config and restart Twinnel's mihomo. That app's TUN and DNS still conflict with Twinnel; to use Twinnel for good, quit it."},
 }
 
 var fixTextTables = map[string]map[string]FixText{"zh-Hans": zhFixTexts, "en": enFixTexts}

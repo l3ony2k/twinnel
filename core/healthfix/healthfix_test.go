@@ -62,6 +62,12 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 		set(h.dns)
 	case rpc.MethodHistoryList:
 		set([]rpc.HistoryEntry{{ID: "h1", Time: time.Unix(100, 0), Kind: "applied"}, {ID: "h2", Time: time.Unix(200, 0), Kind: "applied"}})
+	case rpc.MethodControllerMove:
+		if p := params.(rpc.ControllerMoveParams); p.DryRun {
+			set(rpc.ControllerMoveResult{From: "127.0.0.1:9090", To: "127.0.0.1:9097", DryRun: true})
+			break
+		}
+		h.fixed = true
 	case rpc.MethodComposeApply, rpc.MethodControllerSecure, rpc.MethodDNSPoint, rpc.MethodServiceRestart, rpc.MethodHealthEgress:
 		h.fixed = true
 		if method == rpc.MethodHealthEgress {

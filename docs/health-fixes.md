@@ -20,6 +20,7 @@
 | `tailscale-coexist-override` | 必要时打开「Tailscale 共存」覆写；tailnet.refresh 按当前 tailnet 重新生成；compose.apply | 原来关着：关回去再应用；原来开着：history.rollback 到修复前最新的一条 |
 | `leak-guard-override` | 把有问题的敏感策略组加进「防泄漏」的组；compose.apply | 组列表改回原样再应用 |
 | `controller-loopback` | 加覆写 `controller-loopback`：`external-controller: 127.0.0.1:<原端口>`；compose.apply | 删掉这个覆写再应用 |
+| `controller-port` | controller.move：找一个空闲端口，把 Twinnel 的控制接口改过去（覆写 `controller-port`），写入配置但不去重载占着旧端口的别人的 mihomo，再重启 Twinnel 的 mihomo（装了服务时） | 不能撤销（旧端口还被别的程序占着）；预览里说明 |
 | `controller-secret` | controller.secure：新随机密钥，存助手，应用 | 不能撤销（旧密钥不保留）；预览里说明 |
 | `system-dns` | dns.point（预览逐条列出 服务：旧 DNS → 新 DNS） | dns.restore |
 | `mode-rule` | mihomo 切回 rule 模式 | 切回原模式 |
@@ -38,6 +39,8 @@
 | `check-timeout` | 检查用了太久，没等到结果。 | 一键修复 `rerun` | 重新检查一次。网络刚切换或 mihomo 正忙时常见，多半下次就好。 |  |
 | `controller-security/exposed` | mihomo 的控制接口对局域网开放，别的设备可能控制它。 | 一键修复 `controller-loopback` | 加一个覆写把控制接口只绑定到本机（127.0.0.1）并应用。可以撤销。 |  |
 | `controller-security/no-secret` | mihomo 的控制接口没有密钥，本机任何程序都能控制它。 | 一键修复 `controller-secret` | 生成随机密钥并应用，密钥存在后台助手里。网页面板等其他工具之后需要新密钥。 |  |
+| `controller-owner/other-client` | 控制端口被另一个代理软件的 mihomo 占着，Twinnel 的配置没有在运行。 | 无法自动修复 `rerun` | Twinnel 不去关别的应用。在菜单栏点开那个软件（如 Clash Party、Clash Verge）选「退出」，并在它的设置里关掉开机启动；然后重新检查。 | windows 另有措辞；linux 另有措辞 |
+| `controller-owner/port-shared` | Twinnel 的 mihomo 和那个软件用的是同一个控制端口。 | 一键修复 `controller-port` | 把 Twinnel 的控制端口换到一个空闲端口，写进配置，并重启 Twinnel 的 mihomo。那个软件的 TUN 和 DNS 仍会和 Twinnel 冲突，长期用 Twinnel 还是要退出它。 |  |
 | `fake-ip-filter-mode/wildcard-mode` | fake-ip 过滤的模式不是 blacklist，单标签名字会拿到假地址。 | 去调整 `config/overrides` | 在设置 fake-ip-filter-mode 的覆写里，把它改回 blacklist（或删掉这一行），保存并应用。 |  |
 | `leak-guard-egress/failed` | 经 mihomo 的测试请求没成功，没测到出口。 | 一键修复 `egress-probe` | 再测一次。仍然失败多半是节点不可用，换一个节点再测。 |  |
 | `leak-guard-egress/same-ip` | 走代理出去的 IP 和本机一样，这个节点实际没有代理。 | 去调整 `proxies/group` | 在节点页给这个策略组换一个节点，然后再测一次出口。 |  |

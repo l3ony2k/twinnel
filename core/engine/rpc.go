@@ -133,6 +133,9 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodControllerSecure, func(ctx context.Context, _ rpc.Empty) (rpc.ControllerSecureResult, error) {
 		return e.SecureController(ctx)
 	})
+	rpc.Typed(s, rpc.MethodControllerMove, func(ctx context.Context, p rpc.ControllerMoveParams) (rpc.ControllerMoveResult, error) {
+		return e.MoveController(ctx, p)
+	})
 	rpc.Typed(s, rpc.MethodHardenPlan, func(ctx context.Context, p rpc.HardenPlanParams) (rpc.HardenPlan, error) {
 		return e.HardenPlan(ctx, p)
 	})

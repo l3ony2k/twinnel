@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/msg"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/store"
@@ -423,6 +424,13 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 	cancel()
 	running := verr == nil
 
+	// Preflight: never write for, or reload, another program's mihomo on
+	// the controller address (Clash Party, Clash Verge Rev…).
+	if o := e.ControllerOwner(ctx); o.IsForeign() {
+		res.Foreign = &o
+		return e.fail(res, start, foreignError(o))
+	}
+
 	e.stage(rpc.StageWrite)
 	// Back up what is on disk unless history already has it.
 	if hadCurrent {
@@ -458,11 +466,22 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 	if running {
 		e.stage(rpc.StageReload)
 		if err := e.reloadAndVerify(ctx, oldCtrl, cfgPath, force); err != nil {
+			// mihomo refused the path as outside its home: the mihomo that
+			// answered is not the one that runs this config. Put the file
+			// back without reloading that one again.
+			if foreign.IsSafePathsError(err.Error()) {
+				o := foreign.FromSafePaths(controllerAddr(st.Mihomo.Controller), err.Error(), e.now())
+				e.setOwner(o)
+				e.restore(ctx, nil, cd, name, final, current, hadCurrent, mode)
+				res.Written, res.RolledBack, res.Foreign = false, true, &o
+				return e.fail(res, start, foreignError(o))
+			}
 			e.restore(ctx, oldCtrl, cd, name, final, current, hadCurrent, mode)
 			res.Written, res.RolledBack = false, true
 			return e.fail(res, start, err)
 		}
 		res.Reloaded = true
+		e.clearForeign()
 	} else {
 		res.Warnings = append(res.Warnings, "mihomo is not running ("+verr.Error()+"); the config was written and will be used at the next start")
 	}
@@ -560,7 +579,8 @@ func (e *Engine) reloadAndVerify(ctx context.Context, ctrl Controller, path stri
 	}
 }
 
-// restore puts the previous file back and asks mihomo to load it again.
+// restore puts the previous file back and asks mihomo to load it again
+// (not when ctrl is nil).
 func (e *Engine) restore(ctx context.Context, ctrl Controller, cd *confDir, name string, failed, old []byte, hadOld bool, mode fs.FileMode) {
 	path := filepath.Join(cd.Path, name)
 	if !hadOld {
@@ -570,6 +590,9 @@ func (e *Engine) restore(ctx context.Context, ctrl Controller, cd *confDir, name
 	oldInfo, _ := cd.Stat(name)
 	if err := writeConfined(cd, name, old, mode, oldInfo); err != nil {
 		e.log().Error("restore config failed", "path", path, "err", err)
+		return
+	}
+	if ctrl == nil { // the controller is not Twinnel's: the file only
 		return
 	}
 	rctx, cancel := context.WithTimeout(ctx, 30*time.Second)

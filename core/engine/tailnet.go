@@ -111,8 +111,9 @@ func (e *Engine) RefreshTailnet(ctx context.Context) (rpc.TailnetRefreshResult, 
 	out.Tailnet.Coexist = st.Tailscale.Coexist
 	if out.Changed {
 		e.publish(rpc.EventTailnetChanged, out.Tailnet)
-		if autoApply && !e.adopting.Load() {
-			r, _ := e.Apply(ctx, rpc.ApplyParams{Reason: "tailnet changed", ReasonCode: store.ReasonTailnet})
+		ap := rpc.ApplyParams{Reason: "tailnet changed", ReasonCode: store.ReasonTailnet}
+		if autoApply && !e.adopting.Load() && !e.holdAutoApply(ctx, ap) {
+			r, _ := e.Apply(ctx, ap)
 			out.Apply = r
 		}
 	}

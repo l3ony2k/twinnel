@@ -161,6 +161,16 @@ func (f *Fixer) Plan(ctx context.Context, cr health.CheckReport, reason string) 
 		need(f.Helper != nil, L.blockedHelper)
 		p.Steps = []string{fmt.Sprintf(L.stepLoopback, loopbackAddr(p.Param)), L.stepApply}
 		p.Undo = true
+	case health.FixControllerPort:
+		need(f.Helper != nil, L.blockedHelper)
+		from, to := "127.0.0.1:9090", "127.0.0.1:9097"
+		if f.Helper != nil {
+			var r rpc.ControllerMoveResult
+			if err := f.Helper.Call(ctx, rpc.MethodControllerMove, rpc.ControllerMoveParams{DryRun: true}, &r); err == nil && r.To != "" {
+				from, to = r.From, r.To
+			}
+		}
+		p.Steps = []string{fmt.Sprintf(L.stepPortMove, from, to), fmt.Sprintf(L.stepPortWrite, from), L.stepPortRestart, L.stepPortNote}
 	case health.FixController:
 		need(f.Helper != nil, L.blockedHelper)
 		p.Steps = []string{L.stepSecret, L.stepApply, L.stepSecretNote}
@@ -233,6 +243,12 @@ func (f *Fixer) Apply(ctx context.Context, p Plan) (*Outcome, error) {
 		out.Undo, err = f.applyLeakGuard(ctx, p)
 	case health.FixControllerLoopback:
 		out.Undo, err = f.applyLoopback(ctx, p)
+	case health.FixControllerPort:
+		var r rpc.ControllerMoveResult
+		err = f.Helper.Call(ctx, rpc.MethodControllerMove, rpc.ControllerMoveParams{}, &r)
+		if err == nil {
+			out.Notes = append(out.Notes, L.stepPortNote)
+		}
 	case health.FixController:
 		var r rpc.ControllerSecureResult
 		err = f.Helper.Call(ctx, rpc.MethodControllerSecure, rpc.Empty{}, &r)

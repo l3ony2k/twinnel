@@ -33,6 +33,7 @@ const (
 	ReasonAdoptFailed  = "adopt-failed"        // args: plan ID; the live file written back
 	ReasonTakeoverUndo = "takeover-undo"       // args: plan ID
 	ReasonSecure       = "controller-secure"
+	ReasonCtlMove      = "controller-move"      // args: the new controller address
 	ReasonHarden       = "harden"               // args: plan ID
 	ReasonSubUpdated   = "subscription-updated" // args: subscription ID
 	ReasonTailnet      = "tailnet-changed"
