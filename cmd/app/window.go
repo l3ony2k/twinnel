@@ -128,25 +128,31 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 	})
 }
 
-// inToolbar is true while the toolbar's actions are built: buttons there
-// keep the toolbar's look, not a push button's (pushFace). Main thread
-// only.
-var inToolbar bool
+// inToolbar is true while the toolbar's actions are built: buttons and
+// segmented controls there take the toolbar's capsule (toolbarFace), not
+// a push button's face. toolbarGlass is the glass they are panes of.
+// Main thread only.
+var (
+	inToolbar    bool
+	toolbarGlass *glass.Group
+)
 
 // toolbarActions builds a page's toolbar actions. Under Liquid Glass
-// (macOS 26+) they are faceless toolbar items on one glass capsule, as
-// Finder's and System Settings'; elsewhere, the controls as built.
+// (macOS 26+) each button and segmented control is its own glass capsule
+// (toolbarFace), and labels and switches sit bare between them, all on
+// one line; elsewhere, the controls as built.
 func toolbarActions(c *ui.Context, trailing func()) {
 	if !liquidGlass {
 		trailing()
 		return
 	}
-	inToolbar = true
-	defer func() { inToolbar = false }()
 	g := glass.NewGroup(c)
-	g.Radius = 16
-	g.Shrink(0).Children(func() {
-		g.Pane(ui.Toolbar(c, trailing).Height(32).Padding(0, 6).Gap(4).Shrink(0))
+	g.Radius = toolbarItemH / 2
+	g.Merge = 0 // separate capsules, each exactly its control's box
+	inToolbar, toolbarGlass = true, g
+	defer func() { inToolbar, toolbarGlass = false, nil }()
+	g.Shrink(0).AlignItems(ui.Center).Children(func() {
+		ui.Toolbar(c, trailing).Height(toolbarItemH).Padding(0).Gap(toolbarGap).AlignItems(ui.Center).Shrink(0)
 	})
 }
 
@@ -423,7 +429,7 @@ func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
 				ui.Text(c, via).TextColor(t.TextMuted).SingleLine().Shrink(100).MinWidth(0)
 				ui.Text(c, p.Node).SingleLine().Shrink(0)
 			})
-			num(ui.Text(c, status.DelayText(p.Delay, p.Tested)).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
+			num(ui.Text(c, p.DelayText()).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
 		})
 	}
 	kv(c, T.Connections, fmt.Sprint(m.Connections))
@@ -628,12 +634,13 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 		if !m.Reachable || len(m.Groups) == 0 {
 			return
 		}
-		busy := false
-		for _, g := range m.Groups {
-			busy = busy || a.mon.Testing(g.Name)
+		// One batch tests every node once (status.Monitor.TestAll); the
+		// progress shows beside the button, which keeps its label and
+		// width; its icon turns into a spinner while the batch runs.
+		done, total, busy := a.mon.DelayProgress()
+		if busy && total > 0 {
+			num(small(c, i18n.F(T.TestAllProgress, done, total))).SingleLine()
 		}
-		// The button keeps its label and width; its icon turns into a
-		// spinner while the groups are tested.
 		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy)
 		spin := showBusy(c, b, busy)
 		b.Children(func() {
@@ -645,16 +652,13 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 			ui.Text(c, T.TestAllDelay).SingleLine()
 		})
 		if b.Clicked() {
-			names, mon := make([]string, 0, len(m.Groups)), a.mon
-			for _, g := range m.Groups {
-				names = append(names, g.Name)
-			}
-			go func() { // one group at a time: the controller tests every node of each
-				for _, name := range names {
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					_ = mon.TestGroup(ctx, name)
-					cancel()
-				}
+			mon := a.mon
+			go func() {
+				// The tests are bound to the monitor: they stop when the
+				// app quits; this only bounds the wait.
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
+				_ = mon.TestAll(ctx)
 			}()
 		}
 	})
@@ -738,7 +742,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			meta(c, g.Type)
 			ui.Text(c, chain).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(chain)
 			ui.Spacer(c)
-			num(ui.Text(c, status.DelayText(g.Delay, g.Tested)).TextColor(delayColor(t, g.Delay, g.Tested)).Shrink(0))
+			num(ui.Text(c, g.DelayText()).TextColor(delayColor(t, g.Delay, g.Tested)).Shrink(0))
 			testing := a.mon.Testing(g.Name)
 			if toolIcon(c.Key("test"), iconSpeed, T.TestGroupDelay, testing).Clicked() && !testing {
 				a.testGroup(g.Name)
@@ -787,7 +791,7 @@ func (a *app) nodeTile(c *ui.Context, g status.Group, i, cols int, mem status.Me
 	if typ == "" {
 		typ = "?"
 	}
-	delay := status.DelayText(mem.Delay, mem.Tested)
+	delay := mem.DelayText()
 	desc := mem.Name + " · " + typ + " · " + delay
 	canSelect := writes && g.Selectable() && !selected
 	// Every tile takes the focus, so the keyboard and VoiceOver can read
@@ -819,7 +823,7 @@ func (a *app) nodeTile(c *ui.Context, g status.Group, i, cols int, mem status.Me
 			a.selectNode(g.Name, mem.Name)
 		}
 		m.Separator()
-		if m.Item(T.TestNodeDelay).Chosen() {
+		if m.Item(T.TestNodeDelay).Disabled(mem.Builtin).Chosen() {
 			a.testNode(mem.Name)
 		}
 		if m.Item(T.CopyNodeName).Chosen() {
@@ -855,8 +859,9 @@ func tileStep(i, cols, n int, up, down bool) (int, bool) {
 	return 0, false
 }
 
-// testGroup delay-tests every node of a group (a read: the controller's
-// GET /group/<name>/delay) and opens the group to show the results.
+// testGroup delay-tests the nodes of a group, nested groups opened (reads:
+// GET /proxies/<node>/delay, shared with tests already running), and
+// opens the group to show the results.
 func (a *app) testGroup(name string) {
 	mon := a.mon
 	go func() {

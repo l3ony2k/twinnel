@@ -23,7 +23,6 @@ type MihomoSource interface {
 	StreamTraffic(ctx context.Context, fn func(mihomo.Traffic)) error
 	StreamLogs(ctx context.Context, level string, fn func(mihomo.LogEntry)) error
 	Delay(ctx context.Context, name, testURL string, timeout time.Duration) (int, error)
-	GroupDelay(ctx context.Context, group, testURL string, timeout time.Duration) (map[string]int, error)
 }
 
 // TailscaleSource is what the monitor reads from Tailscale;
@@ -69,7 +68,7 @@ type Monitor struct {
 	logGen  int // bumped by ClearLogs
 	subs    map[int]func()
 	nextSub int
-	testing map[string]bool // groups being delay-tested
+	d       delayState // delay tests (delay.go)
 
 	mKick  chan struct{}
 	tsKick chan struct{}
@@ -104,11 +103,11 @@ func NewMonitor(o Options) *Monitor {
 		o.PrimaryGroup = DefaultPrimaryGroup
 	}
 	m := &Monitor{
-		o:       o,
-		subs:    map[int]func(){},
-		testing: map[string]bool{},
-		mKick:   make(chan struct{}, 1),
-		tsKick:  make(chan struct{}, 1),
+		o:      o,
+		subs:   map[int]func(){},
+		d:      newDelayState(),
+		mKick:  make(chan struct{}, 1),
+		tsKick: make(chan struct{}, 1),
 	}
 	m.snap.WritesAllowed = o.WritesAllowed
 	m.snap.Tailscale.Install = o.Install
@@ -163,13 +162,6 @@ func (m *Monitor) ClearLogs() {
 	m.logGen++
 	m.mu.Unlock()
 	m.notify()
-}
-
-// Testing reports whether a delay test of group runs.
-func (m *Monitor) Testing(group string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.testing[group]
 }
 
 // Subscribe calls fn (on a monitor goroutine) after every change. Read the
@@ -268,8 +260,9 @@ func (m *Monitor) pollMihomo(ctx context.Context, needVersion bool) bool {
 	if c, err := m.o.Mihomo.Connections(ctx); err == nil {
 		conns = len(c.Connections)
 	}
-	groups := BuildGroups(all)
 	m.update(func(s *Snapshot) {
+		m.d.proxies = all
+		groups := buildGroups(all, m.d.results)
 		m.mDone = true
 		mh := &s.Mihomo
 		mh.Reachable, mh.Unauthorized, mh.Err = true, false, ""
@@ -376,37 +369,6 @@ func (m *Monitor) logLoop(ctx context.Context, level string) {
 			return
 		}
 	}
-}
-
-// TestGroup delay-tests every member of group, then refreshes.
-func (m *Monitor) TestGroup(ctx context.Context, group string) error {
-	m.mu.Lock()
-	if m.testing[group] {
-		m.mu.Unlock()
-		return nil
-	}
-	m.testing[group] = true
-	testURL := m.o.TestURL
-	for _, g := range m.snap.Mihomo.Groups {
-		if g.Name == group && g.TestURL != "" && testURL == "" {
-			testURL = g.TestURL
-		}
-	}
-	m.mu.Unlock()
-	m.notify()
-	_, err := m.o.Mihomo.GroupDelay(ctx, group, testURL, 5*time.Second)
-	m.mu.Lock()
-	delete(m.testing, group)
-	m.mu.Unlock()
-	m.pollMihomo(ctx, false) // delays live in the proxies' history
-	return err
-}
-
-// TestNode delay-tests one proxy, then refreshes.
-func (m *Monitor) TestNode(ctx context.Context, name string) (int, error) {
-	d, err := m.o.Mihomo.Delay(ctx, name, m.o.TestURL, 5*time.Second)
-	m.pollMihomo(ctx, false)
-	return d, err
 }
 
 // --- tailscale ---

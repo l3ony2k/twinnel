@@ -70,6 +70,18 @@ const (
 // lines alike, CJK and Latin mixed, whatever font the fallback picks.
 const lineText = 1.4
 
+// Toolbar items (Liquid Glass, macOS 26+): every button and segmented
+// control is a capsule of glass this tall, its hover and pressed fill the
+// capsule itself (one shape for the glass rim, the fill and the focus
+// ring); labels and switches sit bare on the bar, centered on the same
+// line, as in Finder's and System Settings' toolbars.
+const (
+	toolbarItemH  = 32 // a capsule's height; its radius is half of it
+	toolbarPadX   = 12 // a capsule's side inset to its label or icon
+	toolbarGap    = 8  // between items, and from a label to its control
+	toolbarSegPad = 4  // a segmented capsule's inset to its segments
+)
+
 // Icon sizes: one per role.
 const (
 	iconNav    = 16 // sidebar
@@ -477,7 +489,10 @@ func delayColor(t *ui.Theme, ms int, tested bool) ui.Color {
 // shadow. Other platforms keep MyGo's look. Use it on every plain button
 // that sits on a page; primary buttons keep theirs.
 func pushFace(c *ui.Context, b ui.Element) ui.Element {
-	if !plat.pushFace || inToolbar {
+	if inToolbar {
+		return toolbarFace(c, b)
+	}
+	if !plat.pushFace {
 		return b
 	}
 	t := c.Theme()
@@ -499,16 +514,59 @@ func pushFace(c *ui.Context, b ui.Element) ui.Element {
 	return b
 }
 
-// segmented is ui.Segmented that fits where it stands: in the Liquid Glass
-// toolbar its track is faceless (no fill, no outline), so only the chosen
-// segment's fill shows on the capsule, as Finder's and System Settings'
-// toolbar groups; elsewhere it keeps the theme's track.
-func segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
-	e := ui.Segmented(c, selected, labels...)
-	if inToolbar {
-		e.Background(ui.Transparent).Border(0, ui.Transparent)
+// toolbarFace makes b a toolbar capsule: toolbarItemH tall, fully
+// rounded, faceless at rest, a faint fill of the same shape on hover and
+// press, and the glass pane behind it exactly its box.
+func toolbarFace(c *ui.Context, b ui.Element) ui.Element {
+	t := c.Theme()
+	b.Height(toolbarItemH).Padding(0, toolbarPadX).Radius(toolbarItemH / 2).
+		AlignItems(ui.Center).Justify(ui.Center).BorderWidth(0).Background(ui.Transparent).Shrink(0)
+	if !b.IsDisabled() {
+		switch {
+		case b.Pressed() || toolbarForce == "pressed":
+			b.Background(t.Text.Alpha(0.12))
+		case b.Hovered() || toolbarForce == "hover":
+			b.Background(t.Text.Alpha(0.07))
+		}
 	}
-	return e
+	if toolbarGlass != nil {
+		toolbarGlass.Pane(b)
+	}
+	return b
+}
+
+// segmented is ui.Segmented that fits where it stands. In the Liquid
+// Glass toolbar it is a capsule (toolbarFace's height and radius) with
+// no track of its own: the chosen segment is a pill concentric with the
+// capsule, the others a fainter pill on hover, as Finder's view switcher.
+// Elsewhere it keeps the theme's track.
+func segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
+	if !inToolbar {
+		return ui.Segmented(c, selected, labels...)
+	}
+	t := c.Theme()
+	parts := ui.SegmentedBase(c, selected, len(labels))
+	track := parts.Track.Height(toolbarItemH).Padding(toolbarSegPad).Gap(2).
+		Radius(toolbarItemH / 2).AlignItems(ui.Stretch).Shrink(0)
+	inner := float32(toolbarItemH/2 - toolbarSegPad)
+	track.Children(func() {
+		for i, label := range labels {
+			s := parts.Segment(i).Padding(0, toolbarPadX-toolbarSegPad).Radius(inner)
+			switch {
+			case i == *selected:
+				s.Background(t.Text.Alpha(0.12))
+			case s.Pressed() || toolbarForce == "pressed":
+				s.Background(t.Text.Alpha(0.10))
+			case s.Hovered() || toolbarForce == "hover":
+				s.Background(t.Text.Alpha(0.06))
+			}
+			s.Children(func() { ui.Text(c, label).SingleLine() })
+		}
+	})
+	if toolbarGlass != nil {
+		toolbarGlass.Pane(track)
+	}
+	return track
 }
 
 // pushButton is a plain button with the native push-button face.

@@ -102,7 +102,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			ui.Column(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				emptyState(c, iconError, T.HealthFailedTitle, "")
 				ui.Text(c, h.Err).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).TextAlign(ui.Center).
-					Wrap().MaxWidth(520).Selectable()
+					Wrap().LineHeight(lineText).MaxWidth(520).Selectable()
 				if a.healthSrc != nil && iconButton(c.Key("retry"), iconRefresh, T.HealthRerun, false).Disabled(h.Running).Clicked() {
 					a.rerunHealth()
 				}
