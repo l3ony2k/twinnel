@@ -54,6 +54,7 @@ what it stands for in duet. **New** = added in the design pass and not yet wired
 | `square-pen.svg` **new** | 覆写层 (an override layer the user edits) | stock |
 | `file-lock.svg` **new** | 托管层 (the managed layer duet owns; not hand-edited) | stock |
 | `undo-2.svg` **new** | 回滚 (roll back to a history entry) | stock |
+| `folder-search.svg` | 在 Finder 中显示 (reveal a file; 停止使用 duet inventory rows) | hand-drawn to the line rules (folder + magnifier badge) |
 | `server.svg` **new** | 服务 (mihomo / tailscaled services) | stock |
 | `map.svg` **new** | 地理数据库 (GeoIP / GeoSite) | stock |
 | `app-window.svg` **new** | 外部面板 (external UI) | stock |

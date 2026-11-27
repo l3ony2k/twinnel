@@ -328,17 +328,33 @@ func helperError(err error) string {
 	return status.ShortError(err)
 }
 
-// confirm asks before a destructive action; ok runs on the main thread.
+// confirm asks before a destructive action (its button in the
+// destructive style, the warning icon); ok runs on the main thread.
+// Reversible actions do not ask: they act and offer 撤销 (undo.go).
 func (a *app) confirm(title, detail, okLabel string, ok func()) {
+	a.askDialog(mygo.MessageWarning, title, detail, okLabel, true, ok)
+}
+
+// ask confirms a large but not destructive action (安装内核, 重启服务,
+// 回滚): the information icon, the button in the normal style (kubai R-8).
+func (a *app) ask(title, detail, okLabel string, ok func()) {
+	a.askDialog(mygo.MessageInfo, title, detail, okLabel, false, ok)
+}
+
+func (a *app) askDialog(kind mygo.MessageType, title, detail, okLabel string, destructive bool, ok func()) {
 	parent := a.win
+	var dest []int
+	if destructive {
+		dest = []int{1}
+	}
 	go func() {
 		res, err := mygo.Dialog.Message(mygo.MessageOptions{
 			Parent:             parent,
-			Type:               mygo.MessageWarning,
+			Type:               kind,
 			Message:            title,
 			Detail:             detail,
 			Buttons:            []string{i18n.Cur().Cancel, okLabel},
-			DestructiveButtons: []int{1},
+			DestructiveButtons: dest,
 			CancelButton:       0,
 			DefaultButton:      0,
 		})
