@@ -246,20 +246,23 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 	// one line in the list, whole in the tooltip and in the opened row,
 	// and the chevron is always there (kubai R-20). A skipped or accepted
 	// row with nothing else has no chevron.
-	expandable := len(cr.Evidence) > 0 || cr.Fix != nil ||
-		cr.Summary != "" && cr.Status != health.StatusSkip && cr.Status != health.StatusAccepted
+	egress := cr.ID == (health.LeakEgress{}).ID()
+	off := egressOff(cr)
+	// The egress row's own fix (检测出口) is on the row, not in the fold.
+	fix := cr.Fix != nil && !(egress && cr.Fix.AutoFix == health.FixEgressProbe)
+	expandable := len(cr.Evidence) > 0 || fix ||
+		cr.Summary != "" && cr.Status != health.StatusSkip && cr.Status != health.StatusAccepted ||
+		egress && !off && cr.Summary != ""
 	look := cr.Status
 	if demote && look == health.StatusFail {
 		look = health.StatusWarn
 	}
 	icon, col, _ := healthStatusLook(t, look)
 	_, _, stateText := healthStatusLook(t, cr.Status)
-	egress := cr.ID == (health.LeakEgress{}).ID()
-	off := egressOff(cr)
 	if off {
-		// Off until asked: a setting, not a finding. The power glyph,
+		// Not tested yet: a setting, not a finding. The power glyph,
 		// not skip's ⊖, which reads as something left unresolved.
-		icon, stateText = iconPower, cr.Summary
+		icon, stateText = iconPower, T.EgressUntested
 	}
 	ui.Column(c).PaddingY(listRowPadY).Gap(8).Clip().Transition(expandFor(open)).Children(func() {
 		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).MinHeight(20).Label(stateText + T.LabelSep + cr.Title)
@@ -275,6 +278,12 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 			ui.Icon(c, icon).FontSize(iconNav).TextColor(col).Shrink(0).AccessHidden(true)
 			ui.Text(c, cr.Title).FontWeight(500).SingleLine().Shrink(0)
 			switch {
+			case egress:
+				infoTip(c, cr.Title, T.TipEgress, nil)
+				// What the state means, in a few words: 未测过, or when
+				// it was tested and what it found.
+				line := egressLine(cr, s)
+				ui.Text(c, line).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(line)
 			case cr.Status == health.StatusSkip:
 				// Skipped: the short reason as a chip; the error, if
 				// any, is in the evidence.
@@ -287,13 +296,11 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 				ui.Text(c, cr.Summary).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(cr.Summary)
 			}
 			ui.Spacer(c)
-			if !cr.At.IsZero() { // an on-demand result: when it was taken
-				small(c, fmt.Sprintf(T.EgressTestedAt, eventTime(s.Time, cr.At))).SingleLine().Shrink(0).
-					Tooltip(cr.At.Local().Format("2006-01-02 15:04:05"))
-			}
-			// A check that is off until asked (出口 IP 实测) offers its
-			// run on the row, not inside the fold (U31).
-			if cr.Status == health.StatusSkip && !open {
+			if egress {
+				// The row carries its controls (U31): 检测出口 and the
+				// 定期检测 switch, its ⓘ saying what the test sends.
+				a.egressControls(c, cr, s)
+			} else if cr.Status == health.StatusSkip && !open {
 				if act := a.fixAction(cr, s); act != nil {
 					busy := egress && a.egress.running || a.hd.busy == act.label
 					if busyButton(c.Key("fix-inline"), act.label, false, busy, act.off).Clicked() {
@@ -311,11 +318,17 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 				a.healthOpen[cr.ID] = !open
 			}
 		}
-		if !open {
+		if egress && a.egress.err != "" {
+			// A failed run is said, whether or not the row is open.
+			ui.Column(c).MarginStart(26).Children(func() {
+				failedRowWhy(c.Key("egress-failed"), T.EgressFailed, a.egress.why, a.egress.err, a.testEgress, a.egress.running)
+			})
+		}
+		if !open || !expandable {
 			return
 		}
 		ui.Column(c).Gap(10).MarginStart(26).Children(func() {
-			if cr.Status != health.StatusSkip {
+			if cr.Status != health.StatusSkip || egress {
 				ui.Text(c, cr.Summary).Wrap().LineHeight(lineText).Selectable()
 			}
 			if len(cr.Evidence) > 0 {
@@ -342,10 +355,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 					}
 				})
 			}
-			if egress {
-				a.egressControls(c, cr, s)
-			}
-			if f := cr.Fix; f != nil && !off {
+			if f := cr.Fix; f != nil && fix {
 				ui.Column(c).Gap(6).Children(func() {
 					small(c, T.HealthFix)
 					ui.Text(c, f.Text).Wrap().LineHeight(lineText).Selectable()
@@ -520,16 +530,31 @@ func egressOff(cr health.CheckReport) bool {
 		cr.Fix != nil && cr.Fix.AutoFix == health.FixEgressProbe
 }
 
-// egressControls are the opened 出口 IP 实测 row's controls: run the test
-// now (检测出口, 重新检测 once there is a result), with its progress on
-// the button, and the 定期检测 switch (the helper's setting), its ⓘ
-// saying what the test sends.
+// egressLine is the egress row's state in a few words: 未测过, or when it
+// was tested and what it found (21:30 检测 · …). A periodic run's result
+// carries the report's time.
+func egressLine(cr health.CheckReport, s status.Snapshot) string {
+	T := i18n.T
+	if egressOff(cr) {
+		return T.EgressUntested
+	}
+	at := cr.At
+	if at.IsZero() && s.Health.Report != nil {
+		at = s.Health.Report.Started
+	}
+	if at.IsZero() {
+		return cr.Summary
+	}
+	return fmt.Sprintf(T.EgressTestedAt, eventTime(s.Time, at)) + " · " + cr.Summary
+}
+
+// egressControls are the 出口 IP 实测 row's trailing controls: run the
+// test now (检测出口, 重新检测 once there is a result) with its progress
+// on the button, then the 定期检测 switch (the helper's setting; turning
+// it on tests at once). The ⓘ after the title says what the test sends.
 func (a *app) egressControls(c *ui.Context, cr health.CheckReport, s status.Snapshot) {
 	T := i18n.T
-	if a.egress.err != "" {
-		errorNote(c, a.egress.err)
-	}
-	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Shrink(0).Children(func() {
 		if a.canTestEgress(s) {
 			label := T.FixTestEgress
 			if !egressOff(cr) {
@@ -539,15 +564,11 @@ func (a *app) egressControls(c *ui.Context, cr health.CheckReport, s status.Snap
 				a.testEgress()
 			}
 		}
-		ui.Spacer(c)
 		set := a.hd.settings
 		if !s.Helper.Connected() || set == nil {
 			return // the switch is the helper's setting
 		}
-		ui.Row(c).Gap(4).AlignItems(ui.Center).Shrink(1).Children(func() {
-			ui.Text(c, T.EgressPeriodic).SingleLine().Shrink(1)
-			infoTipAbout(c, T.EgressPeriodic, T.TipEgressPeriodic, nil)
-		})
+		small(c, T.EgressPeriodic).SingleLine().Shrink(0)
 		on := set.HealthEgress
 		sw := ui.Switch(c.Key("egress-periodic"), &on).Label(T.EgressPeriodic).Disabled(!a.helperOpsEnabled(s) || a.hd.busy != "")
 		if sw.Changed() {

@@ -1,11 +1,13 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/netip"
 	"strings"
 	"time"
 
+	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/mihomo"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/tailscale"
@@ -31,6 +33,13 @@ once; open ones keep their node. Undo: select_node with the previous node in the
 HTTP request per node to the test URL; changes no setting, but url-test and fallback groups may switch
 to a faster node as a result.`,
 		toolOpts{openWorld: true}, s.delayTest)
+
+	addTool(s, rpc.TierOperate, "health_egress_run", "Test egress",
+		`Runs the egress check (leak-guard-egress) once in the helper: two HTTPS GETs to a neutral IP-echo
+address, one directly and one through mihomo, and compares the public IPs (the sensitive groups must not
+leave from this network's IP). Changes no setting; the result stays in the health report for 24 hours.
+Nothing to undo.`,
+		toolOpts{openWorld: true}, s.healthEgressRun)
 
 	addTool(s, rpc.TierOperate, "set_tun", "Turn TUN on or off",
 		`Turns mihomo's TUN (system-wide capture of traffic) on or off. Off: only apps that use the proxy port
@@ -373,4 +382,25 @@ func applySummary(a *rpc.ApplyResult) map[string]any {
 		m["warnings"] = a.Warnings
 	}
 	return m
+}
+
+func (s *Server) healthEgressRun(c *call, _ noArgs) (any, error) {
+	var hr rpc.HealthReport
+	if err := c.rpc(rpc.MethodHealthEgress, rpc.HealthEgressParams{}, &hr); err != nil {
+		return nil, err
+	}
+	var rep struct {
+		Checks []json.RawMessage `json:"checks"`
+	}
+	if err := json.Unmarshal(hr.Report, &rep); err == nil {
+		for _, raw := range rep.Checks {
+			var id struct {
+				ID string `json:"id"`
+			}
+			if json.Unmarshal(raw, &id) == nil && id.ID == (health.LeakEgress{}).ID() {
+				return map[string]any{"check": raw}, nil
+			}
+		}
+	}
+	return map[string]any{"report": hr.Report}, nil
 }

@@ -84,6 +84,7 @@ duet helper upgrade [--check]    # replace the installed helper with the one nex
 duet helper restart              # restart only the helper
 duet helper uninstall [--purge]  # lists what goes and what stays first; --purge also deletes settings, subscriptions, layers, history, keychain items
 duet helper health [--run]       # the helper's last health report, or run the checks now
+duet helper egress [--json]      # run the egress test once (two HTTPS GETs to an IP-echo address)
 duet sub put main --url ...      # subscriptions: list | put | refresh | activate | rm
 duet layer put rules rules.yaml  # override layers: list | get | put | rm | enable | disable | order
 duet compose --preview           # compose and validate in the helper, no write
