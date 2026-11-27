@@ -20,6 +20,10 @@
 #
 # Version: -v, else `git describe --tags`; an untagged checkout gets
 # 0.0.0-<commits>-g<hash>[-dirty], which orders like a describe of a tag.
+#
+# Icon: with Xcode 26's actool the app also gets the macOS 26 layered icon
+# (assets/appicon/duet.icon → Assets.car); DUET_REQUIRE_LAYERED_ICON=1 fails
+# the build without it (docs/release.md).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -47,6 +51,45 @@ if [ -z "$version" ]; then
 	fi
 fi
 sign_identity="${SIGN_IDENTITY:--}"
+
+# The macOS 26 layered icon (assets/appicon/duet.icon, Icon Composer) needs
+# actool from Xcode 26. With it, the .icon is compiled to Assets.car in
+# Contents/Resources and named by CFBundleIconName; AppIcon.icns stays as
+# CFBundleIconFile for older macOS. Without it the app keeps the .icns only
+# and the build warns; DUET_REQUIRE_LAYERED_ICON=1 (release CI) makes that
+# an error.
+layered_icon=assets/appicon/duet.icon
+add_layered_icon() {
+	local app="$1" out msg
+	if ! xcrun --find actool >/dev/null 2>&1; then
+		if [ "${DUET_REQUIRE_LAYERED_ICON:-0}" = 1 ]; then
+			echo "error: DUET_REQUIRE_LAYERED_ICON=1 but actool (Xcode 26) is not available" >&2
+			exit 1
+		fi
+		echo "    warning: no actool (Xcode 26): duet.app gets the .icns only, no layered macOS 26 icon" >&2
+		return 0
+	fi
+	out="$dist/.actool"
+	rm -rf "$out" && mkdir -p "$out"
+	# --minimum-deployment-target 26.0: the catalog carries only the layered
+	# icon; macOS 15 and earlier take CFBundleIconFile (our drawn .icns).
+	if ! msg="$(xcrun actool "$layered_icon" --compile "$out" --output-format human-readable-text \
+		--platform macosx --target-device mac --minimum-deployment-target 26.0 \
+		--app-icon duet --output-partial-info-plist "$out/partial.plist" 2>&1)" || [ ! -f "$out/Assets.car" ]; then
+		echo "$msg" >&2
+		if [ "${DUET_REQUIRE_LAYERED_ICON:-0}" = 1 ]; then
+			echo "error: actool could not compile $layered_icon" >&2
+			exit 1
+		fi
+		echo "    warning: actool could not compile $layered_icon: duet.app gets the .icns only" >&2
+		rm -rf "$out"
+		return 0
+	fi
+	cp "$out/Assets.car" "$app/Contents/Resources/Assets.car"
+	plutil -replace CFBundleIconName -string duet "$app/Contents/Info.plist"
+	rm -rf "$out"
+	echo "    layered icon: Assets.car (CFBundleIconName duet), .icns kept for macOS 15 and earlier"
+}
 
 dist=dist
 rm -rf "$dist"
@@ -115,6 +158,7 @@ if [ "$build_app" = 1 ]; then
 			[ -x "$app_bundle/Contents/Resources/bin/$f" ] || { echo "missing $f in $app_bundle" >&2; exit 1; }
 		done
 		echo "    bundled: $app_bundle/Contents/Resources/bin/{duet,duet-helper}"
+		add_layered_icon "$app_bundle"
 		# Sign inside out: the embedded tools (each with its own identifier,
 		# not the linker's "a.out"), then the bundle; verify; then rebuild
 		# the disk image from the signed bundle.
