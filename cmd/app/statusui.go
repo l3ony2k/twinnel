@@ -407,8 +407,11 @@ func (a *app) gettingStarted(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	installed := s.Helper.State != status.HelperNotInstalled
 	taken := installed && s.TakenOver()
-	n, _ := s.HealthBadge()
-	clean := s.Health.Report != nil && n == 0
+	// The step is done when nothing fails. Warnings stay on the health
+	// page and badge but must not keep onboarding open forever: some
+	// (network conditions, things the user chose) can't be cleared.
+	_, fails := s.Health.Counts()
+	clean := s.Health.Report != nil && fails == 0
 	if installed && taken && clean {
 		return
 	}
