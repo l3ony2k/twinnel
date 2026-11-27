@@ -37,6 +37,7 @@ const (
 	ReasonSubUpdated   = "subscription-updated" // args: subscription ID
 	ReasonTailnet      = "tailnet-changed"
 	ReasonRestore      = "restore-layers" // args: the history ID the overrides came from
+	ReasonCLI          = "cli-apply"      // duet compose --apply without --reason
 )
 
 // HistoryEntry is one line of history/index.json.

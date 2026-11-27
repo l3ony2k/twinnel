@@ -138,6 +138,7 @@ type ConfigUIStrings struct {
 	EventKinds                       map[string]string // event type → chip
 	EvApplied, EvApplyUnchanged      string            // %s: reason
 	EvApplyFailed                    string            // %s: reason
+	EvViaCLI                         string            // the reason of duet compose --apply
 	// EvStateOps: an edit, by "layer.<op>" / "subscription.<op>" (op:
 	// saved, deleted, on, off, activated) or the kind alone. %s: the name.
 	EvStateOps                       map[string]string
@@ -266,6 +267,7 @@ var zhConfigUI = ConfigUIStrings{
 		"subscription-updated": "订阅「%s」更新",
 		"tailnet-changed":      "Tailscale 设备变化",
 		"restore-layers":       "恢复覆写",
+		"cli-apply":            "通过命令行应用",
 	},
 	HistBeforeDuet:  "接管前",
 	HistCopyHash:    "复制哈希",
@@ -336,6 +338,7 @@ var zhConfigUI = ConfigUIStrings{
 		"agent.action":         "Agent",
 	},
 	EvApplied:        "已应用 · %s",
+	EvViaCLI:         "通过命令行",
 	EvApplyUnchanged: "没有变化 · %s",
 	EvApplyFailed:    "应用失败 · %s",
 	EvState:          "覆写或订阅已修改",
@@ -481,6 +484,7 @@ var enConfigUI = ConfigUIStrings{
 		"subscription-updated": "Subscription “%s” updated",
 		"tailnet-changed":      "Tailscale devices changed",
 		"restore-layers":       "Overrides restored",
+		"cli-apply":            "Applied from the command line",
 	},
 	HistBeforeDuet:  "Before duet",
 	HistCopyHash:    "Copy Hash",
@@ -551,6 +555,7 @@ var enConfigUI = ConfigUIStrings{
 		"agent.action":         "Agent",
 	},
 	EvApplied:        "Applied · %s",
+	EvViaCLI:         "from the command line",
 	EvApplyUnchanged: "No change · %s",
 	EvApplyFailed:    "Apply failed · %s",
 	EvState:          "Overrides or subscriptions edited",

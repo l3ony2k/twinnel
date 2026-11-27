@@ -160,6 +160,7 @@ var legacyReasons = []struct {
 	{"harden", regexp.MustCompile(`^harden (\S+)$`)},
 	{"subscription-updated", regexp.MustCompile(`^subscription (\S+) updated$`)},
 	{"tailnet-changed", regexp.MustCompile(`^tailnet changed$`)},
+	{"cli-apply", regexp.MustCompile(`^duet compose --apply$`)},
 }
 
 // HistoryReasonCode returns an entry's reason code: its own, or one read
