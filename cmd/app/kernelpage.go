@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -36,7 +37,16 @@ func (a *app) kernelPage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	d := &a.hd
 	v := &d.kern
-	pageTitle(c, T.PageKernel)
+	// One 检查更新 for the page: mihomo, the GEO databases, the external
+	// UI and Tailscale at once (R-unslop-35).
+	pageHeader(c, T.PageKernel, func() {
+		if !s.Helper.Connected() {
+			return
+		}
+		if a.opButton(c.Key("check-all"), iconRefresh, T.KernelCheck, false, T.KernelCheck).Disabled(d.busy != "").Clicked() {
+			a.checkUpdates()
+		}
+	})
 	if !a.helperGate(c, s) {
 		return
 	}
@@ -54,14 +64,22 @@ func (a *app) kernelPage(c *ui.Context, s status.Snapshot) {
 	if a.section("services") {
 		a.servicesCard(c, s)
 	}
-	for _, k := range []accessoryKind{geoKind(), uiKind()} {
-		if a.section(k.check) {
-			ui.Column(c.Key(k.check)).Children(func() { a.accessoryCard(c, s, k) })
+	a.componentsCard(c, s)
+}
+
+// componentsCard is 内核 → 组件: the GEO databases, the external UI and
+// Tailscale, one section each in one list.
+func (a *app) componentsCard(c *ui.Context, s status.Snapshot) {
+	listCard(c, listHead(c, nil, i18n.T.PgComponents, nil), func() {
+		for _, k := range []accessoryKind{geoKind(), uiKind()} {
+			if a.section(k.check) {
+				ui.Column(c.Key(k.check)).Children(func() { a.accessoryRows(c, s, k) })
+			}
 		}
-	}
-	if a.section("kernel") {
-		a.tailscaleVersionCard(c, s)
-	}
+		if a.section("kernel") {
+			a.tailscaleRows(c, s)
+		}
+	})
 }
 
 func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
@@ -71,7 +89,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 	v := &d.kern
 	w := a.helperWrites(s)
 	k := d.kernels
-	listCard(c, listHead(c, iconKernel, T.KernelMihomo, nil), func() {
+	listCard(c, listHead(c, nil, T.KernelMihomo, nil), func() {
 		if k == nil {
 			listRow(c).Children(func() { ui.Text(c, T.Loading).TextColor(t.TextMuted) })
 			return
@@ -97,21 +115,29 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 					effectChip(c, T.KernelPendingRestart, "", true, false)
 				}
 			})
-			if own {
+			// 使用中 is one row: duet's current kernel by version and file,
+			// or the binary that runs; rows without a value are left out
+			// (R-unslop-27).
+			switch {
+			case own:
 				a.liveFileRow(c, "active", T.KernelActive, a.live.Binary)
-			} else {
+			case k.Active != "" || k.Current != "":
+				used := filepath.Base(k.Active)
+				if !k.External && k.Current != "" {
+					used = k.Current
+					if k.Active != "" {
+						used += " · " + filepath.Base(k.Active)
+					}
+				}
 				kvWith(c, T.KernelActive, func() {
-					monoText(c, filepath.Base(orDash(k.Active))).SingleLine().Shrink(1).Selectable().Tooltip(k.Active)
+					monoText(c, used).SingleLine().Shrink(1).Selectable().Tooltip(k.Active)
 				})
 			}
 			if running != "" {
 				kvMono(c, T.KernelRunning, running)
 			}
-			if !own && !k.External { // 当前/上一个 only mean something for duet's kernels
-				kvMono(c, T.KernelCurrent, orDash(k.Current))
-				if k.Previous != "" {
-					kvMono(c, T.KernelPrevious, k.Previous)
-				}
+			if !own && !k.External && k.Previous != "" { // 上一个 only means something for duet's kernels
+				kvMono(c, T.KernelPrevious, k.Previous)
 			}
 		})
 		own := !s.TakenOver() // duet's kernels: none of them runs yet
@@ -140,9 +166,6 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 					v.release = nil
 				}
 				ui.Spacer(c)
-				if a.opButton(c.Key("k-check"), iconRefresh, T.KernelCheck, false, T.KernelCheck).Disabled(d.busy != "").Clicked() {
-					a.kernelCheck()
-				}
 				if k.Previous != "" && a.opButton(c.Key("k-rollback"), iconRollback, T.KernelRollback, false, T.KernelRollback).Disabled(!w).Clicked() {
 					a.confirm(fmt.Sprintf(T.KernelRollbackTitle, k.Previous), T.KernelRollbackBody, T.KernelRollback, func() {
 						a.helperOp(T.KernelRollback, time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
@@ -152,15 +175,9 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 				}
 			})
 		})
-		if v.checkErr != "" {
+		if v.checkErr != "" { // what failed, why in words, 重试 (kubai R-10)
 			listRow(c).Children(func() {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText)
-					ui.Text(c, T.KernelCheckFailed).Grow(1)
-					if actionLink(c.Key("k-copy"), T.TkCopyDetails).Clicked() {
-						copyText(c, v.checkErr)
-					}
-				})
+				failedRow(c.Key("k-failed"), i18n.F(T.PgCheckFailed, "mihomo"), v.checkErr, a.kernelCheck, d.busy != "")
 			})
 		}
 		if r := v.release; r != nil {
@@ -174,7 +191,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 				}
 				ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Children(func() {
 					dot(c, col, 8)
-					ui.Text(c, head).FontWeight(600).Grow(1).Wrap().LineHeight(lineText)
+					ui.Text(c, head).FontWeight(500).Grow(1).Wrap().LineHeight(lineText)
 					if r.UpdateAvailable {
 						rel := *r
 						if a.opButton(c.Key("k-install"), iconOK, fmt.Sprintf(T.KernelInstall, r.Version), true, fmt.Sprintf(T.KernelInstall, r.Version)).Disabled(!w).Clicked() {
@@ -255,50 +272,104 @@ func (a *app) kernelInstall(r rpc.KernelRelease) {
 	})
 }
 
-func (a *app) tailscaleVersionCard(c *ui.Context, s status.Snapshot) {
+// tailscaleRows are the Tailscale section of 内核 → 组件: its version,
+// install kind and path, and the latest release.
+func (a *app) tailscaleRows(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.kern
-	listCard(c, listHead(c, iconTailscale, T.Tailscale, func() {
-		label := T.KernelCheck
-		if v.tsLoading {
-			label = T.Checking
-		}
-		if iconButton(c.Key("ts-check"), iconRefresh, label, false).Disabled(v.tsLoading).Clicked() {
-			a.tailscaleCheck()
-		}
-	}), func() {
-		info := v.ts
+	info := v.ts
+	listRow(c).Children(func() {
+		componentHead(c, T.Tailscale, "", func() {
+			if info == nil && v.tsLoading {
+				ui.Text(c, T.Checking).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine()
+			}
+		})
 		if info == nil {
 			return
 		}
-		listRow(c).Children(func() {
-			if !info.Installed {
-				kv(c, T.State, T.TSNotInstalled)
-			} else {
-				kvMono(c, T.Version, info.Version)
-				kv(c, T.Install, T.TSInstallKind(info.InstallKind))
+		if info.Error != "" && !info.Installed && info.Version == "" {
+			failedRow(c.Key("ts-failed"), i18n.F(T.PgCheckFailed, T.Tailscale), info.Error, a.tailscaleCheck, v.tsLoading)
+			return
+		}
+		if !info.Installed {
+			kv(c, T.State, T.TSNotInstalled)
+		} else {
+			kvMono(c, T.Version, info.Version)
+			kv(c, T.Install, T.TSInstallKind(info.InstallKind))
+			if info.Path != "" {
 				kvMono(c, T.BinaryPath, info.Path)
 			}
-			if info.Latest != "" {
-				kvWith(c, T.KernelLatest, func() {
-					col := t.Text
-					if info.UpdateAvailable {
-						col = t.Accent
-					}
-					monoText(c, info.Latest).TextColor(col).SingleLine().Shrink(0)
-					if info.UpdateAvailable {
-						ui.Text(c, T.UpdateAvailable).TextColor(col).SingleLine().Shrink(1)
-					}
-				})
+		}
+		if info.Latest != "" {
+			kvWith(c, T.KernelLatest, func() {
+				col := t.Text
 				if info.UpdateAvailable {
-					hintText(c, T.TSUpdateHint(info.InstallKind))
+					col = t.Accent
 				}
+				monoText(c, info.Latest).TextColor(col).SingleLine().Shrink(0)
+				if info.UpdateAvailable {
+					ui.Text(c, T.UpdateAvailable).TextColor(col).SingleLine().Shrink(1)
+				}
+			})
+			if info.UpdateAvailable {
+				hintText(c, T.TSUpdateHint(info.InstallKind))
 			}
-			if info.Error != "" {
-				errorNote(c, T.ErrorPrefix+strings.TrimSpace(info.Error))
+		}
+		if info.Error != "" { // the latest release could not be read
+			failedRow(c.Key("ts-failed"), i18n.F(T.PgCheckFailed, T.Tailscale), info.Error, a.tailscaleCheck, v.tsLoading)
+		}
+	})
+}
+
+// checkUpdates is the page's 检查更新: mihomo's channel, the GEO
+// databases, the external UI and Tailscale, at once, as one operation;
+// each section shows its own result or failure.
+func (a *app) checkUpdates() {
+	T := i18n.T
+	ch := kernelChannels[a.hd.kern.channel]
+	geo, uik := geoKind(), uiKind()
+	var (
+		rel        rpc.KernelRelease
+		geoR, uiR  rpc.AccessoryCheck
+		ts         rpc.TailscaleInfo
+		relE, geoE error
+		uiE, tsE   error
+	)
+	a.helperOp(T.KernelCheck, 2*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
+		var wg sync.WaitGroup
+		run := func(f func()) { wg.Add(1); go func() { defer wg.Done(); f() }() }
+		run(func() { relE = hc.Call(ctx, rpc.MethodKernelCheck, rpc.KernelCheckParams{Channel: ch}, &rel) })
+		run(func() { geoE = hc.Call(ctx, geo.check, nil, &geoR) })
+		run(func() { uiE = hc.Call(ctx, uik.check, nil, &uiR) })
+		run(func() { tsE = hc.Call(ctx, rpc.MethodTailscaleInfo, nil, &ts) })
+		wg.Wait()
+		return nil // each section shows its own failure
+	}, func(error) {
+		v := &a.hd.kern
+		v.release, v.checkErr = nil, ""
+		if relE == nil {
+			v.release = &rel
+		} else {
+			v.checkErr = helperError(relE)
+		}
+		for _, r := range []struct {
+			k   accessoryKind
+			res *rpc.AccessoryCheck
+			err error
+		}{{geo, &geoR, geoE}, {uik, &uiR, uiE}} {
+			av := r.k.view(a)
+			av.checkErr = ""
+			if r.err == nil {
+				av.check = r.res
+			} else {
+				av.checkErr = helperError(r.err)
 			}
-		})
+		}
+		if tsE != nil {
+			ts = rpc.TailscaleInfo{Error: helperError(tsE)}
+		}
+		v.ts = &ts
 	})
 }
 
