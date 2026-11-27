@@ -41,6 +41,7 @@ var (
 	iconOK        = svgIcon("circle-check")
 	iconError     = svgIcon("circle-x")
 	iconSkip      = svgIcon("circle-minus")
+	iconClose     = svgIcon("x") // closes a toast
 	iconTun       = svgIcon("tunnel")
 	iconCollapsed = svgIcon("chevron-right")
 	iconUpDown    = svgIcon("chevrons-up-down") // a pop-up row of the flyout

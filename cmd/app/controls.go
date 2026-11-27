@@ -53,7 +53,7 @@ func (a *app) modeControl(c *ui.Context, s status.Snapshot) ui.Element {
 			idx = i
 		}
 	}
-	e := ui.Segmented(c.Key("mode"), &idx, labels...).Disabled(!s.Can().Mihomo)
+	e := segmented(c.Key("mode"), &idx, labels...).Disabled(!s.Can().Mihomo)
 	if e.Changed() {
 		md := mihomo.Modes[idx]
 		a.optimistic(pendMode, md, T.ModeFailed, func(ctx context.Context) error { return a.mh.SetMode(ctx, md) })

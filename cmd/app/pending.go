@@ -127,29 +127,9 @@ func (a *app) selectNode(group, name string) {
 
 // --- progress on the pressed button (kubai 017 b) ---
 
-// A short wait shows on the button that started it: its icon turns into a
-// spinner after busyDelay and stays at least busyMin (widgets.go), so a
-// quick answer shows no flicker and a slow one no blink. Unlike showBusy,
-// the timing belongs to the operation (a.hd.span), so the spinner also
-// keeps its minimum after the operation ended and frames are scheduled
-// for it.
-
-// busySpan is one operation's run: end is zero while it runs.
-type busySpan struct {
-	start, end time.Time
-}
-
-// visible reports whether the operation's spinner shows at now.
-func (b busySpan) visible(now time.Time) bool {
-	if b.start.IsZero() {
-		return false
-	}
-	on := b.start.Add(busyDelay)
-	if b.end.IsZero() {
-		return !now.Before(on)
-	}
-	return !b.end.Before(on) && now.Before(on.Add(busyMin))
-}
+// A short wait shows on the button that started it (busy.go): the
+// timing belongs to the operation (a.hd.span), so the mark also keeps its
+// minimum after the operation ended and frames are scheduled for it.
 
 // opSpinning reports whether op's button shows its spinner: op runs (or
 // ended within busyMin of its spinner appearing).
@@ -159,8 +139,8 @@ func (a *app) opSpinning(op string) bool {
 }
 
 // opButton is iconButton for a helper operation: while helperOp(op, …)
-// runs, the icon turns into a spinner (after busyDelay, for at least
-// busyMin) and the label and width stay. Drawing it also tells opNotes not
+// runs (after busyDelay, for at least busyMin) the refresh icon turns and
+// any other becomes a spinner (busyIcon); the label and width stay. Drawing it also tells opNotes not
 // to repeat the running operation at the top of the page.
 func (a *app) opButton(c *ui.Context, icon *ui.SVG, label string, primary bool, op string) ui.Element {
 	if a.hd.busy == op {
@@ -174,13 +154,9 @@ func (a *app) opButton(c *ui.Context, icon *ui.SVG, label string, primary bool, 
 		b = pushFace(c, ui.Button(c, ""))
 	}
 	return b.Label(label).Busy(spin).Children(func() {
-		if spin {
-			sp := spinnerIcon(c)
-			if primary { // on the accent, in the label's color
-				sp.TextColor(c.Theme().AccentText)
-			}
-		} else {
-			ui.Icon(c, icon).FontSize(iconInline)
+		mark := busyIcon(c, icon, spin) // the refresh icon turns, others become a spinner
+		if spin && primary {            // on the accent, in the label's color
+			mark.TextColor(c.Theme().AccentText)
 		}
 		ui.Text(c, label).SingleLine()
 	})

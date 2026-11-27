@@ -2,6 +2,7 @@ package main
 
 import (
 	"runtime"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -104,7 +105,7 @@ func platformFor(goos string) platformStyle {
 	}
 	return platformStyle{ // darwin
 		titleBar: mygo.TitleBarHiddenInset, sidebarMat: mygo.VibrancySidebar,
-		sidebarWidth: 216, contentMax: 920, pagePadX: 28, pagePadTop: 20,
+		sidebarWidth: 216, contentMax: 1080, pagePadX: 28, pagePadTop: 20,
 		groupRadius: 10, controlRadius: 6, innerRadius: 8, rowMinHeight: 24,
 		bodySize: 13, smallSize: 11, calloutSize: 12, leadSize: 15, figureSize: 20, panelTextSize: 13, titleSize: 20, headingSize: 13,
 		titleWeight: 600, headingWeight: 600, panelPad: 14, panelMaterialOK: true,
@@ -150,5 +151,8 @@ func systemTheme(dark bool, p ui.Preferences) *ui.Theme {
 	}
 	t.Radius = plat.controlRadius
 	t.FontSize = plat.bodySize
+	// Tooltips (labels) open after half a second, as AppKit's; once one
+	// shows, its neighbours open at once (MyGo's warm-up).
+	t.TooltipDelay = 500 * time.Millisecond
 	return t.WithPreferences(p)
 }

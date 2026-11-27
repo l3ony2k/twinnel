@@ -131,6 +131,25 @@ var (
 	}
 	// turnMotion turns a disclosure chevron.
 	turnMotion = ui.ElementTransition{Duration: 200 * time.Millisecond, Ease: easeOutStrong}
+	// statusMotion is a status row whose state changes in place (the
+	// apply card's 已应用 / 应用失败, a service's state): its colors
+	// cross-fade over 180 ms, and a row that replaces another fades in.
+	// Key the row by its state so a new state is a new row.
+	statusMotion = ui.ElementTransition{
+		Colors: true, Duration: durSmall, Ease: easeOut,
+		ExitDuration: -1, // the old state goes at once; the new one fades in over it
+		Enter:        &ui.Motion{Opacity: 0},
+	}
+	// popoverMotion is how a popover or menu panel comes from its trigger
+	// (kubai R-15): 150 ms in from 4 pt toward the trigger at 96 %, out
+	// in 100; with AttachedOrigin it grows from the edge nearest the
+	// trigger and flips with the panel.
+	popoverMotion = ui.ElementTransition{
+		Duration: 150 * time.Millisecond, Ease: easeOut,
+		ExitDuration: 100 * time.Millisecond, ExitEase: easeIn,
+		Enter: &ui.Motion{Opacity: 0, Scale: 0.96, Y: -4, Flip: true},
+		Exit:  &ui.Motion{Opacity: 0, Scale: 0.96, Y: -4, Flip: true},
+	}
 )
 
 // expandFor is the transition of a row whose open state is open in this
@@ -171,56 +190,6 @@ func disclosure(c *ui.Context, open bool) ui.Element {
 		Width(14).Rotate(turn).Transition(turnMotion)
 }
 
-// Busy feedback (vibedesign 017): work shows on the control that started
-// it, only once it took longer than busyDelay, and then for at least
-// busyMin, so a quick answer never flashes a spinner.
-const (
-	busyDelay = 300 * time.Millisecond
-	busyMin   = 500 * time.Millisecond
-)
-
-type busyState struct {
-	since time.Time // when the work began; zero while idle
-	shown time.Time // when the spinner appeared; zero while hidden
-}
-
-// showBusy says whether e should show a spinner now for work that is
-// running when busy is true; e keeps the timing (ui.Local), so each
-// control has its own.
-func showBusy(c *ui.Context, e ui.Element, busy bool) bool {
-	st := ui.Local(e, "duet.busy", func() *busyState { return &busyState{} })
-	if st == nil {
-		return false
-	}
-	b, now := *st, c.Now()
-	switch {
-	case busy && b.since.IsZero():
-		b.since = now
-	case !busy:
-		b.since = time.Time{}
-	}
-	if b.shown.IsZero() && busy && now.Sub(b.since) >= busyDelay {
-		b.shown = now
-	}
-	if !b.shown.IsZero() && !busy && now.Sub(b.shown) >= busyMin {
-		b.shown = time.Time{}
-	}
-	switch {
-	case busy && b.shown.IsZero():
-		c.After(busyDelay - now.Sub(b.since))
-	case !busy && !b.shown.IsZero():
-		c.After(busyMin - now.Sub(b.shown))
-	}
-	*st = b
-	return !b.shown.IsZero()
-}
-
-// spinnerIcon is a spinner the size of an inline icon, to stand in for
-// one while its control works.
-func spinnerIcon(c *ui.Context) ui.Element {
-	return ui.Spinner(c).Size(iconInline, iconInline)
-}
-
 // levelColor is the dot color of a status level.
 func levelColor(t *ui.Theme, l status.Level) ui.Color {
 	switch l {
@@ -244,6 +213,22 @@ func levelText(t *ui.Theme, l status.Level) ui.Color {
 		return p.badText
 	}
 	return t.Text
+}
+
+// levelIcon is the glyph of a status level, drawn in levelColor: one
+// mapping wherever a level shows as an icon (kubai R-6), ✓ for OK, ⚠ for
+// a warning, ⊗ for an error, the info glyph otherwise. Text beside it
+// takes levelText.
+func levelIcon(l status.Level) *ui.SVG {
+	switch l {
+	case status.LevelOK:
+		return iconOK
+	case status.LevelWarn:
+		return iconWarning
+	case status.LevelError:
+		return iconError
+	}
+	return iconAbout
 }
 
 // dot draws a status dot.
@@ -664,10 +649,11 @@ func toolbarFace(c *ui.Context, b ui.Element) ui.Element {
 // Glass toolbar it is a capsule (toolbarFace's height and radius) with
 // no track of its own: the chosen segment is a pill concentric with the
 // capsule, the others a fainter pill on hover, as Finder's view switcher.
-// Elsewhere it keeps the theme's track.
+// Elsewhere it is NSSegmentedControl's (pageSegmented). Use it for every
+// segmented control.
 func segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 	if !inToolbar {
-		return ui.Segmented(c, selected, labels...)
+		return pageSegmented(c, selected, labels...)
 	}
 	t := c.Theme()
 	parts := ui.SegmentedBase(c, selected, len(labels))
@@ -694,6 +680,90 @@ func segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 	return track
 }
 
+// pageSegmented is a segmented control on a page, as AppKit draws one
+// (unslop R-14): a faint track with no outline, the chosen segment a
+// raised face (white with a hairline and a contact shadow in light, a
+// gray step up in dark), the others bare with a faint fill on hover.
+// MyGo's default (chosen segment white on a near-white track, no shadow)
+// left the state barely visible in light.
+func pageSegmented(c *ui.Context, selected *int, labels ...string) ui.Element {
+	t := c.Theme()
+	track, face, hover := ui.RGBA(0, 0, 0, 0.06), ui.Hex("#ffffff"), ui.RGBA(0, 0, 0, 0.05)
+	if t.Dark {
+		track, face, hover = ui.RGBA(255, 255, 255, 0.06), ui.Hex("#636366"), ui.RGBA(255, 255, 255, 0.06)
+	}
+	const pad = 2
+	inner := max(plat.controlRadius-pad, 2)
+	parts := ui.SegmentedBase(c, selected, len(labels))
+	g := parts.Track.Padding(pad).Gap(pad).Radius(plat.controlRadius).Background(track).AlignItems(ui.Stretch)
+	g.Children(func() {
+		for i, label := range labels {
+			s := parts.Segment(i).Padding(2, 10).Radius(inner).AlignItems(ui.Center).Justify(ui.Center).
+				Transition(colorMotion)
+			switch {
+			case i == *selected:
+				s.Background(face).Shadow(0, 0.5, 1, 0, ui.RGBA(0, 0, 0, 0.15))
+				if t.Dark {
+					s.InsetShadow(0, 0.5, 0, 0, ui.RGBA(255, 255, 255, 0.10))
+				} else {
+					s.Border(1, ui.RGBA(0, 0, 0, 0.06))
+				}
+			case !s.IsDisabled() && (s.Hovered() || s.Pressed()):
+				s.Background(hover)
+			}
+			s.Children(func() { ui.Text(c, label).SingleLine() })
+		}
+	})
+	return g
+}
+
+// primaryButton is ui.PrimaryButton that looks right while disabled
+// (unslop R-13): a disabled main action takes the push button's face,
+// dimmed, and its label in the secondary color, not a washed-out accent
+// (which reads as a broken color, ~2.4:1). The accent comes back when it
+// is enabled. Set disabled here, not with Disabled after.
+func primaryButton(c *ui.Context, label string, disabled bool) ui.Element {
+	if !disabled {
+		return ui.PrimaryButton(c, label)
+	}
+	return disabledPrimaryFace(c, ui.Button(c, label).Disabled(true))
+}
+
+// disabledPrimaryFace gives b, a button built as primary or plain that is
+// disabled, primaryButton's disabled face; enabled buttons are left as
+// they are. For buttons built with their own children (iconButton,
+// opButton, busyButton): call it after Disabled.
+func disabledPrimaryFace(c *ui.Context, b ui.Element) ui.Element {
+	if !b.IsDisabled() {
+		return b
+	}
+	t := c.Theme()
+	if t.Dark {
+		b.Background(ui.Hex("#4a4a4c").Alpha(0.5)).BorderWidth(0)
+	} else {
+		b.Background(ui.Hex("#ffffff")).Border(1, ui.RGBA(0, 0, 0, 0.10))
+	}
+	return b.TextColor(t.TextMuted).DimDisabled(false)
+}
+
+// disabledWhy builds a control that may be disabled with the reason as
+// its tooltip while it is (Vibe Design Tips 020: a disabled control says
+// why, as 需要后台助手). A disabled control shows no tooltip of its own,
+// so the reason sits on a wrapper the size of the control.
+//
+//	disabledWhy(c, !canWrite, T.NeedsHelper, func() ui.Element {
+//		return pushButton(c, T.Restart)
+//	})
+func disabledWhy(c *ui.Context, disabled bool, reason string, control func() ui.Element) ui.Element {
+	var e ui.Element
+	w := ui.Row(c).Shrink(0).AlignItems(ui.Center)
+	if disabled && reason != "" {
+		w.Tooltip(reason)
+	}
+	w.Children(func() { e = control().Disabled(disabled) })
+	return e
+}
+
 // pushButton is a plain button with the native push-button face.
 func pushButton(c *ui.Context, label string) ui.Element {
 	return pushFace(c, ui.Button(c, label))
@@ -703,7 +773,8 @@ func pushButton(c *ui.Context, label string) ui.Element {
 // every row (测速 on a group, moving a layer): about 24 × 24, the muted
 // icon, a faint fill on hover and press, its name as tooltip and for
 // assistive technology. While busy (after busyDelay, for busyMin) the
-// icon turns into a spinner in place; the button keeps its size.
+// refresh icon turns, any other becomes a spinner (busyIcon); the button
+// keeps its size.
 func toolIcon(c *ui.Context, icon *ui.SVG, label string, busy bool) ui.Element {
 	t := c.Theme()
 	b := ui.Button(c, "").Label(label).Tooltip(label).Padding(5, 5).Size(24, 24).
@@ -715,12 +786,8 @@ func toolIcon(c *ui.Context, icon *ui.SVG, label string, busy bool) ui.Element {
 		b.Background(t.Text.Alpha(0.07))
 	}
 	spin := showBusy(c, b, busy)
-	b.Children(func() {
-		if spin {
-			spinnerIcon(c)
-			return
-		}
-		ui.Icon(c, icon).FontSize(iconInline).TextColor(t.TextMuted)
+	b.Busy(spin).Children(func() {
+		busyIcon(c, icon, spin).TextColor(t.TextMuted)
 	})
 	return b
 }
@@ -730,4 +797,85 @@ func toolIcon(c *ui.Context, icon *ui.SVG, label string, busy bool) ui.Element {
 // does not draw a radius or a border, so the frame clips it.
 func codeFrame(c *ui.Context, height float32, view func()) ui.Element {
 	return ui.Column(c).Height(height).Radius(plat.innerRadius).Border(1, pal(c.Theme()).groupLine).Clip().Children(view)
+}
+
+// The diff block (unslop R-38): duet's second moment, what a change does
+// to the config, drawn as real lines on their own code surface. The
+// takeover verdict, 订阅与覆写 → 预览 and 历史 → 与当前对比 use the same
+// block, so the moment repeats: pal.code under the inner radius, 12 pt
+// mono at an 18 pt line, + lines in okText and − lines in badText (the
+// only rich color in the app besides the chart), context lines in the
+// text color; the counts above it small, muted and mono.
+
+// diffLine is one line of a diff: op is '+', '-' or ' ' (context).
+type diffLine struct {
+	op   byte
+	text string
+}
+
+// diffLines splits a unified diff's body (lines starting with +, - or a
+// space; ---/+++ headers and @@ hunks are left out) into diffLines.
+func diffLines(text string) []diffLine {
+	var out []diffLine
+	for _, l := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+		switch {
+		case strings.HasPrefix(l, "+++"), strings.HasPrefix(l, "---"), strings.HasPrefix(l, "@@"):
+		case strings.HasPrefix(l, "+"):
+			out = append(out, diffLine{'+', l[1:]})
+		case strings.HasPrefix(l, "-"):
+			out = append(out, diffLine{'-', l[1:]})
+		default:
+			out = append(out, diffLine{' ', strings.TrimPrefix(l, " ")})
+		}
+	}
+	return out
+}
+
+// diffLineH is a diff line's height: 18 pt for 12 pt mono.
+const diffLineH = 18
+
+// diffCounts is a diff's counts line ("新增 3 行 · 删除 1 行"): small,
+// muted, mono figures.
+func diffCounts(c *ui.Context, add, del int) ui.Element {
+	return mono(ui.Text(c, i18n.F(i18n.T.DiffStats, add, del))).FontSize(plat.smallSize).
+		TextColor(c.Theme().TextMuted).SingleLine()
+}
+
+// diffBlock draws lines as the diff block, its counts above it when
+// counts is true. Every line wraps (never cut) and the block is
+// selectable line by line.
+func diffBlock(c *ui.Context, lines []diffLine, counts bool) ui.Element {
+	t := c.Theme()
+	p := pal(t)
+	add, del := 0, 0
+	for _, l := range lines {
+		switch l.op {
+		case '+':
+			add++
+		case '-':
+			del++
+		}
+	}
+	return ui.Column(c).Gap(6).Children(func() {
+		if counts {
+			diffCounts(c, add, del)
+		}
+		ui.Column(c).Padding(8, 0).Radius(plat.innerRadius).Background(p.code).Border(1, p.groupLine).Clip().Children(func() {
+			for i, l := range lines {
+				mark, col, fill := " ", t.Text, ui.Transparent
+				switch l.op {
+				case '+':
+					mark, col, fill = "+", p.okText.Alpha(0.9), t.Success.Alpha(0.08)
+				case '-':
+					mark, col, fill = "−", p.badText, t.Danger.Alpha(0.08)
+				}
+				ui.Row(c.Key(i)).Gap(8).PaddingX(12).Background(fill).AlignItems(ui.Start).Children(func() {
+					mono(ui.Text(c, mark)).FontSize(plat.calloutSize).TextColor(col).Width(8).Shrink(0).
+						FixedLineHeight(diffLineH).AccessHidden(true)
+					mono(ui.Text(c, l.text)).FontSize(plat.calloutSize).TextColor(col).Grow(1).Shrink(1).
+						Wrap().FixedLineHeight(diffLineH).Selectable()
+				})
+			}
+		})
+	})
 }

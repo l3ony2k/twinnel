@@ -24,8 +24,8 @@ func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
 	}
 	pair := func(key, name, text string, m stateMark, col ui.Color) {
 		label := i18n.F(i18n.T.StateLabel, name, text)
-		ui.Row(c.Key(key)).Gap(5).AlignItems(ui.Center).Shrink(1).MinWidth(0).Tooltip(label).Label(label).Role(ui.RoleStatus).Children(func() {
-			stateDot(c, m, col, 8)
+		ui.Row(c.Key(key)).Gap(navGap).AlignItems(ui.Center).Shrink(1).MinWidth(0).Tooltip(label).Label(label).Role(ui.RoleStatus).Children(func() {
+			footMark(c, m, col)
 			ui.Text(c, name).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1)
 		})
 	}
@@ -60,13 +60,23 @@ func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
 			if s.Helper.State != status.HelperNotInstalled {
 				text = T.HelperDownRow
 			}
-			ui.Row(c.Key("h")).Gap(5).AlignItems(ui.Center).Children(func() {
-				stateDot(c, hm, hcol, 8)
+			ui.Row(c.Key("h")).Gap(navGap).AlignItems(ui.Center).Children(func() {
+				footMark(c, hm, hcol)
 				footLink(c.Key("h-act"), text, func() { a.openHelperSetup(s) })
 			})
 		default:
 			pair("h", T.HelperShort, s.Helper.State.Text(), hm, hcol)
 		}
+	})
+}
+
+// footMark is a state mark of the sidebar's foot, centered in a box as
+// wide as a nav row's icon, so the marks sit on the icons' column and the
+// names start on the labels' line (unslop R-8).
+func footMark(c *ui.Context, m stateMark, col ui.Color) {
+	_, _, icon := navMetrics()
+	ui.Row(c).Width(icon + 2).Shrink(0).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
+		stateDot(c, m, col, 8)
 	})
 }
 
