@@ -51,7 +51,7 @@ func iconButton(c *ui.Context, icon *ui.SVG, label string, primary bool) ui.Elem
 
 func copyText(c *ui.Context, text string) {
 	if err := mygo.Clipboard.Write(transfer.TextData(text)); err != nil {
-		c.Toast(i18n.T.ErrorPrefix + err.Error())
+		c.Toast(i18n.T.ErrorText(err.Error()))
 		return
 	}
 	c.Toast(i18n.T.Copied)

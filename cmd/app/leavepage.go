@@ -295,7 +295,7 @@ func (a *app) inventoryCard(c *ui.Context, s status.Snapshot) {
 			return
 		}
 		if v.err != "" {
-			listRow(c).Children(func() { errorNote(c, T.ErrorPrefix+v.err) })
+			listRow(c).Children(func() { errorNote(c, v.err) })
 		}
 		for i, it := range items {
 			listRow(c.Key(fmt.Sprint("inv", i))).Children(func() {

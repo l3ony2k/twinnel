@@ -397,7 +397,7 @@ func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 	if d.loadErr != "" && !helperOutdated(s) {
 		// An outdated helper lacks newer methods: its version row says
 		// so (helperUpdateRow), not an error on every page.
-		errorNote(c, i18n.T.ErrorPrefix+d.loadErr)
+		errorNote(c, i18n.T.RPCErrorText(0, d.loadErr))
 	}
 }
 

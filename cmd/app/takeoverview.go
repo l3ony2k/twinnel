@@ -179,7 +179,7 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 			}
 		})
 		if v.listErr != "" {
-			errorNote(c, T.ErrorPrefix+v.listErr)
+			errorNote(c, v.listErr)
 		}
 	})
 }
@@ -1296,7 +1296,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 			}
 			ui.Text(c, msg).FontSize(plat.calloutSize).TextColor(pal(t).okText).Wrap().LineHeight(lineText)
 			if r.Apply != nil && r.Apply.Error != "" {
-				errorNote(c, T.ErrorPrefix+r.Apply.Error)
+				errorNote(c, T.RPCErrorText(0, r.Apply.Error))
 			}
 			for _, w := range r.Warnings {
 				warningNote(c, w)
