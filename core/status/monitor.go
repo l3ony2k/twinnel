@@ -51,7 +51,16 @@ type Options struct {
 	// negative: only at start and on demand.
 	HealthInterval time.Duration
 
+	// Processes lists the running processes, for mihomo's and
+	// tailscaled's memory, CPU and uptime; nil: not shown.
+	Processes ProcessSource
+	// MihomoFile reads the mihomo config file, for what the controller
+	// does not report (the DNS mode); nil: not shown.
+	MihomoFile func(ctx context.Context) (*health.MihomoConfig, error)
+
 	MihomoPoll    time.Duration // default 3s
+	ProcessPoll   time.Duration // default 5s
+	DNSPoll       time.Duration // default 1 min
 	TailscalePoll time.Duration // default 10s; the IPN bus triggers the rest
 	HistoryLen    int           // traffic samples kept, default 120
 	LogLen        int           // log lines kept, default 1000
@@ -93,6 +102,12 @@ func NewMonitor(o Options) *Monitor {
 	if o.TailscalePoll == 0 {
 		o.TailscalePoll = 10 * time.Second
 	}
+	if o.ProcessPoll == 0 {
+		o.ProcessPoll = 5 * time.Second
+	}
+	if o.DNSPoll == 0 {
+		o.DNSPoll = time.Minute
+	}
 	if o.HealthInterval == 0 {
 		o.HealthInterval = 10 * time.Minute
 	}
@@ -130,6 +145,12 @@ func (m *Monitor) Run(ctx context.Context) {
 	m.logMu.Unlock()
 	go m.mihomoLoop(ctx)
 	go m.trafficLoop(ctx)
+	if m.o.Processes != nil {
+		go m.processLoop(ctx)
+	}
+	if m.o.MihomoFile != nil {
+		go m.dnsLoop(ctx)
+	}
 	if m.o.Health != nil {
 		go m.healthLoop(ctx)
 	}
@@ -267,8 +288,9 @@ func (m *Monitor) pollMihomo(ctx context.Context, needVersion bool) bool {
 		return true
 	}
 	conns := -1
+	var mem int64
 	if c, err := m.o.Mihomo.Connections(ctx); err == nil {
-		conns = len(c.Connections)
+		conns, mem = len(c.Connections), c.Memory
 	}
 	m.update(func(s *Snapshot) {
 		m.d.proxies = all
@@ -283,7 +305,7 @@ func (m *Monitor) pollMihomo(ctx context.Context, needVersion bool) bool {
 		mh.Groups = groups
 		mh.Primary = PickPrimary(groups, m.o.PrimaryGroup)
 		if conns >= 0 {
-			mh.Connections = conns
+			mh.Connections, mh.Memory = conns, mem
 		}
 		mh.Updated = m.o.Now()
 	})

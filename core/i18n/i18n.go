@@ -228,6 +228,8 @@ type Strings struct {
 	// Units and time.
 	JustNow, SecondsAgo, MinutesAgo, HoursAgo, DaysAgo string // %d
 	InDays, InHours                                    string // %d
+	DurDays, DurHours                                  string // %d %d: a running time
+	DurMinutes                                         string // %d
 
 	// Sidebar sections, empty states, reload impact.
 	SidebarHelper, SidebarApp          string
@@ -256,6 +258,7 @@ type Strings struct {
 	InfoTipStrings         // infotips.go
 	StatusStrings          // status.go
 	SidebarStrings         // sidebar.go
+	OverviewStrings        // overview.go
 }
 
 // zh is the Chinese text.
@@ -772,6 +775,9 @@ var zh = Strings{
 	HoursAgo:   "%d 小时前",
 	DaysAgo:    "%d 天前",
 	InDays:     "%d 天后",
+	DurDays:    "%d 天 %d 小时",
+	DurHours:   "%d 小时 %d 分",
+	DurMinutes: "%d 分钟",
 	InHours:    "%d 小时后",
 
 	SidebarHelper:       "配置",
@@ -807,6 +813,7 @@ var zh = Strings{
 	InfoTipStrings:         zhInfoTips,
 	StatusStrings:          zhStatus,
 	SidebarStrings:         zhSidebar,
+	OverviewStrings:        zhOverview,
 }
 
 // F formats one of the strings.

@@ -34,6 +34,7 @@ import (
 // app holds everything. Fields below "main thread" are read and written
 // only on the main thread (views, tray callbacks, RunOnMain).
 type app struct {
+	ovWidth float32 // the overview column's width at the last layout (overview.go)
 	cfgPath string
 	cfg     status.Config
 	install tailscale.Install
@@ -262,6 +263,8 @@ func (a *app) start() {
 		WritesAllowed: a.cfg.AllowWrites,
 
 		ExitNodeAccepted: a.cfg.ExitNodeAccepted,
+		Processes:        a.probes.processes,
+		MihomoFile:       newMihomoFile(a.probes, cc),
 	})
 	a.egressProbe = newEgressProbe(a.probes, cc)
 	if a.hc != nil {
