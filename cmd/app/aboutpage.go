@@ -246,25 +246,33 @@ type aboutStep struct {
 	pages []string
 }
 
-func (a *app) aboutSteps(c *ui.Context, s status.Snapshot) {
-	t := c.Theme()
+// aboutStepList is 入门's steps, and the label of each page button: the
+// page's sidebar name, or 安装 for the install guide (pageInstall).
+func (a *app) aboutStepList(s status.Snapshot) ([]aboutStep, map[string]string) {
 	T := i18n.T
 	helperOK := s.Helper.Connected()
 	setUp := helperOK && a.hd.loaded && len(a.hd.subs) > 0
 	_, fails := s.Health.Counts()
 	healthy := s.Health.Report != nil && fails == 0
 	steps := []aboutStep{
-		{T.StepHelper, &helperOK, []string{pageConfig}},
+		{T.StepHelper, &helperOK, []string{pageInstall}},
 		{T.StepSetup, &setUp, []string{pageTakeover, pageConfig}},
 		{T.StepHealth, &healthy, []string{pageHealth}},
 		{T.StepDaily, nil, []string{pageProxies, pageTailscale}},
 	}
-	names := map[string]string{}
+	names := map[string]string{pageInstall: T.StepInstall}
 	for _, sec := range navSections(0, 0, toneNeutral) {
 		for _, it := range sec.items {
 			names[it.id] = it.label
 		}
 	}
+	return steps, names
+}
+
+func (a *app) aboutSteps(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	T := i18n.T
+	steps, names := a.aboutStepList(s)
 	listCard(c, listHead(c, nil, T.GettingStarted, nil), func() {
 		for i, st := range steps {
 			ui.Row(c.Key(fmt.Sprint("step", i))).Gap(10).AlignItems(ui.Center).PaddingY(8).Children(func() {

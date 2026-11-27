@@ -69,9 +69,11 @@ func navMetrics() (rowH, gap, icon float32) {
 }
 
 // navList draws the sections and reports whether the selection changed.
+// With reselect, a click on the selected row reports a change too (a
+// sub-page of it shows: the click goes back to the row's page).
 // active is whether the window is key (c.WindowActive, or the shot
 // override); hover forces a row's hover look in shots ("" = none).
-func navList(c *ui.Context, selected *string, sections []navSection, active bool, hover string) bool {
+func navList(c *ui.Context, selected *string, sections []navSection, active bool, hover string, reselect bool) bool {
 	var order []string
 	for _, s := range sections {
 		for _, it := range s.items {
@@ -87,7 +89,7 @@ func navList(c *ui.Context, selected *string, sections []navSection, active bool
 				navHeader(c, s.title, si == 0)
 			}
 			for _, it := range s.items {
-				if navRow(c, it, *selected == it.id, active, hover == it.id) && *selected != it.id {
+				if navRow(c, it, *selected == it.id, active, hover == it.id) && (*selected != it.id || reselect) {
 					*selected, changed = it.id, true
 				}
 			}
