@@ -111,7 +111,6 @@ func (a *app) foreignActions(c *ui.Context, s status.Snapshot, height float32) {
 // program's values (version, ports, TUN, mode) are shown as Twinnel's.
 func (a *app) foreignCardBody(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
-	T := i18n.T
 	v := s.MihomoView()
 	ui.Row(c.Key("foreign")).Gap(12).AlignItems(ui.Center).MinHeight(40).Label(v.Text()).Role(ui.RoleStatus).Children(func() {
 		ui.Row(c).Size(40, 40).Radius(plat.innerRadius).Background(pal(t).code).AlignItems(ui.Center).Justify(ui.Center).Shrink(0).Children(func() {
@@ -119,9 +118,14 @@ func (a *app) foreignCardBody(c *ui.Context, s status.Snapshot) {
 		})
 		ui.Text(c, v.Text()).FontWeight(500).Wrap().LineHeight(lineText).Grow(1).Shrink(1).MinWidth(0)
 	})
-	kvMono(c, T.Controller, v.Owner.Addr)
-	if d := v.Detail(); d != "" {
-		kvWith(c, T.ForeignProcess, func() { middleText(c, d).Selectable().Tooltip(d) })
+	// The rows every surface lists (the CLI's status too): the address,
+	// the process, what started it.
+	for _, f := range v.Facts() {
+		if f.Key == status.FactController {
+			kvMono(c, f.Label, f.Value)
+			continue
+		}
+		kvWith(c, f.Label, func() { middleText(c, f.Value).Selectable().Tooltip(f.Value) })
 	}
 	a.foreignActions(c, s, 0)
 }

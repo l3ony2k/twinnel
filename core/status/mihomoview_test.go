@@ -1,6 +1,7 @@
 package status
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -75,5 +76,57 @@ func TestTrayIconForeign(t *testing.T) {
 	Evaluate(&s)
 	if got := TrayIconFor(s); got != TrayError {
 		t.Fatalf("tray %v, want %v", got, TrayError)
+	}
+}
+
+// Facts are the rows every surface lists under the state (the app's card,
+// the CLI's status): the address, the process and what started it, as
+// much as is known, never the unknown name again.
+func TestMihomoViewFacts(t *testing.T) {
+	for _, lang := range []string{"zh-Hans", "en"} {
+		i18n.Set(lang)
+		T := i18n.Cur()
+		o := &foreign.Owner{Addr: "127.0.0.1:19090", Verdict: foreign.Foreign, PID: 4242, Exe: "/synthetic/mihomo", Parent: "/synthetic/launcher"}
+		v := withOwner(Snapshot{Mihomo: Mihomo{Reachable: true}}, o).MihomoView()
+		want := []ViewFact{
+			{FactController, T.Controller, "127.0.0.1:19090"},
+			{FactProcess, T.ForeignProcess, "pid 4242 · /synthetic/mihomo"},
+			{FactParent, T.ForeignParent, "/synthetic/launcher"},
+		}
+		if got := v.Facts(); !slices.Equal(got, want) {
+			t.Errorf("%s: facts %+v", lang, got)
+		}
+		for _, f := range v.Facts() {
+			if strings.Contains(f.Value, "another") || strings.Contains(f.Value, "另一个") {
+				t.Errorf("%s: %s repeats the unknown name: %q", lang, f.Key, f.Value)
+			}
+		}
+		bare := withOwner(Snapshot{}, &foreign.Owner{Addr: "127.0.0.1:19090", Verdict: foreign.Foreign}).MihomoView()
+		if got := bare.Facts(); len(got) != 1 || got[0].Key != FactController {
+			t.Errorf("%s: facts of an owner known only by address: %+v", lang, got)
+		}
+		if got := (Snapshot{Mihomo: Mihomo{Err: "refused"}}).MihomoView().Facts(); got != nil {
+			t.Errorf("%s: facts while down: %+v", lang, got)
+		}
+	}
+	i18n.Set("zh-Hans")
+}
+
+// The helper's own read (twinnel helper status) is derived the same way:
+// another program's mihomo answering is not Twinnel's running.
+func TestHelperMihomoView(t *testing.T) {
+	cases := []struct {
+		m    rpc.MihomoStatus
+		want MihomoPhase
+	}{
+		{rpc.MihomoStatus{Reachable: true}, MihomoRunning},
+		{rpc.MihomoStatus{Reachable: true, Owner: &foreign.Owner{Verdict: foreign.Managed}}, MihomoRunning},
+		{rpc.MihomoStatus{Reachable: true, Owner: &foreign.Owner{Addr: "a:1", Verdict: foreign.Foreign}}, MihomoForeign},
+		{rpc.MihomoStatus{Error: "refused"}, MihomoDown},
+	}
+	for _, c := range cases {
+		if got := HelperMihomoView(c.m).Phase; got != c.want {
+			t.Errorf("%+v: %v, want %v", c.m, got, c.want)
+		}
 	}
 }

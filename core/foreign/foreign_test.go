@@ -233,3 +233,12 @@ func TestParsers(t *testing.T) {
 		t.Error(got)
 	}
 }
+
+func TestWho(t *testing.T) {
+	if w := (Owner{Verdict: Foreign, Client: ClientClashParty}).Who(); w != "Clash Party" {
+		t.Error(w)
+	}
+	if w := (Owner{Verdict: Foreign}).Who(); w != "another program" {
+		t.Error(w)
+	}
+}

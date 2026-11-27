@@ -18,6 +18,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/config"
 	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 	"github.com/l3ony2k/twinnel/core/store"
 )
 
@@ -150,7 +151,7 @@ func needArgs(pos []string, n int, usage string) error {
 // ---- status ----
 
 func runHelperStatus(args []string) error {
-	fs, cf := newFlagSet("status", "usage: twinnel status [--json]\n\n")
+	fs, cf := newFlagSet("helper status", "usage: twinnel helper status [--json]\n\n")
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
 	}
@@ -163,20 +164,24 @@ func runHelperStatus(args []string) error {
 		}
 		fmt.Fprintf(w, "helper\t%s (pid %d, %s), up since %s\n", s.HelperVersion, s.PID, runsAs, s.StartedAt.Local().Format("15:04:05"))
 		fmt.Fprintf(w, "state dir\t%s\n", s.StateDir)
-		if s.Mihomo.Reachable {
+		switch v := status.HelperMihomoView(s.Mihomo); {
+		case v.Live():
 			fmt.Fprintf(w, "mihomo\trunning %s, controller %s\n", s.Mihomo.Version, s.Mihomo.Controller)
-		} else {
+		case v.Foreign():
+			// Another program's: its version is not Twinnel's.
+			fmt.Fprintf(w, "mihomo\t%s\n", v.Text())
+			for _, f := range v.Facts() {
+				fmt.Fprintf(w, "\t%s: %s\n", f.Label, f.Value)
+			}
+			if o := s.Mihomo.Owner; o.WorkDir != "" {
+				fmt.Fprintf(w, "\twork dir: %s\n", o.WorkDir)
+			}
+			fmt.Fprintf(w, "\ttwinnel doctor --fix controller-owner\n")
+		default:
 			fmt.Fprintf(w, "mihomo\tnot reachable at %s: %s\n", s.Mihomo.Controller, s.Mihomo.Error)
 		}
-		if o := s.Mihomo.Owner; o != nil {
-			line := string(o.Verdict) + ": " + o.Label()
-			if o.IsForeign() {
-				line += "; Twinnel does not reload it (twinnel doctor --fix controller-owner)"
-				if o.WorkDir != "" {
-					line += ", its work dir " + o.WorkDir
-				}
-			}
-			fmt.Fprintf(w, "controller owner\t%s\n", line)
+		if o := s.Mihomo.Owner; o != nil && !o.IsForeign() {
+			fmt.Fprintf(w, "controller owner\t%s: %s\n", o.Verdict, o.Label())
 		}
 		fmt.Fprintf(w, "binary\t%s\n", orNone(s.Mihomo.Binary))
 		fmt.Fprintf(w, "config\t%s\n", s.Mihomo.ConfigPath)

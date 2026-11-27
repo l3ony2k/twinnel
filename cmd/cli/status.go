@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -118,17 +119,11 @@ func statusText(s status.Snapshot) string {
 	}
 	m := s.Mihomo
 	b.WriteString("\nmihomo\n")
-	if fo := s.ForeignController(); fo != nil {
-		fmt.Fprintf(&b, "  controller  held by another mihomo: %s\n", fo.Label())
-		if fo.Exe != "" {
-			fmt.Fprintf(&b, "  program     %s\n", fo.Exe)
+	if v := s.MihomoView(); !v.Live() {
+		writeView(&b, "  ", v)
+		if v.Foreign() {
+			b.WriteString("  twinnel doctor --fix controller-owner\n")
 		}
-		if fo.Parent != "" {
-			fmt.Fprintf(&b, "  started by  %s\n", fo.Parent)
-		}
-		b.WriteString("  Twinnel does not read or reload it: twinnel doctor --fix controller-owner\n")
-	} else if !m.Reachable {
-		fmt.Fprintf(&b, "  unreachable: %s\n", m.Err)
 	} else {
 		fmt.Fprintf(&b, "  version     %s\n", m.Version)
 		fmt.Fprintf(&b, "  mode        %s\n", m.Config.Mode)
@@ -165,4 +160,19 @@ func statusText(s status.Snapshot) string {
 	}
 	fmt.Fprintf(&b, "  install     %s\n", ts.Install.Kind)
 	return b.String()
+}
+
+// writeView writes a mihomo view that is not Twinnel's mihomo running as
+// every surface words it (status.MihomoView): the state, then its facts
+// (or, without facts, what the controller said).
+func writeView(w io.Writer, indent string, v status.MihomoView) {
+	facts := v.Facts()
+	if d := v.Detail(); len(facts) == 0 && d != "" {
+		fmt.Fprintf(w, "%s%s: %s\n", indent, v.Text(), d)
+	} else {
+		fmt.Fprintf(w, "%s%s\n", indent, v.Text())
+	}
+	for _, f := range facts {
+		fmt.Fprintf(w, "%s%s: %s\n", indent, f.Label, f.Value)
+	}
 }
