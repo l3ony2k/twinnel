@@ -197,7 +197,7 @@ func (t *TailscaleInstaller) InstallMSI(ctx context.Context, a TailscaleAsset, l
 	if dir == "" {
 		dir = windowsTailscaleDir()
 	}
-	out.CLI, out.Daemon = dir+`\tailscale.exe`, dir+`\tailscaled.exe`
+	out.CLI, out.Daemon = filepath.Join(dir, "tailscale.exe"), filepath.Join(dir, "tailscaled.exe")
 	probe := t.Probe
 	if probe == nil {
 		probe = ProbeTailscale
