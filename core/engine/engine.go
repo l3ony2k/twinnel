@@ -155,6 +155,7 @@ type Engine struct {
 	// program's (foreign.go).
 	owner       *foreign.Owner
 	pendingAuto *rpc.ApplyParams
+	resumed     sync.WaitGroup // a held-back auto-apply running
 	started     time.Time
 	health      healthState
 }

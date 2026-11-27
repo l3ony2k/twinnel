@@ -127,7 +127,9 @@ func (e *Engine) setOwner(o foreign.Owner) {
 	}
 	if pending != nil {
 		e.log().Info("the controller is Twinnel's again; running the held-back auto-apply", "reason", pending.Reason)
+		e.resumed.Add(1)
 		go func() {
+			defer e.resumed.Done()
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 			if !e.adopting.Load() {
