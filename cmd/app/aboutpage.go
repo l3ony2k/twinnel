@@ -171,9 +171,7 @@ func (a *app) aboutHeader(c *ui.Context) {
 				b := pushButton(c.Key("check-update"), "").Label(label).Disabled(v.checking)
 				spin := showBusy(c, b, v.checking)
 				b.Children(func() {
-					if spin {
-						spinnerIcon(c)
-					}
+					turningIcon(c, iconRefresh, spin) // as every other 检查更新
 					ui.Text(c, label).SingleLine()
 				})
 				if b.Clicked() {
@@ -194,8 +192,17 @@ func (a *app) updateOutcome(c *ui.Context) {
 	case v.checking:
 		small(c, T.UpdateChecking).SingleLine()
 	case v.err != nil:
-		ui.Text(c, updateFailText(v.err)).FontSize(plat.calloutSize).TextColor(pal(t).badText).
-			SingleLine().Shrink(1).Tooltip(status.ShortError(v.err))
+		// What failed and why in words (the button above is 重试 now),
+		// the system's text behind 复制详情 (kubai R-10).
+		raw := status.ShortError(v.err)
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(1).Role(ui.RoleStatus).Children(func() {
+			ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(t.Warning).Shrink(0).AccessHidden(true)
+			ui.Text(c, updateFailText(v.err)).FontSize(plat.calloutSize).TextColor(pal(t).warnText).
+				SingleLine().Shrink(1).Tooltip(raw)
+			if raw != "" && actionLink(c.Key("update-copy"), T.TkCopyDetails).Clicked() {
+				copyText(c, raw)
+			}
+		})
 	case !v.checked:
 	case v.res.State == update.Available:
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
@@ -318,19 +325,27 @@ func (a *app) aboutSteps(c *ui.Context, s status.Snapshot) {
 	steps, names := a.aboutStepList(s)
 	listCard(c, listHead(c, nil, T.GettingStarted, nil), func() {
 		for i, st := range steps {
-			ui.Row(c.Key(fmt.Sprint("step", i))).Gap(10).AlignItems(ui.Center).PaddingY(listRowPadY).Children(func() {
-				// The step's number, or a check once it is done.
+			done := st.done != nil && *st.done
+			ui.Row(c.Key(fmt.Sprint("step", i))).Gap(10).AlignItems(ui.Center).PaddingY(listRowPadY).MinHeight(plat.rowMinHeight).Children(func() {
+				// The step's number, or a check once it is done; a done
+				// step has nothing left to do: a muted label, no way to
+				// it (R-unslop-32, kubai R-25, as 总览's 开始使用).
 				ui.Box(c).Size(20, 20).Radius(10).Border(1, t.Border).Shrink(0).
 					AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-					if st.done != nil && *st.done {
-						ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Success)
+					if done {
+						ui.Icon(c, iconOK).FontSize(iconInline).TextColor(pal(t).okText)
 					} else {
 						num(ui.Text(c, fmt.Sprint(i+1)).FontSize(plat.smallSize).TextColor(t.TextMuted))
 					}
 				})
-				ui.Text(c, st.text).Grow(1).Shrink(1).SingleLine()
+				label := ui.Text(c, st.text).Grow(1).Shrink(1).SingleLine()
+				if done {
+					label.TextColor(t.TextMuted)
+					return
+				}
+				// Where to do it: links to the pages, not push buttons.
 				for _, p := range st.pages {
-					if pushButton(c.Key("go:"+p), names[p]).Clicked() {
+					if pageLink(c.Key("go:"+p), names[p]).Clicked() {
 						a.showPage(p)
 					}
 				}
@@ -388,8 +403,8 @@ func (a *app) aboutFAQ(c *ui.Context) {
 func (a *app) aboutTakeover(c *ui.Context) {
 	t := c.Theme()
 	T := i18n.T
-	sub := func(title string) {
-		ui.Text(c, title).FontWeight(plat.headingWeight).SingleLine().Margin(4, 0, 0, 0)
+	sub := func(title string) { // an in-card subhead: 500, under the card's 600 (R-unslop-30)
+		ui.Text(c, title).FontWeight(500).SingleLine().Margin(4, 0, 0, 0)
 	}
 	para := func(text string) {
 		ui.Text(c, text).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
@@ -472,13 +487,26 @@ func aboutLinks(c *ui.Context) {
 }
 
 // pathRow is a file row: its name (the path in the tooltip) and 在
-// Finder 中显示.
+// Finder 中显示 as a muted icon at the row's end, as on 停止使用 duet: the
+// accent stays for actions (R-unslop-10).
 func pathRow(c *ui.Context, key, label, path string) {
 	kvWith(c.Key(key), label, func() {
 		monoText(c, filepath.Base(path)).SingleLine().Shrink(1).Selectable().Tooltip(path)
 		ui.Spacer(c)
-		if actionLink(c.Key("finder"), i18n.T.ShowInFinder).Clicked() {
+		if toolIcon(c.Key("finder"), iconReveal, i18n.T.ShowInFinder, false).Clicked() {
 			mygo.Shell.ShowItemInFolder(path)
 		}
 	})
+}
+
+// pageLink is a way to another page inside a row: accent text at the
+// callout size (a button for assistive technology, the arrow cursor: it
+// is navigation inside the app, not a web link).
+func pageLink(c *ui.Context, label string) ui.Element {
+	t := c.Theme()
+	b := ui.Row(c).AlignItems(ui.Center).Focusable().Role(ui.RoleButton).Label(label).Shrink(0).FocusRingOffset(2)
+	b.Children(func() {
+		ui.Text(c, label).FontSize(plat.calloutSize).TextColor(t.Accent).SingleLine()
+	})
+	return b
 }

@@ -147,7 +147,9 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 		ui.Column(c).Gap(6).Children(func() {
 			for _, line := range T.OnboardPoints {
 				ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-					ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Accent).MarginY(1).Shrink(0)
+					// Bullets, not actions: muted, so the one accent on the
+					// card is 安装后台助手 (R-unslop-10).
+					ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.TextMuted).MarginY(1).Shrink(0)
 					ui.Text(c, line).Grow(1).Wrap().LineHeight(lineText)
 				})
 			}
@@ -212,21 +214,14 @@ func (a *app) installPlanCard(c *ui.Context) {
 					})
 				})
 			case v.planErr != "" || v.timeout:
+				// What failed, why in words when known, 重试 and 复制详情
+				// (kubai R-10).
 				listRow(c).Children(func() {
-					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-						ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText)
-						head := T.InstallPlanFailed
-						if v.timeout {
-							head = T.InstallPlanTimeout
-						}
-						ui.Text(c, head).Grow(1).Shrink(1)
-						if v.planErr != "" && actionLink(c.Key("plan-copy"), T.TkCopyDetails).Clicked() {
-							copyText(c, v.planErr)
-						}
-						if pushButton(c.Key("plan-retry"), T.InstallRetry).Disabled(v.loading).Clicked() {
-							a.loadInstallPlan()
-						}
-					})
+					head := T.InstallPlanFailed
+					if v.timeout {
+						head = T.InstallPlanTimeout
+					}
+					failedRow(c.Key("plan-failed"), head, v.planErr, a.loadInstallPlan, v.loading)
 				})
 			case !parsed && v.plan != "":
 				listRow(c).Children(func() { codeBlock(c, v.plan) })
