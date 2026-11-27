@@ -215,6 +215,10 @@ func healthOptions(e *engine.Engine, opts *options) windows.Options {
 		return o
 	}
 	settings.Egress = st.HealthEgress
+	if len(st.LeakGuardGroups) > 0 {
+		// The groups the user chose in 防泄漏 are the ones the checks guard.
+		settings.SensitiveGroups = st.LeakGuardGroups
+	}
 	o.Controller = st.Mihomo.Controller
 	o.ConfigPath = st.Mihomo.ConfigFile
 	o.TailscaleBin = st.Tailscale.Binary

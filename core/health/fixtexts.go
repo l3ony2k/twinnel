@@ -139,8 +139,8 @@ var enFixTexts = map[string]FixText{
 
 	ReasonFakeIPWildcard: {"The fake-ip filter mode is not blacklist, so single-label names get fake addresses.", "In the override that sets fake-ip-filter-mode, set it back to blacklist (or remove the line), then save and apply."},
 
-	ReasonDNSNotMihomo:              {"Some network connections do not use mihomo for DNS, so routing and leak protection miss them.", "Point their DNS at mihomo. The old settings are backed up first; you can undo."},
-	ReasonDNSViaHijack:              {"Some network connections do not use mihomo for DNS; the TUN's hijack catches them for now.", "Point their DNS at mihomo directly. The old settings are backed up first; you can undo."},
+	ReasonDNSNotMihomo:               {"Some network connections do not use mihomo for DNS, so routing and leak protection miss them.", "Point their DNS at mihomo. The old settings are backed up first; you can undo."},
+	ReasonDNSViaHijack:               {"Some network connections do not use mihomo for DNS; the TUN's hijack catches them for now.", "Point their DNS at mihomo directly. The old settings are backed up first; you can undo."},
 	ReasonDNSNotMihomo + "@" + Linux: {"Some network connections do not use mihomo for DNS, so routing and leak protection miss them.", "On Linux Twinnel cannot set the system DNS for you yet. In network settings set this connection's DNS to 127.0.0.1 with automatic DNS off, or use nmcli (see details)."},
 	ReasonDNSViaHijack + "@" + Linux: {"Some network connections do not use mihomo for DNS; the TUN's hijack catches them for now.", "On Linux Twinnel cannot set the system DNS for you yet. In network settings set this connection's DNS to 127.0.0.1 with automatic DNS off, or use nmcli (see details)."},
 
