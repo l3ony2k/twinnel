@@ -113,7 +113,7 @@ func needsHelperAction(action string) bool {
 // takeover; shows the apply's stages while it runs).
 func configAction(action string) bool {
 	switch action {
-	case health.FixCoexist, health.FixLeakGuard, health.FixControllerLoopback, health.FixController:
+	case health.FixCoexist, health.FixLeakGuard, health.FixControllerLoopback, health.FixController, health.FixControllerPort:
 		return true
 	}
 	return false
