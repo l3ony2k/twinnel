@@ -2,10 +2,13 @@ package main
 
 import (
 	"errors"
-	"github.com/l3ony2k/twinnel/core/legacy"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/legacy"
 
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/status"
@@ -29,17 +32,26 @@ func hardenedPlan(purge bool) *uninstall.Plan {
 
 func TestPlanText(t *testing.T) {
 	t.Setenv("HOME", t.TempDir()) // the real ~/Library/Application Support/twinnel/backups must not leak in
+	// The secrets and the app are named the platform's way (钥匙串项目 and
+	// Twinnel.app on macOS, 密钥文件 and Twinnel on Linux, core/i18n).
+	T := i18n.T
 	got := planText(hardenedPlan(false), false)
 	want := "移除：后台助手、Twinnel 的 mihomo 服务（切回 com.mihomo.proxy，断网几秒）\n" +
-		"保留：mihomo 原来的服务、数据（1 个订阅、3 个覆写、历史、日志）、钥匙串项目、Tailscale、Twinnel.app"
+		"保留：mihomo 原来的服务、数据（1 个订阅、3 个覆写、历史、日志）、" + T.ItemSecrets + "、Tailscale、" + T.ItemApp
 	if got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
 	}
+	if runtime.GOOS == "darwin" && !strings.HasSuffix(got, "、钥匙串项目、Tailscale、Twinnel.app") {
+		t.Errorf("macOS wording: %s", got)
+	}
 	got = planText(hardenedPlan(true), true)
-	if !strings.HasPrefix(got, "移除：后台助手、Twinnel 的 mihomo 服务（切回 com.mihomo.proxy，断网几秒）、数据（1 个订阅、3 个覆写、历史、日志）、钥匙串项目、登录时打开、Twinnel.app（移到废纸篓）\n保留：mihomo 原来的服务、Tailscale") {
+	if !strings.HasPrefix(got, "移除：后台助手、Twinnel 的 mihomo 服务（切回 com.mihomo.proxy，断网几秒）、数据（1 个订阅、3 个覆写、历史、日志）、"+T.ItemSecrets+"、"+T.ItemLoginItem+"、"+T.ItemAppTrash+"\n保留：mihomo 原来的服务、Tailscale") {
 		t.Errorf("remove all:\n%s", got)
 	}
-	if strings.Contains(got, "保留：mihomo 原来的服务、Tailscale、Twinnel.app") {
+	if runtime.GOOS == "darwin" && !strings.Contains(got, "、钥匙串项目、登录时打开、Twinnel.app（移到废纸篓）\n") {
+		t.Errorf("macOS wording, remove all: %s", got)
+	}
+	if strings.Contains(got, "保留：mihomo 原来的服务、Tailscale、"+T.ItemApp) {
 		t.Error("remove all keeps the app")
 	}
 }

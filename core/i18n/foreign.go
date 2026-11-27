@@ -13,6 +13,8 @@ import (
 var allowedASCII = map[string]bool{}
 
 func init() {
+	// Ctrl is the key (Linux shortcuts); wheel is the Unix admin group
+	// (the helper's socket group on Linux).
 	for _, w := range strings.Fields(`
 		mihomo Tailscale tailscale tailscaled tailnet Twinnel MagicDNS DERP YAML yaml
 		Clash Party Verge Homebrew brew LaunchDaemon LaunchDaemons GitHub Alpha
@@ -26,7 +28,8 @@ func init() {
 		Delete Escape arch darwin amd64 arm64 stable alpha latest version
 		with doctor egress verbose root admin systemd hosts whitelist Standalone
 		upgrade DOMAIN SUFFIX KEYWORD example LaunchAgent LaunchAgents laptop
-		GEOIP GEOSITE Agent Claude Code Codex Cursor GNOME AppIndicator SYSTEM Alt`) {
+		GEOIP GEOSITE Agent Claude Code Codex Cursor GNOME AppIndicator SYSTEM Alt
+		Ctrl wheel`) {
 		allowedASCII[strings.ToLower(w)] = true
 	}
 }

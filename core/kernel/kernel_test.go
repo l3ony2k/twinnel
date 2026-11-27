@@ -335,6 +335,11 @@ func TestTailscaleProbe(t *testing.T) {
 	}))
 	defer pkgs.Close()
 
+	// The macOS and Linux install kinds, on any host: the Unix candidate
+	// list (Windows searches Program Files), and the stat keys in the
+	// host's separators, as filepath.Join builds them in Kind.
+	defer func(c []string) { TailscaleCandidates = c }(TailscaleCandidates)
+	TailscaleCandidates = []string{"/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"}
 	files := map[string]bool{}
 	links := map[string]string{}
 	p := &TailscaleProbe{
@@ -378,11 +383,11 @@ func TestTailscaleProbe(t *testing.T) {
 	if k := p.Kind(app); k != TSStandalone {
 		t.Errorf("app kind = %s", k)
 	}
-	files["/Applications/Tailscale.app/Contents/_MASReceipt"] = true
+	files[filepath.FromSlash("/Applications/Tailscale.app/Contents/_MASReceipt")] = true
 	if k := p.Kind(app); k != TSAppStore {
 		t.Errorf("app store kind = %s", k)
 	}
-	files["/usr/local/sbin/tailscaled"] = true
+	files[filepath.FromSlash("/usr/local/sbin/tailscaled")] = true
 	if k := p.Kind("/usr/local/sbin/tailscale"); k != TSStatic {
 		t.Errorf("static kind = %s", k)
 	}

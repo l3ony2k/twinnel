@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -115,7 +116,7 @@ func TestTailscaleInstallLinux(t *testing.T) {
 	}
 	for _, n := range []string{"tailscale", "tailscaled"} {
 		fi, err := os.Stat(filepath.Join(dir, "1.104.7", n))
-		if err != nil || fi.Mode().Perm() != 0o755 {
+		if err != nil || runtime.GOOS != "windows" && fi.Mode().Perm() != 0o755 { // Windows has no mode bits
 			t.Fatalf("%s: %v %v", n, fi, err)
 		}
 	}
