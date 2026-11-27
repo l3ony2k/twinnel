@@ -277,10 +277,10 @@ func effectChip(c *ui.Context, text, tip string, warn, rewrite bool) ui.Element 
 		}
 		ui.Text(c, text).FontSize(plat.smallSize).TextColor(col).SingleLine().Shrink(1)
 	})
-	if tip != "" {
-		e.Tooltip(tip)
+	if tip == "" {
+		tip = text // a chip may be cut short
 	}
-	return e
+	return e.Tooltip(tip)
 }
 
 const effectItemWidth = 116
