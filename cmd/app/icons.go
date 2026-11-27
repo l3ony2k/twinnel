@@ -43,6 +43,9 @@ var (
 	iconSkip      = svgIcon("circle-minus")
 	iconTun       = svgIcon("tunnel")
 	iconCollapsed = svgIcon("chevron-right")
+	iconUpDown    = svgIcon("chevrons-up-down") // a pop-up row of the flyout
+	iconGlobe     = svgIcon("globe")
+	iconExitNode  = svgIcon("log-out")
 	iconDuet      = svgIcon("duet")
 
 	iconManaged    = svgIcon("file-lock")

@@ -14,8 +14,16 @@ import (
 )
 
 // panelView is the flyout under the tray icon: a popover over the menu
-// bar's own material on macOS, laid out like the system's menu bar extras
-// (state on top, one section per network, the window and quit at the foot).
+// bar's own material on macOS, laid out like Control Center's modules and
+// the Wi-Fi menu: the overall state and the rates on top, what needs
+// attention (only when something does), one rounded module per network
+// with its state in the header, compact rows for the daily controls, and
+// menu rows at the foot.
+//
+// Geometry (one grid, every row on it): the flyout pads its content by
+// panelInset; a module pads by moduleInset and its rows by rowInset, so
+// every row's leading column starts panelInset+moduleInset+rowInset from
+// the edge, outside a module too (rowInset+moduleInset there).
 func (a *app) panelView(c *ui.Context) {
 	a.applyTheme(c)
 	// Text one step under the main window's on Windows and Linux (13 for
@@ -26,10 +34,13 @@ func (a *app) panelView(c *ui.Context) {
 	t := c.Theme()
 	T := i18n.T
 	s := a.mon.Snapshot()
+	if a.shotSnap != nil {
+		a.shotSnap(&s)
+	}
 	c.Root().Background(ui.Transparent)
 	// As wide as the flyout, as tall as its content: the flyout fits it
 	// (FitContent); a height of its own would keep the flyout at that.
-	box := ui.Column(c).FillWidth()
+	box := ui.Column(c).FillWidth().Shrink(0)
 	switch {
 	case c.Vibrancy(): // over the popover's material on macOS
 	case runtime.GOOS == "windows":
@@ -37,142 +48,351 @@ func (a *app) panelView(c *ui.Context) {
 	default:
 		box.Background(t.Background).Radius(plat.groupRadius+2).Border(1, pal(t).groupLine)
 	}
-	sep := func() { ui.Box(c).Height(1).Background(pal(t).separator).MarginY(2) }
-	box.Padding(plat.panelPad).Gap(gapRow).Children(func() {
-		// Overall state and the live rates.
-		// Each stays whole; the rates move under the headline when a
-		// language's headline leaves them no room.
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Grow(1).Children(func() {
-				stateDot(c, levelMark(s.Level), levelColor(t, s.Level), 10)
-				ui.Text(c, s.Level.Text()).FontSize(plat.leadSize).FontWeight(600).NoWrap()
-			})
-			if s.Mihomo.Reachable {
-				num(small(c, "↓ "+status.Rate(s.Mihomo.Traffic.Down)+"   ↑ "+status.Rate(s.Mihomo.Traffic.Up))).NoWrap()
-			}
-		})
-		reasons := s.Reasons
-		if a.healthSrc != nil { // the health line below says it
-			reasons = nil
-			for _, r := range s.Reasons {
-				if !r.Health {
-					reasons = append(reasons, r)
-				}
-			}
-		}
-		for i, r := range reasons {
-			if i == 3 {
-				small(c, fmt.Sprintf("… +%d", len(reasons)-3))
-				break
-			}
-			ui.Text(c, r.Text).FontSize(plat.calloutSize).TextColor(levelText(t, r.Level)).Wrap().LineHeight(lineText)
-		}
-		a.healthLine(c, s)
-		a.helperLine(c, s)
-		sep()
-		a.panelMihomo(c, s)
-		sep()
-		a.panelTailscale(c, s)
-		sep()
-		if h := s.Helper.State; h != status.HelperNotInstalled && h != status.HelperUnknown {
-			// 应急恢复: works while things are broken (statusui.go).
-			ui.Row(c).Children(func() { a.recoveryMenu(c, s) })
-		}
+	box.Padding(panelInset).Gap(moduleGap).Children(func() {
+		a.panelHeader(c, s)
+		a.panelAttention(c, s)
+		panelModule(c, func() { a.panelMihomo(c, s) })
+		panelModule(c, func() { a.panelTailscale(c, s) })
 		if a.actionErr != "" {
-			errorNote(c, a.actionErr)
+			ui.Column(c).PaddingX(rowInset + moduleInset).Children(func() { errorNote(c, a.actionErr) })
 		}
 		a.fitShotPanel(box)
-		// The foot as a menu bar extra ends: menu-style rows, not buttons.
-		ui.Column(c).Gap(0).MarginY(-4).Children(func() {
-			panelRow(c.Key("open"), T.PanelOpen, a.openMain)
-			panelRow(c.Key("quit"), T.PanelQuit, mygo.App.Quit)
+		// The foot as a menu bar extra ends: a hairline, then menu rows.
+		ui.Column(c).Children(func() {
+			ui.Box(c).Height(1).Background(pal(t).separator).MarginX(rowInset + moduleInset).MarginY(2)
+			if h := s.Helper.State; h != status.HelperNotInstalled && h != status.HelperUnknown {
+				// 应急恢复: works while things are broken (statusui.go).
+				r := panelRow(c.Key("recovery"), T.Recovery).MarginX(0)
+				r.Menu(func(m *ui.Menu) { a.recoveryItems(m, s) })
+				r.Children(func() {
+					ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Children(func() {
+						ui.Text(c, T.Recovery).SingleLine()
+						infoTip(c, "", T.InfoRecovery, nil)
+					})
+					ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
+				})
+			}
+			footRow(c.Key("open"), T.PanelOpen, a.openMain)
+			footRow(c.Key("quit"), T.PanelQuit, mygo.App.Quit)
 		})
 	})
 }
 
-// panelRow is one row of the flyout's foot, drawn as a menu item: full
-// width, body text, a hover fill in the control radius (as helperLine).
-func panelRow(c *ui.Context, label string, fn func()) {
+// The flyout's grid (see panelView).
+const (
+	panelInset  = 10 // the flyout's padding
+	moduleInset = 4  // a module's padding
+	rowInset    = 8  // a row's own padding
+	moduleGap   = 10 // between modules
+	panelRowH   = 28 // a compact row, as a menu item
+	panelHeadH  = 32 // a module's header row
+	leadCol     = 24 // the leading column: a state mark, an icon, the TUN toggle
+	moduleRad   = 12 // a module's corners; a row's hover fill is moduleRad-moduleInset
+)
+
+// panelModule is one rounded module on the flyout's material, as Control
+// Center's: a quiet fill a step off the material, no border.
+func panelModule(c *ui.Context, body func()) {
 	t := c.Theme()
-	row := ui.Row(c).AlignItems(ui.Center).Padding(5, 8).MarginX(-8).Radius(plat.controlRadius).
-		Role(ui.RoleButton).Label(label).Focusable()
-	row.Children(func() {
-		ui.Text(c, label).Grow(1).SingleLine()
-	})
-	if row.Hovered() || row.Focused() {
+	fill := ui.RGBA(0, 0, 0, 0.045)
+	if t.Dark {
+		fill = ui.RGBA(255, 255, 255, 0.06)
+	}
+	ui.Column(c).Padding(moduleInset).Radius(moduleRad).Background(fill).Shrink(0).Children(body)
+}
+
+// panelRow is a row of the flyout on its grid: the leading column, the
+// row's height, the hover fill in the module's inner radius. The caller
+// adds its children (and its Menu, or its click).
+func panelRow(c *ui.Context, label string) ui.Element {
+	t := c.Theme()
+	row := ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).MinHeight(panelRowH).
+		Radius(moduleRad - moduleInset).Label(label).Focusable()
+	if (row.Hovered() || row.Focused()) && !row.IsDisabled() {
 		row.Background(t.Text.Alpha(0.08))
 	}
+	return row
+}
+
+// footRow is a row of the flyout's foot, drawn as a menu item.
+func footRow(c *ui.Context, label string, fn func()) {
+	row := panelRow(c, label).Role(ui.RoleButton)
+	row.Children(func() { ui.Text(c, label).Grow(1).SingleLine() })
 	if row.Clicked() {
 		fn()
 	}
+}
+
+// leading is the row's leading column with an icon in it.
+func leading(c *ui.Context, icon *ui.SVG, col ui.Color) {
+	ui.Row(c).Width(leadCol).Justify(ui.Center).Shrink(0).Children(func() {
+		ui.Icon(c, icon).FontSize(iconNav).TextColor(col)
+	})
+}
+
+// panelHeader is the overall state and, while mihomo answers, the rates.
+func (a *app) panelHeader(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	// Each stays whole; the rates move under the state when a language's
+	// state leaves them no room.
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().PaddingX(rowInset + moduleInset).MinHeight(panelHeadH).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Grow(1).Children(func() {
+			ui.Row(c).Width(leadCol).Justify(ui.Center).Shrink(0).Children(func() {
+				stateDot(c, levelMark(s.Level), levelColor(t, s.Level), 10)
+			})
+			ui.Text(c, s.Level.Text()).FontWeight(600).NoWrap()
+		})
+		if s.Mihomo.Reachable {
+			m := s.Mihomo.Traffic
+			num(small(c, "↓ "+status.Rate(m.Down)+"  ↑ "+status.Rate(m.Up))).NoWrap()
+		}
+	})
+}
+
+// panelAttention lists what needs attention, a compact row each, in a
+// module of its own; nothing at all when nothing does. A state a network's
+// module already shows in its header (down, logged out, stopped) is not
+// repeated here.
+func (a *app) panelAttention(c *ui.Context, s status.Snapshot) {
+	var reasons []status.Reason
+	for _, r := range s.Reasons {
+		switch {
+		case r.Health && a.healthSrc != nil: // the health row says it
+		case r.Code == status.ReasonMihomoDown, r.Code == status.ReasonTSDown,
+			r.Code == status.ReasonTSNeedsLogin, r.Code == status.ReasonTSStopped:
+		default:
+			reasons = append(reasons, r)
+		}
+	}
+	health := a.healthAttention(s)
+	helper := s.Helper.State != status.HelperConnected && s.Helper.State != status.HelperUnknown
+	if len(reasons) == 0 && !health && !helper {
+		return
+	}
+	t := c.Theme()
+	panelModule(c, func() {
+		for i, r := range reasons {
+			if i == 3 {
+				ui.Row(c).PaddingX(rowInset).MinHeight(panelRowH).AlignItems(ui.Center).Children(func() {
+					ui.Box(c).Width(leadCol + 8).Shrink(0)
+					small(c, fmt.Sprintf("… +%d", len(reasons)-3))
+				})
+				break
+			}
+			// The icon's shape tells a warning from a fault; the text
+			// stays in the text color.
+			icon := iconWarning
+			if r.Level == status.LevelError {
+				icon = iconError
+			}
+			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).PaddingY(5).MinHeight(panelRowH).Children(func() {
+				leading(c, icon, levelText(t, r.Level))
+				ui.Text(c, r.Text).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
+			})
+		}
+		if health {
+			a.healthLine(c, s)
+		}
+		if helper {
+			a.helperLine(c, s)
+		}
+	})
+}
+
+// healthAttention: the health checks found something (the health row
+// shows); all passed or not yet run shows nothing.
+func (a *app) healthAttention(s status.Snapshot) bool {
+	if a.healthSrc == nil || s.Health.Report == nil {
+		return false
+	}
+	n, _ := s.HealthBadge()
+	return n > 0
+}
+
+// healthLine is the flyout's row about the health checks' findings;
+// clicking it opens the health page.
+func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	T := i18n.T
+	// The one number (status.Snapshot.HealthBadge): the badge, the
+	// overview and the health page show the same.
+	n, lvl := s.HealthBadge()
+	_, fail := s.Health.Counts()
+	icon, col, text := iconWarning, t.Warning, fmt.Sprintf(T.PanelHealthWarn, n)
+	if fail > 0 {
+		icon, col, text = iconError, levelColor(t, lvl), fmt.Sprintf(T.PanelHealthFail, n)
+		if lvl == status.LevelWarn {
+			icon = iconWarning // before takeover: findings, not faults
+		}
+	}
+	row := panelRow(c.Key("health-line"), text).Role(ui.RoleButton)
+	row.Children(func() {
+		leading(c, icon, col)
+		ui.Text(c, text).Grow(1).Shrink(1).SingleLine()
+		switch age := healthAge(s); {
+		case s.Health.Running:
+			ui.Spinner(c).Size(12, 12) // the number is being updated
+		case age != "":
+			num(small(c, age)).SingleLine()
+		}
+		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
+	})
+	if row.Clicked() {
+		old := a.page
+		a.page = pageHealth
+		a.openMain()
+		a.pageChanged(old)
+	}
+}
+
+// helperLine is the flyout's row about the helper while it is not
+// connected: installed but down (a warning: what needs it is locked), or
+// not installed (quiet). A click opens where that is dealt with.
+func (a *app) helperLine(c *ui.Context, s status.Snapshot) {
+	h := s.Helper
+	t := c.Theme()
+	T := i18n.T
+	icon, col, text := iconSkip, t.TextMuted, T.Helper+T.LabelSep+h.State.Text()
+	if h.State != status.HelperNotInstalled {
+		icon, col, text = iconWarning, t.Warning, T.HelperDownRow
+	}
+	row := panelRow(c.Key("helper-line"), text).Role(ui.RoleButton)
+	row.Children(func() {
+		leading(c, icon, col)
+		ui.Text(c, text).Grow(1).Shrink(1).SingleLine()
+		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
+	})
+	if row.Clicked() {
+		a.openHelperSetup(s)
+	}
+}
+
+// moduleHeader is a module's first row: its state mark in the leading
+// column, its name, a one-line summary, then its own control (trailing).
+func moduleHeader(c *ui.Context, m stateMark, col ui.Color, name, summary, detail string, trailing func()) {
+	t := c.Theme()
+	ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).MinHeight(panelHeadH).Children(func() {
+		ui.Row(c).Width(leadCol).Justify(ui.Center).Shrink(0).Children(func() { stateDot(c, m, col, 8) })
+		ui.Text(c, name).FontWeight(600).NoWrap()
+		e := ui.Text(c, summary).TextColor(t.TextMuted).Grow(1).Shrink(1).TextAlign(ui.End).SingleLine()
+		if detail != "" {
+			e.Tooltip(detail)
+		}
+		if trailing != nil {
+			trailing()
+		}
+	})
 }
 
 func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	m := s.Mihomo
-	mark, col, state := markDown, t.Danger, T.Unreachable
-	if m.Reachable {
-		mark, col, state = markOK, t.Success, T.Running
-	}
 	if !m.Reachable {
-		// Down: no stale values, the plain state, and 启动 when the
-		// helper can start it (else the lock says why it can't).
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			stateDot(c, mark, col, 8)
-			ui.Text(c, T.Mihomo).FontWeight(plat.headingWeight)
-			ui.Spacer(c)
-			small(c, state).SingleLine()
-			if s.WritesAllowed && !m.Unauthorized {
-				busy := a.hd.busy == T.StartMihomo
-				if busyButton(c.Key("start-mihomo"), T.StartShort, false, busy, !s.Can().Helper || a.hd.busy != "").Clicked() {
-					a.mihomoService(rpc.MethodServiceStart, T.StartMihomo)
-				}
-				a.helperLock(c, s)
+		// Down: no stale values, the plain state (the error on hover), and
+		// 启动 when the helper can start it (else the lock says why not).
+		moduleHeader(c, markDown, t.Danger, T.Mihomo, T.Unreachable, m.Err, func() {
+			if !s.WritesAllowed || m.Unauthorized {
+				return
 			}
+			busy := a.hd.busy == T.StartMihomo
+			if busyButton(c.Key("start-mihomo"), T.StartShort, false, busy, !s.Can().Helper || a.hd.busy != "").Height(22).Clicked() {
+				a.mihomoService(rpc.MethodServiceStart, T.StartMihomo)
+			}
+			a.helperLock(c, s)
 		})
-		unreachableLine(c, svcMihomo, m.Err)
 		return
 	}
-	sectionTitle(c, T.Mihomo, mark, col, state+versionSuffix(m.Version))
-	w := s.Can().Mihomo
-	kvWith(c, T.Mode, func() {
-		a.modeControl(c, s).Grow(1).Height(plat.rowMinHeight)
+	moduleHeader(c, markOK, t.Success, T.Mihomo, T.Running+versionSuffix(m.Version), "", nil)
+	ui.Column(c).PaddingX(rowInset).PaddingY(4).Children(func() {
+		a.modeControl(c, s).FillEqually().Height(24).Label(T.Mode)
 	})
 	a.controlError(c, pendMode)
-	tun := T.TunOff
-	if a.tunOn(s) {
-		tun = m.Config.Tun.Device
-		if tun == "" {
-			tun = T.Tun
-		}
-	}
-	kvWith(c, T.Tun, func() {
-		a.tunSwitch(c, s)
-		ui.Icon(c, iconTun).FontSize(iconInline).TextColor(t.TextMuted)
-		small(c, tun).SingleLine().Shrink(1)
-	})
+	a.tunRow(c, s)
 	a.controlError(c, pendTun)
 	if p := m.Primary; p != nil {
-		kvWith(c, p.Name, func() {
-			sel := pendingValue(a, nodeKey(p.Name), p.Now)
-			opts := make([]string, len(p.Members))
-			for i, mem := range p.Members {
-				opts[i] = mem.Name
-			}
-			if ui.Select(c.Key("node"), &sel, opts).Disabled(!w || !p.Selectable()).Grow(1).Height(plat.rowMinHeight).Label(T.Node).Changed() {
-				a.selectNode(p.Name, sel)
-			}
-		})
+		a.nodeRow(c, s, p)
 		a.controlError(c, nodeKey(p.Name))
-		if len(p.Chain) > 0 {
-			kvWith(c, T.Exit, func() {
-				ui.Text(c, p.Node).SingleLine().Shrink(1)
-				ui.Spacer(c)
-				num(ui.Text(c, p.DelayText()).FontSize(plat.calloutSize).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
-			})
+	}
+}
+
+// tunRow is TUN as Control Center's toggles: a round button, filled in
+// the accent with the glyph in white while on, a neutral disc while off;
+// the device (or 关闭) beside it says the same in words. The whole row
+// toggles.
+func (a *app) tunRow(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	T := i18n.T
+	on := a.tunOn(s)
+	dev := T.TunOff
+	if on {
+		dev = s.Mihomo.Config.Tun.Device
+		if dev == "" {
+			dev = T.TunOn
 		}
 	}
+	can := s.Can().Mihomo
+	row := panelRow(c.Key("tun"), T.Tun).Role(ui.RoleSwitch).Checked(on).Disabled(!can)
+	row.Children(func() {
+		disc, glyph := t.Text.Alpha(0.1), t.Text
+		if on {
+			disc, glyph = t.Accent, t.AccentText
+		}
+		ui.Row(c).Size(leadCol, leadCol).Radius(leadCol / 2).Background(disc).AlignItems(ui.Center).Justify(ui.Center).Shrink(0).
+			Children(func() { ui.Icon(c, iconTun).FontSize(iconInline).TextColor(glyph) })
+		ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Children(func() {
+			ui.Text(c, T.Tun).SingleLine()
+			infoTip(c, "", T.InfoTun, nil)
+		})
+		ui.Text(c, dev).TextColor(t.TextMuted).SingleLine().Shrink(1)
+	})
+	if row.Clicked() && can {
+		a.setTun(!on)
+	}
+}
+
+// nodeRow is the primary group's choice as a pop-up row: the group's name,
+// its choice and ⌃⌄, a native menu of its members (checked: the choice).
+// When the choice is itself a group (自动选择), the node it resolved to
+// shows under it with its delay; else the delay sits on the row.
+func (a *app) nodeRow(c *ui.Context, s status.Snapshot, p *status.Group) {
+	t := c.Theme()
+	T := i18n.T
+	sel := pendingValue(a, nodeKey(p.Name), p.Now)
+	can := s.Can().Mihomo && p.Selectable()
+	via := p.Node != "" && p.Node != sel
+	delay := func() {
+		num(ui.Text(c, p.DelayText()).FontSize(plat.calloutSize).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
+	}
+	row := panelRow(c.Key("node"), T.Node).Disabled(!can)
+	row.Menu(func(m *ui.Menu) {
+		for _, mem := range p.Members {
+			if m.Item(mem.Name).Checked(mem.Name == sel).Trailing(mem.DelayText()).Chosen() && mem.Name != sel {
+				a.selectNode(p.Name, mem.Name)
+			}
+		}
+	})
+	row.Children(func() {
+		leading(c, iconGlobe, t.TextMuted)
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).PaddingY(4).Children(func() {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, p.Name).SingleLine().Shrink(0)
+				ui.Text(c, sel).TextColor(t.TextMuted).Grow(1).Shrink(1).TextAlign(ui.End).SingleLine()
+				if !via {
+					delay()
+				}
+			})
+			if via {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					small(c, p.Node).Grow(1).Shrink(1).TextAlign(ui.End).SingleLine()
+					delay()
+				})
+			}
+		})
+		if can {
+			ui.Icon(c, iconUpDown).FontSize(iconSmall).TextColor(t.TextMuted)
+		}
+	})
 }
 
 func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
@@ -180,38 +400,76 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	ts := s.Tailscale
 	st := ts.State
-	// The heading's switch connects and disconnects, as Tailscale's own
-	// menu does.
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		stateDot(c, tsMark(s), tsColor(t, s), 8)
-		ui.Text(c, T.Tailscale).FontWeight(plat.headingWeight)
-		ui.Spacer(c)
-		state := T.Unreachable
-		if ts.Reachable {
-			state = T.TSState(st.BackendState)
+	summary, detail := T.Unreachable, ts.Err
+	if ts.Reachable {
+		summary = T.TSState(st.BackendState)
+		if st.Running() {
+			summary += " · " + fmt.Sprintf(T.PanelPeers, st.OnlinePeers(), len(st.Peers))
 		}
-		small(c, state)
+	}
+	// The header's switch connects and disconnects, as Tailscale's own
+	// menu does.
+	moduleHeader(c, tsMark(s), tsColor(t, s), T.Tailscale, summary, detail, func() {
 		switch {
 		case needsLogin(s):
 			a.tsLoginButton(c, s)
 		case ts.Reachable:
-			a.tsPowerSwitch(c, s)
+			a.tsPowerSwitch(c, s).Size(32, 18).Radius(9)
 		}
 	})
 	a.controlError(c, pendTS)
-	if !ts.Reachable {
-		unreachableLine(c, svcTailscale, ts.Err)
-		return
-	}
-	if needsLogin(s) {
-		return // its addresses, devices and exit node are not this node's now
+	if !ts.Reachable || needsLogin(s) {
+		return // its addresses and exit node are not this node's now
 	}
 	if ip := st.Self.IPv4(); ip.IsValid() {
-		kv(c, T.SelfIP, ip.String()+" · "+st.Self.Name)
+		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).MinHeight(panelRowH).Children(func() {
+			leading(c, iconTailscale, t.TextMuted)
+			ui.Text(c, st.Self.Name).Grow(1).Shrink(1).SingleLine()
+			num(ui.Text(c, ip.String()).TextColor(t.TextMuted).SingleLine().Selectable())
+		})
 	}
-	kv(c, T.OnlinePeers, fmt.Sprintf("%d / %d", st.OnlinePeers(), len(st.Peers)))
-	kvWith(c, T.ExitNode, func() { kvControl(a.exitNodePicker(c, s)) })
+	a.exitNodeRow(c, s)
 	a.controlError(c, pendExit)
+}
+
+// exitNodeRow is the exit node as a pop-up row, as nodeRow: 不使用, then
+// the peers that offer one. Choosing one while TUN is on asks first
+// (chooseExitNode).
+func (a *app) exitNodeRow(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	T := i18n.T
+	st := s.Tailscale.State
+	sel := T.ExitNodeNone
+	if st.ExitNode != nil {
+		sel = st.ExitNode.Name
+	}
+	sel = pendingValue(a, pendExit, sel)
+	opts := exitNodeOptions(st)
+	can := s.Can().Tailscale && len(opts) > 1
+	row := panelRow(c.Key("exit-node"), T.ExitNode).Disabled(!can)
+	row.Menu(func(m *ui.Menu) {
+		for i, name := range opts {
+			if i == 1 {
+				m.Separator()
+			}
+			if m.Item(name).Checked(name == sel).Chosen() && name != sel {
+				a.chooseExitNode(st, name, s.Mihomo.Reachable && s.Mihomo.Config.Tun.Enable)
+			}
+		}
+	})
+	row.Children(func() {
+		col := t.TextMuted
+		if sel != T.ExitNodeNone {
+			col = t.Text
+		}
+		leading(c, iconExitNode, col)
+		ui.Text(c, T.ExitNode).SingleLine().Shrink(0)
+		infoTip(c, "", T.InfoExitNode, nil)
+		ui.Text(c, sel).TextColor(t.TextMuted).Grow(1).Shrink(1).TextAlign(ui.End).SingleLine()
+		if can {
+			ui.Icon(c, iconUpDown).FontSize(iconSmall).TextColor(t.TextMuted)
+		}
+	})
 }
 
 func versionSuffix(v string) string {
@@ -225,35 +483,6 @@ func versionSuffix(v string) string {
 func needsLogin(s status.Snapshot) bool {
 	st := s.Tailscale.State.BackendState
 	return s.Tailscale.Reachable && (st == "NeedsLogin" || st == "NeedsMachineAuth")
-}
-
-// helperLine is the panel's line about the helper while it is not
-// connected: installed but down (a warning: what needs it is locked), or
-// not installed (quiet). A click opens where that is dealt with.
-func (a *app) helperLine(c *ui.Context, s status.Snapshot) {
-	h := s.Helper
-	if h.State == status.HelperConnected || h.State == status.HelperUnknown {
-		return
-	}
-	t := c.Theme()
-	T := i18n.T
-	icon, col, text := iconSkip, t.TextMuted, T.Helper+T.LabelSep+h.State.Text()
-	if h.State != status.HelperNotInstalled {
-		icon, col, text = iconWarning, t.Warning, T.HelperDownRow
-	}
-	row := ui.Row(c.Key("helper-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).
-		Focusable().Role(ui.RoleButton).Label(text)
-	row.Children(func() {
-		ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
-		ui.Text(c, text).Grow(1).SingleLine()
-		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
-	})
-	if row.Hovered() {
-		row.Background(t.Text.Alpha(0.08))
-	}
-	if row.Clicked() {
-		a.openHelperSetup(s)
-	}
 }
 
 // fitShotPanel sizes shot mode's stand-in for the flyout (a hidden window,
