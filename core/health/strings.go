@@ -223,7 +223,7 @@ var zhTexts = texts{
 	labelFail:        "失败",
 	labelSkip:        "跳过",
 	msgCounts:        "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
-	msgNotOnPlatform: "不适用于 %s",
+	msgNotOnPlatform: "在 %s 上做不了这项检查",
 	msgCheckPanicked: "检查自身出错",
 	msgCheckTimeout:  "检查超时（%s）",
 

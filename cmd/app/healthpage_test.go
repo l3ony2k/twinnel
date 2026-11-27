@@ -79,3 +79,44 @@ func TestEgressRow(t *testing.T) {
 		}
 	}
 }
+
+// 出口 IP 实测 where the test can't run (platform): the row says so in one
+// line, offers no 检测出口 and no switch, and only while 定期检测 is on a
+// button to turn it off. The exit tile and the fix buttons don't offer the
+// test either.
+func TestEgressRowUnsupported(t *testing.T) {
+	defer i18n.Set("zh")
+	i18n.Set("zh")
+	cr := health.CheckReport{ID: health.LeakEgress{}.ID(), Title: "出口 IP 实测",
+		Result: health.Result{Status: health.StatusSkip, Summary: "在 Windows 上做不了这项检查", Unsupported: true}}
+	at := time.Date(2026, 11, 27, 11, 5, 0, 0, time.Local)
+	s := status.Snapshot{Time: at, WritesAllowed: true}
+	s.Helper.State = status.HelperConnected
+	s.Health.Report = &health.Report{Started: at, Checks: []health.CheckReport{cr}}
+	for _, periodic := range []bool{true, false} {
+		a := &app{healthOpen: map[string]bool{}, egressProbe: func(context.Context) *health.CheckReport { return nil }}
+		a.hd.settings = &rpc.Settings{HealthEgress: periodic}
+		if a.canTestEgress(s) {
+			t.Fatal("test offered where it can't run")
+		}
+		if eg, _ := a.egressNow(s); eg != nil {
+			t.Fatalf("exit tile shows an unsupported result: %+v", eg)
+		}
+		tr := ui.NewTester(func(c *ui.Context) {
+			ui.Column(c).Padding(20, 20).Children(func() { a.healthCheckRow(c.Key("r"), cr, s, false) })
+		}, 800, 500)
+		if !tr.HasText(cr.Summary) {
+			t.Errorf("periodic=%v: no reason in %v", periodic, tr.Texts())
+		}
+		for _, no := range []string{i18n.T.FixTestEgress, i18n.T.EgressRetest, i18n.T.EgressPeriodic, i18n.T.EgressUntested} {
+			for _, got := range tr.Texts() {
+				if got == no {
+					t.Errorf("periodic=%v: %q offered in %v", periodic, no, tr.Texts())
+				}
+			}
+		}
+		if tr.HasText(i18n.T.EgressPeriodicOff) != periodic {
+			t.Errorf("periodic=%v: turn-off button shown=%v", periodic, !periodic)
+		}
+	}
+}
