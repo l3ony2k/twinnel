@@ -35,6 +35,7 @@ import (
 // only on the main thread (views, tray callbacks, RunOnMain).
 type app struct {
 	ovWidth float32 // the overview column's width at the last layout (overview.go)
+	svcGrid ovGrid  // the mihomo and Tailscale cards' rows, lined up (ovgrid.go)
 	cfgPath string
 	cfg     status.Config
 	install tailscale.Install

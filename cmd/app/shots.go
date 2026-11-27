@@ -108,6 +108,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"helpermgmt":      a.helperMgmtShots,      // shots_helpermgmt.go
 		"about":           a.aboutShots,           // shots_about.go
 		"delay":           a.delayShots,           // shots_delay.go
+		"egress":          a.egressShots,          // shots_egress.go
 		"configpolish":    a.configPolishShots,    // shots_configpolish.go
 		"configui":        a.configUIShots,        // shots_configui.go
 		"takeoverexplain": a.takeoverExplainShots, // shots_takeoverexplain.go

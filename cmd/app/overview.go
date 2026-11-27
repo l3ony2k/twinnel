@@ -68,9 +68,12 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 		a.quickActions(c, s)
 		a.glanceTiles(c, s, tiles)
 		ovCard(c, T.Traffic, "", func() { a.trafficCaption(c, s) }, func() { a.trafficChart(c, s, 120) })
+		g := &a.svcGrid
+		g.begin(pair, a.mihomoRows(c, s), a.tsCardRows(c, s))
 		ovPair(c, pair,
-			func() ui.Element { return a.mihomoCard(c, s) },
-			func() ui.Element { return a.tailscaleCard(c, s) })
+			func() ui.Element { return a.mihomoCard(c, s, g) },
+			func() ui.Element { return a.tailscaleCard(c, s, g) })
+		g.end(c)
 		ovPair(c, pair,
 			func() ui.Element { return a.duetCard(c, s) },
 			func() ui.Element { return a.recentCard(c, s) })
@@ -310,14 +313,21 @@ func cpuText(p *status.Process) string {
 	return fmt.Sprintf(i18n.T.OvCPU, strconv.FormatFloat(p.CPU, 'f', 1, 64)+"%")
 }
 
-// processRows are a daemon's rows in its card: memory and CPU, then how
-// long it has run.
-func processRows(c *ui.Context, p *status.Process, now time.Time) {
+// processSlots are a daemon's shared rows in its card: memory and CPU,
+// then how long it has run; none without a process.
+func processSlots(c *ui.Context, rows ovRows, p *status.Process, now time.Time) {
+	if p == nil {
+		return
+	}
 	T := i18n.T
-	kvWith(c, T.OvProcess, func() {
-		num(ui.Text(c, status.Bytes(p.RSS)+" · "+cpuText(p))).SingleLine().Shrink(1)
-	})
-	kvWith(c, T.OvUptime, func() { num(ui.Text(c, status.Duration(p.Uptime(now)))).SingleLine().Shrink(1) })
+	rows[slotProcess] = func() {
+		kvWith(c, T.OvProcess, func() {
+			num(ui.Text(c, status.Bytes(p.RSS)+" · "+cpuText(p))).SingleLine().Shrink(1)
+		})
+	}
+	rows[slotUptime] = func() {
+		kvWith(c, T.OvUptime, func() { num(ui.Text(c, status.Duration(p.Uptime(now)))).SingleLine().Shrink(1) })
+	}
 }
 
 // tile is one glance tile: a label, a figure, a quiet line under it. A
@@ -368,55 +378,70 @@ func (a *app) trafficCaption(c *ui.Context, s status.Snapshot) {
 
 // --- mihomo ---
 
-func (a *app) mihomoCard(c *ui.Context, s status.Snapshot) ui.Element {
-	return ovCard(c, i18n.T.Mihomo, "", func() { a.mihomoMenu(c, s) }, func() { a.mihomoSummary(c, s) })
+func (a *app) mihomoCard(c *ui.Context, s status.Snapshot, g *ovGrid) ui.Element {
+	return ovCard(c, i18n.T.Mihomo, "", func() { a.mihomoMenu(c, s) }, func() { g.body(c, 0) })
 }
 
-func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
+// mihomoRows are the mihomo card's rows by slot (ovGrid): the shared ones,
+// then 出口, DNS and 代理端口 across from Tailscale's 出口节点, MagicDNS
+// and 本机, then 模式 and TUN. Down, the card is one body instead.
+func (a *app) mihomoRows(c *ui.Context, s status.Snapshot) ovRows {
 	t := c.Theme()
 	T := i18n.T
 	m := s.Mihomo
+	rows := ovRows{}
 	if !m.Reachable {
-		a.cardDown(c, svcMihomo, m.Err)
-		kvMono(c, T.Controller, a.mh.BaseURL())
-		return
-	}
-	kvWith(c, T.State, func() {
-		ui.Text(c, T.Running).SingleLine().Shrink(0)
-		if m.Version != "" {
-			monoText(c, m.Version).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
+		rows[slotBody] = func() {
+			a.cardDown(c, svcMihomo, m.Err)
+			kvMono(c, T.Controller, a.mh.BaseURL())
 		}
-	})
-	if p := m.Process; p != nil {
-		processRows(c, p, s.Time)
+		return rows
 	}
-	kvWith(c, T.Mode, func() { kvControl(a.modeControl(c, s)) })
-	a.controlError(c, pendMode)
-	tun := T.TunOff
-	if m.Config.Tun.Enable {
-		tun = m.Config.Tun.Device + sourceSuffix(m.Config.Tun.Stack) // the switch says it is on
+	rows[slotState] = func() {
+		kvWith(c, T.State, func() {
+			ui.Text(c, T.Running).SingleLine().Shrink(0)
+			if m.Version != "" {
+				monoText(c, m.Version).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
+			}
+		})
 	}
-	kvTipWith(c, T.Tun, T.InfoTun, nil, func() {
-		a.tunSwitch(c, s)
-		monoText(c, tun).TextColor(t.TextMuted).SingleLine().Shrink(1)
-	})
-	a.controlError(c, pendTun)
-	if d := dnsModeText(m.DNSMode); d != "" {
-		kvWith(c, T.OvDNS, func() { monoText(c, d).SingleLine() })
-	}
-	if ports := portsText(m.Config); ports != "" {
-		kvWith(c, T.OvProxyPort, func() { monoText(c, ports).SingleLine().Shrink(1).Selectable() })
-	}
+	processSlots(c, rows, m.Process, s.Time)
 	if p := m.Primary; p != nil {
 		// Where traffic leaves: the node and its delay; the route to it
 		// on hover.
 		route := strings.Join(append([]string{p.Name}, p.Chain...), " → ")
-		kvWith(c, T.Exit, func() {
-			ui.Text(c, p.Node).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(route)
-			ui.Spacer(c)
-			monoText(c, p.DelayText()).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0)
-		})
+		rows[slotExit] = func() {
+			kvWith(c, T.Exit, func() {
+				ui.Text(c, p.Node).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(route)
+				ui.Spacer(c)
+				monoText(c, p.DelayText()).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0)
+			})
+		}
 	}
+	if d := dnsModeText(m.DNSMode); d != "" {
+		rows[slotDNS] = func() { kvWith(c, T.OvDNS, func() { monoText(c, d).SingleLine() }) }
+	}
+	if ports := portsText(m.Config); ports != "" {
+		rows[slotAddr] = func() {
+			kvWith(c, T.OvProxyPort, func() { monoText(c, ports).SingleLine().Shrink(1).Selectable() })
+		}
+	}
+	rows[slotOwn(0)] = func() {
+		kvWith(c, T.Mode, func() { kvControl(a.modeControl(c, s)) })
+		a.controlError(c, pendMode)
+	}
+	tun := T.TunOff
+	if m.Config.Tun.Enable {
+		tun = m.Config.Tun.Device + sourceSuffix(m.Config.Tun.Stack) // the switch says it is on
+	}
+	rows[slotOwn(1)] = func() {
+		kvTipWith(c, T.Tun, T.InfoTun, nil, func() {
+			a.tunSwitch(c, s)
+			monoText(c, tun).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		})
+		a.controlError(c, pendTun)
+	}
+	return rows
 }
 
 // dnsModeText is the DNS mode as shown: mihomo's own words for its
@@ -450,8 +475,8 @@ func portsText(cfg mihomo.Config) string {
 
 // --- Tailscale ---
 
-func (a *app) tailscaleCard(c *ui.Context, s status.Snapshot) ui.Element {
-	return ovCard(c, i18n.T.Tailscale, "", func() { a.tailscaleMenu(c, s) }, func() { a.tailscaleSummary(c, s) })
+func (a *app) tailscaleCard(c *ui.Context, s status.Snapshot, g *ovGrid) ui.Element {
+	return ovCard(c, i18n.T.Tailscale, "", func() { a.tailscaleMenu(c, s) }, func() { g.body(c, 1) })
 }
 
 // tailscaleMenu is the Tailscale card's 操作: the devices page and the
@@ -472,66 +497,95 @@ func (a *app) tailscaleMenu(c *ui.Context, s status.Snapshot) {
 // renewed.
 const tailscaleAdminURL = "https://login.tailscale.com/admin/machines"
 
-func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
+// tsCardRows are the Tailscale card's rows by slot (ovGrid): the
+// shared ones, then 出口节点, MagicDNS and 本机 across from mihomo's 出口,
+// DNS and 代理端口, then Tailnet, 密钥到期 and 安装. Down or logged out,
+// the card is one body instead.
+func (a *app) tsCardRows(c *ui.Context, s status.Snapshot) ovRows {
 	t := c.Theme()
 	T := i18n.T
 	ts := s.Tailscale
 	st := ts.State
+	rows := ovRows{}
 	if !ts.Reachable {
-		a.cardDown(c, svcTailscale, ts.Err)
-		kv(c, T.Install, T.InstallKind(string(ts.Install.Kind)))
-		return
+		rows[slotBody] = func() {
+			a.cardDown(c, svcTailscale, ts.Err)
+			kv(c, T.Install, T.InstallKind(string(ts.Install.Kind)))
+		}
+		return rows
 	}
 	if needsLogin(s) {
 		// Logged out: the node's addresses and devices are not its own
 		// now; the way back in is the one action.
+		rows[slotBody] = func() {
+			kvWith(c, T.State, func() {
+				ui.Text(c, T.TSState(st.BackendState)).Grow(1).SingleLine()
+				a.tsLoginButton(c, s)
+			})
+		}
+		return rows
+	}
+	rows[slotState] = func() {
 		kvWith(c, T.State, func() {
-			ui.Text(c, T.TSState(st.BackendState)).Grow(1).SingleLine()
-			a.tsLoginButton(c, s)
-		})
-		return
-	}
-	kvWith(c, T.State, func() {
-		ui.Text(c, T.TSState(st.BackendState)).SingleLine().Shrink(0)
-		if st.Version != "" {
-			monoText(c, shortTSVersion(st.Version)).TextColor(t.TextMuted).SingleLine().Shrink(1)
-		}
-	})
-	if st.Tailnet != "" {
-		kvWith(c, T.OvTailnet, func() { monoText(c, st.Tailnet).SingleLine().Shrink(1).Selectable() })
-	}
-	// The name and the address on rows of their own: in a half-width
-	// card the address, never cut, would leave the name a few letters.
-	kvWith(c, T.OvThisDevice, func() { middleText(c, st.Self.Name).Selectable() })
-	if ip := st.Self.IPv4(); ip.IsValid() {
-		kvWith(c, T.PeerIP, func() {
-			monoText(c, ip.String()).SingleLine().Shrink(0).Selectable().Tooltip(peerIPs(st.Self))
-		})
-	}
-	kvTipWith(c, T.ExitNode, T.InfoExitNode, nil, func() { kvControl(a.exitNodePicker(c, s)) })
-	a.controlError(c, pendExit)
-	kvWith(c, T.MagicDNS, func() {
-		ui.Text(c, onOff(st.Prefs.MagicDNS)).SingleLine().Shrink(0)
-		if st.Prefs.MagicDNS && st.MagicDNSSuffix != "" {
-			monoText(c, st.MagicDNSSuffix).TextColor(t.TextMuted).SingleLine().Shrink(1)
-		}
-	})
-	if st.KeyExpiry != nil {
-		exp := st.KeyExpiry.Local().Format("2006-01-02") + " (" + status.Until(s.Time, *st.KeyExpiry) + ")"
-		kvWith(c, T.KeyExpiry, func() {
-			e := num(ui.Text(c, exp)).SingleLine().Shrink(1)
-			if st.KeyExpiresWithin(s.Time, status.KeyExpiryWarning) {
-				e.TextColor(pal(t).warnText)
-				ui.Link(c, T.KeyRenew, tailscaleAdminURL).FontSize(plat.calloutSize)
+			ui.Text(c, T.TSState(st.BackendState)).SingleLine().Shrink(0)
+			if st.Version != "" {
+				monoText(c, shortTSVersion(st.Version)).TextColor(t.TextMuted).SingleLine().Shrink(1)
 			}
 		})
 	}
-	if p := ts.Process; p != nil {
-		processRows(c, p, s.Time)
+	processSlots(c, rows, ts.Process, s.Time)
+	rows[slotExit] = func() {
+		kvTipWith(c, T.ExitNode, T.InfoExitNode, nil, func() { kvControl(a.exitNodePicker(c, s)) })
+		a.controlError(c, pendExit)
 	}
-	kvWith(c, T.Install, func() { // wraps: long in some languages, and the card is half wide
-		ui.Text(c, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source)).Grow(1).Wrap().LineHeight(lineText).Selectable()
-	})
+	rows[slotDNS] = func() {
+		kvWith(c, T.MagicDNS, func() {
+			ui.Text(c, onOff(st.Prefs.MagicDNS)).SingleLine().Shrink(0)
+			if st.Prefs.MagicDNS && st.MagicDNSSuffix != "" {
+				monoText(c, st.MagicDNSSuffix).TextColor(t.TextMuted).SingleLine().Shrink(1)
+			}
+		})
+	}
+	// The name and the address on rows of their own: in a half-width
+	// card the address, never cut, would leave the name a few letters.
+	// The address is the first of the card's own rows, so right under it.
+	rows[slotAddr] = func() {
+		kvWith(c, T.OvThisDevice, func() { middleText(c, st.Self.Name).Selectable() })
+	}
+	own := 0
+	if ip := st.Self.IPv4(); ip.IsValid() {
+		rows[slotOwn(own)] = func() {
+			kvWith(c, T.PeerIP, func() {
+				monoText(c, ip.String()).SingleLine().Shrink(0).Selectable().Tooltip(peerIPs(st.Self))
+			})
+		}
+		own++
+	}
+	if st.Tailnet != "" {
+		rows[slotOwn(own)] = func() {
+			kvWith(c, T.OvTailnet, func() { monoText(c, st.Tailnet).SingleLine().Shrink(1).Selectable() })
+		}
+		own++
+	}
+	if st.KeyExpiry != nil {
+		exp := st.KeyExpiry.Local().Format("2006-01-02") + " (" + status.Until(s.Time, *st.KeyExpiry) + ")"
+		rows[slotOwn(own)] = func() {
+			kvWith(c, T.KeyExpiry, func() {
+				e := num(ui.Text(c, exp)).SingleLine().Shrink(1)
+				if st.KeyExpiresWithin(s.Time, status.KeyExpiryWarning) {
+					e.TextColor(pal(t).warnText)
+					ui.Link(c, T.KeyRenew, tailscaleAdminURL).FontSize(plat.calloutSize)
+				}
+			})
+		}
+		own++
+	}
+	rows[slotOwn(own)] = func() {
+		kvWith(c, T.Install, func() { // wraps: long in some languages, and the card is half wide
+			ui.Text(c, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source)).Grow(1).Wrap().LineHeight(lineText).Selectable()
+		})
+	}
+	return rows
 }
 
 // cardDown is a card's body while its service can't be reached, at the
