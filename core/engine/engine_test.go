@@ -589,3 +589,29 @@ func TestSecretHelpers(t *testing.T) {
 		t.Error("controllerAddr")
 	}
 }
+
+// A restarted helper (an upgrade) has not applied anything in this run:
+// status.get reports the newest applied history entry as the last apply,
+// not none (总览 → 上次应用 said 还没有应用过 after an upgrade).
+func TestStatusLastApplyAfterRestart(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if st, _ := h.e.Status(ctx); st.LastApply != nil {
+		t.Fatalf("last apply before any: %+v", st.LastApply)
+	}
+	r := h.apply("")
+	again := New(h.e.Store, h.e.Secrets) // the same state dir, a new run
+	again.NewController = h.e.NewController
+	again.Log = h.e.Log
+	st, err := again.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	la := st.LastApply
+	if la == nil {
+		t.Fatal("no last apply after a restart")
+	}
+	if la.HistoryID != r.HistoryID || !la.Time.Equal(r.Time.Truncate(time.Second)) && !la.Time.Equal(r.Time) || la.ReasonCode != store.ReasonApply || la.Error != "" {
+		t.Fatalf("last apply %+v, want history %s at %v", la, r.HistoryID, r.Time)
+	}
+}
