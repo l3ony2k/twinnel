@@ -83,4 +83,3 @@ type TailscaleInstallResult struct {
 	// is not root).
 	Service *ServiceOpResult `json:"service,omitempty"`
 }
-

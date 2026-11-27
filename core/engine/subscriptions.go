@@ -368,4 +368,3 @@ func plainHTTPWarning(raw string) string {
 	}
 	return "the subscription URL uses plain http: anyone on the network path can read it and replace the config it returns; use https if the provider offers it"
 }
-
