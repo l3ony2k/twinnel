@@ -84,22 +84,24 @@ rules+:
 
 // Helper is the fake helper's state. Lock mu to read the recorded calls.
 type Helper struct {
-	Mu       sync.Mutex
-	Socket   string
-	Agent    rpc.AgentSettings
-	Calls    []string // methods, in order
-	Records  []rpc.AgentAction
-	Updates  []rpc.SettingsUpdate
-	Applied  int
-	Layers   map[string]rpc.LayerContent
-	Order    []string
-	Hash     string // compose.preview hash
-	Mode     string
-	Ctrl     string // controller address for controller.credentials
-	Imports  []rpc.ConfigImportParams
-	bus      *rpc.Bus
-	srv      *rpc.Server
-	listener interface{ Close() error }
+	Mu      sync.Mutex
+	Socket  string
+	Agent   rpc.AgentSettings
+	Calls   []string // methods, in order
+	Records []rpc.AgentAction
+	// AccessoryUpdates: "geo:<proxy>" / "ui:<proxy>" for each geo.update / ui.update.
+	AccessoryUpdates []string
+	Updates          []rpc.SettingsUpdate
+	Applied          int
+	Layers           map[string]rpc.LayerContent
+	Order            []string
+	Hash             string // compose.preview hash
+	Mode             string
+	Ctrl             string // controller address for controller.credentials
+	Imports          []rpc.ConfigImportParams
+	bus              *rpc.Bus
+	srv              *rpc.Server
+	listener         interface{ Close() error }
 }
 
 // NewHelper starts a fake helper on a temp socket. ctrl is the controller
@@ -334,6 +336,30 @@ func (h *Helper) register() {
 		h.Records = append(h.Records, a)
 		h.bus.Publish(rpc.EventAgentAction, a)
 		return rpc.Empty{}, nil
+	})
+	geo := func() rpc.AccessoryCheck {
+		return rpc.AccessoryCheck{Dir: "/tmp/conf", AutoUpdate: rpc.GeoAutoOff, Files: []rpc.AccessoryFile{
+			{Name: "geoip", File: "/tmp/conf/GeoIP.dat", Installed: true, Size: 10},
+			{Name: "geosite", File: "/tmp/conf/GeoSite.dat", UpdateAvailable: true},
+		}}
+	}
+	typed(h, rpc.MethodGeoStatus, func(rpc.Empty) (rpc.AccessoryCheck, error) { return geo(), nil })
+	typed(h, rpc.MethodGeoCheck, func(rpc.AccessoryCheckParams) (rpc.AccessoryCheck, error) { return geo(), nil })
+	typed(h, rpc.MethodUIStatus, func(rpc.Empty) (rpc.AccessoryCheck, error) {
+		return rpc.AccessoryCheck{Dir: "/tmp/conf", Path: "/ui/", Files: []rpc.AccessoryFile{{Name: "ui", File: "/tmp/conf/ui", UpdateAvailable: true}}}, nil
+	})
+	typed(h, rpc.MethodUICheck, func(rpc.AccessoryCheckParams) (rpc.AccessoryCheck, error) {
+		return rpc.AccessoryCheck{Dir: "/tmp/conf", Path: "/ui/", Files: []rpc.AccessoryFile{{Name: "ui", File: "/tmp/conf/ui", UpdateAvailable: true}}}, nil
+	})
+	typed(h, rpc.MethodGeoUpdate, func(p rpc.AccessoryUpdateParams) (rpc.AccessoryUpdateResult, error) {
+		defer lock()()
+		h.AccessoryUpdates = append(h.AccessoryUpdates, "geo:"+p.Proxy)
+		return rpc.AccessoryUpdateResult{Updated: []string{"geosite"}, Reloaded: p.Reload, Via: "direct", Files: geo().Files}, nil
+	})
+	typed(h, rpc.MethodUIUpdate, func(p rpc.AccessoryUpdateParams) (rpc.AccessoryUpdateResult, error) {
+		defer lock()()
+		h.AccessoryUpdates = append(h.AccessoryUpdates, "ui:"+p.Proxy)
+		return rpc.AccessoryUpdateResult{Updated: []string{"ui"}, Configured: true, Via: "direct"}, nil
 	})
 	typed(h, rpc.MethodAgentActivity, func(rpc.AgentActivityParams) ([]rpc.AgentAction, error) {
 		defer lock()()

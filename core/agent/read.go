@@ -28,9 +28,10 @@ online peers), the last health result and which agent tiers are on. Start here.`
 
 	addTool(s, rpc.TierRead, "version", "Versions",
 		`Versions of Twinnel, the helper (and its two binaries: the one shipped with Twinnel and the installed one,
-with a warning when they differ), the mihomo kernel (running, installed, previous), Tailscale, and the
-geo databases. With check_updates it also asks GitHub for the latest mihomo release and geo files
-(network requests; nothing is installed).`,
+with a warning when they differ), the mihomo kernel (running, installed, previous), Tailscale, the geo
+databases and the web dashboard (geo / dashboard: installed or not, date, source, the last update check
+and whether it found something newer). With check_updates it also asks GitHub for the latest mihomo
+release, geo files and dashboard (network requests; nothing is installed).`,
 		toolOpts{noHelper: true, openWorld: true}, s.version)
 
 	addTool(s, rpc.TierRead, "health", "Health checks",
@@ -320,11 +321,20 @@ func (s *Server) version(c *call, in versionIn) (any, error) {
 			} else {
 				out["kernel_latest_error"] = err.Error()
 			}
-			var geo rpc.AccessoryCheck
-			if err := h.Call(c.ctx, rpc.MethodGeoCheck, nil, &geo); err == nil {
-				out["geo"] = geo.Files
+		}
+		for _, x := range []struct{ key, status, check string }{
+			{"geo", rpc.MethodGeoStatus, rpc.MethodGeoCheck},
+			{"dashboard", rpc.MethodUIStatus, rpc.MethodUICheck},
+		} {
+			method, params := x.status, any(nil)
+			if in.CheckUpdates {
+				method, params = x.check, rpc.AccessoryCheckParams{}
+			}
+			var r rpc.AccessoryCheck
+			if err := h.Call(c.ctx, method, params, &r); err == nil {
+				out[x.key] = r
 			} else {
-				out["geo_error"] = err.Error()
+				out[x.key+"_error"] = err.Error()
 			}
 		}
 	}

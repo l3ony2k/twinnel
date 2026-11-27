@@ -52,6 +52,7 @@ func (a *app) startHelper() {
 				switch a.page {
 				case pageKernel:
 					a.loadServices()
+					a.loadAccessories()
 				case pageTakeover:
 					a.loadTakeover()
 				}
@@ -64,7 +65,7 @@ func (a *app) startHelper() {
 	}
 	hc.OnEvents = func(evs []rpc.Event) {
 		mygo.RunOnMain(func() {
-			evs = a.takeStages(evs)
+			evs = a.takeAccessoryProgress(a.takeStages(evs))
 			if len(evs) == 0 {
 				return // only progress: nothing to reload
 			}
@@ -75,6 +76,9 @@ func (a *app) startHelper() {
 			}
 			if serviceEvent(evs) && a.page == pageKernel {
 				a.loadServices()
+			}
+			if accessoryEvent(evs) && a.page == pageKernel {
+				a.loadAccessories()
 			}
 			if takeoverEvent(evs) && a.page == pageTakeover {
 				a.loadTakeover()
@@ -395,7 +399,7 @@ func (a *app) helperWrites(s status.Snapshot) bool {
 func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	d := &a.hd
-	if d.busy != "" && !d.busyOnButton && d.span.visible(time.Now()) {
+	if d.busy != "" && !d.busyOnButton && !accessoryOpShown(d.busy) && d.span.visible(time.Now()) {
 		// No opButton shows this operation: say it here (after busyDelay).
 		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Children(func() {
 			ui.Spinner(c)

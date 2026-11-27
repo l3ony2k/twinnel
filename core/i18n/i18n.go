@@ -276,6 +276,7 @@ type Strings struct {
 	PlatformStrings        // platform.go
 	DNSWatchStrings        // dnswatch.go
 	WizardStrings          // wizard.go
+	ComponentStrings       // components.go
 	TSLoginStrings         // tslogin.go
 }
 
@@ -835,6 +836,7 @@ var zh = Strings{
 	HelperMgmtStrings:      zhHelperMgmt,
 	SetupStrings:           zhSetup,
 	WizardStrings:          zhWizard,
+	ComponentStrings:       zhComponents,
 	ConfigUIStrings:        zhConfigUI,
 	ProgressStrings:        zhProgress,
 	HealthFixStrings:       zhHealthFix,

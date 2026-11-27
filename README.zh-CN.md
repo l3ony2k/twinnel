@@ -115,7 +115,8 @@ twinnel compose --preview           # 在 helper 里合成并校验，不写入
 twinnel compose --apply             # 校验、备份、写入、重载、验证（失败自动回滚）
 twinnel history                     # 合成历史；twinnel history rollback ID 回滚
 twinnel kernel check                # mihomo 内核：list | check | install | rollback
-twinnel kernel geo check            # geo 数据库：check | update；面板用 twinnel kernel ui check|update
+twinnel geo status                  # GEO 数据库：status | check | update [--proxy subscription] | auto weekly|off
+twinnel dashboard install           # 控制面板：status | check | install | update | open
 twinnel service restart mihomo      # 服务：status | start | stop | restart（mihomo、tailscaled）| install | uninstall（仅 mihomo）
 twinnel settings                    # 防泄漏组、共存开关、tailnet 解析器、历史条数、内核通道、自动应用
 twinnel tailnet refresh             # 立刻重读 tailnet 设备（helper 也会每 60 秒查一次）

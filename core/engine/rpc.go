@@ -97,11 +97,17 @@ func (e *Engine) Register(s *rpc.Server) {
 		})
 	}
 
-	rpc.Typed(s, rpc.MethodGeoCheck, func(ctx context.Context, _ rpc.Empty) (rpc.AccessoryCheck, error) { return e.GeoCheck(ctx) })
+	rpc.Typed(s, rpc.MethodGeoStatus, func(context.Context, rpc.Empty) (rpc.AccessoryCheck, error) { return e.GeoStatus() })
+	rpc.Typed(s, rpc.MethodGeoCheck, func(ctx context.Context, p rpc.AccessoryCheckParams) (rpc.AccessoryCheck, error) {
+		return e.GeoCheck(ctx, p)
+	})
 	rpc.Typed(s, rpc.MethodGeoUpdate, func(ctx context.Context, p rpc.AccessoryUpdateParams) (rpc.AccessoryUpdateResult, error) {
 		return e.GeoUpdate(ctx, p)
 	})
-	rpc.Typed(s, rpc.MethodUICheck, func(ctx context.Context, _ rpc.Empty) (rpc.AccessoryCheck, error) { return e.UICheck(ctx) })
+	rpc.Typed(s, rpc.MethodUIStatus, func(context.Context, rpc.Empty) (rpc.AccessoryCheck, error) { return e.UIStatus() })
+	rpc.Typed(s, rpc.MethodUICheck, func(ctx context.Context, p rpc.AccessoryCheckParams) (rpc.AccessoryCheck, error) {
+		return e.UICheck(ctx, p)
+	})
 	rpc.Typed(s, rpc.MethodUIUpdate, func(ctx context.Context, p rpc.AccessoryUpdateParams) (rpc.AccessoryUpdateResult, error) {
 		return e.UIUpdate(ctx, p)
 	})
