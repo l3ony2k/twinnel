@@ -49,6 +49,8 @@ type planState struct {
 	LastResult *rpc.AdoptResult  `json:"last_result,omitempty"`
 	// Impact of adopt's reload: live config → composed config.
 	Impact *rpc.ReloadImpact `json:"impact,omitempty"`
+	// BinaryUnsafe: a non-root user can replace the adopted binary.
+	BinaryUnsafe bool `json:"binary_unsafe,omitempty"`
 }
 
 func sha256Hex(b []byte) string {
@@ -130,12 +132,14 @@ func (e *Engine) TakeoverPlan(ctx context.Context, p rpc.TakeoverPlanParams) (rp
 	if err != nil {
 		return rpc.TakeoverPlan{}, rpc.Errorf(rpc.CodeFailed, "takeover plan: %v", err)
 	}
+	binaryUnsafe := false
 	if m := plan.Discovery.Mihomo; m != nil {
 		if _, err := adoptDirOwner(probe, m); err != nil {
 			plan.Warnings = append(plan.Warnings, "adopt will refuse this setup: "+err.Error())
 		}
 		if w := binaryWarning(m.Binary); w != "" {
 			plan.Warnings = append(plan.Warnings, w)
+			binaryUnsafe = true
 		}
 	}
 
@@ -159,7 +163,7 @@ func (e *Engine) TakeoverPlan(ctx context.Context, p rpc.TakeoverPlanParams) (rp
 		return rpc.TakeoverPlan{}, err
 	}
 	m := plan.Discovery.Mihomo
-	ps := &planState{PlanID: id, State: rpc.PlanReady}
+	ps := &planState{PlanID: id, State: rpc.PlanReady, BinaryUnsafe: binaryUnsafe}
 	if plan.Base != nil {
 		ps.BasePath = plan.Base.Path
 		b, err := os.ReadFile(plan.Base.Path)
@@ -232,6 +236,7 @@ func planSummary(p *takeover.Plan, ps *planState, full bool) rpc.TakeoverPlan {
 	for _, w := range p.Warnings {
 		out.Warnings = append(out.Warnings, config.RedactText(w))
 	}
+	out.Effects = takeoverEffects(p, ps)
 	if im := ps.Impact; im != nil {
 		out.Impact = im
 		if im.Disruptive {
@@ -368,7 +373,7 @@ func (e *Engine) undoStore(u *storeUndo) error {
 func (e *Engine) Adopt(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult, error) {
 	res := rpc.AdoptResult{PlanID: p.PlanID, Steps: []rpc.AdoptStep{}}
 	step := func(name, status, detail string) {
-		res.Steps = append(res.Steps, rpc.AdoptStep{Name: name, Status: status, Detail: detail})
+		res.Steps = append(res.Steps, rpc.AdoptStep{Name: name, Code: strings.ReplaceAll(name, " ", "-"), Status: status, Detail: detail})
 		e.log().Info("adopt", "plan", p.PlanID, "step", name, "status", status, "detail", detail)
 	}
 	if !store.ValidID(p.PlanID) {

@@ -170,6 +170,7 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 	ctx, restart := context.WithCancel(ctx)
 	defer restart()
 	e.Restart = restart
+	e.Socket = o.socket
 
 	loopCtx, cancelLoops := context.WithCancel(ctx)
 	loopsDone := make(chan struct{})
