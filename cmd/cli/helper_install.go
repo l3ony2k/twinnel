@@ -47,6 +47,8 @@ var (
 type installFlags struct {
 	dryRun, yes, asRoot                bool
 	helperBin, stateDir, socket, label string
+	// extra are more flags for the elevated copy (uninstall --purge, ...).
+	extra []string
 }
 
 func newInstallFlags(name string, withBin bool) (*flag.FlagSet, *installFlags) {
@@ -84,7 +86,8 @@ func (f *installFlags) rootArgs(sub string) ([]string, error) {
 			return nil, fmt.Errorf("%q must be an absolute path", p)
 		}
 	}
-	return append(args, "--state-dir", f.stateDir, "--socket", f.socket, "--label", f.label), nil
+	args = append(args, "--state-dir", f.stateDir, "--socket", f.socket, "--label", f.label)
+	return append(args, f.extra...), nil
 }
 
 func runHelperInstall(args []string) error {
@@ -112,32 +115,30 @@ func runHelperInstall(args []string) error {
 	})
 }
 
-func runHelperUninstall(args []string) error {
-	fs, f := newInstallFlags("helper uninstall", false)
-	if _, done, err := parse(fs, args); done || err != nil {
-		return err
-	}
-	steps, err := planHelperUninstall(f.stateDir, f.socket, f.label)
-	if err != nil {
-		return err
-	}
-	return runPlan("uninstall", f, steps, nil)
-}
-
 // runPlan prints the plan, then runs it as root (directly with --as-root,
 // else by re-executing duet through osascript).
 func runPlan(op string, f *installFlags, steps []service.Step, precheck func() error) error {
+	return runAsRoot(op, f, func(w io.Writer) { service.FormatPlan(w, steps) }, func(ctx context.Context) error {
+		return applyPlan(ctx, steps)
+	}, precheck)
+}
+
+// runAsRoot shows what an operation does (show), then runs it as root
+// (run): directly with --as-root or under sudo, else by re-executing duet
+// through osascript with the same flags (f.rootArgs), which asks for the
+// administrator password once.
+func runAsRoot(op string, f *installFlags, show func(io.Writer), run func(context.Context) error, precheck func() error) error {
 	if f.asRoot {
 		if geteuid() != 0 {
 			return errors.New("--as-root is only for the elevated copy of duet; run without it")
 		}
-		fmt.Fprintf(stdout, "# duet helper %s: running %d steps as root\n", op, len(steps))
+		fmt.Fprintf(stdout, "# duet helper %s: running as root\n", op)
 		if precheck != nil {
 			if err := precheck(); err != nil {
 				return err
 			}
 		}
-		if err := applyPlan(context.Background(), steps); err != nil {
+		if err := run(context.Background()); err != nil {
 			return fmt.Errorf("helper %s failed: %w", op, err)
 		}
 		fmt.Fprintf(stdout, "# helper %s: done\n", op)
@@ -149,10 +150,7 @@ func runPlan(op string, f *installFlags, steps []service.Step, precheck func() e
 	} else {
 		fmt.Fprintf(stdout, "# duet helper %s will run these steps as root:\n", op)
 	}
-	service.FormatPlan(stdout, steps)
-	if op == "uninstall" {
-		fmt.Fprintf(stdout, "# The state dir %s (settings, layers, history) is kept.\n", f.stateDir)
-	}
+	show(stdout)
 	if f.dryRun {
 		return nil
 	}
@@ -166,7 +164,7 @@ func runPlan(op string, f *installFlags, steps []service.Step, precheck func() e
 		if !f.yes && !confirm() {
 			return errors.New("cancelled; nothing was changed")
 		}
-		if err := applyPlan(context.Background(), steps); err != nil {
+		if err := run(context.Background()); err != nil {
 			return fmt.Errorf("helper %s failed: %w", op, err)
 		}
 		fmt.Fprintf(stdout, "# helper %s: done\n", op)

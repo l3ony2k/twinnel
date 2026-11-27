@@ -8,8 +8,18 @@
 #
 # Pure Go, no cgo: every target cross-compiles from any host. The .app needs
 # `mygo build` (run through `go run`, pinned to the version in go.mod) and,
-# for signing and the disk image, a macOS host. Signing is ad hoc unless
-# macos.signingIdentity is set in cmd/app/mygo.json.
+# for signing and the disk image, a macOS host.
+#
+# Signing: the embedded duet and duet-helper, then the .app, are signed with
+# $SIGN_IDENTITY: "-" (the default) is an ad-hoc signature, enough for a
+# self-built copy that Gatekeeper does not quarantine (built locally, never
+# downloaded). For distribution set SIGN_IDENTITY to a "Developer ID
+# Application: …" identity (adds the hardened runtime and a timestamp) and
+# NOTARY_PROFILE to a `xcrun notarytool store-credentials` profile: the
+# disk image is then notarized and stapled.
+#
+# Version: -v, else `git describe --tags`; an untagged checkout gets
+# 0.0.0-<commits>-g<hash>[-dirty], which orders like a describe of a tag.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -27,9 +37,16 @@ while [ $# -gt 0 ]; do
 	esac
 done
 if [ -z "$version" ]; then
-	version="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
-	version="${version#v}"
+	if version="$(git describe --tags --dirty 2>/dev/null)"; then
+		version="${version#v}"
+	elif hash="$(git rev-parse --short HEAD 2>/dev/null)"; then
+		version="0.0.0-$(git rev-list --count HEAD)-g${hash}"
+		git diff --quiet HEAD 2>/dev/null || version="${version}-dirty"
+	else
+		version="dev"
+	fi
 fi
+sign_identity="${SIGN_IDENTITY:--}"
 
 dist=dist
 rm -rf "$dist"
@@ -98,6 +115,37 @@ if [ "$build_app" = 1 ]; then
 			[ -x "$app_bundle/Contents/Resources/bin/$f" ] || { echo "missing $f in $app_bundle" >&2; exit 1; }
 		done
 		echo "    bundled: $app_bundle/Contents/Resources/bin/{duet,duet-helper}"
+		# Sign inside out: the embedded tools (each with its own identifier,
+		# not the linker's "a.out"), then the bundle; verify; then rebuild
+		# the disk image from the signed bundle.
+		sign_flags=(--force --sign "$sign_identity")
+		if [ "$sign_identity" != "-" ]; then
+			sign_flags+=(--options runtime --timestamp)
+		fi
+		bundle_id="$(sed -nE 's/^[[:space:]]*"identifier":[[:space:]]*"([^"]+)".*/\1/p' "$app_json" | head -n 1)"
+		codesign "${sign_flags[@]}" --identifier "${bundle_id}.cli" "$app_bundle/Contents/Resources/bin/duet"
+		codesign "${sign_flags[@]}" --identifier "${bundle_id}.helper" "$app_bundle/Contents/Resources/bin/duet-helper"
+		codesign "${sign_flags[@]}" "$app_bundle"
+		codesign --verify --deep --strict "$app_bundle"
+		echo "    signed: ${sign_identity/#-/ad hoc} ($bundle_id)"
+		dmg="$(find "$dist/app" -maxdepth 2 -name '*.dmg' | head -n 1)"
+		if [ -n "$dmg" ]; then
+			stage="$dist/.dmg-stage"
+			rm -rf "$stage" && mkdir -p "$stage"
+			ditto "$app_bundle" "$stage/$(basename "$app_bundle")"
+			ln -s /Applications "$stage/Applications"
+			rm -f "$dmg"
+			hdiutil create -quiet -volname duet -srcfolder "$stage" -ov -format UDZO "$dmg"
+			rm -rf "$stage"
+			if [ "$sign_identity" != "-" ]; then
+				codesign --force --sign "$sign_identity" --timestamp "$dmg"
+			fi
+			if [ -n "${NOTARY_PROFILE:-}" ]; then
+				xcrun notarytool submit "$dmg" --keychain-profile "$NOTARY_PROFILE" --wait
+				xcrun stapler staple "$dmg"
+			fi
+			echo "    disk image: $dmg"
+		fi
 	else
 		echo "==> skipping duet.app: mygo signs and packages .app bundles on macOS only"
 	fi

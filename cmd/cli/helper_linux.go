@@ -5,6 +5,7 @@ package main
 import (
 	"github.com/l3ony2k/duet/core/service"
 	"github.com/l3ony2k/duet/platform/linux"
+	"github.com/l3ony2k/duet/platform/linux/systemd"
 )
 
 // socketGroup picks the helper's socket group (replaced in tests).
@@ -20,4 +21,28 @@ func planHelperInstall(helperBin, stateDir, socket, label string) ([]service.Ste
 
 func planHelperUninstall(stateDir, socket, label string) ([]service.Step, error) {
 	return linux.HelperUninstallPlan(stateDir, socket, label)
+}
+
+func helperPaths(stateDir, label string) (bin, def string) {
+	_, label = linux.InstallPaths(stateDir, label)
+	return linux.HelperBin, systemd.New().DefinitionPath(label)
+}
+
+func serviceDefinition(label string) string { return systemd.New().DefinitionPath(label) }
+
+func planHelperRestart(label string) ([]service.Step, error) {
+	_, label = linux.InstallPaths("", label)
+	return systemd.New().Plan(service.OpRestart, service.Spec{Label: label})
+}
+
+// secretStore: on Linux the helper keeps secrets in a file in its state
+// dir, which --purge deletes with it.
+const secretStore = "file"
+
+func planSecretsDelete([]string) []service.Step { return nil }
+
+// planMihomoRestore: `duet helper harden` is macOS-only, so there is
+// nothing to restore.
+func planMihomoRestore(from, to, toPlist string) (stop, start, undo []service.Step) {
+	return nil, nil, nil
 }

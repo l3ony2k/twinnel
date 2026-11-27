@@ -11,6 +11,10 @@ import (
 // Register wires every allowlisted method to the engine.
 func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodStatus, func(ctx context.Context, _ rpc.Empty) (rpc.Status, error) { return e.Status(ctx) })
+	rpc.Typed(s, rpc.MethodHelperInfo, func(ctx context.Context, _ rpc.Empty) (rpc.HelperInfo, error) { return e.HelperInfo(ctx) })
+	rpc.Typed(s, rpc.MethodHelperRestart, func(ctx context.Context, _ rpc.Empty) (rpc.HelperRestartResult, error) {
+		return e.RestartHelper()
+	})
 
 	rpc.Typed(s, rpc.MethodComposePreview, func(ctx context.Context, _ rpc.Empty) (rpc.ComposeResult, error) { return e.Preview(ctx) })
 	rpc.Typed(s, rpc.MethodComposeApply, func(ctx context.Context, p rpc.ApplyParams) (*rpc.ApplyResult, error) {

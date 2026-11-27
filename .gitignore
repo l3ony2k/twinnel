@@ -9,6 +9,8 @@ HANDOFF.md
 # go build outputs in the repo root (go build ./cmd/app etc.)
 /app
 /app.exe
+/cli.exe
+/helper.exe
 /cli
 /helper
 /duet

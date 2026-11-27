@@ -180,3 +180,14 @@ func MigrateSecrets(src *FileSecrets, dst Secrets) ([]string, error) {
 	}
 	return copied, nil
 }
+
+// SecretKeys are the keys the secret store may hold for these settings:
+// the controller secret and each subscription's URL. Uninstalling with
+// --purge deletes them (a missing one is not an error).
+func (st *Settings) SecretKeys() []string {
+	keys := []string{SecretController}
+	for _, s := range st.Subscriptions {
+		keys = append(keys, SubscriptionURLKey(s.ID))
+	}
+	return keys
+}

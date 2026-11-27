@@ -31,7 +31,7 @@ var AllMethods = []string{
 	MethodTakeoverPlan, MethodTakeoverPlans, MethodTakeoverDiscard, MethodTakeoverAdopt,
 	MethodControllerSecure, MethodControllerCredentials,
 	MethodHardenPlan, MethodHardenPlans, MethodHardenApply,
-	MethodEventsWait,
+	MethodHelperInfo, MethodHelperRestart, MethodEventsWait,
 }
 
 // HandlerFunc serves one method. params is the raw JSON (may be empty).

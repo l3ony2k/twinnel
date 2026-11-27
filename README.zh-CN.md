@@ -24,7 +24,7 @@ duet 在桌面上同时跑**官方的** [mihomo](https://github.com/MetaCubeX/mi
 | root helper（`duet-helper`）：合成 → 校验 → 备份 → 写入 → 热重载 → 验证，失败自动回滚；订阅、覆写层、历史版本，mihomo 内核下载 / 切换 / 回滚；geo 数据库和外部面板（按发布页公布的摘要校验） | macOS、Linux |
 | helper 内置健康检查：定时跑，配置应用和服务操作之后跑，网络变化时跑（仅 macOS）；`duet helper health` | macOS、Linux（Linux 还没有网络变化触发） |
 | 通过 RPC 管理服务：mihomo 和 tailscaled 的启动 / 停止 / 重启，mihomo 服务的安装 / 卸载 | macOS（launchd）、Linux（systemd）；helper 不是 root 时只返回计划，不执行 |
-| `duet helper install` / `uninstall`：先打印计划，再把 helper 装成系统服务 | macOS：弹一次管理员密码框；Linux：用 `sudo` 运行（`--dry-run` 不需要 root）。还没在真机上实际安装过。 |
+| `duet helper install` / `uninstall` / `upgrade` / `restart`：先打印计划（卸载会列出移除和保留的内容，`--purge` 同时删除 duet 的数据），再以 root 执行。卸载不会让 mihomo 失去服务：`harden` 之后会先把 mihomo 切回原来的服务（`--restore-mihomo`） | macOS：弹一次管理员密码框；Linux：用 `sudo` 运行（`--dry-run` 不需要 root）。还没在真机上实际安装过。 |
 | 菜单栏 App：单色状态图标（不同状态只靠形状区分：角标、断开的环、不同符号）和弹出面板；主窗口有总览、策略组、Tailscale 设备、健康检查、日志、设置，以及经 helper 的订阅与覆写、历史、内核三页；helper 未安装时显示首次使用页 | macOS；会改动系统的控件默认禁用，设置 `DUET_ALLOW_WRITES=1` 才可用 |
 | 凭证（controller secret、订阅地址） | macOS：helper 以 root 运行时存在系统钥匙串（System keychain）；Linux 和开发用的 helper：状态目录里一个 0600 权限的 `secrets.json`（以后接 Secret Service） |
 
@@ -46,7 +46,12 @@ scripts/build-release.sh            # 输出到 dist/，附 SHA256SUMS
 scripts/build-release.sh --no-app   # 只构建 CLI 和 helper（任何系统都能跑）
 ```
 
-`.app` 只做了 ad hoc 签名，没有公证。第一次打开时右键选"打开"。
+`.app` 以及其中的 CLI 和 helper 都是 ad hoc 签名（设置 `SIGN_IDENTITY` 和 `NOTARY_PROFILE` 可换成 Developer ID 签名并公证），没有公证。自己构建的副本没有隔离标记，可以直接打开；下载来的第一次要右键选"打开"。
+
+### 日常使用与开发并存
+
+- **日常：** `scripts/install-local.sh` 构建发布版，退出正在运行的 `/Applications/duet.app`，把旧版备份到 `~/Library/Application Support/duet/backups`（保留最新 3 个），装上新版；只有内置的 helper 和已安装的不同时才运行 `duet helper upgrade`（输一次密码）。只有这份 app 和已安装的 helper 能改动真实系统。App 的 设置 → 后台助手 显示 helper 版本，可以更新、重启、卸载；设置 → 通用 → 登录时打开 让 app 随登录启动（仅打包版）。
+- **开发：** `go run ./cmd/app` 连临时 socket 上的开发 helper 和假的控制接口（`DUET_SOCKET`、`DUET_CONTROLLER`，见 CONTRIBUTING），或只读地连真实环境（默认：不设 `DUET_ALLOW_WRITES=1` 就不能写）。开发构建不会提示更新 helper。
 
 ## 命令行速览
 
@@ -75,6 +80,9 @@ helper 相关的命令通过 Unix socket 和 `duet-helper` 通信（`$DUET_SOCKE
 duet helper status
 duet helper install --dry-run    # 打印服务定义和每一步操作，不做任何改动
 duet helper install              # macOS 会要管理员密码；Linux 用 sudo duet helper install
+duet helper upgrade [--check]    # 内置 helper 与已安装的不同时替换（不加 --force 不降级）
+duet helper restart              # 只重启 helper
+duet helper uninstall [--purge]  # 先列出移除和保留的内容；--purge 同时删除设置、订阅、覆写、历史和钥匙串项目
 duet helper health [--run]       # helper 最近一次健康检查报告，或者立刻重跑
 duet sub put main --url ...      # 订阅：list | put | refresh | activate | rm
 duet layer put rules rules.yaml  # 覆写层：list | get | put | rm | enable | disable | order

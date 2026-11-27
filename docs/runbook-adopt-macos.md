@@ -98,7 +98,7 @@ History entries never hold the `secret:` line: the helper writes the stored secr
 **B. Completely back to the hand-made setup.** Stop the helper first, so it doesn't re-apply on a tailnet change:
 
 ```sh
-duet helper uninstall        # asks y/N + password; the state dir (plans, backup) is kept
+duet helper uninstall        # lists what goes and what stays, asks y/N + password; the state dir (plans, backup) is kept
 sudo cp "/Library/Application Support/duet/takeover/<plan id>/live-backup.yaml" ~/mihomo-migration/conf/config.yaml
 curl -s -X PUT 'http://127.0.0.1:9090/configs?force=true' -H 'Content-Type: application/json' \
      -d "{\"path\":\"$HOME/mihomo-migration/conf/config.yaml\"}"
@@ -190,6 +190,8 @@ sudo mv /Library/LaunchDaemons/com.l3ony2k.duet.mihomo.plist "/Library/Applicati
 
 If the network is down at any point, `bash ~/mihomo-migration/emergency-restore.sh` still works (it uses the old setup).
 
+**Or let uninstall do it.** `duet helper uninstall` refuses while mihomo runs from duet's LaunchDaemon. `duet helper uninstall --restore-mihomo` runs the steps above as root before it removes the helper: `bootout system/com.l3ony2k.duet.mihomo`, wait until the controller stops answering (at most 15 s), `enable` and `bootstrap` `com.mihomo.proxy`, wait until the controller answers again (at most 45 s; any HTTP answer counts, also a 401). Then duet's plist is removed (a copy goes to `…/duet/harden/`, unless `--purge`). If the original does not answer, it starts duet's mihomo again and stops: nothing else is removed. `--keep-mihomo` instead leaves duet's mihomo running from the state dir, unmanaged (not with `--purge`). The app's 卸载… and 完全移除 duet… always use `--restore-mihomo`.
+
 The helper's settings still point at the new dir after a manual rollback. Either uninstall the helper (step 6 B), or edit `/Library/Application Support/duet/settings.json` as root: put back the `mihomo` values recorded under `hardened` (`old_binary`, `old_config_dir`, `old_config_file`, `old_config_dir_uid`, `old_label` as `service_label`, `service_adopted: true`), remove `hardened`, and restart the helper (`sudo launchctl kickstart -k system/com.l3ony2k.duet.helper`). Note that the old config file is the one from before step 8; changes applied after it are only in the new dir.
 
 ## Network impact (when to do what)
@@ -208,6 +210,14 @@ Measured and read from the mihomo v1.19.34 source; details in `docs/reload-behav
 Safest moment for step 4: when no agent or download is starting new connections (e.g. between tasks). Steps 1–3 and 8a can be done any time. Step 8b only when nothing is running.
 
 After the adopt, the helper reloads mihomo again only when the composed config changes: a Tailscale peer joins or leaves the tailnet, its MagicDNS name or IP changes, or tailscaled restarts on a new utun. Each such reload is the same short pause.
+
+## Updating, restarting and removing the helper
+
+- `duet helper upgrade --check` compares the helper next to `duet` (in the app: `duet.app/Contents/Resources/bin/duet-helper`) with the installed one and the running one. Reads only.
+- `duet helper upgrade` installs the bundled helper when it differs: the install plan (copy the binary, reload `com.l3ony2k.duet.helper`), one password prompt, then it waits until the helper answers with the new version. It never touches `com.mihomo.proxy`, `com.l3ony2k.duet.mihomo` or tailscaled. An older bundled helper is refused unless `--force`.
+- `duet helper restart` asks the running helper to restart itself (`helper.restart`: it exits and launchd starts it again; no password). If it does not answer, it runs `launchctl kickstart -k system/com.l3ony2k.duet.helper` as root.
+- `duet helper uninstall [--purge]` lists what goes and what stays first. `--purge` also deletes `/Library/Application Support/duet` (settings, subscriptions, layers, history, logs, takeover and harden backups, kernels) and the keychain items `duet.controller-secret` and `duet.subscription-url/*`. It refuses when a mihomo that duet installed itself (not adopted, not hardened) still runs from the state dir: purging would cut the network. Remove that service first (`duet service uninstall mihomo`).
+- `scripts/install-local.sh` does the daily-use update in one go: build, quit the app, back up `/Applications/duet.app`, install, `duet helper upgrade` only if the helper changed.
 
 ## Notes
 
