@@ -496,6 +496,19 @@ func helperUpgrade(ctx context.Context, f *installFlags, c UpgradeCheck, force b
 	var steps []service.Step
 	switch c.Action {
 	case UpgradeNone:
+		// The helper is current; on Linux the person may still be
+		// outside its socket group (an install from before that step, or
+		// by another user): add them, nothing else.
+		access := planSocketAccess()
+		if len(access) == 0 {
+			return nil
+		}
+		if err := runPlan("upgrade", f, access, nil); err != nil {
+			return err
+		}
+		if !f.asRoot && !f.dryRun {
+			reloginNote(access)
+		}
 		return nil
 	case UpgradeNotInstalled:
 		return errors.New("the helper is not installed: twinnel helper install")
@@ -513,6 +526,7 @@ func helperUpgrade(ctx context.Context, f *installFlags, c UpgradeCheck, force b
 		steps, err = planHelperInstall(f.helperBin, f.stateDir, f.socket, f.label)
 	case UpgradeRestart:
 		steps, err = planHelperRestart(f.label)
+		steps = append(planSocketAccess(), steps...)
 	}
 	if err != nil {
 		return err
@@ -521,6 +535,12 @@ func helperUpgrade(ctx context.Context, f *installFlags, c UpgradeCheck, force b
 		return err
 	}
 	if f.asRoot || f.dryRun {
+		return nil
+	}
+	if reloginNote(steps) {
+		// Linux: the person was just added to the socket group, which
+		// this process (started before) does not carry: it cannot reach
+		// the socket until they log in again. Root verified already.
 		return nil
 	}
 	// The elevated copy verified already; this one sees the same socket

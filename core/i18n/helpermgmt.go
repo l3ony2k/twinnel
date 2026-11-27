@@ -42,6 +42,14 @@ type HelperMgmtStrings struct {
 	// 在程序坞中显示 (macOS): when Twinnel has a Dock icon.
 	ShowInDock, DockWhenOpen, DockAlways, DockNever string
 	DockOpen                                        string // the Dock menu's item that opens the main window
+
+	// The helper's socket is for a group this session is not in (Linux).
+	// %s: the group. Missing: the user is not in it (加入 adds them);
+	// Relogin: they were added and must log in again. Row*: the sidebar's
+	// and the panel's short forms.
+	HelperGroupMissing, HelperGroupRelogin, HelperGroupFix string
+	HelperGroupRowMissing, HelperGroupRowRelogin           string
+	DoneHelperGroup                                        string
 }
 
 var zhHelperMgmt = HelperMgmtStrings{
@@ -86,6 +94,12 @@ var zhHelperMgmt = HelperMgmtStrings{
 	OpenAtLogin:               "登录时打开",
 	OpenAtLoginUnsupportedTip: "只有打包后的 app 能登录时打开",
 	OpenAtLoginApprove:        "在系统设置 › 通用 › 登录项中允许 Twinnel",
+	HelperGroupMissing:        "你的用户不在「%s」组，连不上后台助手",
+	HelperGroupRelogin:        "已加入「%s」组：注销并重新登录后生效",
+	HelperGroupFix:            "加入",
+	HelperGroupRowMissing:     "后台助手 · 需要加入 %s 组",
+	HelperGroupRowRelogin:     "后台助手 · 重新登录后可用",
+	DoneHelperGroup:           "已加入组：注销并重新登录后生效",
 
 	ShowInDock:   "在程序坞中显示",
 	DockWhenOpen: "打开窗口时",
@@ -136,6 +150,12 @@ var enHelperMgmt = HelperMgmtStrings{
 	OpenAtLogin:               "Open at login",
 	OpenAtLoginUnsupportedTip: "Only the packaged app can open at login",
 	OpenAtLoginApprove:        "Allow Twinnel in System Settings › General › Login Items",
+	HelperGroupMissing:        "Your user isn't in the %s group, so it can't reach the helper",
+	HelperGroupRelogin:        "Added to the %s group: log out and back in",
+	HelperGroupFix:            "Add Me",
+	HelperGroupRowMissing:     "Helper · needs the %s group",
+	HelperGroupRowRelogin:     "Helper · log in again to connect",
+	DoneHelperGroup:           "Added to the group: log out and back in",
 
 	ShowInDock:   "Show in Dock",
 	DockWhenOpen: "While the window is open",

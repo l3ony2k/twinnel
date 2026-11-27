@@ -15,7 +15,7 @@ import (
 // reading: it must be the unit `twinnel helper install` writes on a host
 // whose socket group is "sudo". TWINNEL_UPDATE_GOLDEN=1 rewrites it.
 func TestPackagedHelperUnit(t *testing.T) {
-	steps, err := HelperInstallPlan("/tmp/build/twinnel-helper", store.DefaultDir, rpc.DefaultSocket, store.DefaultHelperLabel, "sudo", true)
+	steps, err := HelperInstallPlan("/tmp/build/twinnel-helper", store.DefaultDir, rpc.DefaultSocket, store.DefaultHelperLabel, "sudo", true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -23,11 +23,12 @@ func InstallPaths(stateDir, label string) (string, string) {
 
 // HelperInstallPlan lists what installing the helper does on Linux: copy
 // the binary to HelperBin, create the state dir and the socket dir, create
-// the socket group when it does not exist yet, write
+// the socket group when it does not exist yet, run access (the steps that
+// put the installing user in it: SocketAccessSteps), write
 // /etc/systemd/system/<label>.service (helper started with --group), then
 // daemon-reload, enable and restart. The helper writes its own log to
 // <state>/logs/helper.log; its stdout/stderr (a crash) go to the journal.
-func HelperInstallPlan(helperBin, stateDir, socket, label, group string, groupExists bool) ([]service.Step, error) {
+func HelperInstallPlan(helperBin, stateDir, socket, label, group string, groupExists bool, access []service.Step) ([]service.Step, error) {
 	stateDir, label = InstallPaths(stateDir, label)
 	spec := service.HelperSpec(label, HelperBin, stateDir, socket, "")
 	spec.Args = append(spec.Args, "--group", group)
@@ -40,6 +41,7 @@ func HelperInstallPlan(helperBin, stateDir, socket, label, group string, groupEx
 	if !groupExists {
 		steps = append(steps, service.Step{Kind: service.StepRun, Argv: []string{"/usr/sbin/groupadd", "--system", group}})
 	}
+	steps = append(steps, access...)
 	svc, err := systemd.New().Plan(service.OpInstall, spec)
 	if err != nil {
 		return nil, err

@@ -26,6 +26,7 @@ X11 backend.
 | 登录时打开 | SMAppService, needs the bundle | an XDG autostart entry (`~/.config/autostart/<id>.desktop`, MyGo), offered when the app is not a `go run` build |
 | Helper install | osascript administrator dialog → LaunchDaemon | `pkexec` (polkit; the session's authentication agent asks) → `twinnel helper install --as-root`, which writes `/etc/systemd/system/twinnel-helper.service`, `/usr/local/libexec/twinnel-helper`, `/var/lib/twinnel`. argv words go to pkexec as they are, no shell. 126 = dialog dismissed, 127 = refused or no agent |
 | Helper detection | the plist / PrivilegedHelperTools binary | `/usr/local/libexec/twinnel-helper` or the unit file |
+| Socket group | admin | `sudo`, else `wheel`, else a new `twinnel` group. `helper install` and `helper upgrade` add the person installing (`PKEXEC_UID`, `SUDO_UID`, or the user running it) with `usermod -a -G` when the group database does not list them; upgrade does it even with a current helper. The app tells a refused socket apart: "not in group X" with 加入 (runs `helper upgrade`), or "added: log out and back in" (`helpergroup.go`), instead of "not running" |
 | Helper log | open in Console | the log file when readable, else `journalctl --unit twinnel-helper.service --pager-end` in a terminal (`$TERMINAL`, xdg-terminal-exec, kitty, foot, ghostty, alacritty, wezterm, konsole, kgx, gnome-terminal, xfce4-terminal, xterm) |
 | Reveal a file | Finder | `org.freedesktop.FileManager1.ShowItems`, else `xdg-open` of the folder (MyGo) |
 | Notifications | packaged app only | `org.freedesktop.Notifications` (MyGo) |
@@ -99,10 +100,6 @@ desktop on this Mac).
 
 ## Open issues
 
-- Socket group: the helper's socket is for `sudo`, else `wheel`, else a new `twinnel` group. A user
-  who is not in that group (an Arch user with sudo through sudoers only, or the new group) cannot
-  reach the helper, and the app shows the helper as not running. Install could add the invoking
-  user (`PKEXEC_UID`) to the group; not done (core/helper change).
 - The tray icon is a template PNG whitened by the portal's color scheme, not a themed symbolic icon
   name: a dark bar on a light desktop (common with Hyprland bars) shows a dark icon on dark. The
   symbolic SVGs in `assets/icons/tray/linux/` could be installed into the hicolor theme and named

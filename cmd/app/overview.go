@@ -657,6 +657,9 @@ func (a *app) twinnelSummary(c *ui.Context, s status.Snapshot) {
 				a.openPage(pageInstall)
 			}
 		case status.HelperNotRunning, status.HelperDenied:
+			if a.helperGroupGap(h).group != "" {
+				break // not a helper that is down: the group row below says what to do
+			}
 			ui.Spacer(c)
 			if fileExists(a.helperLogFile()) && pushButton(c.Key("helper-log"), T.HelperViewLog).Clicked() {
 				a.openHelperLog()
@@ -666,6 +669,7 @@ func (a *app) twinnelSummary(c *ui.Context, s status.Snapshot) {
 			}
 		}
 	})
+	a.helperGroupRow(c, s) // Linux: not in the socket's group (helpergroup.go)
 	if a.hm.errMsg != "" && h.State != status.HelperConnected {
 		errorNote(c, a.hm.errMsg)
 	}

@@ -58,7 +58,7 @@ func (a *app) twinnelPair(c *ui.Context, s status.Snapshot, padX float32) {
 		case s.Helper.State == status.HelperNotInstalled, s.Helper.State == status.HelperNotRunning, s.Helper.State == status.HelperDenied:
 			text := T.Helper + " · " + s.Helper.State.Text()
 			if s.Helper.State != status.HelperNotInstalled {
-				text = T.HelperDownRow
+				text = a.helperDownText(s) // helpergroup.go
 			}
 			ui.Row(c.Key("h")).Gap(navGap).AlignItems(ui.Center).Children(func() {
 				footMark(c, hm, hcol)
