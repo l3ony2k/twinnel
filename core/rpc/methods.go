@@ -10,13 +10,14 @@ type MethodClass uint8
 
 const (
 	// ClassRead changes nothing on the machine, in the settings or in the
-	// stored configuration (it may refresh a cache: health.run keeps its
-	// report, kernel.check its answer). Clients poll these, so a call is
-	// logged at DEBUG.
+	// stored configuration (it may refresh a cache: kernel.check keeps its
+	// answer). Clients poll these, so a call is logged at DEBUG.
 	ClassRead MethodClass = iota + 1
-	// ClassChange changes something, or hands out a secret
-	// (controller.credentials, config.export). A call is logged at INFO:
-	// helper.log is the record of who did what.
+	// ClassChange changes something, hands out a secret
+	// (controller.credentials, config.export), or runs probes someone
+	// asked for (health.run, health.egress: their report replaces the
+	// last). A call is logged at INFO: helper.log is the record of who
+	// did what.
 	ClassChange
 	// ClassWait is a long poll (events.wait): one per client at all
 	// times, never logged.
@@ -96,8 +97,8 @@ var methods = []struct {
 	{MethodServiceUninstall, ClassChange},
 
 	{MethodHealthLast, ClassRead},
-	{MethodHealthRun, ClassRead},
-	{MethodHealthEgress, ClassRead},
+	{MethodHealthRun, ClassChange},    // on request; the app polls health.last
+	{MethodHealthEgress, ClassChange}, // sends a request out through the proxy
 
 	{MethodConfigGet, ClassRead}, // the secret is removed (ConfigText)
 	{MethodConfigExport, ClassChange},
