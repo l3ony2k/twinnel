@@ -35,8 +35,10 @@ dist=dist
 rm -rf "$dist"
 mkdir -p "$dist"
 
-# main.version is the duet CLI's version; packages without it ignore it.
-ldflags="-s -w -X github.com/l3ony2k/duet/core/engine.HelperVersion=${version} -X main.version=${version}"
+# core/version.Version is duet's version (CLI, app); the helper reports
+# engine.HelperVersion.
+vflags="-X github.com/l3ony2k/duet/core/version.Version=${version} -X github.com/l3ony2k/duet/core/engine.HelperVersion=${version}"
+ldflags="-s -w ${vflags}"
 
 for t in $targets; do
 	os="${t%/*}"
@@ -88,7 +90,7 @@ if [ "$build_app" = 1 ]; then
 		grep -q "\"version\": \"${bundle_version}\"" "$app_json" || { echo "could not set the app version in $app_json" >&2; exit 1; }
 		mygo_version="$(go list -m -f '{{.Version}}' github.com/egoist/mygo)"
 		echo "==> duet.app ${bundle_version} (mygo $mygo_version)"
-		go run "github.com/egoist/mygo/cmd/mygo@${mygo_version}" build -platform "$app_platform" -o "$PWD/$dist/app" cmd/app
+		MYGO_LDFLAGS="$vflags" go run "github.com/egoist/mygo/cmd/mygo@${mygo_version}" build -platform "$app_platform" -o "$PWD/$dist/app" cmd/app
 		cleanup_app
 		trap - EXIT
 		app_bundle="$(find "$dist/app" -maxdepth 2 -name '*.app' -type d | head -n 1)"

@@ -52,6 +52,9 @@ func main() {
 	}
 	write(appOut+"/macos/duet.icns", icnsOf(ents))
 	write(appOut+"/macos/duet-1024.png", pngOf(mac.Image(1024, 1024, nil)))
+	// The app's own 关于 page shows the icon at 64 pt (128 px @2x); 256
+	// leaves room for a larger scale. Embedded by appicon.go.
+	write(appOut+"/macos/duet-256.png", pngOf(mac.Image(256, 256, nil)))
 	// The flat master for mygo.json "icon" (every platform but macOS, which takes the .icns).
 	write(appOut+"/duet-1024.png", pngOf(win.Image(1024, 1024, nil)))
 

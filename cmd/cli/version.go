@@ -9,18 +9,14 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/l3ony2k/duet/core/mihomo"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/status"
 	"github.com/l3ony2k/duet/core/tailscale"
+	coreversion "github.com/l3ony2k/duet/core/version"
 )
-
-// version is the duet CLI version, set at build time with
-// -ldflags "-X main.version=..." (scripts/build-release.sh).
-var version = "0.1.0-dev"
 
 func init() {
 	register("version", "print the versions of duet, the helper, mihomo and Tailscale (read-only)", runVersion)
@@ -58,19 +54,10 @@ var (
 )
 
 // VersionReport is the output of `duet version --json`.
-type VersionReport struct {
-	CLI       VersionEntry `json:"cli"`
-	Helper    VersionEntry `json:"helper"`
-	Mihomo    VersionEntry `json:"mihomo"`
-	Tailscale VersionEntry `json:"tailscale"`
-}
-
-// VersionEntry is one component. Version is empty when it could not be read.
-type VersionEntry struct {
-	Version string `json:"version,omitempty"`
-	Detail  string `json:"detail,omitempty"` // where it was read, build info
-	Error   string `json:"error,omitempty"`
-}
+type (
+	VersionReport = coreversion.Report
+	VersionEntry  = coreversion.Entry
+)
 
 func runVersion(args []string) error {
 	fs := flag.NewFlagSet("version", flag.ContinueOnError)
@@ -86,7 +73,7 @@ func runVersion(args []string) error {
 		return err
 	}
 	if *short {
-		fmt.Fprintln(stdout, version)
+		fmt.Fprintln(stdout, coreversion.String())
 		return nil
 	}
 	cfg, err := status.LoadConfig(appConfigPath(), os.Getenv)
@@ -111,73 +98,16 @@ func runVersion(args []string) error {
 
 // collectVersions asks every component at once; none of them is required.
 func collectVersions(ctx context.Context, timeout time.Duration, socket, controller, secret string) VersionReport {
-	rep := VersionReport{CLI: VersionEntry{
-		Version: version,
+	self := VersionEntry{
+		Version: coreversion.String(),
 		Detail:  fmt.Sprintf("%s %s/%s", runtime.Version(), runtime.GOOS, runtime.GOARCH),
-	}}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	var (
-		wg      sync.WaitGroup
-		hst     rpc.Status
-		herr    error
-		mv      mihomo.Version
-		merr    error
-		tsv     string
-		tserr   error
-		hasHelp bool
-	)
-	wg.Add(3)
-	go func() { defer wg.Done(); hst, herr = helperStatus(ctx, socket); hasHelp = herr == nil }()
-	go func() { defer wg.Done(); mv, merr = mihomoVersion(ctx, controller, secret) }()
-	go func() { defer wg.Done(); tsv, tserr = tailscaleVersion(ctx) }()
-	wg.Wait()
-
-	if hasHelp {
-		rep.Helper = VersionEntry{Version: hst.HelperVersion, Detail: socket}
-	} else {
-		rep.Helper = VersionEntry{Detail: socket, Error: herr.Error()}
 	}
-
-	switch {
-	case merr == nil && mv.Version != "":
-		d := "controller " + controller
-		if mv.Meta {
-			d = "Meta, " + d
-		}
-		rep.Mihomo = VersionEntry{Version: mv.Version, Detail: d}
-	case hasHelp && hst.Mihomo.Version != "":
-		// The helper may reach a controller this user cannot (secret).
-		rep.Mihomo = VersionEntry{Version: hst.Mihomo.Version, Detail: "via the helper, controller " + hst.Mihomo.Controller}
-	case merr != nil:
-		rep.Mihomo = VersionEntry{Detail: "controller " + controller, Error: merr.Error()}
-	default:
-		rep.Mihomo = VersionEntry{Detail: "controller " + controller, Error: "empty /version answer"}
-	}
-	if hasHelp && hst.Kernel.Active != "" {
-		k := "binary " + hst.Kernel.Active
-		if hst.Kernel.Current != "" && !hst.Kernel.External {
-			k = "managed kernel " + hst.Kernel.Current
-		}
-		rep.Mihomo.Detail = joinDetail(rep.Mihomo.Detail, k)
-	}
-
-	if tserr == nil && tsv != "" {
-		rep.Tailscale = VersionEntry{Version: tsv, Detail: "tailscaled"}
-	} else if tserr != nil {
-		rep.Tailscale = VersionEntry{Error: tserr.Error()}
-	} else {
-		rep.Tailscale = VersionEntry{Error: "tailscaled did not report a version"}
-	}
-	return rep
-}
-
-func joinDetail(a, b string) string {
-	if a == "" {
-		return b
-	}
-	return a + "; " + b
+	return coreversion.Collect(ctx, timeout, self, coreversion.Sources{
+		Socket: socket, Controller: controller,
+		Helper:    func(ctx context.Context) (rpc.Status, error) { return helperStatus(ctx, socket) },
+		Mihomo:    func(ctx context.Context) (mihomo.Version, error) { return mihomoVersion(ctx, controller, secret) },
+		Tailscale: tailscaleVersion,
+	})
 }
 
 func writeVersions(w io.Writer, rep VersionReport) {
