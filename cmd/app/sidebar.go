@@ -5,7 +5,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/duet/core/i18n"
@@ -49,9 +48,6 @@ const (
 	sideMaxW  = 340 // the widest
 	// sideHandleW is the divider's grip, over both sides of the line.
 	sideHandleW = 6
-	// sideToggleW × sideToggleH is the title bar toggle.
-	sideToggleW = 32
-	sideToggleH = 28
 )
 
 // sideMotion is how the sidebar opens, closes and changes mode: its width
@@ -190,6 +186,20 @@ func (a *app) sidebarFrame(c *ui.Context, body func()) {
 		navRail = s.layoutMode() == sideRail
 		defer func() { navRail = false }()
 		body()
+		if navRail {
+			// The rail is narrower than the traffic lights and the toggle:
+			// the toolbar band runs over it as over the page, one strip
+			// across the window (as Mail's and Notes' with a narrow
+			// sidebar), and the rail and its edge start under it.
+			t := c.Theme()
+			barH := toolbarHeight(c)
+			ui.Box(c.Key("rail-band")).Absolute().Top(0).Left(0).Right(0).Height(barH).
+				Background(t.Background).DragWindow().AccessHidden(true)
+			if c.Vibrancy() {
+				ui.Box(c.Key("rail-edge")).Absolute().Top(barH).Bottom(0).Right(0).Width(1).
+					Background(pal(t).separator).AccessHidden(true)
+			}
+		}
 	})
 }
 
@@ -231,53 +241,86 @@ func (a *app) saveSidebar() {
 	a.cfg = cfg
 }
 
-// titleBarLeft is where the window controls end: the toggle goes there.
-// A hidden shot window reports no controls; it gets the usual room, so
-// that captures show where the toggle will be.
-func (a *app) titleBarLeft(c *ui.Context) float32 {
-	bar := c.TitleBar()
-	if bar.Left == 0 && a.shotMode && plat.titleBar == mygo.TitleBarHiddenInset {
-		return 78
+// The traffic lights on macOS 26, measured on the owner's screen (a real
+// window, 2x): three 14 pt circles 23 pt apart, the green one ending at
+// TitleBar().Left (79), their bottom at TitleBar().Bottom (33). Their
+// center line is 26 pt down: a unified toolbar's 52 pt band is centered
+// on it. TitleBar().Height (66 under the hidden-inset style) is not.
+const (
+	trafficLightD     = 14 // a light's diameter
+	trafficLightPitch = 23 // from one light's left edge to the next's
+	// sideToggleGap is the room between the green light and the toggle's
+	// capsule, as Finder's and Xcode's sidebar item on macOS 26.
+	sideToggleGap = 14
+)
+
+// trafficLightsMid is the traffic lights' center line from the window's
+// top: the line the toolbar's items are centered on. Without lights (full
+// screen, other platforms) it is a 52 pt band's middle.
+func trafficLightsMid(c *ui.Context) float32 {
+	if bar := c.TitleBar(); bar.Bottom > 0 {
+		return bar.Bottom - trafficLightD/2
 	}
-	return bar.Left
+	return 26
 }
+
+// sidebarTop is where the sidebar's rows start: under the toolbar band,
+// which the toggle's capsule (and the traffic lights) own.
+func sidebarTop(c *ui.Context) float32 {
+	return toolbarHeight(c) + 4
+}
+
+// sideToggleX is the toggle's left edge: after the lights and a gap, or
+// the page's inset where there are none.
+func sideToggleX(c *ui.Context) float32 {
+	if l := c.TitleBar().Left; l > 0 {
+		return l + sideToggleGap
+	}
+	return 12
+}
+
+// sideToggleW is the toggle's capsule: the toolbar face's insets around
+// the sidebar icon.
+const sideToggleW = 2*toolbarPadX + iconSidebar
 
 // toolbarLead is the toolbar's left inset: the page's padding, or more
 // when the sidebar no longer covers the traffic lights and the toggle.
 func (a *app) toolbarLead(c *ui.Context) float32 {
-	clear := a.titleBarLeft(c) + sideToggleW + 12 - a.side.widthOf(a.side.mode)
+	clear := sideToggleX(c) + sideToggleW + toolbarGap + 4 - a.side.widthOf(a.side.mode)
 	return max(plat.pagePadX, clear)
+}
+
+// contentHairline is whether the page draws the line at its left edge:
+// beside an expanded sidebar (the rail draws its own under the toolbar
+// band, sidebarFrame; a hidden sidebar has none).
+func (a *app) contentHairline() bool {
+	return a.side.mode == sideExpanded
 }
 
 // sidebarChrome builds what lies over the window's layout: the toggle on
 // the title bar and the divider's grip. Built after the content, so that
 // both are above it.
 func (a *app) sidebarChrome(c *ui.Context, barH float32) {
-	t := c.Theme()
 	s := &a.side
 	T := i18n.T
 
-	// The toggle, centered on the traffic lights' line.
-	lineH := c.TitleBar().Height
-	if lineH == 0 {
-		lineH = barH
+	if shotLights {
+		lightsOverlay(c)
 	}
-	b := ui.Button(c.Key("side-toggle"), "").Label(T.SidebarToggle).Tooltip(T.SidebarToggle).
-		Absolute().Left(a.titleBarLeft(c)+4).Top((lineH-sideToggleH)/2).Size(sideToggleW, sideToggleH).
-		Padding(0).Background(ui.Transparent).BorderWidth(0).Radius(plat.controlRadius).
-		AlignItems(ui.Center).Justify(ui.Center)
-	switch {
-	case b.Pressed():
-		b.Background(t.Text.Alpha(0.12))
-	case b.Hovered():
-		b.Background(t.Text.Alpha(0.07))
-	}
-	b.Children(func() {
-		ui.Icon(c, iconSidebarToggle).FontSize(iconSidebar).TextColor(t.TextMuted)
+	// The toggle: a toolbar item as the page's (toolbarFace, glass on
+	// macOS 26+), centered on the traffic lights' line.
+	ui.Row(c.Key("side-toggle-bar")).Absolute().Left(sideToggleX(c)).Top(trafficLightsMid(c) - toolbarItemH/2).
+		Height(toolbarItemH).AlignItems(ui.Center).Children(func() {
+		toolbarActions(c, func() {
+			b := pushButton(c.Key("side-toggle"), "").Label(T.SidebarToggle).Tooltip(T.SidebarToggle)
+			b.Children(func() {
+				ui.Icon(c, iconSidebarToggle).FontSize(iconSidebar)
+			})
+			if b.Clicked() {
+				a.toggleSidebar()
+			}
+		})
 	})
-	if b.Clicked() {
-		a.toggleSidebar()
-	}
 
 	// The divider's grip: over the line between the sidebar and the page,
 	// under the title bar (which drags the window). A hidden sidebar has
