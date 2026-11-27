@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -237,12 +238,20 @@ func TestTempProxyConfigNeedsAProxy(t *testing.T) {
 type fakeTSControl struct {
 	backend, url string
 	ups, logins  int
+	// afterUp is the state Up leads to ("" keeps backend).
+	afterUp string
 }
 
 func (f *fakeTSControl) LoginState(context.Context) (string, string, string, error) {
 	return f.backend, f.url, "example.ts.net", nil
 }
-func (f *fakeTSControl) Up(context.Context) error { f.ups++; return nil }
+func (f *fakeTSControl) Up(context.Context) error {
+	f.ups++
+	if f.afterUp != "" {
+		f.backend = f.afterUp
+	}
+	return nil
+}
 func (f *fakeTSControl) StartLogin(context.Context) error {
 	f.logins++
 	f.url = "https://login.tailscale.com/a/synthetic"
@@ -271,6 +280,39 @@ func TestTailscaleLogin(t *testing.T) {
 	r, err = h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true})
 	if err != nil || r.Started || f.logins != 1 || r.Tailnet != "example.ts.net" {
 		t.Fatalf("running: %+v %v", r, err)
+	}
+	// Reauth on a running node: a new login, no Up.
+	r, err = h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true, Reauth: true})
+	if err != nil || !r.Started || f.logins != 2 || f.ups != 1 {
+		t.Fatalf("reauth: %+v %v %+v", r, err, f)
+	}
+}
+
+func TestTailscaleLoginConnectsAStoppedNode(t *testing.T) {
+	defer func(d time.Duration) { loginPoll = d }(loginPoll)
+	loginPoll = time.Millisecond
+	h := newHarness(t)
+	ctx := context.Background()
+	// Stopped but logged in: Up is enough, no login.
+	f := &fakeTSControl{backend: "Stopped", afterUp: "Running"}
+	h.e.TSControl = f
+	r, err := h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true})
+	if err != nil || r.Started || f.ups != 1 || f.logins != 0 || r.BackendState != "Running" {
+		t.Fatalf("stopped: %+v %v %+v", r, err, f)
+	}
+	// Stopped and logged out: Up, then a login.
+	f = &fakeTSControl{backend: "Stopped", afterUp: "NeedsLogin"}
+	h.e.TSControl = f
+	r, err = h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true})
+	if err != nil || !r.Started || f.logins != 1 || r.AuthURL == "" {
+		t.Fatalf("logged out: %+v %v %+v", r, err, f)
+	}
+	// A pending login keeps its URL.
+	f = &fakeTSControl{backend: "NeedsLogin", url: "https://login.tailscale.com/a/pending"}
+	h.e.TSControl = f
+	r, err = h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true})
+	if err != nil || r.Started || f.logins != 0 || r.AuthURL != "https://login.tailscale.com/a/pending" {
+		t.Fatalf("pending: %+v %v %+v", r, err, f)
 	}
 }
 

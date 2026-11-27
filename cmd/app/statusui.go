@@ -411,7 +411,14 @@ func (a *app) bannerActs(s status.Snapshot) []bannerAct {
 			run: func() { a.mihomoService(rpc.MethodServiceStart, T.StartMihomo) }})
 	}
 	if has(status.ReasonTSNeedsLogin) && can.Tailscale {
-		acts = append(acts, bannerAct{key: "ts-login", label: T.TSLogIn, run: func() { a.tsLogin(s) }})
+		switch tsPhaseOf(s) {
+		case tsMachineAuth:
+			acts = append(acts, bannerAct{key: "ts-admin", label: T.TSLAdminConsole, run: func() { _ = mygo.Shell.OpenExternal(tailscaleAdminURL) }})
+		case tsKeyExpired:
+			acts = append(acts, bannerAct{key: "ts-login", label: T.TSLRelogin, run: func() { a.tsLoginFromBanner(s) }})
+		default:
+			acts = append(acts, bannerAct{key: "ts-login", label: T.TSLLogIn, run: func() { a.tsLoginFromBanner(s) }})
+		}
 	}
 	if has(status.ReasonHealth) {
 		if !s.TakenOver() && s.WritesAllowed {
@@ -463,42 +470,11 @@ func (a *app) verdictActions(c *ui.Context, s status.Snapshot) {
 	})
 }
 
-// tsLoginButton opens Tailscale's login page in the browser: the URL the
-// node already has, else one it is asked for.
-func (a *app) tsLoginButton(c *ui.Context, s status.Snapshot) {
-	T := i18n.T
-	if pushButton(c.Key("ts-login"), T.TSLogIn).Disabled(!s.Can().Tailscale).Clicked() {
-		a.tsLogin(s)
-	}
-}
-
-func (a *app) tsLogin(s status.Snapshot) {
-	if u := s.Tailscale.State.AuthURL; u != "" {
-		_ = mygo.Shell.OpenExternal(u)
-		return
-	}
-	ts, mon := a.ts, a.mon
-	a.do(func(ctx context.Context) error {
-		if err := ts.Login(ctx); err != nil {
-			return err
-		}
-		// The node answers with its URL a moment later.
-		for range 20 {
-			st, err := ts.State(ctx)
-			if err == nil && st.AuthURL != "" {
-				u := st.AuthURL
-				mygo.RunOnMain(func() { _ = mygo.Shell.OpenExternal(u) })
-				return nil
-			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(250 * time.Millisecond):
-			}
-		}
-		mon.Refresh()
-		return nil
-	})
+// tsLoginFromBanner starts the login and shows the Tailscale page,
+// where the link and its QR code are.
+func (a *app) tsLoginFromBanner(s status.Snapshot) {
+	a.startTSLogin(s, false)
+	a.openPage(pageTailscale)
 }
 
 // gettingStarted is 总览's way back into the first-run wizard while

@@ -11,12 +11,15 @@ import (
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/setup"
 	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // wizardShots (TWINNEL_SHOTS_FLOW=wizard) captures every state of the
 // first-run wizard on a fresh machine, once per system's wording
 // (TWINNEL_SHOTS_OS: a comma-separated list of darwin, windows, linux;
-// default all three), named wiz-<os>-<state>.png. The states are set
+// default all three; tsLoginPanel's own words follow TWINNEL_SHOTS_OS only
+// when it names one system, so shoot one system per run for exact
+// wording), named wiz-<os>-<state>.png. The states are set
 // directly (setupView.shotSteps, wizardView.shot, a.shotSnap): no flow
 // runs, nothing is installed, downloaded or written. The window's chrome
 // is the host's; only the wizard's words change with the system.
@@ -42,7 +45,11 @@ type wizShot struct {
 	steps  []setup.StepState
 	facts  wizardShot
 	health *health.Report
-	setup  func(a *app) // anything else (a URL typed, a file picked, …)
+	// ts is Tailscale's state for tsLoginPanel: "none" (not installed),
+	// "login" (installed, logged out), "running"; "" keeps the status
+	// file's.
+	ts    string
+	setup func(a *app) // anything else (a URL typed, a file picked, …)
 }
 
 func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
@@ -136,23 +143,19 @@ func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 			a.wiz.counted, a.wiz.nodes, a.wiz.rules = true, 128, 3412
 		}},
 		{name: "sub-download-later", step: wizMihomo, helper: true, steps: st(helperOK), setup: func(a *app) { a.wiz.viaSub = true }},
-		{name: "ts", step: wizTS, helper: true, steps: ver(st(proxyOK))},
-		{name: "ts-installing", step: wizTS, helper: true, steps: ver(st(plus(proxyOK, setup.StepTailscale, R))), setup: func(a *app) { a.setupV.running = true }},
-		{name: "ts-failed", step: wizTS, helper: true, steps: with(ver(st(plus(proxyOK, setup.StepTailscale, F))), setup.StepTailscale, func(s *setup.StepState) {
+		{name: "ts", step: wizTS, helper: true, ts: "none", steps: ver(st(proxyOK))},
+		{name: "ts-installing", step: wizTS, helper: true, ts: "none", steps: ver(st(plus(proxyOK, setup.StepTailscale, R))), setup: func(a *app) { a.setupV.running = true }},
+		{name: "ts-failed", step: wizTS, helper: true, ts: "none", steps: with(ver(st(plus(proxyOK, setup.StepTailscale, F))), setup.StepTailscale, func(s *setup.StepState) {
 			s.Code, s.Error = setup.CodeDownload, `Get "https://pkgs.tailscale.com/stable/": dial tcp 192.0.2.20:443: i/o timeout`
 		})},
-		{name: "ts-login", step: wizTS, helper: true, steps: ver(st(plus(proxyOK, setup.StepTailscale, D))), facts: wizardShot{tsInstalled: true, tsVersion: "1.90.6"}},
-		{name: "ts-login-wait", step: wizTS, helper: true, steps: with(ver(st(plus(plus(proxyOK, setup.StepTailscale, D), setup.StepLogin, W))), setup.StepLogin, func(s *setup.StepState) {
-			s.URL = "https://login.tailscale.com/a/synthetic"
-		}), facts: wizardShot{tsInstalled: true, tsVersion: "1.90.6"}},
-		{name: "ts-done", step: wizTS, helper: true, steps: ver(st(plus(plus(proxyOK, setup.StepTailscale, D), setup.StepLogin, D))),
-			facts: wizardShot{tsInstalled: true, tsVersion: "1.90.6", tsLoggedIn: true, tailnet: "example.ts.net"}},
+		{name: "ts-login", step: wizTS, helper: true, ts: "login", steps: ver(st(plus(proxyOK, setup.StepTailscale, D)))},
+		{name: "ts-done", step: wizTS, helper: true, ts: "running", steps: ver(st(plus(plus(proxyOK, setup.StepTailscale, D), setup.StepLogin, D)))},
 		{name: "done", step: wizDone, helper: true, steps: ver(st(plus(plus(proxyOK, setup.StepTailscale, D), setup.StepLogin, D))),
-			facts: wizardShot{tsInstalled: true, tsVersion: "1.90.6", tsLoggedIn: true, tailnet: "example.ts.net", mihomoVer: "v1.19.34"}, health: clean,
+			ts: "running", facts: wizardShot{mihomoVer: "v1.19.34"}, health: clean,
 			setup: func(a *app) { a.wiz.counted, a.wiz.nodes, a.wiz.rules = true, 128, 3412 }},
-		{name: "done-issues", step: wizDone, helper: true, steps: ver(st(proxyOK)), facts: wizardShot{mihomoVer: "v1.19.34"}, health: issues,
+		{name: "done-issues", step: wizDone, helper: true, ts: "none", steps: ver(st(proxyOK)), facts: wizardShot{mihomoVer: "v1.19.34"}, health: issues,
 			setup: func(a *app) { a.wiz.state.TSSkipped = true; a.wiz.counted, a.wiz.nodes = true, 128 }},
-		{name: "done-checking", step: wizDone, helper: true, steps: ver(st(proxyOK)), facts: wizardShot{mihomoVer: "v1.19.34"},
+		{name: "done-checking", step: wizDone, helper: true, ts: "none", steps: ver(st(proxyOK)), facts: wizardShot{mihomoVer: "v1.19.34"},
 			setup: func(a *app) { a.wiz.state.TSSkipped = true }},
 		{name: "overview-resume", page: pageOverview, step: wizSub, helper: true, steps: ver(st(mihomoOK))},
 		{name: "config-gate", page: pageConfig, step: wizHelper, steps: st(nil)},
@@ -173,7 +176,7 @@ func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 			if sh.setup != nil {
 				sh.setup(a)
 			}
-			connected, rep := sh.helper, sh.health
+			connected, rep, tsState := sh.helper, sh.health, sh.ts
 			a.shotSnap = func(s *status.Snapshot) {
 				if connected {
 					s.Helper = status.Helper{State: status.HelperConnected, Status: &rpc.Status{}}
@@ -182,6 +185,18 @@ func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 				}
 				s.WritesAllowed = true
 				s.Health = status.Health{Report: rep}
+				switch tsState {
+				case "none":
+					s.Tailscale = status.Tailscale{Err: "tailscaled is not installed", Install: tailscale.Install{Kind: tailscale.InstallUnknown}}
+				case "login":
+					s.Tailscale.Reachable = true
+					s.Tailscale.State.BackendState = "NeedsLogin"
+					s.Tailscale.State.Prefs.LoggedOut = true
+					s.Tailscale.State.Version = "1.90.6"
+				case "running":
+					s.Tailscale.Reachable = true
+					s.Tailscale.State.BackendState = "Running"
+				}
 			}
 			a.win.Invalidate()
 		}

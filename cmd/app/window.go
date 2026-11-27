@@ -910,14 +910,21 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	ts := s.Tailscale
+	ph := tsPhaseOf(s)
 	pageHeader(c, T.PageTailscale, func() {
-		if ts.Reachable {
+		if ph == tsRunning || ph == tsStarting {
 			small(c, T.TSState(ts.State.BackendState))
 			a.tsPowerSwitch(c, s)
 		}
 	})
-	if !ts.Reachable {
-		a.unreachableState(c, svcTailscale, ts.Err)
+	if a.tsPanelShown(s) {
+		// Every state but running is the state and its action, page-size
+		// (tslogin.go): install, start, connect, log in, wait for the
+		// admin, or the login under way with its link and QR code.
+		a.controlError(c, pendTS)
+		groupBox(c, t).MinHeight(unreachablePageH).Justify(ui.Center).Children(func() {
+			a.tsLoginPanel(c, s, tsPanelOpts{})
+		})
 		return
 	}
 	a.actionNotes(c, s)
@@ -927,6 +934,16 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 		ui.Row(c).Gap(24).Children(func() {
 			ui.Column(c).Gap(gapRow).Basis(0).Grow(1).Children(func() {
 				kv(c, T.Account, st.User)
+				if st.Tailnet != "" {
+					kv(c, T.OvTailnet, st.Tailnet)
+				}
+				kv(c, T.OvThisDevice, st.Self.Name)
+				if st.KeyExpiry != nil && st.KeyExpiresWithin(s.Time, status.KeyExpiryWarning) {
+					kvWith(c, T.KeyExpiry, func() {
+						num(ui.Text(c, status.Until(s.Time, *st.KeyExpiry))).TextColor(pal(t).warnText).SingleLine().Shrink(1)
+						a.tsReauthButton(c, s)
+					})
+				}
 				kvMono(c, T.Version, st.Version)
 				kv(c, T.Install, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source))
 			})

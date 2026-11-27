@@ -15,7 +15,6 @@ import (
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/setup"
 	"github.com/l3ony2k/twinnel/core/status"
-	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // The first-run wizard: the whole window, no sidebar, six steps from a
@@ -30,8 +29,9 @@ import (
 //	             setup.StepMihomo (download the official one)
 //	④ 订阅       setup.StepSubscription, then config, apply and DNS; the
 //	             running config's nodes and rules are counted
-//	⑤ Tailscale  setup.StepTailscale (tailscale.install), then the login
-//	             (tailscaleLoginView, else setup.StepLogin); skippable
+//	⑤ Tailscale  tsLoginPanel (tslogin.go): detection, login, QR code;
+//	             its 安装 runs setup.StepTailscale (tailscale.install);
+//	             skippable
 //	⑥ 完成       what is set up, the health checks, where the icon lives
 //
 // Every write runs through core/setup's Flow (a.setupFlow, setuppage.go);
@@ -41,12 +41,6 @@ const pageWizard = "wizard"
 
 // wizMaxW is the wizard's column: narrower than a page, for reading.
 const wizMaxW = 600
-
-// tailscaleLoginView draws Tailscale's login inside the wizard's ⑤ when
-// set (feat/ts-login-ui owns the component; its file sets this from an
-// init) and reports whether the node is logged in. nil: the wizard's own
-// fallback, setup.StepLogin through the helper (open the browser, wait).
-var tailscaleLoginView func(a *app, c *ui.Context, s status.Snapshot) (loggedIn bool)
 
 // wizardView is the wizard's state in this run.
 type wizardView struct {
@@ -80,12 +74,8 @@ type wizardView struct {
 
 // wizardShot is a shot's facts (shots_wizard.go).
 type wizardShot struct {
-	tsInstalled bool
-	tsVersion   string
-	tsLoggedIn  bool
-	tailnet     string
-	mihomoVer   string
-	takenOver   bool
+	mihomoVer string
+	takenOver bool
 }
 
 func (a *app) wizOS() i18n.WizardOS {
@@ -104,6 +94,14 @@ func (a *app) openWizard() {
 		a.saveWizard()
 	}
 	a.openPage(pageWizard)
+}
+
+// openWizardAt opens the wizard at step (Tailscale's 安装 elsewhere opens
+// ⑤). Main thread.
+func (a *app) openWizardAt(step int) {
+	a.wiz.state.Step = min(max(step, 0), wizSteps-1)
+	a.saveWizard()
+	a.openWizard()
 }
 
 // leaveWizard is 稍后再说: back to 总览, the wizard no longer opens by
@@ -789,126 +787,44 @@ func (a *app) wizRetry(id setup.Step) {
 
 // --- ⑤ Tailscale ---
 
-func (a *app) wizTSInstalled(s status.Snapshot) (bool, string) {
-	if sh := a.wiz.shot; sh != nil {
-		return sh.tsInstalled, sh.tsVersion
-	}
-	if st := a.wizStep(setup.StepTailscale); st.State == setup.Done {
-		return true, st.Detail
-	}
-	if s.Tailscale.Reachable {
-		return true, s.Tailscale.State.Version
-	}
-	k := s.Tailscale.Install.Kind
-	return k != "" && k != tailscale.InstallUnknown, ""
-}
-
+// wizTSDone: the node runs (logged in).
 func (a *app) wizTSDone(s status.Snapshot) bool {
-	if sh := a.wiz.shot; sh != nil {
-		return sh.tsLoggedIn
-	}
-	return s.Tailscale.Reachable && s.Tailscale.State.Running() || a.wizStep(setup.StepLogin).State == setup.Done
+	return tsPhaseOf(s) == tsRunning
 }
 
+// wizTS is ⑤: Tailscale's own login panel (tslogin.go, feat/ts-login-ui)
+// with the wizard's install step behind its 安装 button. While that
+// install runs or after it failed, the flow's state shows instead.
 func (a *app) wizTS(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	t := c.Theme()
 	stepHead(c, T.WizTSHead, T.WizTSBody)
-	installed, ver := a.wizTSInstalled(s)
 	inst := a.wizStep(setup.StepTailscale)
+	notInstalled := tsPhaseOf(s) == tsNotInstalled
 	groupBox(c, t).Gap(12).Children(func() {
 		switch {
-		case installed:
-			if ver != "" {
-				a.okLine(c, i18n.F(T.WizTSFound, ver))
-			} else {
-				a.okLine(c, T.WizTSFoundBare)
-			}
-			for i, w := range inst.Warnings {
-				small(c.Key(fmt.Sprint("warn", i)), setupWarning(w)).Wrap().LineHeight(lineText).TextColor(pal(t).warnText)
-			}
-			if s.Tailscale.Install.UsesSystemVPN && a.wiz.shot == nil {
-				small(c, T.SetupWarnSystemVPN).Wrap().LineHeight(lineText).TextColor(pal(t).warnText)
-			}
-		case !s.Helper.Connected() && !a.wizHelperDone(s):
-			a.needsHelperNote(c)
+		case inst.State == setup.Running:
+			ui.Text(c, a.wizOS().TSInstallHow).Wrap().LineHeight(lineText)
+			b := busyButton(c.Key("ts-install"), T.WizTSInstalling, true, true, true)
+			disabledPrimaryFace(c, b)
 			return
 		case inst.State == setup.Failed:
 			failedRowWhy(c.Key("failed"), T.WizTSFailed, setupReason(inst), inst.Error, func() { a.wizRun(nil, setup.StepTailscale) }, a.setupV.running)
 			return
-		default:
+		case notInstalled && !s.Helper.Connected() && !a.wizHelperDone(s):
+			a.needsHelperNote(c) // installing goes through the helper
+			return
+		}
+		if notInstalled {
 			ui.Text(c, a.wizOS().TSInstallHow).Wrap().LineHeight(lineText)
-			running := a.setupV.running && inst.State == setup.Running
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				label := T.WizTSInstall
-				if running {
-					label = T.WizTSInstalling
-				}
-				b := busyButton(c.Key("ts-install"), label, true, running, a.setupV.running || !s.WritesAllowed)
-				disabledPrimaryFace(c, b)
-				if b.Clicked() {
-					a.wizRun(nil, setup.StepTailscale)
-				}
-				writesLock(c, s)
-			})
-			return
 		}
-	})
-	if !installed {
-		return
-	}
-	groupBox(c, t).Gap(12).Children(func() {
-		if tailscaleLoginView != nil && a.wiz.shot == nil {
-			tailscaleLoginView(a, c, s)
-			return
-		}
-		a.wizTSLoginFallback(c, s)
-	})
-}
-
-// wizTSLoginFallback is the login without feat/ts-login-ui's component:
-// setup.StepLogin through the helper opens the login page in the browser
-// and waits until the node runs.
-func (a *app) wizTSLoginFallback(c *ui.Context, s status.Snapshot) {
-	T := i18n.T
-	t := c.Theme()
-	st := a.wizStep(setup.StepLogin)
-	if a.wizTSDone(s) {
-		tailnet := st.Detail
-		if sh := a.wiz.shot; sh != nil {
-			tailnet = sh.tailnet
-		} else if tailnet == "" && s.Tailscale.Reachable {
-			tailnet = s.Tailscale.State.Tailnet
-		}
-		if tailnet != "" {
-			a.okLine(c, i18n.F(T.WizTSLoggedIn, tailnet))
-		} else {
-			a.okLine(c, T.WizTSLoggedInBare)
-		}
-		return
-	}
-	switch st.State {
-	case setup.Failed:
-		failedRowWhy(c.Key("login-failed"), T.WizTSLogin, setupReason(st), st.Error, func() { a.wizRun(nil, setup.StepLogin) }, a.setupV.running)
-		return
-	case setup.Waiting, setup.Running:
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			spinnerIcon(c)
-			ui.Text(c, T.WizTSLoginWait).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
-			if st.URL != "" && pushButton(c.Key("login-again"), T.WizTSLoginAgain).Clicked() {
-				_ = mygo.Shell.OpenExternal(st.URL)
-			}
+		a.tsLoginPanel(c, s, tsPanelOpts{
+			OnInstall:   func() { a.wizRun(nil, setup.StepTailscale) },
+			ShowRunning: true,
 		})
-		return
-	}
-	ui.Text(c, T.WizTSLoginHint).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		b := busyButton(c.Key("login"), T.WizTSLogin, true, false, a.setupV.running || !s.WritesAllowed || !s.Helper.Connected())
-		disabledPrimaryFace(c, b)
-		if b.Clicked() {
-			a.wizRun(nil, setup.StepLogin)
+		for i, w := range inst.Warnings {
+			small(c.Key(fmt.Sprint("warn", i)), setupWarning(w)).Wrap().LineHeight(lineText).TextColor(pal(t).warnText)
 		}
-		writesLock(c, s)
 	})
 }
 

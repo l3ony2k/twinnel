@@ -106,12 +106,18 @@ type app struct {
 	langShown   bool                       // applyLang ran once
 	trayTip     string                     // the tray's tooltip as last set
 	egress      egressState                // the on-demand egress test (statusui.go)
-	egressProbe func(context.Context) *health.CheckReport
-	onMain      func(func())          // runs on the UI thread (mygo.RunOnMain; tests run it inline)
-	evidenceAll map[string]bool       // health check ID → all evidence lines shown
-	side        sidebarState          // the sidebar's mode and width (sidebar.go)
-	dockPol     mygo.ActivationPolicy // the activation policy as last set (dock.go)
-	shotNav     struct {              // shot mode: force the sidebar's key/hover looks
+	tsl         tsLoginFlow                // the Tailscale login under way (tslogin.go)
+	// tsInstallHook, when set (the onboarding wizard), is what the
+	// Tailscale panel's 安装 Tailscale opens instead of 设置这台 Mac.
+	tsInstallHook func()
+	tsLoginBE     tsLoginBackend // tests: replaces the helper / LocalAPI login
+	openURL       func(string)   // tests: replaces the browser
+	egressProbe   func(context.Context) *health.CheckReport
+	onMain        func(func())          // runs on the UI thread (mygo.RunOnMain; tests run it inline)
+	evidenceAll   map[string]bool       // health check ID → all evidence lines shown
+	side          sidebarState          // the sidebar's mode and width (sidebar.go)
+	dockPol       mygo.ActivationPolicy // the activation policy as last set (dock.go)
+	shotNav       struct {              // shot mode: force the sidebar's key/hover looks
 		active *bool
 		hover  string
 	}
