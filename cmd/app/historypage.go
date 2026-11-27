@@ -165,7 +165,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		}
 		if v.diff != nil && v.diffID == entry.ID {
 			add, del := v.diff.Stats()
-			ui.Text(c, T.HistoryDiffHint+" · "+fmt.Sprintf(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted)
+			ui.Text(c, T.HistoryDiffHint+" · "+i18n.F(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 			if add+del > 0 {
 				codeFrame(c, 380, func() { editor.DiffView(c.Key("hist-diff-view"), v.diff).Grow(1) })
 			}

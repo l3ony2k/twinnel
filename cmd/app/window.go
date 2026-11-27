@@ -419,9 +419,9 @@ func onOff(b bool) string {
 func trafficSpan(d time.Duration) string {
 	sec := int(d.Round(time.Second) / time.Second)
 	if sec < 60 {
-		return fmt.Sprintf(i18n.T.TrafficLastSec, max(sec, 1))
+		return i18n.F(i18n.T.TrafficLastSec, max(sec, 1))
 	}
-	return fmt.Sprintf(i18n.T.TrafficLastMin, sec/60)
+	return i18n.F(i18n.T.TrafficLastMin, sec/60)
 }
 
 // trafficChart draws the last two minutes of download and upload rates:
@@ -879,6 +879,9 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 		}
 	}
 	title := fmt.Sprintf("%s · %d / %d", T.Devices, online, len(peers))
+	if len(peers) == 0 { // the empty state says it (R-unslop-29)
+		title = T.Devices
+	}
 	cardTip(c, title, T.TipPeerPath, nil, func() {
 		if len(peers) == 0 {
 			// In a card under the account's: the card size of an empty

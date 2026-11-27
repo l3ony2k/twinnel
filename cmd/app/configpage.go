@@ -280,12 +280,14 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 			fetched += " · " + status.Bytes(int64(sub.Size))
 		case sub.Size > 0:
 			fetched = status.Bytes(int64(sub.Size))
+		case !sub.HasURL: // a local file is never downloaded (R-unslop-29)
+			fetched = T.SubNoContent
 		default:
 			fetched = T.SubNeverFetched
 		}
 		num(small(c, fetched).SingleLine().Shrink(1).Tooltip(fetched))
 		if sub.LastError != "" {
-			errorNote(c, T.ErrorPrefix+sub.LastError)
+			errorNote(c, T.ErrorText(sub.LastError))
 		}
 	})
 }
@@ -836,7 +838,7 @@ func (a *app) loadLayerContent(id string) {
 			}
 			v.loading = false
 			if err != nil {
-				a.hd.msg, a.hd.msgErr = i18n.Cur().ErrorPrefix+helperError(err), true
+				a.hd.msg, a.hd.msgErr = helperError(err), true
 				a.invalidate()
 				return
 			}
@@ -1247,7 +1249,7 @@ func (a *app) saveLayer() {
 	}, func(err error) {
 		if err != nil {
 			// The refusal belongs to the editor, at its line (U35).
-			m := errorMsg(helperError(err), nil)
+			m := helperMsg(err)
 			v.saveErr, v.saveErrBuf = &m, ver
 			a.hd.msg, a.hd.msgErr = "", false
 			return
@@ -1361,7 +1363,7 @@ func (a *app) previewBody(c *ui.Context) {
 	}
 	if v.diff != nil {
 		add, del := v.diff.Stats()
-		num(ui.Text(c, fmt.Sprintf(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted))
+		num(ui.Text(c, i18n.F(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted))
 		if add+del > 0 {
 			codeFrame(c, 380, func() { editor.DiffView(c.Key("preview-diff"), v.diff).Grow(1) })
 		}

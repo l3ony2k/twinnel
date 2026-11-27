@@ -133,6 +133,8 @@ A check implements `ID`, `Title`, `Platforms`, `Run(ctx, Env) Result`. `Env` is 
 | `leak-guard-egress` | Opt-in. One HTTPS request direct and one through mihomo; the proxied exit IP must differ. Public IPs are masked. |
 | `controller-security` | The mihomo controller listens on loopback only and has a secret. |
 
+Check titles name the subject, not the passing condition (`vpn-conflict` is "VPN 冲突" / "VPN conflicts"), so a red mark next to a title reads as a problem with that subject. The texts are in `core/health/strings.go` (zh, reference) and `strings_en.go`; zh uses the UI glossary terms (出口节点, 密钥, 后台助手), and a one-sentence fix hint has no final period. `TestChineseUsesGlossaryTerms` and `TestTitlesNameTheSubject` check both.
+
 There is no check for direct vs DERP-relayed peers: relaying usually comes from the network or NAT and cannot be fixed from duet, so it would be a warning nobody can clear. The Tailscale devices page shows the connection path per device instead. Likewise, outcomes that only depend on the network (no active network service, the egress echo unreachable on the direct path) are `skip`, not `warn`.
 
 All checks are marked for every platform; what differs is the `Env`:

@@ -13,6 +13,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/duet/core/msg"
 	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/status"
 	"github.com/l3ony2k/duet/core/version"
@@ -207,16 +208,17 @@ func (a *app) helperOpW(label string, timeout time.Duration, fn func(ctx context
 			d.busy = ""
 			a.endOp()
 			d.warns = warns
-			text, quiet := opResult(label)
+			shown := a.opLabelNamed(label)
+			text, quiet := opResult(shown)
 			if err != nil {
-				d.msg, d.msgErr = i18n.Cur().ErrorPrefix+helperError(err), true
+				d.msg, d.msgErr = helperError(err), true
 				if a.page != page && a.win != nil { // the note is on a page no longer shown (H7)
-					a.toastErr = fmt.Sprintf(i18n.Cur().OpFailedTitle, label)
+					a.toastErr = fmt.Sprintf(i18n.Cur().OpFailedTitle, shown)
 				}
 			} else if !quiet && a.win != nil {
 				a.toast, a.toastOp = text, true
 			}
-			a.notifyOpEnd(label, err, time.Since(start), page)
+			a.notifyOpEnd(shown, err, time.Since(start), page)
 			if done != nil {
 				done(err)
 			}
@@ -312,8 +314,10 @@ func readOnlyOp(label string) bool {
 	return strings.HasSuffix(label, " · "+T.KernelCheck)
 }
 
-// helperError shortens an RPC error for the UI: the helper's message
-// without the "rpc error -32002:" prefix.
+// helperError words an error of a helper call in the UI language (R-unslop-20):
+// the helper's coded message (T.MsgTexts), a busy helper or missing item,
+// a network or system reason, else the generic line. Never the helper's
+// English text, which helperMsg keeps for 复制原文.
 func helperError(err error) string {
 	var re *rpc.Error
 	if errors.As(err, &re) {
@@ -323,9 +327,22 @@ func helperError(err error) string {
 			}
 			return i18n.T.HelperTooOld
 		}
-		return re.Message
+		return i18n.T.RPCErrorText(re.Code, re.Message)
 	}
-	return status.ShortError(err)
+	if err == nil {
+		return ""
+	}
+	return i18n.T.ErrorText(status.ShortError(err))
+}
+
+// helperMsg is a helper call's error as a coded message for msgNote: the
+// code when duet knows the text, and the helper's own text behind 复制原文.
+func helperMsg(err error) rpc.Msg {
+	var re *rpc.Error
+	if errors.As(err, &re) {
+		return msg.Parse(re.Message)
+	}
+	return msg.Parse(status.ShortError(err))
 }
 
 // confirm asks before a destructive action; ok runs on the main thread.
@@ -364,7 +381,7 @@ func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 		// No opButton shows this operation: say it here (after busyDelay).
 		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Children(func() {
 			ui.Spinner(c)
-			small(c, d.busy+"…")
+			small(c, a.opLabelNamed(d.busy)+"…")
 		})
 	}
 	for i, w := range d.warns {
@@ -380,7 +397,7 @@ func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 	if d.loadErr != "" && !helperOutdated(s) {
 		// An outdated helper lacks newer methods: its version row says
 		// so (helperUpdateRow), not an error on every page.
-		errorNote(c, i18n.T.ErrorPrefix+d.loadErr)
+		errorNote(c, i18n.T.RPCErrorText(0, d.loadErr))
 	}
 }
 
@@ -499,4 +516,46 @@ func fetchConfig(ctx context.Context, hc *status.HelperConn, configPath, source,
 		}
 	}
 	return "", errors.New(i18n.T.ConfigTextUnsupported)
+}
+
+// controlReason words why a control's change failed (pending key): a
+// service that did not answer is named, the rest as helperError.
+func controlReason(key string, err error) string {
+	var re *rpc.Error
+	if errors.As(err, &re) {
+		return helperError(err)
+	}
+	svc := "mihomo"
+	if key == pendTS || key == pendExit {
+		svc = "tailscale"
+	}
+	return i18n.T.ControlReason(svc, status.ShortError(err))
+}
+
+// opLabelNamed is an operation label as shown: the subscription or
+// override ID it ends with (the label is also the busy key, so it carries
+// the ID) replaced by its display name (R-unslop-21).
+func (a *app) opLabelNamed(label string) string {
+	T := i18n.T
+	for _, p := range []struct{ prefix, kind string }{
+		{T.SubRefresh + " ", "subscription"},
+		{T.SubSave + " ", "subscription"},
+		{T.SubActivate + " ", "subscription"},
+		{T.Save + " ", "layer"},
+		{T.Remove + " ", ""},
+	} {
+		id, ok := strings.CutPrefix(label, p.prefix)
+		if !ok || id == "" {
+			continue
+		}
+		name := id
+		if p.kind != "subscription" {
+			name = a.eventName("layer", id)
+		}
+		if p.kind != "layer" && name == id {
+			name = a.eventName("subscription", id)
+		}
+		return p.prefix + name
+	}
+	return label
 }

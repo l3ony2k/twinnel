@@ -31,7 +31,7 @@ func (a *app) controlShots(save func(*mygo.Window, string)) {
 		// The panel: TUN pending on (the call still runs), the mode's last
 		// change failed.
 		a.pend.vals = map[string]*pendingEntry{pendTun: {val: !s.Mihomo.Config.Tun.Enable, inflight: 1}}
-		a.pend.errs = map[string]string{pendMode: i18n.F(T.ModeFailed, "connection refused")}
+		a.pend.errs = map[string]string{pendMode: i18n.F(T.ModeFailed, T.ControlReason("mihomo", "connection refused"))}
 		// A helper operation whose spinner shows on its button.
 		a.hd.busy, a.hd.spanOp = T.Apply, T.Apply
 		a.hd.span = busySpan{start: time.Now().Add(-time.Second)}

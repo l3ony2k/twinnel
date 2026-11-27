@@ -706,7 +706,7 @@ func healthReasonShort(r status.Reason) string {
 	if r.Level == status.LevelError {
 		return fmt.Sprintf(i18n.T.OvHealthFail, r.Count)
 	}
-	return fmt.Sprintf(i18n.T.OvHealthIssues, r.Count)
+	return i18n.F(i18n.T.OvHealthIssues, r.Count)
 }
 
 // --- 最近活动 ---

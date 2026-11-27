@@ -4,7 +4,10 @@
 // langs.
 package i18n
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Strings is the full set of UI texts. Fields, not map keys, so that a
 // missing text is a compile error.
@@ -76,6 +79,8 @@ type Strings struct {
 	// Health page.
 	HealthSummary                       string // %d ok, warn, fail, skip
 	HealthLastRun                       string // %s: time, %s: duration
+	HealthLastRunAt                     string // %s: time (a run under 0.1 s)
+	HealthFailN, HealthWarnN            string // %d: count (健康检查 page headline: the title says 健康检查)
 	HealthRunning, HealthRerun          string
 	HealthCopyReport, Copied            string
 	LearnMore                           string // the link in an ⓘ popover (infoTip)
@@ -124,6 +129,7 @@ type Strings struct {
 	SubRemoveBody, SubFromURL, SubFromFile, SubManual                  string
 	SubEvery                                                           string // %d: minutes
 	SubNeverFetched, SubFetched, SubChanged                            string // %s: ago
+	SubNoContent                                                       string // a local-file subscription with nothing in it
 	SubID, SubName, SubNamePlaceholder, SubInterval, SubURL            string
 	SubImportFile, SubURLHint, SubSave                                 string
 	SubFileChosen                                                      string // %s: file, %s: size
@@ -259,11 +265,13 @@ type Strings struct {
 	StatusStrings          // status.go
 	SidebarStrings         // sidebar.go
 	OverviewStrings        // overview.go
+	ErrorStrings           // errors.go
 }
 
 // zh is the Chinese text.
 var zh = Strings{
 	ControlStrings: zhControls,
+	ErrorStrings:   zhErrors,
 
 	AppName: "duet",
 
@@ -381,7 +389,7 @@ var zh = Strings{
 	PathDirect:    "直连",
 	PathDERP:      "DERP 中继",
 	PathPeerRelay: "节点中继",
-	PathIdle:      "未连接",
+	PathIdle:      "空闲",
 	Online:        "在线",
 	Offline:       "离线",
 	NoPeers:       "没有其他设备",
@@ -389,6 +397,9 @@ var zh = Strings{
 
 	HealthSummary:      "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
 	HealthLastRun:      "上次检查 %s · 用时 %s",
+	HealthLastRunAt:    "上次检查 %s",
+	HealthFailN:        "%d 项失败",
+	HealthWarnN:        "%d 项警告",
 	HealthRunning:      "正在检查…",
 	HealthRerun:        "重新检查",
 	HealthCopyReport:   "复制报告",
@@ -486,6 +497,7 @@ var zh = Strings{
 	SubManual:          "手动更新",
 	SubEvery:           "每 %d 分钟更新",
 	SubNeverFetched:    "还没有下载过",
+	SubNoContent:       "还没有内容",
 	SubFetched:         "%s下载",
 	SubChanged:         "%s有变化",
 	SubID:              "ID",
@@ -817,7 +829,88 @@ var zh = Strings{
 }
 
 // F formats one of the strings.
-func F(format string, args ...any) string { return fmt.Sprintf(format, args...) }
+func F(format string, args ...any) string {
+	if strings.IndexByte(format, '{') >= 0 {
+		format = plurals(format, args)
+	}
+	return fmt.Sprintf(format, args...)
+}
+
+// plurals picks the form of each {one|other} group ({s} is {|s}) by the
+// number of the closest %d before it: "%d issue{s} found". English needs
+// it; Chinese has no plural and writes none.
+func plurals(format string, args []any) string {
+	var b strings.Builder
+	arg, n := 0, -1
+	for i := 0; i < len(format); i++ {
+		c := format[i]
+		switch c {
+		case '%':
+			j := i + 1
+			if j < len(format) && format[j] == '%' {
+				b.WriteString("%%")
+				i = j
+				continue
+			}
+			if j < len(format) && format[j] == '[' {
+				if k := strings.IndexByte(format[j:], ']'); k > 0 {
+					fmt.Sscan(format[j+1:j+k], &arg)
+					arg--
+					j += k + 1
+				}
+			}
+			k := j
+			for k < len(format) && strings.IndexByte("+-# 0123456789.", format[k]) >= 0 {
+				k++
+			}
+			if k >= len(format) {
+				b.WriteString(format[i:])
+				return b.String()
+			}
+			if format[k] == 'd' && arg >= 0 && arg < len(args) {
+				n = intArg(args[arg])
+			}
+			arg++
+			b.WriteString(format[i : k+1])
+			i = k
+		case '{':
+			end := strings.IndexByte(format[i:], '}')
+			if end < 0 {
+				b.WriteByte(c)
+				continue
+			}
+			one, other, ok := strings.Cut(format[i+1:i+end], "|")
+			if !ok {
+				one, other = "", one
+			}
+			if n == 1 {
+				b.WriteString(one)
+			} else {
+				b.WriteString(other)
+			}
+			i += end
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+func intArg(v any) int {
+	switch x := v.(type) {
+	case int:
+		return x
+	case int64:
+		return int(x)
+	case int32:
+		return int(x)
+	case uint:
+		return int(x)
+	case uint64:
+		return int(x)
+	}
+	return -1
+}
 
 // ModeName returns the label of a mihomo mode.
 func (s *Strings) ModeName(m string) string {

@@ -139,6 +139,7 @@ func newApp(getenv func(string) string) (*app, error) {
 		return nil, err
 	}
 	a := &app{page: pageOverview, groupsOpen: map[string]bool{}, tileCols: map[string]int{}, pageScroll: map[string]*ui.ScrollState{}, healthOpen: map[string]bool{}}
+	i18n.Namer = a.eventName // helper messages name subscriptions and overrides (R-unslop-21)
 	a.probes = probes
 	// Shot mode never takes the owner's focus: no tray, no notifications,
 	// windows created hidden and captured from memory (Window.CapturePage
@@ -353,7 +354,7 @@ func (a *app) do(fn func(ctx context.Context) error) {
 		mygo.RunOnMain(func() {
 			a.actionErr = ""
 			if err != nil {
-				a.actionErr = i18n.Cur().ErrorPrefix + status.ShortError(err)
+				a.actionErr = helperError(err)
 			}
 			a.invalidate()
 		})

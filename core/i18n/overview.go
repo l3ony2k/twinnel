@@ -102,7 +102,7 @@ var enOverview = OverviewStrings{
 	OvHealthRerun:   "Check Again",
 	OvHealthOK:      "All passed",
 	OvHealthFail:    "%d failed",
-	OvHealthIssues:  "%d issues",
+	OvHealthIssues:  "%d issue{s}",
 	OvRecent:        "Recent activity",
 	OvRecentAll:     "All Logs",
 	OvHelperVersion: "v%s",

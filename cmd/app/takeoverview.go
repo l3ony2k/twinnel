@@ -179,7 +179,7 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 			}
 		})
 		if v.listErr != "" {
-			errorNote(c, T.ErrorPrefix+v.listErr)
+			errorNote(c, v.listErr)
 		}
 	})
 }
@@ -563,7 +563,7 @@ func (a *app) takeoverLayersCard(c *ui.Context, p *rpc.TakeoverPlan) {
 					if what != "" {
 						what += " · "
 					}
-					what += fmt.Sprintf(T.TakeoverRules, l.Rules)
+					what += i18n.F(T.TakeoverRules, l.Rules)
 				}
 				ui.Text(c, what).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(what)
 			})
@@ -1296,7 +1296,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 			}
 			ui.Text(c, msg).FontSize(plat.calloutSize).TextColor(pal(t).okText).Wrap().LineHeight(lineText)
 			if r.Apply != nil && r.Apply.Error != "" {
-				errorNote(c, T.ErrorPrefix+r.Apply.Error)
+				errorNote(c, T.RPCErrorText(0, r.Apply.Error))
 			}
 			for _, w := range r.Warnings {
 				warningNote(c, w)
@@ -1324,7 +1324,7 @@ func (a *app) planNote() string {
 	T := i18n.T
 	d := &a.hd
 	if d.busy != T.TakeoverPlan || d.spanOp != T.TakeoverPlan || d.span.start.IsZero() {
-		return T.TkPlanNote
+		return "" // what planning does is in the ⓘ (copy rule: no reassurance line)
 	}
 	if !d.planTick {
 		d.planTick = true

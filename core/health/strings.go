@@ -223,7 +223,7 @@ var zhTexts = texts{
 	labelSkip:        "跳过",
 	msgCounts:        "通过 %d · 警告 %d · 失败 %d · 跳过 %d",
 	msgNotOnPlatform: "不适用于 %s",
-	msgCheckPanicked: "检查自身出错（panic）",
+	msgCheckPanicked: "检查自身出错",
 	msgCheckTimeout:  "检查超时（%s）",
 
 	// Check titles.
@@ -233,7 +233,7 @@ var zhTexts = texts{
 	titleMagicDNS:       "MagicDNS 解析",
 	titlePeerNames:      "设备短名同步",
 	titleSystemDNS:      "系统 DNS",
-	titleVPNConflict:    "没有冲突的 VPN",
+	titleVPNConflict:    "VPN 冲突",
 	titleLeakGuard:      "防泄漏",
 	titleController:     "控制接口安全",
 	titleResolverBind:   "tailnet DNS 出口绑定",
@@ -259,7 +259,7 @@ var zhTexts = texts{
 	msgWildcardOK:     "fake-ip-filter 的 '*' 配合 blacklist 模式：单标签名字拿真实地址",
 	msgWildcardBad:    "fake-ip-filter 里有 '*'，但 fake-ip-filter-mode 是 %s：'*' 只在 blacklist 模式下表示“单标签名字不用 fake-ip”",
 	evFakeIPMode:      "fake-ip-filter-mode：%s",
-	fixWildcard:       "把 fake-ip-filter-mode 改回 blacklist（默认），或在当前模式下用对应写法排除单标签名字，然后重新生成「Tailscale 共存」覆写。",
+	fixWildcard:       "把 fake-ip-filter-mode 改回 blacklist（默认），或在当前模式下用对应写法排除单标签名字，然后重新生成「Tailscale 共存」覆写",
 	labelDefaultBlack: "blacklist（默认）",
 
 	// leak-guard-egress
@@ -275,8 +275,8 @@ var zhTexts = texts{
 	evEgressProxied:      "经 mihomo 出口：%s（链路：%s）",
 	evEgressGroup:        "%s 当前节点：%s",
 	evEgressURL:          "测试地址：%s（只发一次 GET，不带任何个人数据）",
-	fixEgressProbe:       "检测一次出口：直连和经 mihomo 各请求一次 IP 回显地址。",
-	fixEgress:            "检查敏感策略组当前节点：节点的出口和本机相同，说明它没有真正代理（例如本地转发或 DIRECT 类节点）。",
+	fixEgressProbe:       "检测一次出口：直连和经 mihomo 各请求一次 IP 回显地址",
+	fixEgress:            "检查敏感策略组当前节点：节点的出口和本机相同，说明它没有真正代理（例如本地转发或 DIRECT 类节点）",
 
 	// Labels and evidence fragments.
 	srcRuntime:  "运行中的 mihomo",
@@ -305,14 +305,14 @@ var zhTexts = texts{
 	evIntoMihomo:   "进了 mihomo TUN",
 	evNotTS:        "不是 Tailscale 接口",
 	evRouteEntry:   "路由表：%s → %s",
-	fixRouteBad:    "在 mihomo 的 tun.route-exclude-address 里加入 100.64.0.0/10 和 fd7a:115c:a1e0::/48，然后重载 mihomo；如果仍不对，重启 tailscaled 让它重新写路由。",
+	fixRouteBad:    "在 mihomo 的 tun.route-exclude-address 里加入 100.64.0.0/10 和 fd7a:115c:a1e0::/48，然后重载 mihomo；如果仍不对，重启 tailscaled 让它重新写路由",
 
 	// tun-route-exclude
 	msgExcludeOK:      "route-exclude-address 已包含 tailnet 网段",
 	msgExcludeMissing: "route-exclude-address 缺少：%s",
 	evExcludeList:     "route-exclude-address（%s）：%s",
 	evCoveredBy:       "%s 被 %s 覆盖",
-	fixExclude:        "在 tun.route-exclude-address 里加入缺少的网段（启用内置的「Tailscale 共存」覆写即可）。",
+	fixExclude:        "在 tun.route-exclude-address 里加入缺少的网段（启用内置的「Tailscale 共存」覆写即可）",
 
 	// tailscale-direct-rules
 	msgRulesOK:     "tailscaled、控制面、DERP 和 tailnet 网段都先命中 DIRECT",
@@ -321,11 +321,11 @@ var zhTexts = texts{
 	evRuleCount:    "规则来源：%s，共 %d 条",
 	msgRulesGlobal: "mihomo 处于全局模式（GLOBAL → %s）：规则不生效，tailscaled 和 tailnet 流量都走代理",
 	msgRulesDirect: "mihomo 处于直连模式：所有流量直连，规则不生效",
-	fixRulesGlobal: "把 mihomo 切回规则模式（mode: rule），或把 GLOBAL 选为 DIRECT。",
+	fixRulesGlobal: "把 mihomo 切回规则模式（mode: rule），或把 GLOBAL 选为 DIRECT",
 	evNoMatch:      "没有规则命中",
 	evNotDirect:    "不是 DIRECT",
 	evShadowed:     "前面的 %s 可能先命中",
-	fixRules:       "把 PROCESS-NAME,tailscaled,DIRECT、DOMAIN-SUFFIX,tailscale.com,DIRECT、IP-CIDR,100.64.0.0/10,DIRECT,no-resolve 和 IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve 放到规则最前面（启用「Tailscale 共存」覆写）。",
+	fixRules:       "把 PROCESS-NAME,tailscaled,DIRECT、DOMAIN-SUFFIX,tailscale.com,DIRECT、IP-CIDR,100.64.0.0/10,DIRECT,no-resolve 和 IP-CIDR6,fd7a:115c:a1e0::/48,DIRECT,no-resolve 放到规则最前面（启用「Tailscale 共存」覆写）",
 
 	// magicdns
 	msgMagicDNSOff:     "MagicDNS 未开启",
@@ -340,8 +340,8 @@ var zhTexts = texts{
 	evDNSTimeout:       "超时，2 秒内没有应答（mihomo 可能在等一个绕回自己的上游）",
 	evResolverCfg:      "系统 resolver：%s → 100.100.100.100 %s；100.x 反解 zone %d 个",
 	evPolicy:           "mihomo nameserver-policy %s：%s",
-	fixMagicSys:        "确认 Tailscale 的 MagicDNS 已开启、tailscaled 在运行，然后重新生成「Tailscale 共存」覆写（它让 tailnet 名字跳过 fake-ip）。",
-	fixMagicSystemLoop: "nameserver-policy 把 tailnet 域名交给了 system，而系统 DNS 指向 mihomo 自己，查询绕回来失败。",
+	fixMagicSys:        "确认 Tailscale 的 MagicDNS 已开启、tailscaled 在运行，然后重新生成「Tailscale 共存」覆写（它让 tailnet 名字跳过 fake-ip）",
+	fixMagicSystemLoop: "nameserver-policy 把 tailnet 域名交给了 system，而系统 DNS 指向 mihomo 自己，查询绕回来失败",
 	fixMagicMihomo:     "重新生成「Tailscale 共存」覆写：它把 tailnet 域名、单标签短名和 tailnet 反解交给 100.100.100.100（开了 auto-detect-interface / interface-name 时写成 100.100.100.100#<Tailscale 接口>），让短名跳过 fake-ip，并为设备生成 hosts。直接查询 127.0.0.1:53 或被 dns-hijack 劫持的程序才会受影响，走系统解析的程序不受影响。",
 
 	// peer-short-names
@@ -351,7 +351,7 @@ var zhTexts = texts{
 	msgNamesStale:   "规则里有已不存在的设备：%s",
 	evNamesPeers:    "tailnet 设备：%s",
 	evNamesRules:    "规则（%s）里的短名：%s",
-	fixNames:        "重新生成「Tailscale 共存」覆写，让设备短名列表和当前 tailnet 一致。",
+	fixNames:        "重新生成「Tailscale 共存」覆写，让设备短名列表和当前 tailnet 一致",
 
 	// system-dns
 	msgMihomoDNSOff:   "mihomo DNS 未启用",
@@ -365,23 +365,23 @@ var zhTexts = texts{
 	evHijackCovers:    "dns-hijack 兜底",
 	evExcludedDNS:     "该 DNS 在 route-exclude-address 内，dns-hijack 管不到",
 	evDefaultResolver: "系统默认 resolver：%s",
-	fixDNS:            "把这些网络服务的 DNS 设为 %s（networksetup -setdnsservers <服务名> <地址>）。",
+	fixDNS:            "把这些网络服务的 DNS 设为 %s（networksetup -setdnsservers <服务名> <地址>）",
 	fixDNSLinux:       "把这些连接的 DNS 设为 %s。NetworkManager：nmcli connection modify <连接名> ipv4.dns %s ipv4.ignore-auto-dns yes，再 nmcli connection up <连接名>；只有 systemd-resolved 时：在 /etc/systemd/resolved.conf 写 DNS=%s 和 Domains=~.，再 systemctl restart systemd-resolved（resolvectl dns <网卡> <地址> 只到重启为止）。",
 
 	// vpn-conflict
-	msgVPNOK:          "没有其他 VPN 在运行，Tailscale 没用 exit node",
+	msgVPNOK:          "没有其他 VPN 在运行，Tailscale 没用出口节点",
 	msgVPNConnected:   "%s 已连接",
 	msgVPNTailscaleNE: "%s 是 Tailscale 的 NetworkExtension 版本，会占用系统 VPN 通道",
-	msgExitNode:       "Tailscale 正在使用 exit node %s",
+	msgExitNode:       "Tailscale 正在使用出口节点 %s",
 	msgOtherTUN:       "默认路由在 %s 上，不是 mihomo 的 TUN",
 	msgTUNNotDefault:  "mihomo TUN（%s）没有拿到默认路由（现在是 %s）",
 	evConnected:       "已连接",
 	evTSNE:            "Tailscale NetworkExtension 版",
 	evNoVPN:           "没有系统 VPN 配置",
-	evNoExitNode:      "Tailscale：没有使用 exit node",
+	evNoExitNode:      "Tailscale：没有使用出口节点",
 	evDefaultRoute:    "1.1.1.1 的路由：%s",
 	evNotMihomoTUN:    "不是 mihomo TUN",
-	fixVPN:            "断开其他 VPN；需要 exit node 时先确认它和 mihomo TUN 的冲突。",
+	fixVPN:            "断开其他 VPN；需要出口节点时先确认它和 mihomo TUN 的冲突",
 
 	// leak-guard
 	msgNoSensitive:  "没有配置敏感策略组",
@@ -395,17 +395,17 @@ var zhTexts = texts{
 	evLeakDirect:    "真实 IP 出口",
 	evLeakAuto:      "自动回退路径：%s",
 	evLeakManual:    "可选路径：%s",
-	fixLeak:         "从敏感策略组里去掉 DIRECT，没有可用节点时用 REJECT（启用「防泄漏」覆写）。",
+	fixLeak:         "从敏感策略组里去掉 DIRECT，没有可用节点时用 REJECT（启用「防泄漏」覆写）",
 
 	// controller-security
-	msgCtlOK:       "external-controller 只监听本机并设置了 secret",
+	msgCtlOK:       "external-controller 只监听本机并设置了密钥",
 	msgCtlDisabled: "没有开启 external-controller",
 	msgCtlExposed:  "external-controller 监听在 %s，不只是本机",
-	msgCtlNoSecret: "external-controller 没有设置 secret，本机任何程序都能控制 mihomo",
+	msgCtlNoSecret: "external-controller 没有设置密钥，本机任何程序都能控制 mihomo",
 	evSecretSet:    "已设置",
 	evSecretEmpty:  "空",
-	evCtlNoAuth:    "不带 secret 的请求被接受",
-	fixCtl:         "external-controller 只绑定 127.0.0.1，并设置随机 secret（由 helper 生成并存入钥匙串）。",
+	evCtlNoAuth:    "不带密钥的请求被接受",
+	fixCtl:         "external-controller 只绑定 127.0.0.1，并设置随机密钥（由后台助手生成并存入钥匙串）",
 }
 
 // textTables maps a language tag (core/i18n's) to its texts.

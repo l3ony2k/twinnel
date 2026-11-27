@@ -45,6 +45,11 @@ func TestApplyErrors(t *testing.T) {
 		"write /etc/mihomo/config.yaml: permission denied":                 "write-failed",
 		"leak-guard: proxy group \"PROXY\" not found":                      "group-missing",
 		"x: proxy group \"A\" can still reach DIRECT through [b c] (nested groups are not changed: they may carry other traffic)": "group-direct",
+		"takeover plan: live config: open /Users/x/.config/mihomo: no such file or directory":                                     "live-config-missing",
+		"the live config is now /a, the plan was made for /b; re-plan":                                                            "replan",
+		`subscription "home" has no URL`:                 "sub-no-url",
+		"the running mihomo does not answer: EOF":        "mihomo-no-answer",
+		"health checks are not available in this helper": "health-unavailable",
 		"something else": "",
 	} {
 		if m := Parse(text); m.Code != code || m.Text != text {
