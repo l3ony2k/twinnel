@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/l3ony2k/twinnel/core/legacy"
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // The app's files from before the rename to Twinnel (it was "duet"): its
@@ -33,7 +34,7 @@ func migratePrefs(configDir string) ([]string, error) {
 		if _, err := os.Lstat(to); err == nil {
 			continue
 		}
-		if err := os.MkdirAll(newDir, 0o755); err != nil {
+		if err := privfile.MkdirAll(newDir); err != nil { // app.json may hold the controller secret
 			return moved, err
 		}
 		if err := os.Rename(from, to); err != nil {

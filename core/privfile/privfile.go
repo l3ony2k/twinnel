@@ -98,6 +98,23 @@ func MkdirAll(dir string) error {
 	return nil
 }
 
+// Secure makes an existing file or dir private, as WriteFile and Mkdir
+// would have made it: for one written before Twinnel protected it, or by
+// something else (a rename kept the folder's ACL on Windows). Idempotent:
+// a path that is already private is left alone; a missing one is no
+// error. A dir's private DACL on Windows reaches the children that
+// inherit from it.
+func Secure(path string) error {
+	fi, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return secure(path, fi.IsDir())
+}
+
 // MkdirTemp is os.MkdirTemp with a private dir: a new dir in dir (the
 // system temp dir when "") whose name starts with pattern.
 func MkdirTemp(dir, pattern string) (string, error) {

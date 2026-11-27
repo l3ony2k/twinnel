@@ -136,6 +136,18 @@ func SaveConfig(path string, c Config) error {
 	return privfile.WriteFile(path, append(b, '\n'))
 }
 
+// SecureAppFiles makes the app's prefs folder (app.json's dir) and
+// app.json private, as SaveConfig writes them. One written before that,
+// or moved in from the old app's folder, keeps the folder's ACL on Windows
+// (readable by other local accounts) until its next write; the app runs
+// this once when it starts. Idempotent, and a missing file is no error.
+func SecureAppFiles(cfgPath string) error {
+	if cfgPath == "" {
+		return nil
+	}
+	return errors.Join(privfile.Secure(filepath.Dir(cfgPath)), privfile.Secure(cfgPath))
+}
+
 // AppConfigPath is the app's settings file (app.json) under the user's
 // config directory; "" when there is none. The CLI reads it as the
 // fallback for the controller when the helper is not reachable.
