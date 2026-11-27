@@ -169,6 +169,7 @@ type texts struct {
 	evDefaultResolver string
 	fixDNS            string
 	fixDNSLinux       string
+	fixDNSWindows     string
 
 	// vpn-conflict
 	msgVPNOK          string
@@ -366,6 +367,7 @@ var zhTexts = texts{
 	evExcludedDNS:     "该 DNS 在 route-exclude-address 内，dns-hijack 管不到",
 	evDefaultResolver: "系统默认 resolver：%s",
 	fixDNS:            "把这些网络服务的 DNS 设为 %s（networksetup -setdnsservers <服务名> <地址>）",
+	fixDNSWindows:     "把这些网络适配器的 DNS 设为 %s：设置 → 网络和 Internet → <适配器> → DNS 服务器分配 → 编辑 → 手动；或在管理员 PowerShell 运行 Set-DnsClientServerAddress -InterfaceAlias <适配器> -ServerAddresses %s",
 	fixDNSLinux:       "把这些连接的 DNS 设为 %s。NetworkManager：nmcli connection modify <连接名> ipv4.dns %s ipv4.ignore-auto-dns yes，再 nmcli connection up <连接名>；只有 systemd-resolved 时：在 /etc/systemd/resolved.conf 写 DNS=%s 和 Domains=~.，再 systemctl restart systemd-resolved（resolvectl dns <网卡> <地址> 只到重启为止）。",
 
 	// vpn-conflict

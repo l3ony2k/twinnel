@@ -13,21 +13,25 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/l3ony2k/twinnel/core/legacy"
 	"io"
 	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/engine"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/legacy"
+	"github.com/l3ony2k/twinnel/core/priv"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/platform/windows/svchost"
+	"github.com/l3ony2k/twinnel/platform/windows/winsec"
 )
 
 type options struct {
@@ -43,6 +47,9 @@ type options struct {
 	tailnetIface   string
 	noHealth       bool
 	healthInterval time.Duration
+	// allowSIDs (Windows) may use the pipe besides LocalSystem, elevated
+	// administrators and the helper's own user.
+	allowSIDs stringList
 
 	// takeover discovery overrides (development against a copied setup)
 	takeoverServices string
@@ -55,11 +62,12 @@ func parseFlags(args []string) (*options, error) {
 	o := &options{}
 	fs := flag.NewFlagSet("twinnel-helper", flag.ContinueOnError)
 	fs.StringVar(&o.stateDir, "state-dir", store.DefaultDir, "state `DIR` (settings, layers, history, kernels)")
-	fs.StringVar(&o.socket, "socket", rpc.DefaultSocket, "unix socket `PATH` to listen on")
+	fs.StringVar(&o.socket, "socket", rpc.DefaultSocket, "unix socket `PATH` (Windows: named pipe) to listen on")
 	fs.BoolVar(&o.foreground, "foreground", false, "log to stderr instead of <state-dir>/logs/helper.log")
 	fs.StringVar(&o.group, "group", "admin", "`GROUP` whose members may use the helper (besides root and the helper's own user)")
 	fs.StringVar(&o.tailnetStatus, "tailnet-status-file", "", "development: read tailscale status JSON from `FILE` instead of running 'tailscale status --json' (peers for the coexist layer, takeover probe and health checks)")
-	fs.StringVar(&o.secrets, "secrets", "auto", "where secrets live: keychain, file (<state-dir>/secrets.json, development) or auto (keychain when running as root on macOS)")
+	fs.StringVar(&o.secrets, "secrets", "auto", "where secrets live: keychain (macOS), dpapi (Windows: <state-dir>/secrets.dpapi), file (<state-dir>/secrets.json, development) or auto (keychain as root on macOS, dpapi elevated on Windows)")
+	fs.Var(&o.allowSIDs, "allow-sid", "Windows: a user `SID` allowed to use the pipe (repeatable; the installing user)")
 	fs.StringVar(&o.keychain, "keychain", "", "keychain `FILE` for --secrets keychain (default the System keychain)")
 	fs.StringVar(&o.tailnetIface, "tailnet-iface", "auto", "Tailscale interface for the coexist resolver: auto (route to 100.100.100.100), none, or a `NAME`")
 	fs.BoolVar(&o.noHealth, "no-health", false, "do not run the health checks (health.last/run then fail)")
@@ -78,7 +86,17 @@ func parseFlags(args []string) (*options, error) {
 	return o, nil
 }
 
+// stringList is a repeatable string flag.
+type stringList []string
+
+func (l *stringList) String() string     { return strings.Join(*l, ",") }
+func (l *stringList) Set(v string) error { *l = append(*l, v); return nil }
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "svchost" {
+		// Windows: host a program that is not a service (mihomo.exe).
+		os.Exit(svchost.Main(os.Args[2:]))
+	}
 	if n := legacy.EnvNotice(legacy.ApplyEnvAliases()); n != "" {
 		fmt.Fprintln(os.Stderr, "twinnel-helper:", n)
 	}
@@ -94,9 +112,17 @@ func main() {
 		fmt.Println("twinnel-helper", engine.HelperVersion)
 		return
 	}
+	if handled, err := runService(o); handled {
+		// Started by the Windows Service Control Manager.
+		if err != nil && !errors.Is(err, errRestart) {
+			fmt.Fprintln(os.Stderr, "twinnel-helper:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, o, nil); err != nil {
+	if err := run(ctx, o, nil); err != nil && !errors.Is(err, errRestart) {
 		fmt.Fprintln(os.Stderr, "twinnel-helper:", err)
 		os.Exit(1)
 	}
@@ -105,6 +131,9 @@ func main() {
 // run starts the helper and blocks until ctx ends. ready, if not nil, is
 // called with the engine once the socket is listening (used by tests).
 func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
+	if err := prepareStateDir(o.stateDir); err != nil {
+		return err
+	}
 	st, err := store.Open(o.stateDir)
 	if err != nil {
 		return err
@@ -144,20 +173,16 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 	// launchctl and plist writes only as root; a development helper reports
 	// the plans as dry runs.
 	e.ServiceRunner = &engine.ServiceRunner{DryRun: true}
-	if os.Geteuid() == 0 {
-		e.ServiceRunner = &engine.ServiceRunner{Exec: service.ExecExecutor{}, Files: service.OSFiles{}}
+	if priv.Elevated() {
+		e.ServiceRunner = &engine.ServiceRunner{Exec: platformExecutor(), Files: service.OSFiles{}}
 	}
 	watch := setupPlatform(e, o)
 	e.TakeoverDiscover.ConfigPath = o.takeoverConfig
 	e.TakeoverDiscover.MihomoBin = o.takeoverMihomo
 
-	tr := rpc.NewUnixTransport()
-	auth, err := rpc.NewGroupAuthorizer(o.group)
+	tr, auth, err := listenTransport(o)
 	if err != nil {
 		return err
-	}
-	if os.Geteuid() == 0 {
-		tr.GID = auth.GID
 	}
 	srv := rpc.NewServer(tr, auth, log)
 	e.Register(srv)
@@ -170,11 +195,13 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 		"state_dir", st.Dir, "socket", o.socket, "group", o.group, "config", settings.Mihomo.ConfigFile)
 	e.Bus.Publish(rpc.EventHelperStarted, map[string]any{"version": engine.HelperVersion, "pid": os.Getpid()})
 
-	// helper.restart: end like on SIGTERM; launchd (KeepAlive) or systemd
-	// starts the helper again.
-	ctx, restart := context.WithCancel(ctx)
-	defer restart()
-	e.Restart = restart
+	// helper.restart: end like on SIGTERM; launchd (KeepAlive), systemd or
+	// the Windows SCM (failure actions; errRestart makes the exit a
+	// failure) starts the helper again.
+	ctx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
+	restarting := false
+	e.Restart = func() { restarting = true; cancelRun() }
 	e.Socket = o.socket
 
 	loopCtx, cancelLoops := context.WithCancel(ctx)
@@ -203,8 +230,17 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 		log.Warn("timed out waiting for requests to finish")
 	}
 	<-loopsDone
+	if err == nil && restarting {
+		err = errRestart
+	}
 	return err
 }
+
+// errRestart ends run after helper.restart. On macOS and Linux main exits
+// 1 and launchd/systemd start the helper again; the Windows service
+// handler reports it as a service-specific error so the SCM's failure
+// actions do.
+var errRestart = errors.New("restart requested")
 
 func newLogger(o *options, st *store.Store) (*slog.Logger, func(), error) {
 	var w io.Writer = os.Stderr
@@ -231,10 +267,14 @@ func openSecrets(o *options, st *store.Store, log *slog.Logger) (store.Secrets, 
 	kind := o.secrets
 	if kind == "" || kind == "auto" {
 		kind = "file"
-		if hasKeychain && os.Geteuid() == 0 {
-			kind = "keychain"
+		if secureSecrets != "" && priv.Elevated() {
+			kind = secureSecrets
 		}
 	}
+	var (
+		sec   store.Secrets
+		where string
+	)
 	switch kind {
 	case "file":
 		log.Info("secrets in file", "path", file.Path)
@@ -244,17 +284,24 @@ func openSecrets(o *options, st *store.Store, log *slog.Logger) (store.Secrets, 
 		if err != nil {
 			return nil, err
 		}
-		if _, err := os.Stat(file.Path); err == nil {
-			moved, err := store.MigrateSecrets(file, kc)
-			if err != nil {
-				return nil, fmt.Errorf("move secrets.json into the keychain: %w", err)
-			}
-			log.Info("moved secrets into the keychain", "count", len(moved))
+		sec, where = kc, "keychain "+orDefault(o.keychain, "System")
+	case "dpapi":
+		if secureSecrets != "dpapi" {
+			return nil, errors.New("--secrets dpapi is only available on Windows")
 		}
-		log.Info("secrets in keychain", "keychain", orDefault(o.keychain, "System"))
-		return kc, nil
+		sec, where = winsec.Secrets(st.Dir), "DPAPI file "+winsec.SecretsFile
+	default:
+		return nil, fmt.Errorf("unknown --secrets %q (keychain, dpapi, file, auto)", o.secrets)
 	}
-	return nil, fmt.Errorf("unknown --secrets %q (keychain, file, auto)", o.secrets)
+	if _, err := os.Stat(file.Path); err == nil {
+		moved, err := store.MigrateSecrets(file, sec)
+		if err != nil {
+			return nil, fmt.Errorf("move secrets.json into the %s: %w", where, err)
+		}
+		log.Info("moved secrets.json", "to", where, "count", len(moved))
+	}
+	log.Info("secrets", "in", where)
+	return sec, nil
 }
 
 func orDefault(s, d string) string {

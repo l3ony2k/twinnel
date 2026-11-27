@@ -33,6 +33,28 @@ jobs:
         # dirs; tests against a real mihomo / tailscaled need -tags live.
         run: go test ./...
 
+  windows:
+    # The Windows platform layer, natively: pipe transport and peer SIDs,
+    # SCM plans, DPAPI, the health Env over fixtures, kernel zips, UAC
+    # elevation with a fake prompt. Packages whose tests assume Unix paths
+    # or modes stay on the Unix jobs. Nothing here touches the runner's
+    # services or network settings.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: >-
+          go test ./core/rpc/... ./core/priv ./core/service ./core/kernel
+          ./core/health/... ./core/tailscale ./core/uninstall ./platform/common
+          ./platform/windows/...
+      - name: test (cli elevation)
+        run: go test -run Windows ./cmd/cli
+
   cross-build:
     runs-on: ubuntu-latest
     strategy:

@@ -199,6 +199,10 @@ The helper and CLI pick these on Linux (`platform/linux/defaults.go`):
 
 Not on Linux yet: a network-change trigger for health and tailnet refresh (the helper relies on its interval and the 60 s tailnet poller), the egress test, a Secret Service store, a non-root elevation path for `twinnel helper install`, and the app. Nothing of this has run on a real Linux host so far; it is covered by fixture tests that run on every OS.
 
+## Windows
+
+The Windows port (helper as the `TwinnelHelper` service, named pipe `\\.\pipe\twinnel-helper`, SCM plans, mihomo under `twinnel-svchost.exe`, DPAPI secrets, `platform/windows` health facts, UAC elevation) is described in [windows-design.md](windows-design.md). It is cross-compiled and tested with fakes; it has not run on a real Windows machine yet.
+
 ## Data locations
 
 | What | Where |

@@ -200,7 +200,7 @@ func infoFromSettings(stateDir string) *rpc.HelperInfo {
 		Label:    st.HelperLabel,
 		Mihomo: rpc.HelperMihomoService{
 			Label: st.Mihomo.ServiceLabel, Adopted: st.Mihomo.ServiceAdopted, Controller: st.Mihomo.Controller,
-			Installed: fileExistsFn(serviceDefinition(st.Mihomo.ServiceLabel)),
+			Installed: serviceInstalled(st.Mihomo.ServiceLabel),
 		},
 		SecretKeys:    st.SecretKeys(),
 		Subscriptions: len(st.Subscriptions),
@@ -246,10 +246,11 @@ func purgeSteps(p uninstall.Plan, stateDir string) ([]service.Step, error) {
 		case uninstall.StateDir:
 			dir := filepath.Clean(it.Path)
 			base := strings.ToLower(filepath.Base(dir))
-			if !filepath.IsAbs(dir) || filepath.Dir(dir) == "/" || !strings.Contains(base, "twinnel") && !strings.HasPrefix(base, legacy.Name) {
+			parent := filepath.Dir(dir)
+			if !filepath.IsAbs(dir) || parent == "/" || parent == filepath.VolumeName(dir)+string(filepath.Separator) || !strings.Contains(base, "twinnel") && !strings.HasPrefix(base, legacy.Name) {
 				return nil, fmt.Errorf("refusing to delete %q: not Twinnel's state dir", it.Path)
 			}
-			steps = append(steps, service.Step{Kind: service.StepRun, Argv: []string{"/bin/rm", "-rf", "--", dir}})
+			steps = append(steps, removeTreeStep(dir))
 		}
 	}
 	return steps, nil

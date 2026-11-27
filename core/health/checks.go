@@ -240,8 +240,12 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 	if len(rules) == 0 {
 		return skipText(L.msgNoRules)
 	}
+	tsProcess := "tailscaled"
+	if env.Platform() == Windows {
+		tsProcess = "tailscaled.exe" // mihomo matches the executable's base name
+	}
 	probes := []probe{
-		{process: "tailscaled"},
+		{process: tsProcess},
 		{domain: "controlplane.tailscale.com"},
 		{domain: "login.tailscale.com"},
 		{domain: "derp1.tailscale.com"},
@@ -701,8 +705,11 @@ func dnsSourceLabel(L *texts, s NetworkService) string {
 
 // dnsFixText is the system-dns fix hint in the platform's own tools.
 func dnsFixText(L *texts, platform, listen string) string {
-	if platform == Linux {
+	switch platform {
+	case Linux:
 		return fmt.Sprintf(L.fixDNSLinux, listen, listen, listen)
+	case Windows:
+		return fmt.Sprintf(L.fixDNSWindows, listen, listen)
 	}
 	return fmt.Sprintf(L.fixDNS, listen)
 }
@@ -771,6 +778,11 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 				line += "  ← " + L.evNotMihomoTUN
 				fail(st, msg, CauseOtherTUN)
 			}
+		} else if env.Platform() == Windows {
+			if st, msg := windowsDefaultRoute(L, rl, tun, terr == nil); st != StatusOK {
+				line += "  ← " + L.evNotMihomoTUN
+				fail(st, msg, CauseOtherTUN)
+			}
 		} else if tun.Device == "utun" {
 			// A bare "utun" (read from the config file when the controller
 			// does not answer) lets macOS pick the number: the real name
@@ -821,6 +833,46 @@ func linuxDefaultRoute(L *texts, iface string, tun TUNConfig, haveTUN bool) (Sta
 		}
 	}
 	if haveTUN && tun.Enable {
+		return StatusWarn, fmt.Sprintf(L.msgTUNNotDefault, mihomoDev, iface)
+	}
+	return StatusOK, ""
+}
+
+// RouteFlagTunnel marks, in RouteLookup.Flags, a route whose interface is a
+// tunnel adapter (Windows: if-type TUNNEL/PPP/PROP_VIRTUAL, or a known VPN
+// driver such as Wintun, WireGuard or TAP-Windows).
+const RouteFlagTunnel = "tunnel"
+
+// windowsTailscaleAdapter is the name of the official client's wintun
+// adapter.
+const windowsTailscaleAdapter = "Tailscale"
+
+// windowsDefaultRoute judges the adapter holding the default route on
+// Windows, like linuxDefaultRoute, but tunnel-ness comes from the Env
+// (RouteFlagTunnel) instead of the device name: Windows adapters carry
+// friendly names the user can change. mihomo's TUN is tun.device, else
+// "Meta" (Meta1, ... when taken).
+func windowsDefaultRoute(L *texts, rl RouteLookup, tun TUNConfig, haveTUN bool) (Status, string) {
+	iface := rl.Interface
+	mihomoDev := tun.Device
+	isMihomo := iface == mihomoDev
+	if mihomoDev == "" {
+		mihomoDev, isMihomo = "Meta", strings.HasPrefix(iface, "Meta")
+	}
+	if iface == "" || (haveTUN && tun.Enable && isMihomo) || iface == windowsTailscaleAdapter {
+		return StatusOK, ""
+	}
+	tunnel := false
+	for _, f := range rl.Flags {
+		if f == RouteFlagTunnel {
+			tunnel = true
+		}
+	}
+	// mihomo's TUN while mihomo is not readable is not "another VPN".
+	if tunnel && !isMihomo {
+		return StatusFail, fmt.Sprintf(L.msgOtherTUN, iface)
+	}
+	if haveTUN && tun.Enable && !isMihomo {
 		return StatusWarn, fmt.Sprintf(L.msgTUNNotDefault, mihomoDev, iface)
 	}
 	return StatusOK, ""

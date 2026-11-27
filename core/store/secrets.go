@@ -31,10 +31,14 @@ type Secrets interface {
 }
 
 // FileSecrets keeps secrets in a 0600 JSON file. Not for production: the
-// requirements put credentials in the system keychain.
+// requirements put credentials in the system keychain. With Seal and
+// Unseal the file holds the JSON sealed (Windows: DPAPI, see
+// platform/windows/winsec).
 type FileSecrets struct {
-	Path string
-	mu   sync.Mutex
+	Path   string
+	Seal   func([]byte) ([]byte, error)
+	Unseal func([]byte) ([]byte, error)
+	mu     sync.Mutex
 }
 
 func (f *FileSecrets) load() (map[string]string, error) {
@@ -46,6 +50,11 @@ func (f *FileSecrets) load() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if f.Unseal != nil {
+		if b, err = f.Unseal(b); err != nil {
+			return nil, fmt.Errorf("%s: unseal: %w", f.Path, err)
+		}
+	}
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, fmt.Errorf("%s: %w", f.Path, err)
 	}
@@ -56,6 +65,11 @@ func (f *FileSecrets) save(m map[string]string) error {
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
+	}
+	if f.Seal != nil {
+		if b, err = f.Seal(b); err != nil {
+			return fmt.Errorf("%s: seal: %w", f.Path, err)
+		}
 	}
 	return WriteFileAtomic(f.Path, b, 0o600)
 }
