@@ -4,10 +4,15 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
-	"github.com/l3ony2k/twinnel/core/legacy"
 	"os"
 	"sort"
+	"strings"
+
+	"github.com/l3ony2k/twinnel/core/legacy"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 type command struct {
@@ -44,16 +49,36 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
-	if a := os.Args[1]; a == "--version" || a == "-version" || a == "-v" {
+	switch a := os.Args[1]; a {
+	case "--version", "-version", "-v":
 		os.Args[1] = "version"
+	case "help", "-h", "-help", "--help":
+		usage()
+		return
 	}
 	c, ok := commands[os.Args[1]]
 	if !ok {
+		fmt.Fprintf(os.Stderr, "twinnel: unknown command %q\n", os.Args[1])
 		usage()
 		os.Exit(2)
 	}
 	if err := c.run(os.Args[2:]); err != nil {
-		fmt.Fprintln(os.Stderr, "twinnel:", err)
+		if errors.Is(err, flag.ErrHelp) {
+			return // -h: the flag set printed the usage
+		}
+		fmt.Fprintln(os.Stderr, "twinnel:", errorText(err))
 		os.Exit(1)
 	}
+}
+
+// errorText is err for people: a helper error reads as its message, not
+// "rpc error -32003: …" (the JSON-RPC code says nothing to them; --json
+// output and MCP keep it).
+func errorText(err error) string {
+	msg := err.Error()
+	var re *rpc.Error
+	if errors.As(err, &re) && re.Message != "" {
+		msg = strings.Replace(msg, re.Error(), re.Message, 1)
+	}
+	return msg
 }

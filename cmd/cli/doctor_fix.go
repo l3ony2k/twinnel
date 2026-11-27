@@ -166,17 +166,19 @@ func printCheck(w io.Writer, rep *health.Report, _ string) {
 	fmt.Fprintf(w, "health: %s\n", rep.Overall)
 }
 
-// dialFixer connects to the helper, mihomo's controller (credentials from
-// the helper) and Tailscale's LocalAPI.
+// dialFixer connects to the helper, mihomo's controller (controllerFor:
+// the helper's credentials; TWINNEL_CONTROLLER pins it in development)
+// and Tailscale's LocalAPI.
 func dialFixer(ctx context.Context, socket, lang string) (*healthfix.Fixer, func(), error) {
 	c, err := dialHelper(ctx, socket)
 	if err != nil {
 		return nil, nil, err
 	}
 	f := &healthfix.Fixer{Helper: c, Lang: lang, Platform: runtime.GOOS}
-	var cr rpc.ControllerCredentials
-	if err := c.Call(ctx, rpc.MethodControllerCredentials, nil, &cr); err == nil && cr.Controller != "" {
-		if mc, err := mihomo.New(mihomo.Options{Address: cr.Controller, Secret: cr.Secret, AllowWrites: true, Timeout: 10 * time.Second}); err == nil {
+	// Without the helper's credentials (an older helper) no fix writes to
+	// mihomo: app.json's controller may not be the one the helper manages.
+	if t := controllerFor(ctx, socket, ""); t.Source != controllerFromApp {
+		if mc, err := mihomo.New(mihomo.Options{Address: t.Controller, Secret: t.Secret, AllowWrites: true, Timeout: 10 * time.Second}); err == nil {
 			f.Mihomo = healthfix.MihomoClient(mc)
 		}
 	}
