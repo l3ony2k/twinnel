@@ -5,7 +5,9 @@
 // Environment: DUET_CONTROLLER (default 127.0.0.1:9090), DUET_MIHOMO_SECRET,
 // DUET_ALLOW_WRITES=1 to enable the controls that change things,
 // DUET_SOCKET (the helper's socket, default /var/run/duet/helper.sock),
-// DUET_CLI (the duet command line tool, for the helper install plan).
+// DUET_CLI (the duet command line tool, for the helper install plan),
+// DUET_LANG=en|zh-Hans to show one UI language for this run without saving
+// it (screenshots; it overrides 设置 → 语言).
 package main
 
 import (
@@ -85,6 +87,7 @@ type app struct {
 	pend        pendingState               // optimistic control values and their errors (pending.go)
 	retry       busySpan                   // the unreachable states' 重试 press (states.go)
 	loadingSeen map[string][2]time.Time    // loadingBox: first and last frame per key
+	langShown   bool                       // applyLang ran once
 	shotNav     struct {                   // shot mode: force the sidebar's key/hover looks
 		active *bool
 		hover  string
@@ -118,6 +121,7 @@ func main() {
 	// renders native content itself; it needs no pixels on screen).
 	a.shotMode = os.Getenv("DUET_SHOTS") != ""
 
+	initLang()
 	mygo.App.SetName(i18n.T.AppName)
 	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
 	// The flyout and the main window come and go; the tray keeps the app.
@@ -129,6 +133,8 @@ func main() {
 }
 
 func (a *app) ready() {
+	a.applyLang()
+	mygo.App.OnLocaleChanged(func(string) { a.applyLang() }) // the system's languages changed
 	if a.shotMode {
 		a.startHelper()
 		a.start()
@@ -147,23 +153,18 @@ func (a *app) ready() {
 	if err != nil {
 		log.Fatal("tray: ", err)
 	}
-	menu := mygo.NewMenu([]*mygo.MenuItem{
-		{Label: i18n.T.OpenMainWindow, Click: func(*mygo.MenuItem, *mygo.Window) { a.openMain() }},
-		mygo.Separator(),
-		{Label: i18n.T.Quit, Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
-	})
 	if runtime.GOOS == "darwin" {
 		mygo.App.SetMenu(a.appMenu())
 	}
 	if runtime.GOOS == "linux" {
-		a.tray.SetMenu(menu)
+		a.tray.SetMenu(a.trayMenu())
 	} else {
 		a.tray.OnClick(a.togglePanel)
 		a.tray.OnRightClick(func() {
 			if a.panel != nil {
 				a.panel.Close()
 			}
-			a.tray.SetMenu(menu)
+			a.tray.SetMenu(a.trayMenu())
 			defer a.tray.SetMenu(nil)
 			a.tray.PopUpMenu()
 		})
@@ -315,7 +316,7 @@ func (a *app) do(fn func(ctx context.Context) error) {
 		mygo.RunOnMain(func() {
 			a.actionErr = ""
 			if err != nil {
-				a.actionErr = i18n.T.ErrorPrefix + status.ShortError(err)
+				a.actionErr = i18n.Cur().ErrorPrefix + status.ShortError(err)
 			}
 			a.invalidate()
 		})

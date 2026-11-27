@@ -62,7 +62,7 @@ func Rate(bps int64) string { return Bytes(bps) + "/s" }
 // Ago formats how long ago t was, in Chinese.
 func Ago(now, t time.Time) string {
 	d := now.Sub(t)
-	s := i18n.T
+	s := i18n.Cur()
 	switch {
 	case d < 10*time.Second:
 		return s.JustNow
@@ -80,18 +80,18 @@ func Ago(now, t time.Time) string {
 func Until(now, t time.Time) string {
 	d := t.Sub(now)
 	if d < 48*time.Hour {
-		return fmt.Sprintf(i18n.T.InHours, max(0, int(d/time.Hour)))
+		return fmt.Sprintf(i18n.Cur().InHours, max(0, int(d/time.Hour)))
 	}
-	return fmt.Sprintf(i18n.T.InDays, int(d/(24*time.Hour)))
+	return fmt.Sprintf(i18n.Cur().InDays, int(d/(24*time.Hour)))
 }
 
 // DelayText formats a delay in ms: "88 ms", "超时" for 0, "未测" when unknown.
 func DelayText(ms int, known bool) string {
 	switch {
 	case !known:
-		return i18n.T.DelayUnknown
+		return i18n.Cur().DelayUnknown
 	case ms <= 0:
-		return i18n.T.DelayTimeout
+		return i18n.Cur().DelayTimeout
 	}
 	return fmt.Sprintf("%d ms", ms)
 }

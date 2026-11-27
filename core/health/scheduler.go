@@ -91,6 +91,7 @@ type Scheduler struct {
 	subs    map[int]chan Event
 	nextSub int
 	running bool
+	lang    string // what runs are worded in (SetLang); "" for ctx's
 }
 
 // ErrSchedulerRunning is returned by Run when it is already running.
@@ -142,6 +143,30 @@ func (s *Scheduler) Subscribe(buf int) (<-chan Event, func()) {
 			close(ch)
 		})
 	}
+}
+
+// SetLang sets the language later runs are worded in (WithLang's tags);
+// "" changes nothing. When the last report is in another language, it
+// asks for a run (Trigger "lang"), so a client switching language gets a
+// report it can read without running the checks itself.
+func (s *Scheduler) SetLang(tag string) {
+	if s.UseLang(tag) {
+		s.Trigger("lang")
+	}
+}
+
+// UseLang sets the language without asking for a run (the caller runs
+// the checks itself) and reports whether the last report is in another
+// one.
+func (s *Scheduler) UseLang(tag string) bool {
+	if tag == "" {
+		return false
+	}
+	tag = LangOf(WithLang(context.Background(), tag))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lang = tag
+	return s.last != nil && s.last.Lang != tag
 }
 
 // Trigger asks for a run soon (after the debounce window). It never blocks.
@@ -272,6 +297,11 @@ func (s *Scheduler) runOnce(ctx context.Context, reason string) *Report {
 	if s.NewEnv != nil {
 		env = s.NewEnv()
 	}
+	s.mu.Lock()
+	if s.lang != "" {
+		ctx = WithLang(ctx, s.lang)
+	}
+	s.mu.Unlock()
 	rep := s.Runner.Run(ctx, env)
 	if ctx.Err() != nil {
 		// Cancelled mid-run: the results are timeouts, not facts.

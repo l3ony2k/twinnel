@@ -64,7 +64,7 @@ func TestHealthRPC(t *testing.T) {
 	h := newHarness(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if _, err := h.e.HealthLast(); err == nil {
+	if _, err := h.e.HealthLast(""); err == nil {
 		t.Error("health.last without a scheduler should fail")
 	}
 	chk, _ := newHealth(h)

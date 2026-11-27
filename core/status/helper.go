@@ -26,7 +26,7 @@ const (
 
 // Text returns the label of the state.
 func (s HelperState) Text() string {
-	T := i18n.T
+	T := i18n.Cur()
 	switch s {
 	case HelperNotInstalled:
 		return T.HelperNotInstalled
@@ -60,7 +60,12 @@ func (m *Monitor) SetHelper(h Helper) {
 
 // ErrHelperNotConnected is returned by HelperConn.Call while there is no
 // connection.
-var ErrHelperNotConnected = errors.New(i18n.T.HelperNotConnectedErr)
+// Its text is in the UI language at the time it is printed.
+var ErrHelperNotConnected error = errNotConnected{}
+
+type errNotConnected struct{}
+
+func (errNotConnected) Error() string { return i18n.Cur().HelperNotConnectedErr }
 
 // HelperDialer opens a client connection; rpc.Dial with the unix
 // transport in the app, a fake in tests.

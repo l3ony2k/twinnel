@@ -34,13 +34,13 @@ func TestSystemDNSSourceLabels(t *testing.T) {
 		dns   []string
 		label string
 	}{
-		{"", []string{"127.0.0.1"}, labelManual},
-		{"", nil, labelDHCP},
-		{DNSSourceManual, []string{"127.0.0.1"}, labelManual},
-		{DNSSourceAuto, []string{"127.0.0.1"}, labelDHCP},
-		{DNSSourceMixed, []string{"127.0.0.1"}, labelMixed},
-		{DNSSourceUnknown, []string{"127.0.0.1"}, labelLinkDNS},
-		{DNSSourceGlobal, nil, labelGlobalDNS},
+		{"", []string{"127.0.0.1"}, zhTexts.labelManual},
+		{"", nil, zhTexts.labelDHCP},
+		{DNSSourceManual, []string{"127.0.0.1"}, zhTexts.labelManual},
+		{DNSSourceAuto, []string{"127.0.0.1"}, zhTexts.labelDHCP},
+		{DNSSourceMixed, []string{"127.0.0.1"}, zhTexts.labelMixed},
+		{DNSSourceUnknown, []string{"127.0.0.1"}, zhTexts.labelLinkDNS},
+		{DNSSourceGlobal, nil, zhTexts.labelGlobalDNS},
 	}
 	for _, c := range cases {
 		e := healthyEnv()

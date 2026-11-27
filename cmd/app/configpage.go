@@ -247,7 +247,7 @@ func (a *app) pickSubscriptionFile() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent:  parent,
-			Title:   i18n.T.SubImportFile,
+			Title:   i18n.Cur().SubImportFile,
 			Filters: []mygo.FileFilter{{Name: "YAML", Extensions: []string{"yaml", "yml"}}},
 		})
 		if err != nil || len(paths) == 0 {
@@ -257,7 +257,7 @@ func (a *app) pickSubscriptionFile() {
 		mygo.RunOnMain(func() {
 			v := &a.hd.cfg
 			if err != nil {
-				a.hd.msg, a.hd.msgErr = i18n.T.ErrorPrefix+err.Error(), true
+				a.hd.msg, a.hd.msgErr = i18n.Cur().ErrorPrefix+err.Error(), true
 				return
 			}
 			v.subFile, v.subContent = filepath.Base(paths[0]), string(b)
@@ -638,7 +638,7 @@ func (a *app) loadLayerContent(id string) {
 			}
 			v.loading = false
 			if err != nil {
-				a.hd.msg, a.hd.msgErr = i18n.T.ErrorPrefix+helperError(err), true
+				a.hd.msg, a.hd.msgErr = i18n.Cur().ErrorPrefix+helperError(err), true
 				a.invalidate()
 				return
 			}
@@ -949,7 +949,7 @@ func impactRow(c *ui.Context, im *rpc.ReloadImpact) {
 				ui.Text(c, text).TextColor(map[bool]ui.Color{true: col, false: t.Text}[im.Disruptive]).Wrap().LineHeight(lineText)
 			})
 			if len(im.RestartNeeded) > 0 {
-				small(c, T.ImpactRestart+"："+strings.Join(im.RestartNeeded, "、")).Wrap().LineHeight(lineText)
+				small(c, T.ImpactRestart+T.LabelSep+strings.Join(im.RestartNeeded, T.ListSep)).Wrap().LineHeight(lineText)
 			}
 			if im.Disruptive {
 				for _, n := range im.Notes {
@@ -1094,7 +1094,7 @@ func diffSeparator(c *ui.Context, sep ui.Element, s *editor.DiffSeparator) {
 				chevron(-1, T.DiffExpandUp, s.ExpandUp)
 			}
 			label := i18n.F(T.DiffUnchanged, s.Lines)
-			b := ui.ButtonBase(c).Key("all").Padding(2, 4).Radius(4).Label(T.DiffExpandAll + "：" + label)
+			b := ui.ButtonBase(c).Key("all").Padding(2, 4).Radius(4).Label(T.DiffExpandAll + T.LabelSep + label)
 			b.Children(func() { ui.Text(c, label).FontSize(plat.smallSize).TextColor(t.TextMuted) })
 			if b.Clicked() {
 				s.ExpandAll()

@@ -174,7 +174,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport) {
 	icon, col, _ := healthStatusLook(t, cr.Status)
 	_, _, stateText := healthStatusLook(t, cr.Status)
 	ui.Column(c).PaddingY(10).Gap(8).Clip().Transition(expandFor(open)).Children(func() {
-		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).MinHeight(20).Label(stateText + "：" + cr.Title)
+		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).MinHeight(20).Label(stateText + T.LabelSep + cr.Title)
 		head.ContextMenu(func(m *ui.Menu) {
 			if m.Item(T.HealthCopySummary).Chosen() {
 				copyText(c, checkText(cr))
@@ -381,7 +381,7 @@ func checkText(cr health.CheckReport) string {
 	T := i18n.T
 	_, _, st := healthStatusLook(&ui.Theme{}, cr.Status)
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s：%s\n%s\n", st, cr.Title, cr.Summary)
+	fmt.Fprintf(&b, "%s%s%s\n%s\n", st, T.LabelSep, cr.Title, cr.Summary)
 	if len(cr.Evidence) > 0 {
 		fmt.Fprintf(&b, "\n%s\n%s\n", T.HealthEvidence, strings.Join(cr.Evidence, "\n"))
 	}

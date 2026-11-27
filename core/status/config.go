@@ -21,6 +21,9 @@ type Config struct {
 	MihomoConfigDir string `json:"mihomoConfigDir,omitempty"`
 	// NotificationsOff turns desktop notifications off (on by default).
 	NotificationsOff bool `json:"notificationsOff,omitempty"`
+	// Language is the UI language (a core/i18n tag such as "en"); ""
+	// follows the system's preferred languages.
+	Language string `json:"language,omitempty"`
 
 	// From the environment only, never saved.
 	AllowWrites   bool `json:"-"`

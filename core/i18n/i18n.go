@@ -1,6 +1,7 @@
-// Package i18n holds every UI string of the app. Chinese is the only
-// language for now; add a language by filling another Strings value and
-// returning it from For.
+// Package i18n holds every UI string of the app, one Strings table per
+// language (lang.go lists them). Chinese, below, is the reference; en.go
+// is English. Add a language by writing its table and listing it in
+// langs.
 package i18n
 
 import "fmt"
@@ -788,12 +789,6 @@ var zh = Strings{
 	AboutStrings:    zhAbout,
 	TakeoverStrings: zhTakeover,
 }
-
-// For returns the strings of a language tag; unknown tags get Chinese.
-func For(lang string) *Strings { return &zh }
-
-// T is the current language's strings.
-var T = For("zh")
 
 // F formats one of the strings.
 func F(format string, args ...any) string { return fmt.Sprintf(format, args...) }

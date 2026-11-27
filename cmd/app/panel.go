@@ -41,12 +41,15 @@ func (a *app) panelView(c *ui.Context) {
 	sep := func() { ui.Box(c).Height(1).Background(pal(t).separator).MarginY(2) }
 	box.Padding(plat.panelPad).Gap(gapRow).Children(func() {
 		// Overall state and the live rates.
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			stateDot(c, levelMark(s.Level), levelColor(t, s.Level), 10)
-			ui.Text(c, s.Level.Text()).FontSize(plat.leadSize).FontWeight(600)
-			ui.Spacer(c)
+		// Each stays whole; the rates move under the headline when a
+		// language's headline leaves them no room.
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Grow(1).Children(func() {
+				stateDot(c, levelMark(s.Level), levelColor(t, s.Level), 10)
+				ui.Text(c, s.Level.Text()).FontSize(plat.leadSize).FontWeight(600).NoWrap()
+			})
 			if s.Mihomo.Reachable {
-				num(small(c, "↓ "+status.Rate(s.Mihomo.Traffic.Down)+"   ↑ "+status.Rate(s.Mihomo.Traffic.Up)))
+				num(small(c, "↓ "+status.Rate(s.Mihomo.Traffic.Down)+"   ↑ "+status.Rate(s.Mihomo.Traffic.Up))).NoWrap()
 			}
 		})
 		reasons := s.Reasons

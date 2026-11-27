@@ -25,36 +25,39 @@ func DefaultRegistry() *Registry {
 
 // tunConfig returns the TUN settings, preferring the running mihomo.
 func tunConfig(ctx context.Context, env Env) (TUNConfig, string, error) {
+	L := tx(ctx)
 	if rt, err := env.MihomoRuntime(ctx); err == nil {
-		return rt.Configs.TUN, srcRuntime, nil
+		return rt.Configs.TUN, L.srcRuntime, nil
 	}
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
 		return TUNConfig{}, "", err
 	}
-	return cfg.TUN, srcFile, nil
+	return cfg.TUN, L.srcFile, nil
 }
 
 // mihomoRules returns the rules, preferring the running mihomo.
 func mihomoRules(ctx context.Context, env Env) ([]MihomoRule, string, error) {
+	L := tx(ctx)
 	if rt, err := env.MihomoRuntime(ctx); err == nil && len(rt.Rules) > 0 {
-		return rt.Rules, srcRuntime, nil
+		return rt.Rules, L.srcRuntime, nil
 	}
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
 		return nil, "", err
 	}
-	return cfg.Rules, srcFile, nil
+	return cfg.Rules, L.srcFile, nil
 }
 
 func runningTailscale(ctx context.Context, env Env) (*TailscaleStatus, *Result) {
+	L := tx(ctx)
 	ts, err := env.Tailscale(ctx)
 	if err != nil {
-		r := skip(msgTSUnavailable, err)
+		r := skip(L.msgTSUnavailable, err)
 		return nil, &r
 	}
 	if ts.BackendState != "Running" {
-		r := skip(msgTSNotRunning, ts.BackendState)
+		r := skip(L.msgTSNotRunning, ts.BackendState)
 		return nil, &r
 	}
 	return ts, nil
@@ -65,18 +68,20 @@ func runningTailscale(ctx context.Context, env Env) (*TailscaleStatus, *Result) 
 // TailnetRoute: tailnet traffic is routed to Tailscale's tun, not mihomo's.
 type TailnetRoute struct{}
 
-func (TailnetRoute) ID() string          { return "tailnet-route" }
-func (TailnetRoute) Title() string       { return titleTailnetRoute }
-func (TailnetRoute) Platforms() []string { return AllPlatforms }
+func (TailnetRoute) ID() string            { return "tailnet-route" }
+func (c TailnetRoute) Title() string       { return c.title(&zhTexts) }
+func (TailnetRoute) title(L *texts) string { return L.titleTailnetRoute }
+func (TailnetRoute) Platforms() []string   { return AllPlatforms }
 
 func (TailnetRoute) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	ts, r := runningTailscale(ctx, env)
 	if r != nil {
 		return *r
 	}
 	ifs, err := env.Interfaces(ctx)
 	if err != nil {
-		return Result{Status: StatusFail, Summary: fmt.Sprintf(msgReadFailed, "interfaces", err)}
+		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "interfaces", err)}
 	}
 	tsIf := ""
 	for _, a := range ts.TailscaleIPs {
@@ -86,9 +91,9 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 	}
 	if tsIf == "" {
 		if !ts.TUN {
-			return skip(msgTSUserspace)
+			return skipText(L.msgTSUserspace)
 		}
-		return Result{Status: StatusFail, Summary: msgTSNoIface}
+		return Result{Status: StatusFail, Summary: L.msgTSNoIface}
 	}
 	mihomoIf := ""
 	if t, _, err := tunConfig(ctx, env); err == nil && t.Enable {
@@ -115,8 +120,8 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 		}
 	}
 
-	res := Result{Status: StatusOK, Summary: fmt.Sprintf(msgRouteOK, tsIf)}
-	res.Evidence = append(res.Evidence, fmt.Sprintf(evTSIface, tsIf, mihomoIfLabel(mihomoIf)))
+	res := Result{Status: StatusOK, Summary: fmt.Sprintf(L.msgRouteOK, tsIf)}
+	res.Evidence = append(res.Evidence, fmt.Sprintf(L.evTSIface, tsIf, mihomoIfLabel(mihomoIf)))
 	var bad []string
 	for _, d := range dests {
 		rl, err := env.RouteGet(ctx, d.String())
@@ -132,10 +137,10 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 		switch {
 		case rl.Interface == tsIf:
 		case mihomoIf != "" && rl.Interface == mihomoIf:
-			line += "  ← " + evIntoMihomo
+			line += "  ← " + L.evIntoMihomo
 			bad = append(bad, d.String())
 		default:
-			line += "  ← " + evNotTS
+			line += "  ← " + L.evNotTS
 			bad = append(bad, d.String())
 		}
 		res.Evidence = append(res.Evidence, line)
@@ -143,14 +148,14 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 	if routes, err := env.Routes(ctx); err == nil {
 		for _, rt := range routes {
 			if rt.Interface == tsIf && (rt.Destination == "100.64/10" || rt.Destination == "100.64.0.0/10" || strings.HasPrefix(rt.Destination, "fd7a:115c:a1e0::/48")) {
-				res.Evidence = append(res.Evidence, fmt.Sprintf(evRouteEntry, rt.Destination, rt.Interface))
+				res.Evidence = append(res.Evidence, fmt.Sprintf(L.evRouteEntry, rt.Destination, rt.Interface))
 			}
 		}
 	}
 	if len(bad) > 0 {
 		res.Status = StatusFail
-		res.Summary = fmt.Sprintf(msgRouteBad, strings.Join(bad, ", "))
-		res.Fix = &FixHint{Text: fixRouteBad, AutoFix: "tailscale-coexist-override"}
+		res.Summary = fmt.Sprintf(L.msgRouteBad, strings.Join(bad, ", "))
+		res.Fix = &FixHint{Text: L.fixRouteBad, AutoFix: "tailscale-coexist-override"}
 	}
 	return res
 }
@@ -167,32 +172,34 @@ func mihomoIfLabel(s string) string {
 // TUNExclude: mihomo's TUN route-exclude-address covers the tailnet ranges.
 type TUNExclude struct{}
 
-func (TUNExclude) ID() string          { return "tun-route-exclude" }
-func (TUNExclude) Title() string       { return titleTUNExclude }
-func (TUNExclude) Platforms() []string { return AllPlatforms }
+func (TUNExclude) ID() string            { return "tun-route-exclude" }
+func (c TUNExclude) Title() string       { return c.title(&zhTexts) }
+func (TUNExclude) title(L *texts) string { return L.titleTUNExclude }
+func (TUNExclude) Platforms() []string   { return AllPlatforms }
 
 func (TUNExclude) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	t, src, err := tunConfig(ctx, env)
 	if err != nil {
-		return skip(msgMihomoUnavailable, err)
+		return skip(L.msgMihomoUnavailable, err)
 	}
 	if !t.Enable {
-		return skip(msgTUNOff)
+		return skipText(L.msgTUNOff)
 	}
-	res := Result{Status: StatusOK, Summary: msgExcludeOK}
-	res.Evidence = append(res.Evidence, fmt.Sprintf(evExcludeList, src, strings.Join(t.RouteExcludeAddress, ", ")))
+	res := Result{Status: StatusOK, Summary: L.msgExcludeOK}
+	res.Evidence = append(res.Evidence, fmt.Sprintf(L.evExcludeList, src, strings.Join(t.RouteExcludeAddress, ", ")))
 	var missing []string
 	for _, want := range []netip.Prefix{TailnetV4, TailnetV6} {
 		if by, ok := covers(t.RouteExcludeAddress, want); ok {
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evCoveredBy, want, by))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evCoveredBy, want, by))
 		} else {
 			missing = append(missing, want.String())
 		}
 	}
 	if len(missing) > 0 {
 		res.Status = StatusFail
-		res.Summary = fmt.Sprintf(msgExcludeMissing, strings.Join(missing, ", "))
-		res.Fix = &FixHint{Text: fixExclude, AutoFix: "tailscale-coexist-override"}
+		res.Summary = fmt.Sprintf(L.msgExcludeMissing, strings.Join(missing, ", "))
+		res.Fix = &FixHint{Text: L.fixExclude, AutoFix: "tailscale-coexist-override"}
 	}
 	return res
 }
@@ -203,33 +210,35 @@ func (TUNExclude) Run(ctx context.Context, env Env) Result {
 // before any proxy rule.
 type TailscaleRules struct{}
 
-func (TailscaleRules) ID() string          { return "tailscale-direct-rules" }
-func (TailscaleRules) Title() string       { return titleTailscaleRules }
-func (TailscaleRules) Platforms() []string { return AllPlatforms }
+func (TailscaleRules) ID() string            { return "tailscale-direct-rules" }
+func (c TailscaleRules) Title() string       { return c.title(&zhTexts) }
+func (TailscaleRules) title(L *texts) string { return L.titleTailscaleRules }
+func (TailscaleRules) Platforms() []string   { return AllPlatforms }
 
 func (TailscaleRules) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	rules, src, err := mihomoRules(ctx, env)
 	if err != nil {
-		return skip(msgMihomoUnavailable, err)
+		return skip(L.msgMihomoUnavailable, err)
 	}
 	// Rules only apply in rule mode: global sends everything to GLOBAL,
 	// direct sends everything DIRECT.
 	if rt, err := env.MihomoRuntime(ctx); err == nil {
 		switch strings.ToLower(rt.Configs.Mode) {
 		case "direct":
-			return Result{Status: StatusOK, Summary: msgRulesDirect}
+			return Result{Status: StatusOK, Summary: L.msgRulesDirect}
 		case "global":
 			ch := followNow(rt.Proxies, "GLOBAL")
 			final := ch[len(ch)-1]
 			if final != "DIRECT" {
-				return Result{Status: StatusFail, Summary: fmt.Sprintf(msgRulesGlobal, final),
-					Evidence: []string{strings.Join(ch, " → ")}, Fix: &FixHint{Text: fixRulesGlobal}}
+				return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgRulesGlobal, final),
+					Evidence: []string{strings.Join(ch, " → ")}, Fix: &FixHint{Text: L.fixRulesGlobal}}
 			}
-			return Result{Status: StatusOK, Summary: msgRulesDirect, Evidence: []string{strings.Join(ch, " → ")}}
+			return Result{Status: StatusOK, Summary: L.msgRulesDirect, Evidence: []string{strings.Join(ch, " → ")}}
 		}
 	}
 	if len(rules) == 0 {
-		return skip(msgNoRules)
+		return skipText(L.msgNoRules)
 	}
 	probes := []probe{
 		{process: "tailscaled"},
@@ -239,20 +248,20 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 		{ip: netip.MustParseAddr("100.100.100.100")},
 		{ip: netip.MustParseAddr("fd7a:115c:a1e0::53")},
 	}
-	res := Result{Status: StatusOK, Summary: msgRulesOK}
-	res.Evidence = append(res.Evidence, fmt.Sprintf(evRuleCount, src, len(rules)))
+	res := Result{Status: StatusOK, Summary: L.msgRulesOK}
+	res.Evidence = append(res.Evidence, fmt.Sprintf(L.evRuleCount, src, len(rules)))
 	var bad, risky []string
 	for _, p := range probes {
 		first, shadow := evalRules(rules, p)
 		switch {
 		case first == nil:
-			res.Evidence = append(res.Evidence, fmt.Sprintf("%s → %s", p, evNoMatch))
+			res.Evidence = append(res.Evidence, fmt.Sprintf("%s → %s", p, L.evNoMatch))
 			bad = append(bad, p.String())
 		case first.Target != "DIRECT":
-			res.Evidence = append(res.Evidence, fmt.Sprintf("%s → %s  ← %s", p, ruleString(*first), evNotDirect))
+			res.Evidence = append(res.Evidence, fmt.Sprintf("%s → %s  ← %s", p, ruleString(*first), L.evNotDirect))
 			bad = append(bad, p.String())
 		case len(shadow) > 0:
-			res.Evidence = append(res.Evidence, fmt.Sprintf("%s → %s  ← "+evShadowed, p, ruleString(*first), ruleString(shadow[0])))
+			res.Evidence = append(res.Evidence, fmt.Sprintf("%s → %s  ← "+L.evShadowed, p, ruleString(*first), ruleString(shadow[0])))
 			risky = append(risky, p.String())
 		default:
 			res.Evidence = append(res.Evidence, fmt.Sprintf("%s → %s", p, ruleString(*first)))
@@ -261,12 +270,12 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 	switch {
 	case len(bad) > 0:
 		res.Status = StatusFail
-		res.Summary = fmt.Sprintf(msgRulesBad, strings.Join(bad, ", "))
-		res.Fix = &FixHint{Text: fixRules, AutoFix: "tailscale-coexist-override"}
+		res.Summary = fmt.Sprintf(L.msgRulesBad, strings.Join(bad, ", "))
+		res.Fix = &FixHint{Text: L.fixRules, AutoFix: "tailscale-coexist-override"}
 	case len(risky) > 0:
 		res.Status = StatusWarn
-		res.Summary = fmt.Sprintf(msgRulesRisky, strings.Join(risky, ", "))
-		res.Fix = &FixHint{Text: fixRules, AutoFix: "tailscale-coexist-override"}
+		res.Summary = fmt.Sprintf(L.msgRulesRisky, strings.Join(risky, ", "))
+		res.Fix = &FixHint{Text: L.fixRules, AutoFix: "tailscale-coexist-override"}
 	}
 	return res
 }
@@ -277,17 +286,19 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 // both the system resolver and mihomo's DNS.
 type MagicDNS struct{}
 
-func (MagicDNS) ID() string          { return "magicdns" }
-func (MagicDNS) Title() string       { return titleMagicDNS }
-func (MagicDNS) Platforms() []string { return AllPlatforms }
+func (MagicDNS) ID() string            { return "magicdns" }
+func (c MagicDNS) Title() string       { return c.title(&zhTexts) }
+func (MagicDNS) title(L *texts) string { return L.titleMagicDNS }
+func (MagicDNS) Platforms() []string   { return AllPlatforms }
 
 func (MagicDNS) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	ts, r := runningTailscale(ctx, env)
 	if r != nil {
 		return *r
 	}
 	if !ts.MagicDNS {
-		return skip(msgMagicDNSOff)
+		return skipText(L.msgMagicDNSOff)
 	}
 	cfg, _ := env.MihomoConfig(ctx)
 	fake := fakeIPRange(cfg)
@@ -326,39 +337,39 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 	}
 	wg.Wait()
 
-	res := Result{Status: StatusOK, Summary: msgMagicOK}
+	res := Result{Status: StatusOK, Summary: L.msgMagicOK}
 	var sysFail, mihomoFake, mihomoNoAnswer []string
 	for i, nm := range names {
 		sys, err := found[i].sys, found[i].sysErr
 		switch {
 		case err != nil:
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evSys, nm.n, err.Error()))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evSys, nm.n, err.Error()))
 			sysFail = append(sysFail, nm.n)
 		case anyIn(sys.Addrs, fake):
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evSys, nm.n, addrs(sys)+"  ← fake-ip"))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evSys, nm.n, addrs(L, sys)+"  ← fake-ip"))
 			sysFail = append(sysFail, nm.n)
 		case !anyTailnet(sys.Addrs):
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evSys, nm.n, addrs(sys)+"  ← "+evNotTailnet))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evSys, nm.n, addrs(L, sys)+"  ← "+L.evNotTailnet))
 			sysFail = append(sysFail, nm.n)
 		default:
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evSys, nm.n, addrs(sys)))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evSys, nm.n, addrs(L, sys)))
 		}
 		mh, err := found[i].mh, found[i].mhErr
 		switch {
 		case errors.Is(err, ErrDNSTimeout):
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evMihomo, nm.n, evDNSTimeout))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evMihomo, nm.n, L.evDNSTimeout))
 			mihomoNoAnswer = append(mihomoNoAnswer, nm.n)
 		case err != nil:
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evMihomo, nm.n, err.Error()))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evMihomo, nm.n, err.Error()))
 			mihomoNoAnswer = append(mihomoNoAnswer, nm.n)
 		case anyIn(mh.Addrs, fake):
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evMihomo, nm.n, addrs(mh)+"  ← fake-ip"))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evMihomo, nm.n, addrs(L, mh)+"  ← fake-ip"))
 			mihomoFake = append(mihomoFake, nm.n)
 		case !anyTailnet(mh.Addrs):
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evMihomo, nm.n, addrs(mh)))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evMihomo, nm.n, addrs(L, mh)))
 			mihomoNoAnswer = append(mihomoNoAnswer, nm.n)
 		default:
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evMihomo, nm.n, addrs(mh)))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evMihomo, nm.n, addrs(L, mh)))
 		}
 	}
 
@@ -383,7 +394,7 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 				reverse++
 			}
 		}
-		res.Evidence = append(res.Evidence, fmt.Sprintf(evResolverCfg, ts.MagicDNSSuffix, yesNo(suffixOK), reverse))
+		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evResolverCfg, ts.MagicDNSSuffix, yesNo(L, suffixOK), reverse))
 		if !suffixOK {
 			sysFail = append(sysFail, ts.MagicDNSSuffix+" resolver")
 		}
@@ -391,7 +402,7 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 	if cfg != nil {
 		for _, k := range []string{"+." + strings.Trim(ts.MagicDNSSuffix, "."), "+.ts.net", "*"} {
 			if pol, ok := cfg.DNS.NameserverPolicy[k]; ok {
-				res.Evidence = append(res.Evidence, fmt.Sprintf(evPolicy, k, strings.Join(pol, ", ")))
+				res.Evidence = append(res.Evidence, fmt.Sprintf(L.evPolicy, k, strings.Join(pol, ", ")))
 			}
 		}
 	}
@@ -399,26 +410,26 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 	switch {
 	case len(sysFail) > 0:
 		res.Status = StatusFail
-		res.Summary = fmt.Sprintf(msgMagicSysFail, strings.Join(uniq(sysFail), ", "))
-		res.Fix = &FixHint{Text: fixMagicSys}
+		res.Summary = fmt.Sprintf(L.msgMagicSysFail, strings.Join(uniq(sysFail), ", "))
+		res.Fix = &FixHint{Text: L.fixMagicSys}
 	case len(mihomoFake) > 0 || len(mihomoNoAnswer) > 0:
 		res.Status = StatusWarn
 		var parts []string
 		if len(mihomoFake) > 0 {
-			parts = append(parts, fmt.Sprintf(msgMagicMihomoFake, strings.Join(mihomoFake, ", ")))
+			parts = append(parts, fmt.Sprintf(L.msgMagicMihomoFake, strings.Join(mihomoFake, ", ")))
 		}
 		if len(mihomoNoAnswer) > 0 {
-			parts = append(parts, fmt.Sprintf(msgMagicMihomoNone, strings.Join(mihomoNoAnswer, ", ")))
+			parts = append(parts, fmt.Sprintf(L.msgMagicMihomoNone, strings.Join(mihomoNoAnswer, ", ")))
 		}
 		res.Summary = strings.Join(parts, "；")
-		fix := fixMagicMihomo
+		fix := L.fixMagicMihomo
 		if cfg != nil {
 			pol := cfg.DNS.NameserverPolicy["+."+strings.Trim(ts.MagicDNSSuffix, ".")]
 			if len(pol) == 0 {
 				pol = cfg.DNS.NameserverPolicy["+.ts.net"]
 			}
 			if len(pol) == 1 && pol[0] == "system" {
-				fix = fixMagicSystemLoop + fix
+				fix = L.fixMagicSystemLoop + fix
 			}
 		}
 		res.Fix = &FixHint{Text: fix, AutoFix: "tailscale-coexist-override"}
@@ -444,12 +455,12 @@ func anyTailnet(as []netip.Addr) bool {
 	return false
 }
 
-func addrs(a DNSAnswer) string {
+func addrs(L *texts, a DNSAnswer) string {
 	if len(a.Addrs) == 0 {
 		if a.Rcode == "" {
-			return evEmpty
+			return L.evEmpty
 		}
-		return a.Rcode + " " + evEmpty
+		return a.Rcode + " " + L.evEmpty
 	}
 	var s []string
 	for _, x := range a.Addrs {
@@ -458,11 +469,11 @@ func addrs(a DNSAnswer) string {
 	return strings.Join(s, ", ")
 }
 
-func yesNo(b bool) string {
+func yesNo(L *texts, b bool) string {
 	if b {
-		return labelYes
+		return L.labelYes
 	}
-	return labelNo
+	return L.labelNo
 }
 
 // ---------------------------------------------------------------------------
@@ -470,18 +481,20 @@ func yesNo(b bool) string {
 // PeerNames: tailnet short names written in rules match current peers.
 type PeerNames struct{}
 
-func (PeerNames) ID() string          { return "peer-short-names" }
-func (PeerNames) Title() string       { return titlePeerNames }
-func (PeerNames) Platforms() []string { return AllPlatforms }
+func (PeerNames) ID() string            { return "peer-short-names" }
+func (c PeerNames) Title() string       { return c.title(&zhTexts) }
+func (PeerNames) title(L *texts) string { return L.titlePeerNames }
+func (PeerNames) Platforms() []string   { return AllPlatforms }
 
 func (PeerNames) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	ts, r := runningTailscale(ctx, env)
 	if r != nil {
 		return *r
 	}
 	rules, src, err := mihomoRules(ctx, env)
 	if err != nil {
-		return skip(msgMihomoUnavailable, err)
+		return skip(L.msgMihomoUnavailable, err)
 	}
 	inRules := map[string]bool{}
 	for _, ru := range rules {
@@ -508,27 +521,27 @@ func (PeerNames) Run(ctx context.Context, env Env) Result {
 	}
 	sort.Strings(missing)
 	sort.Strings(stale)
-	res := Result{Status: StatusOK, Summary: fmt.Sprintf(msgNamesOK, len(peers))}
+	res := Result{Status: StatusOK, Summary: fmt.Sprintf(L.msgNamesOK, len(peers))}
 	res.Evidence = append(res.Evidence,
-		fmt.Sprintf(evNamesPeers, strings.Join(sortedKeys(peers), ", ")),
-		fmt.Sprintf(evNamesRules, src, strings.Join(sortedKeys(inRules), ", ")))
+		fmt.Sprintf(L.evNamesPeers, strings.Join(sortedKeys(peers), ", ")),
+		fmt.Sprintf(L.evNamesRules, src, strings.Join(sortedKeys(inRules), ", ")))
 	if len(inRules) == 0 {
 		res.Status = StatusWarn
-		res.Summary = msgNamesNone
-		res.Fix = &FixHint{Text: fixNames, AutoFix: "tailscale-coexist-override"}
+		res.Summary = L.msgNamesNone
+		res.Fix = &FixHint{Text: L.fixNames, AutoFix: "tailscale-coexist-override"}
 		return res
 	}
 	if len(missing) > 0 || len(stale) > 0 {
 		res.Status = StatusWarn
 		var parts []string
 		if len(missing) > 0 {
-			parts = append(parts, fmt.Sprintf(msgNamesMissing, strings.Join(missing, ", ")))
+			parts = append(parts, fmt.Sprintf(L.msgNamesMissing, strings.Join(missing, ", ")))
 		}
 		if len(stale) > 0 {
-			parts = append(parts, fmt.Sprintf(msgNamesStale, strings.Join(stale, ", ")))
+			parts = append(parts, fmt.Sprintf(L.msgNamesStale, strings.Join(stale, ", ")))
 		}
 		res.Summary = strings.Join(parts, "；")
-		res.Fix = &FixHint{Text: fixNames, AutoFix: "tailscale-coexist-override"}
+		res.Fix = &FixHint{Text: L.fixNames, AutoFix: "tailscale-coexist-override"}
 	}
 	return res
 }
@@ -547,17 +560,19 @@ func sortedKeys(m map[string]bool) []string {
 // SystemDNS: every active network service resolves through mihomo.
 type SystemDNS struct{}
 
-func (SystemDNS) ID() string          { return "system-dns" }
-func (SystemDNS) Title() string       { return titleSystemDNS }
-func (SystemDNS) Platforms() []string { return AllPlatforms }
+func (SystemDNS) ID() string            { return "system-dns" }
+func (c SystemDNS) Title() string       { return c.title(&zhTexts) }
+func (SystemDNS) title(L *texts) string { return L.titleSystemDNS }
+func (SystemDNS) Platforms() []string   { return AllPlatforms }
 
 func (SystemDNS) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skip(msgMihomoUnavailable, err)
+		return skip(L.msgMihomoUnavailable, err)
 	}
 	if !cfg.DNS.Enable {
-		return skip(msgMihomoDNSOff)
+		return skipText(L.msgMihomoDNSOff)
 	}
 	listen := hostOf(cfg.DNS.Listen)
 	want := map[string]bool{listen: true}
@@ -569,7 +584,7 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 
 	svcs, err := env.NetworkServices(ctx)
 	if err != nil {
-		return Result{Status: StatusFail, Summary: fmt.Sprintf(msgReadFailed, "network services", err)}
+		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "network services", err)}
 	}
 	ifs, _ := env.Interfaces(ctx)
 	active := map[string]bool{}
@@ -594,9 +609,9 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 		}
 	}
 
-	res := Result{Status: StatusOK, Summary: fmt.Sprintf(msgDNSOK, cfg.DNS.Listen)}
+	res := Result{Status: StatusOK, Summary: fmt.Sprintf(L.msgDNSOK, cfg.DNS.Listen)}
 	if strings.TrimSpace(cfg.DNS.Listen) == "" {
-		res.Summary = msgDNSOKNoListen
+		res.Summary = L.msgDNSOKNoListen
 	}
 	var bad, viaHijack []string
 	nActive := 0
@@ -605,11 +620,11 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 			continue // VPN services are covered by vpn-conflict
 		}
 		if !s.Enabled || !active[s.Device] {
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evSvcInactive, s.Name, s.Device))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evSvcInactive, s.Name, s.Device))
 			continue
 		}
 		nActive++
-		servers, how := s.DNS, dnsSourceLabel(s)
+		servers, how := s.DNS, dnsSourceLabel(L, s)
 		if len(servers) == 0 {
 			servers = defaultNS
 		}
@@ -619,7 +634,7 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 				ok = false
 			}
 		}
-		line := fmt.Sprintf(evSvc, s.Name, s.Device, strings.Join(servers, ", "), how)
+		line := fmt.Sprintf(L.evSvc, s.Name, s.Device, strings.Join(servers, ", "), how)
 		if ok {
 			res.Evidence = append(res.Evidence, line)
 			continue
@@ -633,62 +648,62 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 			}
 		}
 		if hijack && !excluded {
-			res.Evidence = append(res.Evidence, line+"  ← "+evHijackCovers)
+			res.Evidence = append(res.Evidence, line+"  ← "+L.evHijackCovers)
 			viaHijack = append(viaHijack, s.Name)
 		} else {
 			if excluded {
-				line += "  ← " + evExcludedDNS
+				line += "  ← " + L.evExcludedDNS
 			}
 			res.Evidence = append(res.Evidence, line)
 			bad = append(bad, s.Name)
 		}
 	}
 	if len(defaultNS) > 0 {
-		res.Evidence = append(res.Evidence, fmt.Sprintf(evDefaultResolver, strings.Join(defaultNS, ", ")))
+		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evDefaultResolver, strings.Join(defaultNS, ", ")))
 	}
 	switch {
 	case len(bad) > 0:
 		res.Status = StatusFail
-		res.Summary = fmt.Sprintf(msgDNSBad, strings.Join(bad, ", "))
-		res.Fix = &FixHint{Text: dnsFixText(env.Platform(), listen), AutoFix: "system-dns"}
+		res.Summary = fmt.Sprintf(L.msgDNSBad, strings.Join(bad, ", "))
+		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: "system-dns"}
 	case len(viaHijack) > 0:
 		res.Status = StatusWarn
-		res.Summary = fmt.Sprintf(msgDNSHijack, strings.Join(viaHijack, ", "))
-		res.Fix = &FixHint{Text: dnsFixText(env.Platform(), listen), AutoFix: "system-dns"}
+		res.Summary = fmt.Sprintf(L.msgDNSHijack, strings.Join(viaHijack, ", "))
+		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: "system-dns"}
 	case nActive == 0:
 		res.Status = StatusWarn
-		res.Summary = msgDNSNoActive
+		res.Summary = L.msgDNSNoActive
 	}
 	return res
 }
 
 // dnsSourceLabel says where a service's DNS servers come from. Without a
 // DNSSource (macOS) configured servers are manual and none means DHCP.
-func dnsSourceLabel(s NetworkService) string {
+func dnsSourceLabel(L *texts, s NetworkService) string {
 	switch s.DNSSource {
 	case DNSSourceManual:
-		return labelManual
+		return L.labelManual
 	case DNSSourceAuto:
-		return labelDHCP
+		return L.labelDHCP
 	case DNSSourceMixed:
-		return labelMixed
+		return L.labelMixed
 	case DNSSourceUnknown:
-		return labelLinkDNS
+		return L.labelLinkDNS
 	case DNSSourceGlobal:
-		return labelGlobalDNS
+		return L.labelGlobalDNS
 	}
 	if len(s.DNS) == 0 {
-		return labelDHCP
+		return L.labelDHCP
 	}
-	return labelManual
+	return L.labelManual
 }
 
 // dnsFixText is the system-dns fix hint in the platform's own tools.
-func dnsFixText(platform, listen string) string {
+func dnsFixText(L *texts, platform, listen string) string {
 	if platform == Linux {
-		return fmt.Sprintf(fixDNSLinux, listen, listen, listen)
+		return fmt.Sprintf(L.fixDNSLinux, listen, listen, listen)
 	}
-	return fmt.Sprintf(fixDNS, listen)
+	return fmt.Sprintf(L.fixDNS, listen)
 }
 
 // ---------------------------------------------------------------------------
@@ -696,12 +711,14 @@ func dnsFixText(platform, listen string) string {
 // VPNConflict: no other VPN holds the default route, and no exit node.
 type VPNConflict struct{}
 
-func (VPNConflict) ID() string          { return "vpn-conflict" }
-func (VPNConflict) Title() string       { return titleVPNConflict }
-func (VPNConflict) Platforms() []string { return AllPlatforms }
+func (VPNConflict) ID() string            { return "vpn-conflict" }
+func (c VPNConflict) Title() string       { return c.title(&zhTexts) }
+func (VPNConflict) title(L *texts) string { return L.titleVPNConflict }
+func (VPNConflict) Platforms() []string   { return AllPlatforms }
 
 func (VPNConflict) Run(ctx context.Context, env Env) Result {
-	res := Result{Status: StatusOK, Summary: msgVPNOK}
+	L := tx(ctx)
+	res := Result{Status: StatusOK, Summary: L.msgVPNOK}
 	var problems []string
 	fail := func(s Status, msg string) {
 		res.Status = Worse(res.Status, s)
@@ -709,7 +726,7 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 	}
 
 	if vpns, err := env.VPNs(ctx); err != nil {
-		res.Evidence = append(res.Evidence, fmt.Sprintf(msgReadFailed, "VPN list", err))
+		res.Evidence = append(res.Evidence, fmt.Sprintf(L.msgReadFailed, "VPN list", err))
 		res.Status = Worse(res.Status, StatusWarn)
 	} else {
 		for _, v := range vpns {
@@ -717,39 +734,39 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 			isTS := strings.HasPrefix(v.BundleID, "io.tailscale.")
 			switch {
 			case v.Connected() && isTS:
-				fail(StatusWarn, fmt.Sprintf(msgVPNTailscaleNE, v.Name))
-				line += "  ← " + evTSNE
+				fail(StatusWarn, fmt.Sprintf(L.msgVPNTailscaleNE, v.Name))
+				line += "  ← " + L.evTSNE
 			case v.Connected():
-				fail(StatusFail, fmt.Sprintf(msgVPNConnected, v.Name))
-				line += "  ← " + evConnected
+				fail(StatusFail, fmt.Sprintf(L.msgVPNConnected, v.Name))
+				line += "  ← " + L.evConnected
 			}
 			res.Evidence = append(res.Evidence, line)
 		}
 		if len(vpns) == 0 {
-			res.Evidence = append(res.Evidence, evNoVPN)
+			res.Evidence = append(res.Evidence, L.evNoVPN)
 		}
 	}
 
 	if ts, err := env.Tailscale(ctx); err == nil && ts.BackendState == "Running" {
 		if ts.ExitNode != nil {
-			msg := fmt.Sprintf(msgExitNode, ts.ExitNode.HostName)
+			msg := fmt.Sprintf(L.msgExitNode, ts.ExitNode.HostName)
 			if env.Settings().AllowExitNode {
 				fail(StatusWarn, msg)
 			} else {
 				fail(StatusFail, msg)
 			}
 		} else {
-			res.Evidence = append(res.Evidence, evNoExitNode)
+			res.Evidence = append(res.Evidence, L.evNoExitNode)
 		}
 	}
 
 	// Who holds the default route? Expect mihomo's TUN when it is enabled.
 	if rl, err := env.RouteGet(ctx, "1.1.1.1"); err == nil {
 		tun, _, terr := tunConfig(ctx, env)
-		line := fmt.Sprintf(evDefaultRoute, rl.Interface)
+		line := fmt.Sprintf(L.evDefaultRoute, rl.Interface)
 		if env.Platform() == Linux {
-			if st, msg := linuxDefaultRoute(rl.Interface, tun, terr == nil); st != StatusOK {
-				line += "  ← " + evNotMihomoTUN
+			if st, msg := linuxDefaultRoute(L, rl.Interface, tun, terr == nil); st != StatusOK {
+				line += "  ← " + L.evNotMihomoTUN
 				fail(st, msg)
 			}
 		} else if tun.Device == "utun" {
@@ -757,18 +774,18 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 			// does not answer) lets macOS pick the number: the real name
 			// is unknown, so there is nothing to compare.
 		} else if terr == nil && tun.Enable && tun.Device != "" && rl.Interface != tun.Device && strings.HasPrefix(rl.Interface, "utun") {
-			line += "  ← " + evNotMihomoTUN
-			fail(StatusFail, fmt.Sprintf(msgOtherTUN, rl.Interface))
+			line += "  ← " + L.evNotMihomoTUN
+			fail(StatusFail, fmt.Sprintf(L.msgOtherTUN, rl.Interface))
 		} else if terr == nil && tun.Enable && tun.Device != "" && rl.Interface != tun.Device {
-			line += "  ← " + evNotMihomoTUN
-			fail(StatusWarn, fmt.Sprintf(msgTUNNotDefault, tun.Device, rl.Interface))
+			line += "  ← " + L.evNotMihomoTUN
+			fail(StatusWarn, fmt.Sprintf(L.msgTUNNotDefault, tun.Device, rl.Interface))
 		}
 		res.Evidence = append(res.Evidence, line)
 	}
 
 	if len(problems) > 0 {
 		res.Summary = strings.Join(problems, "；")
-		res.Fix = &FixHint{Text: fixVPN}
+		res.Fix = &FixHint{Text: L.fixVPN}
 	}
 	return res
 }
@@ -783,7 +800,7 @@ var linuxTunnelPrefixes = []string{"tun", "tap", "wg", "ppp", "ipsec", "vti", "x
 // tailscaled's tailscale*) takes traffic away from mihomo: fail, even when
 // mihomo's TUN is off. mihomo's TUN not holding it otherwise is a warning,
 // as on macOS. haveTUN is false when the mihomo state could not be read.
-func linuxDefaultRoute(iface string, tun TUNConfig, haveTUN bool) (Status, string) {
+func linuxDefaultRoute(L *texts, iface string, tun TUNConfig, haveTUN bool) (Status, string) {
 	mihomoDev := tun.Device
 	isMihomo := iface == mihomoDev
 	if mihomoDev == "" {
@@ -795,11 +812,11 @@ func linuxDefaultRoute(iface string, tun TUNConfig, haveTUN bool) (Status, strin
 	}
 	for _, p := range linuxTunnelPrefixes {
 		if strings.HasPrefix(iface, p) {
-			return StatusFail, fmt.Sprintf(msgOtherTUN, iface)
+			return StatusFail, fmt.Sprintf(L.msgOtherTUN, iface)
 		}
 	}
 	if haveTUN && tun.Enable {
-		return StatusWarn, fmt.Sprintf(msgTUNNotDefault, mihomoDev, iface)
+		return StatusWarn, fmt.Sprintf(L.msgTUNNotDefault, mihomoDev, iface)
 	}
 	return StatusOK, ""
 }
@@ -809,11 +826,13 @@ func linuxDefaultRoute(iface string, tun TUNConfig, haveTUN bool) (Status, strin
 // DirectPeers: preferred peers are connected directly, not through DERP.
 type DirectPeers struct{}
 
-func (DirectPeers) ID() string          { return "peer-direct" }
-func (DirectPeers) Title() string       { return titleDirectPeers }
-func (DirectPeers) Platforms() []string { return AllPlatforms }
+func (DirectPeers) ID() string            { return "peer-direct" }
+func (c DirectPeers) Title() string       { return c.title(&zhTexts) }
+func (DirectPeers) title(L *texts) string { return L.titleDirectPeers }
+func (DirectPeers) Platforms() []string   { return AllPlatforms }
 
 func (DirectPeers) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	ts, r := runningTailscale(ctx, env)
 	if r != nil {
 		return *r
@@ -852,20 +871,20 @@ func (DirectPeers) Run(ctx context.Context, env Env) Result {
 		switch {
 		case !p.Online:
 			offline = append(offline, name)
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evPeerOffline, name))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evPeerOffline, name))
 		case p.CurAddr != "":
 			direct = append(direct, name)
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evPeerDirect, name, p.CurAddr))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evPeerDirect, name, p.CurAddr))
 		case p.Active:
 			relayed = append(relayed, name)
 			via := "DERP " + p.Relay
 			if p.PeerRelay != "" {
 				via = "peer relay " + p.PeerRelay
 			}
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evPeerRelayed, name, via))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evPeerRelayed, name, via))
 		default:
 			idle = append(idle, name)
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evPeerIdle, name, p.Relay))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evPeerIdle, name, p.Relay))
 		}
 	}
 	// tailscaled advertising mihomo's TUN address as one of its endpoints is
@@ -873,7 +892,7 @@ func (DirectPeers) Run(ctx context.Context, env Env) Result {
 	if tun, _, err := tunConfig(ctx, env); err == nil && tun.Enable {
 		for _, ep := range ts.Self.Addrs {
 			if ap, err := netip.ParseAddrPort(ep); err == nil && inAny(tun.Inet4Address, ap.Addr()) {
-				res.Evidence = append(res.Evidence, fmt.Sprintf(evSelfEndpointTUN, ep))
+				res.Evidence = append(res.Evidence, fmt.Sprintf(L.evSelfEndpointTUN, ep))
 			}
 		}
 	}
@@ -881,17 +900,17 @@ func (DirectPeers) Run(ctx context.Context, env Env) Result {
 	switch {
 	case len(relayed) > 0:
 		res.Status = StatusWarn
-		res.Summary = fmt.Sprintf(msgPeersRelayed, strings.Join(relayed, ", "))
-		res.Fix = &FixHint{Text: fixPeers, Command: "tailscale netcheck\ntailscale ping " + relayed[0]}
+		res.Summary = fmt.Sprintf(L.msgPeersRelayed, strings.Join(relayed, ", "))
+		res.Fix = &FixHint{Text: L.fixPeers, Command: "tailscale netcheck\ntailscale ping " + relayed[0]}
 	case explicit && len(offline) > 0:
 		res.Status = StatusWarn
-		res.Summary = fmt.Sprintf(msgPeersOffline, strings.Join(offline, ", "))
+		res.Summary = fmt.Sprintf(L.msgPeersOffline, strings.Join(offline, ", "))
 	case len(direct)+len(idle) == 0:
 		res.Status = StatusSkip
-		res.Summary = msgPeersNone
+		res.Summary = L.msgPeersNone
 	default:
 		res.Status = StatusOK
-		res.Summary = fmt.Sprintf(msgPeersOK, len(direct), len(idle))
+		res.Summary = fmt.Sprintf(L.msgPeersOK, len(direct), len(idle))
 	}
 	return res
 }
@@ -901,62 +920,64 @@ func (DirectPeers) Run(ctx context.Context, env Env) Result {
 // LeakGuard: sensitive proxy groups never end at DIRECT.
 type LeakGuard struct{}
 
-func (LeakGuard) ID() string          { return "leak-guard" }
-func (LeakGuard) Title() string       { return titleLeakGuard }
-func (LeakGuard) Platforms() []string { return AllPlatforms }
+func (LeakGuard) ID() string            { return "leak-guard" }
+func (c LeakGuard) Title() string       { return c.title(&zhTexts) }
+func (LeakGuard) title(L *texts) string { return L.titleLeakGuard }
+func (LeakGuard) Platforms() []string   { return AllPlatforms }
 
 func (LeakGuard) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	rt, err := env.MihomoRuntime(ctx)
 	if err != nil {
-		return skip(msgMihomoUnavailable, err)
+		return skip(L.msgMihomoUnavailable, err)
 	}
 	groups := env.Settings().SensitiveGroups
 	if len(groups) == 0 {
-		return skip(msgNoSensitive)
+		return skipText(L.msgNoSensitive)
 	}
-	res := Result{Status: StatusOK, Summary: fmt.Sprintf(msgLeakOK, strings.Join(groups, ", "))}
+	res := Result{Status: StatusOK, Summary: fmt.Sprintf(L.msgLeakOK, strings.Join(groups, ", "))}
 	var fails, warns []string
 	if rt.Configs.Mode == "global" || rt.Configs.Mode == "direct" {
-		fails = append(fails, fmt.Sprintf(msgLeakMode, rt.Configs.Mode))
+		fails = append(fails, fmt.Sprintf(L.msgLeakMode, rt.Configs.Mode))
 	}
 	for _, g := range groups {
 		p, ok := rt.Proxies[g]
 		if !ok || !p.IsGroup() {
-			warns = append(warns, fmt.Sprintf(msgLeakNoGroup, g))
-			res.Evidence = append(res.Evidence, fmt.Sprintf(msgLeakNoGroup, g))
+			warns = append(warns, fmt.Sprintf(L.msgLeakNoGroup, g))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.msgLeakNoGroup, g))
 			continue
 		}
 		// Follow the current selection down to a real proxy.
 		chain := followNow(rt.Proxies, g)
 		final := chain[len(chain)-1]
 		cur := rt.Proxies[final]
-		line := fmt.Sprintf(evLeakChain, strings.Join(chain, " → "))
+		line := fmt.Sprintf(L.evLeakChain, strings.Join(chain, " → "))
 		if final == "DIRECT" || cur.Type == "Direct" {
-			line += "  ← " + evLeakDirect
-			fails = append(fails, fmt.Sprintf(msgLeakSelected, g))
+			line += "  ← " + L.evLeakDirect
+			fails = append(fails, fmt.Sprintf(L.msgLeakSelected, g))
 		}
 		res.Evidence = append(res.Evidence, line)
 
 		// Can the group reach DIRECT, automatically or by selection?
 		auto, manual := directPaths(rt.Proxies, g, map[string]bool{})
 		for _, a := range auto {
-			fails = append(fails, fmt.Sprintf(msgLeakAuto, g, a))
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evLeakAuto, a))
+			fails = append(fails, fmt.Sprintf(L.msgLeakAuto, g, a))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evLeakAuto, a))
 		}
 		for _, m := range manual {
-			warns = append(warns, fmt.Sprintf(msgLeakManual, g, m))
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evLeakManual, m))
+			warns = append(warns, fmt.Sprintf(L.msgLeakManual, g, m))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evLeakManual, m))
 		}
 	}
 	switch {
 	case len(fails) > 0:
 		res.Status = StatusFail
 		res.Summary = strings.Join(append(fails, warns...), "；")
-		res.Fix = &FixHint{Text: fixLeak, AutoFix: "leak-guard-override"}
+		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: "leak-guard-override"}
 	case len(warns) > 0:
 		res.Status = StatusWarn
 		res.Summary = strings.Join(warns, "；")
-		res.Fix = &FixHint{Text: fixLeak, AutoFix: "leak-guard-override"}
+		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: "leak-guard-override"}
 	}
 	return res
 }
@@ -1002,38 +1023,40 @@ func directPaths(px map[string]MihomoProxy, g string, seen map[string]bool) (aut
 // Controller: the external controller listens on localhost and has a secret.
 type Controller struct{}
 
-func (Controller) ID() string          { return "controller-security" }
-func (Controller) Title() string       { return titleController }
-func (Controller) Platforms() []string { return AllPlatforms }
+func (Controller) ID() string            { return "controller-security" }
+func (c Controller) Title() string       { return c.title(&zhTexts) }
+func (Controller) title(L *texts) string { return L.titleController }
+func (Controller) Platforms() []string   { return AllPlatforms }
 
 func (Controller) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skip(msgMihomoUnavailable, err)
+		return skip(L.msgMihomoUnavailable, err)
 	}
 	if cfg.ExternalController == "" {
-		return Result{Status: StatusOK, Summary: msgCtlDisabled}
+		return Result{Status: StatusOK, Summary: L.msgCtlDisabled}
 	}
-	res := Result{Status: StatusOK, Summary: msgCtlOK}
+	res := Result{Status: StatusOK, Summary: L.msgCtlOK}
 	host := hostOf(cfg.ExternalController)
 	res.Evidence = append(res.Evidence,
 		fmt.Sprintf("external-controller: %s", cfg.ExternalController),
-		fmt.Sprintf("secret: %s", map[bool]string{true: evSecretSet, false: evSecretEmpty}[cfg.SecretSet]))
+		fmt.Sprintf("secret: %s", map[bool]string{true: L.evSecretSet, false: L.evSecretEmpty}[cfg.SecretSet]))
 	var problems []string
 	if !isLoopbackHost(host) {
 		res.Status = StatusFail
-		problems = append(problems, fmt.Sprintf(msgCtlExposed, host))
+		problems = append(problems, fmt.Sprintf(L.msgCtlExposed, host))
 	}
 	if !cfg.SecretSet {
 		res.Status = Worse(res.Status, StatusWarn)
-		problems = append(problems, msgCtlNoSecret)
+		problems = append(problems, L.msgCtlNoSecret)
 	}
 	if rt, err := env.MihomoRuntime(ctx); err == nil && !rt.AuthUsed {
-		res.Evidence = append(res.Evidence, evCtlNoAuth)
+		res.Evidence = append(res.Evidence, L.evCtlNoAuth)
 	}
 	if len(problems) > 0 {
 		res.Summary = strings.Join(problems, "；")
-		res.Fix = &FixHint{Text: fixCtl, AutoFix: "controller-secret"}
+		res.Fix = &FixHint{Text: L.fixCtl, AutoFix: "controller-secret"}
 	}
 	return res
 }

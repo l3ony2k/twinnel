@@ -16,17 +16,19 @@ import (
 // peer names are answered from hosts.
 type ResolverBinding struct{}
 
-func (ResolverBinding) ID() string          { return "tailnet-resolver-binding" }
-func (ResolverBinding) Title() string       { return titleResolverBind }
-func (ResolverBinding) Platforms() []string { return AllPlatforms }
+func (ResolverBinding) ID() string            { return "tailnet-resolver-binding" }
+func (c ResolverBinding) Title() string       { return c.title(&zhTexts) }
+func (ResolverBinding) title(L *texts) string { return L.titleResolverBind }
+func (ResolverBinding) Platforms() []string   { return AllPlatforms }
 
 func (ResolverBinding) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skip(msgMihomoUnavailable, err)
+		return skip(L.msgMihomoUnavailable, err)
 	}
 	if !cfg.DNS.Enable {
-		return skip(msgMihomoDNSOff)
+		return skipText(L.msgMihomoDNSOff)
 	}
 	ts, r := runningTailscale(ctx, env)
 	if r != nil {
@@ -40,9 +42,9 @@ func (ResolverBinding) Run(ctx context.Context, env Env) Result {
 		binds = append(binds, "interface-name: "+cfg.InterfaceName)
 	}
 	if len(binds) == 0 {
-		return Result{Status: StatusOK, Summary: msgBindNone}
+		return Result{Status: StatusOK, Summary: L.msgBindNone}
 	}
-	res := Result{Status: StatusOK, Evidence: []string{fmt.Sprintf(evBindIface, strings.Join(binds, ", "))}}
+	res := Result{Status: StatusOK, Evidence: []string{fmt.Sprintf(L.evBindIface, strings.Join(binds, ", "))}}
 
 	suffix := strings.Trim(strings.ToLower(ts.MagicDNSSuffix), ".")
 	var keys []string
@@ -55,7 +57,7 @@ func (ResolverBinding) Run(ctx context.Context, env Env) Result {
 	current := ""
 	if rl, err := env.RouteGet(ctx, QuadAddr.String()); err == nil {
 		current = rl.Interface
-		res.Evidence = append(res.Evidence, fmt.Sprintf(evBindCurrent, current))
+		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evBindCurrent, current))
 	}
 	var unbound, stale []string
 	var staleIface string
@@ -84,10 +86,10 @@ func (ResolverBinding) Run(ctx context.Context, env Env) Result {
 		if strings.HasSuffix(k, ".arpa") {
 			shown++
 		}
-		res.Evidence = append(res.Evidence, fmt.Sprintf(evBindResolver, k, strings.Join(cfg.DNS.NameserverPolicy[k], ", ")))
+		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evBindResolver, k, strings.Join(cfg.DNS.NameserverPolicy[k], ", ")))
 	}
 	if quad == 0 {
-		res.Status, res.Summary = StatusSkip, msgBindNoQuad
+		res.Status, res.Summary = StatusSkip, L.msgBindNoQuad
 		return res
 	}
 	hosts := 0
@@ -102,17 +104,17 @@ func (ResolverBinding) Run(ctx context.Context, env Env) Result {
 			hosts++
 		}
 	}
-	res.Evidence = append(res.Evidence, fmt.Sprintf(evBindHosts, hosts))
-	fix := &FixHint{Text: fixBind, AutoFix: "tailscale-coexist-override"}
+	res.Evidence = append(res.Evidence, fmt.Sprintf(L.evBindHosts, hosts))
+	fix := &FixHint{Text: L.fixBind, AutoFix: "tailscale-coexist-override"}
 	switch {
 	case len(stale) > 0:
-		res.Status, res.Summary, res.Fix = StatusWarn, fmt.Sprintf(msgBindStale, staleIface, current), fix
+		res.Status, res.Summary, res.Fix = StatusWarn, fmt.Sprintf(L.msgBindStale, staleIface, current), fix
 	case len(unbound) > 0 && hosts == 0:
-		res.Status, res.Summary, res.Fix = StatusWarn, msgBindMissing, fix
+		res.Status, res.Summary, res.Fix = StatusWarn, L.msgBindMissing, fix
 	case len(unbound) > 0:
-		res.Summary = msgBindHostsOnly
+		res.Summary = L.msgBindHostsOnly
 	default:
-		res.Summary = fmt.Sprintf(msgBindOK, current)
+		res.Summary = fmt.Sprintf(L.msgBindOK, current)
 	}
 	return res
 }
@@ -170,24 +172,26 @@ func splitResolver(ns string) (host, iface string) {
 // answers" only in blacklist mode.
 type FakeIPMode struct{}
 
-func (FakeIPMode) ID() string          { return "fake-ip-filter-mode" }
-func (FakeIPMode) Title() string       { return titleFakeIPMode }
-func (FakeIPMode) Platforms() []string { return AllPlatforms }
+func (FakeIPMode) ID() string            { return "fake-ip-filter-mode" }
+func (c FakeIPMode) Title() string       { return c.title(&zhTexts) }
+func (FakeIPMode) title(L *texts) string { return L.titleFakeIPMode }
+func (FakeIPMode) Platforms() []string   { return AllPlatforms }
 
 func (FakeIPMode) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skip(msgMihomoUnavailable, err)
+		return skip(L.msgMihomoUnavailable, err)
 	}
 	if !cfg.DNS.Enable || !strings.EqualFold(cfg.DNS.EnhancedMode, "fake-ip") {
-		return skip(msgFakeIPNotUsed)
+		return skipText(L.msgFakeIPNotUsed)
 	}
 	mode := strings.ToLower(strings.TrimSpace(cfg.DNS.FakeIPFilterMode))
 	label := mode
 	if mode == "" {
-		mode, label = "blacklist", labelDefaultBlack
+		mode, label = "blacklist", L.labelDefaultBlack
 	}
-	res := Result{Status: StatusOK, Evidence: []string{fmt.Sprintf(evFakeIPMode, label)}}
+	res := Result{Status: StatusOK, Evidence: []string{fmt.Sprintf(L.evFakeIPMode, label)}}
 	has := false
 	for _, f := range cfg.DNS.FakeIPFilter {
 		if strings.TrimSpace(f) == "*" {
@@ -196,13 +200,13 @@ func (FakeIPMode) Run(ctx context.Context, env Env) Result {
 	}
 	switch {
 	case !has:
-		res.Summary = msgWildcardNone
+		res.Summary = L.msgWildcardNone
 	case mode == "blacklist":
-		res.Summary = msgWildcardOK
+		res.Summary = L.msgWildcardOK
 	default:
 		res.Status = StatusWarn
-		res.Summary = fmt.Sprintf(msgWildcardBad, mode)
-		res.Fix = &FixHint{Text: fixWildcard, AutoFix: "tailscale-coexist-override"}
+		res.Summary = fmt.Sprintf(L.msgWildcardBad, mode)
+		res.Fix = &FixHint{Text: L.fixWildcard, AutoFix: "tailscale-coexist-override"}
 	}
 	return res
 }
@@ -214,24 +218,26 @@ func (FakeIPMode) Run(ctx context.Context, env Env) Result {
 // to a neutral IP-echo endpoint and nothing else.
 type LeakEgress struct{}
 
-func (LeakEgress) ID() string          { return "leak-guard-egress" }
-func (LeakEgress) Title() string       { return titleEgress }
-func (LeakEgress) Platforms() []string { return AllPlatforms }
+func (LeakEgress) ID() string            { return "leak-guard-egress" }
+func (c LeakEgress) Title() string       { return c.title(&zhTexts) }
+func (LeakEgress) title(L *texts) string { return L.titleEgress }
+func (LeakEgress) Platforms() []string   { return AllPlatforms }
 
 func (LeakEgress) Run(ctx context.Context, env Env) Result {
+	L := tx(ctx)
 	s := env.Settings()
 	if !s.Egress {
-		return skip(msgEgressOff)
+		return skipText(L.msgEgressOff)
 	}
 	ee, ok := env.(EgressEnv)
 	if !ok {
-		return skip(msgEgressErr, ErrNotSupported)
+		return skip(L.msgEgressErr, ErrNotSupported)
 	}
 	url := s.EgressURL
 	if url == "" {
 		url = DefaultEgressURL
 	}
-	res := Result{Status: StatusOK, Evidence: []string{fmt.Sprintf(evEgressURL, url)}}
+	res := Result{Status: StatusOK, Evidence: []string{fmt.Sprintf(L.evEgressURL, url)}}
 	// Direct baseline: the echo fetched on the physical interface, plus the
 	// public endpoints tailscaled found by STUN (tailscaled goes DIRECT, and
 	// this costs no traffic). Either is enough.
@@ -239,9 +245,9 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	d, derr := ee.DirectEgress(ctx, url)
 	if derr == nil {
 		direct[d] = true
-		res.Evidence = append(res.Evidence, fmt.Sprintf(evEgressDirect, MaskIP(d)))
+		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressDirect, MaskIP(d)))
 	} else {
-		res.Evidence = append(res.Evidence, fmt.Sprintf(evEgressDirectErr, derr))
+		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressDirectErr, derr))
 	}
 	if ts, err := env.Tailscale(ctx); err == nil {
 		for _, ep := range ts.Self.Addrs {
@@ -250,16 +256,16 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 				continue
 			}
 			direct[ap.Addr()] = true
-			res.Evidence = append(res.Evidence, fmt.Sprintf(evEgressSTUN, MaskIP(ap.Addr())))
+			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressSTUN, MaskIP(ap.Addr())))
 		}
 	}
 	if len(direct) == 0 {
-		res.Status, res.Summary = StatusWarn, fmt.Sprintf(msgEgressErr, derr)
+		res.Status, res.Summary = StatusWarn, fmt.Sprintf(L.msgEgressErr, derr)
 		return res
 	}
 	prox, chain, err := ee.ProxiedEgress(ctx, url)
 	if err != nil {
-		res.Status, res.Summary = StatusWarn, fmt.Sprintf(msgEgressErr, err)
+		res.Status, res.Summary = StatusWarn, fmt.Sprintf(L.msgEgressErr, err)
 		return res
 	}
 	leaf := "?"
@@ -270,35 +276,35 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	for i, c := range chain {
 		path[len(chain)-1-i] = c
 	}
-	res.Evidence = append(res.Evidence, fmt.Sprintf(evEgressProxied, MaskIP(prox), strings.Join(path, " → ")))
+	res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressProxied, MaskIP(prox), strings.Join(path, " → ")))
 	if leaf == "DIRECT" {
-		res.Status, res.Summary = StatusSkip, msgEgressDirectPath
+		res.Status, res.Summary = StatusSkip, L.msgEgressDirectPath
 		return res
 	}
 	if direct[prox] {
 		res.Status = StatusFail
-		res.Summary = fmt.Sprintf(msgEgressSame, leaf)
-		res.Fix = &FixHint{Text: fixEgress}
+		res.Summary = fmt.Sprintf(L.msgEgressSame, leaf)
+		res.Fix = &FixHint{Text: L.fixEgress}
 		return res
 	}
 	rt, err := env.MihomoRuntime(ctx)
 	if err != nil {
-		return skip(msgMihomoUnavailable, err)
+		return skip(L.msgMihomoUnavailable, err)
 	}
 	var measured []string
 	for _, g := range s.SensitiveGroups {
 		ch := followNow(rt.Proxies, g)
 		final := ch[len(ch)-1]
-		res.Evidence = append(res.Evidence, fmt.Sprintf(evEgressGroup, g, final))
+		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evEgressGroup, g, final))
 		if final == leaf {
 			measured = append(measured, g)
 		}
 	}
 	if len(measured) == 0 {
-		res.Status, res.Summary = StatusSkip, fmt.Sprintf(msgEgressNotMeasured, leaf)
+		res.Status, res.Summary = StatusSkip, fmt.Sprintf(L.msgEgressNotMeasured, leaf)
 		return res
 	}
-	res.Summary = fmt.Sprintf(msgEgressOK, strings.Join(measured, ", "))
+	res.Summary = fmt.Sprintf(L.msgEgressOK, strings.Join(measured, ", "))
 	return res
 }
 

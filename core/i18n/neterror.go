@@ -34,6 +34,7 @@ func PlainNetError(raw string) string {
 	case host == "github.com" || strings.HasSuffix(host, ".github.com") || strings.HasSuffix(host, ".githubusercontent.com"):
 		host = "GitHub"
 	}
+	T := Cur()
 	s := T.NetUnreachable(host)
 	if p := reProxyConnect.FindStringSubmatch(raw); p != nil {
 		s += T.NetViaProxy(p[1])
@@ -45,6 +46,7 @@ func PlainNetError(raw string) string {
 }
 
 func netReason(raw string) string {
+	T := Cur()
 	r := strings.ToLower(raw)
 	switch {
 	case strings.Contains(r, "proxyconnect") && strings.Contains(r, "connection refused"):

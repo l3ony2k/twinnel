@@ -71,7 +71,7 @@ type Result struct {
 // Check is one health check.
 type Check interface {
 	ID() string
-	Title() string // Chinese, user-facing
+	Title() string // user-facing, in DefaultLang (built-in checks word it per run)
 	Platforms() []string
 	Run(ctx context.Context, env Env) Result
 }
@@ -136,3 +136,6 @@ func supports(c Check, platform string) bool {
 func skip(format string, a ...any) Result {
 	return Result{Status: StatusSkip, Summary: fmt.Sprintf(format, a...)}
 }
+
+// skipText is skip with a text that has no format verbs.
+func skipText(s string) Result { return Result{Status: StatusSkip, Summary: s} }
