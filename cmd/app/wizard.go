@@ -143,7 +143,7 @@ func (a *app) wizardWindow(c *ui.Context, s status.Snapshot) {
 			// The column is centered in the window at every width.
 			ui.Row(c).FillWidth().Justify(ui.Center).Padding(8, plat.pagePadX, 24).Children(func() {
 				ui.Column(c).Gap(gapGroup).FillWidth().MaxWidth(wizMaxW).Children(func() {
-					a.wizardProgress(c)
+					a.wizardProgress(c, s)
 					switch w.state.Step {
 					case wizWelcome:
 						a.wizWelcome(c)
@@ -168,7 +168,7 @@ func (a *app) wizardWindow(c *ui.Context, s status.Snapshot) {
 // wizardProgress is the row of six steps: done ones ticked, the current
 // one in the accent, with 第 n 步，共 6 步 under it. A step already
 // reached can be clicked to go back to it.
-func (a *app) wizardProgress(c *ui.Context) {
+func (a *app) wizardProgress(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	cur := a.wiz.state.Step
@@ -192,8 +192,11 @@ func (a *app) wizardProgress(c *ui.Context) {
 						bar.Background(pal(t).separator)
 					}
 					ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-						if done {
+						switch {
+						case done && a.wizStepDone(i, s):
 							ui.Icon(c, iconOK).FontSize(iconSmall).TextColor(pal(t).okText)
+						case done: // passed, not done (Tailscale skipped)
+							ui.Icon(c, iconSkip).FontSize(iconSmall).TextColor(t.TextMuted)
 						}
 						txt := ui.Text(c, name).FontSize(plat.smallSize).TextColor(col).SingleLine()
 						if i == cur {
