@@ -56,7 +56,7 @@ public struct POINT { public int X, Y; }
 
 function Get-TwinnelWindows {
     $pids = @(Get-Process -Name Twinnel -ErrorAction SilentlyContinue | Where-Object { $_.Path -ieq $Exe } | ForEach-Object Id)
-    $list = New-Object System.Collections.Generic.List[object]
+    $list = [System.Collections.Generic.List[object]]::new()
     $cb = [QA.Win+EnumProc] {
         param($h, $l)
         $wp = [uint32]0; [void][QA.Win]::GetWindowThreadProcessId($h, [ref]$wp)

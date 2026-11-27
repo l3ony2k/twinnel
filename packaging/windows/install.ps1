@@ -114,14 +114,25 @@ function Remove-Leftovers([string[]]$Dirs) {
 	}
 }
 
+# PowerShell rules this script keeps (both Windows PowerShell 5.1 and
+# PowerShell 7 run it; install_test.go checks the first two):
+# - A list is made with [System.Collections.Generic.List[T]]::new(), never
+#   New-Object: @() around a New-Object list throws "Argument types do not
+#   match".
+# - A function emits its items one by one (return $list.ToArray(), no
+#   leading comma), and the caller collects them with @(): a leading comma
+#   plus @() at the caller makes one item of the whole array.
+# - A value used as a list is wrapped in @() where it is read, so one item
+#   or none still has .Count under StrictMode.
+
 # Replaces each @{ Src; Dst } with a copy of Src, all or none (see the
-# description at the top). Returns the files that were running and now run
+# description at the top). Emits the files that were running and now run
 # from their renamed copy.
 function Install-Files([object[]]$Files) {
 	$stamp = New-Stamp
-	$staged = New-Object System.Collections.Generic.List[string]
-	$swapped = New-Object System.Collections.Generic.List[object]
-	$inUse = New-Object System.Collections.Generic.List[string]
+	$staged = [System.Collections.Generic.List[string]]::new()
+	$swapped = [System.Collections.Generic.List[object]]::new()
+	$inUse = [System.Collections.Generic.List[string]]::new()
 	try {
 		foreach ($f in $Files) {
 			$s = $f.Dst + $NewInfix + $stamp
@@ -162,7 +173,7 @@ function Install-Files([object[]]$Files) {
 		if (-not $d.Old) { continue }
 		try { Remove-Item -LiteralPath $d.Old -Force } catch { $inUse.Add($d.Dst) }
 	}
-	return , $inUse.ToArray()
+	return $inUse.ToArray()
 }
 
 # --- the app -------------------------------------------------------------------
@@ -239,6 +250,19 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
 	[void][Twinnel.EnvBroadcast]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result)
 }
 
+# What goes where, from the unpacked zip in $Src: the app, everything in
+# bin\, the docs. (The marker is added last, by the caller.)
+function Get-InstallFiles([string]$Src) {
+	@{ Src = (Join-Path $Src 'Twinnel.exe'); Dst = $AppExe }
+	foreach ($b in @(Get-ChildItem -LiteralPath (Join-Path $Src 'bin') -File)) {
+		@{ Src = $b.FullName; Dst = "$Bin\$($b.Name)" }
+	}
+	foreach ($doc in @('install.ps1', 'INSTALL.md', 'LICENSE', 'README.md')) {
+		$p = Join-Path $Src $doc
+		if (Test-Path -LiteralPath $p) { @{ Src = $p; Dst = "$InstallDir\$doc" } }
+	}
+}
+
 # Dot-sourced (tests): the functions only.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
@@ -313,17 +337,7 @@ foreach ($f in @('Twinnel.exe', 'bin\twinnel.exe', 'bin\twinnel-helper.exe')) {
 }
 if ($src.TrimEnd('\') -ieq $InstallDir) { throw 'run install.ps1 from the unpacked zip, not from the install folder' }
 
-# What goes where: the app, everything in bin\, the docs, and the marker
-# (with the version) last.
-$files = New-Object System.Collections.Generic.List[object]
-$files.Add(@{ Src = (Join-Path $src 'Twinnel.exe'); Dst = $AppExe })
-foreach ($b in (Get-ChildItem -LiteralPath (Join-Path $src 'bin') -File)) {
-	$files.Add(@{ Src = $b.FullName; Dst = (Join-Path $Bin $b.Name) })
-}
-foreach ($doc in @('install.ps1', 'INSTALL.md', 'LICENSE', 'README.md')) {
-	$p = Join-Path $src $doc
-	if (Test-Path -LiteralPath $p) { $files.Add(@{ Src = $p; Dst = (Join-Path $InstallDir $doc) }) }
-}
+$files = @(Get-InstallFiles $src)
 
 $app = @(Get-SessionApp)
 $appIds = @($app | ForEach-Object { $_.Id })
@@ -340,7 +354,8 @@ try {
 		$markerSrc = Join-Path ([IO.Path]::GetTempPath()) ("twinnel-install-marker-" + (New-Stamp))
 		Set-Content -LiteralPath $markerSrc -Value "$version" -Encoding ASCII
 		try {
-			$all = @($files) + @(@{ Src = $markerSrc; Dst = (Join-Path $InstallDir $Marker) })
+			# The marker (with the version) last.
+			$all = $files + @(@{ Src = $markerSrc; Dst = (Join-Path $InstallDir $Marker) })
 			$running = @(Install-Files $all)
 		} finally {
 			Remove-Item -LiteralPath $markerSrc -Force -ErrorAction SilentlyContinue
@@ -351,6 +366,7 @@ try {
 	}
 	if ($DryRun) {
 		foreach ($f in $files) {
+			if ($restart -and $f.Dst -ieq $AppExe) { continue } # stopped first
 			if (Test-InUse $f.Dst) { Write-Host "  $(Split-Path -Leaf $f.Dst) is in use: it would be renamed aside and keep running" }
 		}
 	}
