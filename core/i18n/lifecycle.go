@@ -122,6 +122,7 @@ type LifecycleStrings struct {
 	UndoSteps                              map[string]string // code → line (%s path / %d count where used)
 	UndoDone, UndoFailed                   string
 	LeaveUninstall, LeaveUninstallRun      string
+	LeaveUninstallWhat, LeaveRemoveAllWhat string // each card's row: what it does
 	LeaveRemoveAll, LeaveRemoveAllRun      string
 	LeaveExport, LeaveExportRun            string
 	LeaveExportDone                        string // %s: file
@@ -288,18 +289,20 @@ var zhLifecycle = LifecycleStrings{
 		"keep-service":        "服务 %s 不变",
 		"keep-data":           "保留历史和接管备份，可以再次接管",
 	},
-	UndoDone:          "已撤销接管",
-	UndoFailed:        "撤销接管失败",
-	LeaveUninstall:    "卸载后台助手",
-	LeaveUninstallRun: "卸载…",
-	LeaveRemoveAll:    "完全移除 duet",
-	LeaveRemoveAllRun: "完全移除…",
-	LeaveExport:       "导出配置",
-	LeaveExportRun:    "导出…",
-	LeaveExportDone:   "已导出到 %s",
-	LeaveExportWhat:   "config.yaml · 覆写 %d 个",
-	ItemAppBackups:    "旧版本备份",
-	ItemLaunchAgent:   "duet 的 LaunchAgent",
+	UndoDone:           "已撤销接管",
+	UndoFailed:         "撤销接管失败",
+	LeaveUninstall:     "卸载后台助手",
+	LeaveUninstallWhat: "订阅不再自动更新，duet 不能再改配置",
+	LeaveRemoveAllWhat: "删除 duet 的数据和钥匙串项目",
+	LeaveUninstallRun:  "卸载…",
+	LeaveRemoveAll:     "完全移除 duet",
+	LeaveRemoveAllRun:  "完全移除…",
+	LeaveExport:        "导出配置",
+	LeaveExportRun:     "导出…",
+	LeaveExportDone:    "已导出到 %s",
+	LeaveExportWhat:    "config.yaml · 覆写 %d 个",
+	ItemAppBackups:     "旧版本备份",
+	ItemLaunchAgent:    "duet 的 LaunchAgent",
 }
 
 var enLifecycle = LifecycleStrings{
@@ -461,16 +464,18 @@ var enLifecycle = LifecycleStrings{
 		"keep-service":        "Service %s is not changed",
 		"keep-data":           "History and takeover backups are kept, so you can take over again",
 	},
-	UndoDone:          "Takeover undone",
-	UndoFailed:        "Undoing the takeover failed",
-	LeaveUninstall:    "Uninstall the helper",
-	LeaveUninstallRun: "Uninstall…",
-	LeaveRemoveAll:    "Remove duet completely",
-	LeaveRemoveAllRun: "Remove…",
-	LeaveExport:       "Export config",
-	LeaveExportRun:    "Export…",
-	LeaveExportDone:   "Exported to %s",
-	LeaveExportWhat:   "config.yaml · overrides: %d",
-	ItemAppBackups:    "old version backups",
-	ItemLaunchAgent:   "duet's LaunchAgent",
+	UndoDone:           "Takeover undone",
+	UndoFailed:         "Undoing the takeover failed",
+	LeaveUninstall:     "Uninstall the helper",
+	LeaveUninstallWhat: "Subscriptions stop updating and duet can't change the config",
+	LeaveRemoveAllWhat: "Deletes duet's data and keychain items",
+	LeaveUninstallRun:  "Uninstall…",
+	LeaveRemoveAll:     "Remove duet completely",
+	LeaveRemoveAllRun:  "Remove…",
+	LeaveExport:        "Export config",
+	LeaveExportRun:     "Export…",
+	LeaveExportDone:    "Exported to %s",
+	LeaveExportWhat:    "config.yaml · overrides: %d",
+	ItemAppBackups:     "old version backups",
+	ItemLaunchAgent:    "duet's LaunchAgent",
 }
