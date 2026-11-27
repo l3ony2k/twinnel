@@ -22,6 +22,7 @@ const (
 	MethodLayerDelete     = "layer.delete"
 	MethodLayerSetEnabled = "layer.set_enabled"
 	MethodLayerReorder    = "layer.reorder"
+	MethodLayerRestore    = "layer.restore"
 
 	MethodSubList     = "subscription.list"
 	MethodSubPut      = "subscription.put"
@@ -138,6 +139,11 @@ type TailnetStatus struct {
 
 type ApplyParams struct {
 	Reason string `json:"reason,omitempty"`
+	// ReasonCode and ReasonArgs: the reason as a code (core/store
+	// Reason… constants) for a client to word; Reason is then the English
+	// text. Empty: Reason is the user's own words (or empty).
+	ReasonCode string   `json:"reason_code,omitempty"`
+	ReasonArgs []string `json:"reason_args,omitempty"`
 	// Force reloads even when the composed config equals the file on disk.
 	Force bool `json:"force,omitempty"`
 }
@@ -150,18 +156,36 @@ type ComposeResult struct {
 	Valid          bool     `json:"valid"`
 	ValidateErrors []string `json:"validate_errors,omitempty"`
 	Changed        bool     `json:"changed"` // differs from the config file on disk
+	// Messages are Warnings as codes, in the same order, for a client to
+	// word in its language (core/msg). A warning the helper has no code
+	// for has Code "" and only Text.
+	Messages []Msg `json:"messages,omitempty"`
+}
+
+// Msg is a text the helper hands to a client as a code with arguments,
+// plus its English wording (Text) for the CLI and for codes a client does
+// not know.
+type Msg struct {
+	Code string   `json:"code,omitempty"`
+	Args []string `json:"args,omitempty"`
+	Text string   `json:"text"`
 }
 
 type ApplyResult struct {
 	ComposeResult
-	Reason     string    `json:"reason,omitempty"`
-	Written    bool      `json:"written"`
-	Reloaded   bool      `json:"reloaded"`
-	RolledBack bool      `json:"rolled_back,omitempty"` // the new config failed after writing and the old one was restored
-	HistoryID  string    `json:"history_id,omitempty"`
-	Error      string    `json:"error,omitempty"`
-	Time       time.Time `json:"time"`
-	Duration   string    `json:"duration"`
+	Reason string `json:"reason,omitempty"`
+	// ReasonCode and ReasonArgs: Reason as a code (core/store Reason…).
+	ReasonCode string   `json:"reason_code,omitempty"`
+	ReasonArgs []string `json:"reason_args,omitempty"`
+	Written    bool     `json:"written"`
+	Reloaded   bool     `json:"reloaded"`
+	RolledBack bool     `json:"rolled_back,omitempty"` // the new config failed after writing and the old one was restored
+	HistoryID  string   `json:"history_id,omitempty"`
+	Error      string   `json:"error,omitempty"`
+	// ErrorMsg is Error as a code (core/msg), when the helper has one.
+	ErrorMsg *Msg      `json:"error_msg,omitempty"`
+	Time     time.Time `json:"time"`
+	Duration string    `json:"duration"`
 	// Impact: what the hot reload did to the running mihomo (set when a
 	// previous config file existed to compare with).
 	Impact *ReloadImpact `json:"impact,omitempty"`
@@ -202,7 +226,12 @@ type ReloadImpact struct {
 	// RestartNeeded: settings a hot reload does not apply (the external
 	// controller and its secret); they take effect when mihomo restarts.
 	RestartNeeded []string `json:"restart_needed,omitempty"`
-	// Notes explain the above in English.
+	// TUNWhy: what made the TUN device be rebuilt: "tun" (the tun
+	// section) and/or "fake-ip-range".
+	TUNWhy []string `json:"tun_why,omitempty"`
+	// Unknown: the configs could not be compared; the worst is assumed.
+	Unknown bool `json:"unknown,omitempty"`
+	// Notes explain the above in English (the fields are the codes).
 	Notes []string `json:"notes,omitempty"`
 }
 
@@ -215,6 +244,48 @@ type HistoryEntry struct {
 	Size   int       `json:"size"`
 	Kind   string    `json:"kind"` // "applied", "backup" (file found on disk), "rollback"
 	Reason string    `json:"reason,omitempty"`
+	// ReasonCode and ReasonArgs: Reason as a code (core/store Reason…),
+	// empty when Reason is the user's own text.
+	ReasonCode string   `json:"reason_code,omitempty"`
+	ReasonArgs []string `json:"reason_args,omitempty"`
+	// BeforeDuet: the config as it was before duet first wrote it.
+	BeforeDuet bool `json:"before_duet,omitempty"`
+	// Layers: the overrides the config was composed from; nil for a
+	// backup or an entry older than the manifest.
+	Layers *LayerManifest `json:"layers,omitempty"`
+}
+
+// LayerManifest is the set of overrides a config was composed from.
+type LayerManifest struct {
+	Subscription string          `json:"subscription,omitempty"`
+	Layers       []ManifestLayer `json:"layers"`
+	Coexist      bool            `json:"coexist,omitempty"`
+	LeakGuard    []string        `json:"leak_guard,omitempty"`
+}
+
+// ManifestLayer is one stored layer of a manifest.
+type ManifestLayer struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Stage    string   `json:"stage"`
+	Format   string   `json:"format"`
+	Enabled  bool     `json:"enabled"`
+	Hash     string   `json:"hash"`
+	NameCode string   `json:"name_code,omitempty"`
+	NameArgs []string `json:"name_args,omitempty"`
+}
+
+// LayerRestoreParams sets the overrides back to a history entry's
+// manifest: every layer (IDs empty), or only the layers in IDs.
+type LayerRestoreParams struct {
+	HistoryID string   `json:"history_id"`
+	IDs       []string `json:"ids,omitempty"`
+}
+
+// LayerRestoreResult lists what layer.restore changed.
+type LayerRestoreResult struct {
+	Restored []string `json:"restored"`          // layer IDs written back
+	Removed  []string `json:"removed,omitempty"` // layers not in the manifest, deleted
 }
 
 type IDParams struct {
@@ -231,6 +302,7 @@ type Layer struct {
 	Enabled bool   `json:"enabled"`
 	Managed bool   `json:"managed,omitempty"` // generated by the helper; content is read-only
 	Size    int    `json:"size"`
+	Hash    string `json:"hash,omitempty"` // sha256 of a stored layer's content
 	// NameCode and NameArgs name a generated Name (a managed layer, or one
 	// adopted by takeover and not renamed since) so a client can word it in
 	// its own language (core/i18n TakeoverLayerName). Name stays English.
@@ -304,6 +376,16 @@ type Settings struct {
 	HistoryKeep       int      `json:"history_keep"`
 	KernelChannel     string   `json:"kernel_channel"` // "stable" or "alpha"
 	AutoApply         bool     `json:"auto_apply"`     // re-compose and apply after subscription/tailnet changes
+	// Drift: mihomo runs a history entry the overrides do not compose
+	// (after a rollback); automatic re-compose waits until an apply.
+	Drift *Drift `json:"drift,omitempty"`
+}
+
+// Drift says mihomo runs a rolled-back history entry, not the overrides.
+type Drift struct {
+	Since     time.Time `json:"since"`
+	HistoryID string    `json:"history_id"`
+	Manifest  bool      `json:"manifest,omitempty"` // layer.restore can set the overrides back to it
 }
 
 type SettingsUpdate struct {

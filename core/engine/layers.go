@@ -24,7 +24,7 @@ func (e *Engine) Layers() ([]rpc.Layer, error) {
 	for _, l := range st.Layers {
 		b, _ := e.Store.ReadLayer(l.ID)
 		out = append(out, rpc.Layer{ID: l.ID, Name: l.Name, Stage: l.Stage, Format: l.Format, Enabled: l.Enabled, Size: len(b),
-			NameCode: l.NameCode, NameArgs: l.NameArgs})
+			Hash: store.Hash(b), NameCode: l.NameCode, NameArgs: l.NameArgs})
 	}
 	out = append(out,
 		rpc.Layer{ID: CoexistLayerID, Name: "Tailscale coexist", Stage: "coexist", Format: store.FormatMerge, Enabled: st.Tailscale.Coexist, Managed: true,
@@ -226,6 +226,7 @@ func toRPCSettings(st *store.Settings) rpc.Settings {
 	return rpc.Settings{
 		LeakGuardGroups: g, TailscaleCoexist: st.Tailscale.Coexist, TailscaleResolver: st.Tailscale.Resolver,
 		HistoryKeep: st.HistoryKeep, KernelChannel: st.KernelChannel, AutoApply: *st.AutoApply,
+		Drift: toRPCDrift(st.Drift),
 	}
 }
 

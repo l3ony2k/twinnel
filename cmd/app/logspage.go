@@ -1,15 +1,26 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/duet/core/i18n"
 	"github.com/l3ony2k/duet/core/mihomo"
+	"github.com/l3ony2k/duet/core/rpc"
 )
 
 // --- logs ---
 
+// The 日志 page has two sources (U29): mihomo's log stream, and what
+// duet did (the helper's events). Both search and filter by level.
+
 var logLevels = []string{"debug", "info", "warning", "error"}
+
+const (
+	logsMihomo = 0
+	logsDuet   = 1
+)
 
 type logsView struct {
 	level  int // index into logLevels; zero value means "info" via init
@@ -17,6 +28,17 @@ type logsView struct {
 	paused bool
 	frozen []mihomo.LogEntry
 	list   ui.ListState
+
+	source int    // logsMihomo or logsDuet
+	query  string // search text, both sources
+	evList ui.ListState
+	mark   uint64 // the event a toast pointed at (H7), highlighted
+
+	// The duet tab's own 暂停 / 清空: a frozen copy of the events, and the
+	// last event 清空 hid (the helper's buffer is not touched).
+	evPaused  bool
+	evFrozen  []rpc.Event
+	evCleared uint64
 }
 
 func (l *logsView) levelName() string {
@@ -26,11 +48,23 @@ func (l *logsView) levelName() string {
 	return logLevels[l.level]
 }
 
+// showDuetLog opens 日志 → duet at its newest event (a toast's 查看).
+func (a *app) showDuetLog() {
+	a.logs.source = logsDuet
+	if n := len(a.events.evs); n > 0 {
+		a.logs.mark = a.events.evs[n-1].Seq
+	}
+	a.openPage(pageLogs)
+}
+
 func (a *app) logsPage(c *ui.Context, barH float32) {
 	a.logs.levelName()
 	entries := a.mon.Logs()
 	if a.logs.paused {
 		entries = a.logs.frozen
+	}
+	if a.logs.source == logsDuet {
+		a.backfillEvents()
 	}
 	// Logs fill the pane, and so does their toolbar (window.go): long
 	// lines want the width.
@@ -39,45 +73,91 @@ func (a *app) logsPage(c *ui.Context, barH float32) {
 	})
 }
 
+// matches reports whether text holds every word of the query, ignoring
+// case.
+func matches(text, query string) bool {
+	text = strings.ToLower(text)
+	for _, w := range strings.Fields(strings.ToLower(query)) {
+		if !strings.Contains(text, w) {
+			return false
+		}
+	}
+	return true
+}
+
 func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 	t := c.Theme()
 	T := i18n.T
 	p := pal(t)
+	v := &a.logs
 	ui.Column(c).Grow(1).Gap(16).Children(func() {
 		pageHeader(c, T.PageLogs, func() {
+			segmented(c.Key("source"), &v.source, T.LogsSourceMihomo, T.LogsSourceDuet).Label(T.PageLogs)
+			ui.TextInput(c.Key("search"), &v.query).Label(T.LogSearch).Placeholder(T.LogSearch).Width(160)
 			small(c, T.LogLevel)
-			if segmented(c.Key("level"), &a.logs.level, i18n.T.LogLevelNames...).Label(T.LogLevel).Changed() {
+			if segmented(c.Key("level"), &v.level, i18n.T.LogLevelNames...).Label(T.LogLevel).Changed() && v.source == logsMihomo {
 				a.mon.ClearLogs()
-				a.mon.SetLogLevel(a.logs.levelName())
+				a.mon.SetLogLevel(v.levelName())
 			}
 			// A toggle: 暂停 and 继续 are one width, so the bar does not
-			// shift as it flips; the state is also spoken (selected).
+			// shift as it flips; the state is also spoken (selected). Both
+			// tabs have both buttons, each with its own state.
+			paused := &v.paused
+			if v.source == logsDuet {
+				paused = &v.evPaused
+			}
 			pause := T.LogPause
-			if a.logs.paused {
+			if *paused {
 				pause = T.LogResume
 			}
-			b := pushButton(c.Key("pause"), pause).Role(ui.RoleToggleButton).AccessSelected(a.logs.paused).Label(T.LogPause)
-			if a.logs.paused {
+			b := pushButton(c.Key("pause"), pause).Role(ui.RoleToggleButton).AccessSelected(*paused).Label(T.LogPause)
+			if *paused {
 				b.Tooltip(i18n.T.LogPaused)
 			}
 			if b.Clicked() {
-				a.logs.paused = !a.logs.paused
-				a.logs.frozen = a.mon.Logs()
+				*paused = !*paused
+				if v.source == logsDuet {
+					v.evFrozen = append([]rpc.Event(nil), a.events.evs...)
+				} else {
+					v.frozen = a.mon.Logs()
+				}
 			}
 			if pushButton(c.Key("clear"), T.LogClear).Clicked() {
-				a.mon.ClearLogs()
-				a.logs.frozen = nil
+				if v.source == logsDuet {
+					if n := len(a.events.evs); n > 0 {
+						v.evCleared = a.events.evs[n-1].Seq
+					}
+					v.evFrozen = nil
+				} else {
+					a.mon.ClearLogs()
+					v.frozen = nil
+				}
 			}
 		})
 		box := ui.Column(c).Grow(1).Radius(plat.groupRadius).Background(p.group).Border(1, p.groupLine).Clip()
 		box.Children(func() {
-			if len(entries) == 0 {
-				ui.Column(c).Grow(1).Justify(ui.Center).Children(func() {
-					emptyState(c, iconLogs, T.LogEmpty, T.LogEmptyHint)
-				})
+			if v.source == logsDuet {
+				a.eventsList(c)
 				return
 			}
-			ui.List(c, &a.logs.list, len(entries), func(i int) {
+			if v.query != "" {
+				var kept []mihomo.LogEntry
+				for _, e := range entries {
+					if matches(e.Payload, v.query) {
+						kept = append(kept, e)
+					}
+				}
+				if len(entries) > 0 && len(kept) == 0 {
+					a.logsEmpty(c, T.LogNoMatch, "")
+					return
+				}
+				entries = kept
+			}
+			if len(entries) == 0 {
+				a.logsEmpty(c, T.LogEmpty, T.LogEmptyHint)
+				return
+			}
+			ui.List(c, &v.list, len(entries), func(i int) {
 				e := entries[i]
 				col := t.Text
 				switch e.Type {
@@ -104,6 +184,103 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 			}).Grow(1).Background(ui.Transparent).PaddingY(6)
 		})
 	})
+}
+
+func (a *app) logsEmpty(c *ui.Context, title, hint string) {
+	ui.Column(c).Grow(1).Justify(ui.Center).Children(func() {
+		emptyState(c, iconLogs, title, hint)
+	})
+}
+
+// eventsList is 日志 → duet: newest first, one row each: time · kind ·
+// what happened; a click goes where it happened (a history entry, a page).
+func (a *app) eventsList(c *ui.Context) {
+	t := c.Theme()
+	T := i18n.T
+	p := pal(t)
+	v := &a.logs
+	type row struct {
+		e rpc.Event
+		r eventRow
+	}
+	var rows []row
+	evs := a.events.evs
+	if v.evPaused {
+		evs = v.evFrozen
+	}
+	if v.evCleared != 0 {
+		k := 0
+		for k < len(evs) && evs[k].Seq <= v.evCleared {
+			k++
+		}
+		evs = evs[k:]
+	}
+	for i := len(evs) - 1; i >= 0; i-- {
+		r, ok := describeEvent(evs[i], a.subscriptionName)
+		if !ok {
+			continue
+		}
+		// Levels: a failure is an error; everything else is info, so
+		// 警告 and 错误 keep only the failures.
+		if v.level >= 2 && !r.failed {
+			continue
+		}
+		if v.query != "" && !matches(r.kind+" "+r.text, v.query) {
+			continue
+		}
+		rows = append(rows, row{evs[i], r})
+	}
+	if len(rows) == 0 {
+		if len(evs) > 0 {
+			a.logsEmpty(c, T.LogNoMatch, "")
+		} else {
+			a.logsEmpty(c, T.EventsEmpty, "")
+		}
+		return
+	}
+	ui.List(c, &v.evList, len(rows), func(i int) {
+		e, r := rows[i].e, rows[i].r
+		col := t.Text
+		if r.failed {
+			col = p.badText
+		}
+		when := e.Time.Local().Format("01-02 15:04:05")
+		el := ui.Row(c).Gap(12).Padding(5, 12).MarginX(6).Radius(plat.controlRadius).AlignItems(ui.Center).
+			Focusable().Label(r.kind + " " + r.text)
+		if e.Seq == v.mark {
+			el.Background(p.accentSoft)
+		} else if el.Hovered() && r.page != "" {
+			el.Background(t.Text.Alpha(0.04))
+		}
+		el.ContextMenu(func(m *ui.Menu) {
+			if m.Item(i18n.T.CopyLine).Chosen() {
+				copyText(c, when+" "+r.kind+" "+r.text)
+			}
+		})
+		el.Children(func() {
+			num(ui.Text(c, when).FontSize(plat.smallSize).TextColor(t.TextMuted).Shrink(0))
+			tag(c, r.kind)
+			ui.Text(c, r.text).FontSize(plat.calloutSize).TextColor(col).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
+		})
+		if el.Clicked() && r.page != "" {
+			v.mark = e.Seq
+			if r.hist != "" {
+				a.showHistoryEntry(r.hist)
+			} else {
+				a.openPage(r.page)
+			}
+		}
+	}).Grow(1).Background(ui.Transparent).PaddingY(6)
+}
+
+// subscriptionName names a subscription by ID for the events.
+func (a *app) subscriptionName(id string) string {
+	for _, s := range a.hd.subs {
+		if s.ID == id && s.Name != "" {
+			return s.Name
+		}
+	}
+	return id
 }
 
 // logLevelName is a log entry's level in the UI language; unknown levels

@@ -42,6 +42,20 @@ type Settings struct {
 	// Hardened is set when service.harden.apply moved mihomo to the
 	// managed kernel, a root-owned config dir and a duet LaunchDaemon.
 	Hardened *Hardening `json:"hardened,omitempty"`
+
+	// Drift is set after a rollback to a config the current overrides
+	// do not compose: mihomo runs a history entry, not compose(layers).
+	// Automatic re-compose waits while it is set; an apply clears it.
+	Drift *Drift `json:"drift,omitempty"`
+}
+
+// Drift: the running config is a history entry, not the overrides.
+type Drift struct {
+	Since     time.Time `json:"since"`
+	HistoryID string    `json:"history_id"` // the entry rolled back to
+	// Manifest: the entry has a layer manifest, so the overrides can be
+	// set back to it.
+	Manifest bool `json:"manifest,omitempty"`
 }
 
 // Hardening records what service.harden.apply replaced, so it can be put

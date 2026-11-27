@@ -75,7 +75,7 @@ func lintKey(k, v *yaml.Node) (LintNote, bool) {
 	n := LintNote{Line: k.Line, Key: key, Level: LevelOK, Text: fmt.Sprintf(what, key, base)}
 	switch {
 	case list && v.Kind != yaml.SequenceNode && v.Tag != "!!null":
-		n.Level, n.Text = LevelWarn, fmt.Sprintf(T.LintNeedsList, key, key)
+		n.Level, n.Text = LevelError, fmt.Sprintf(T.LintNeedsList, key, key) // the helper refuses it
 	case strings.ContainsAny(base, ".*:/") || base == "":
 		n.Level, n.Text = LevelWarn, fmt.Sprintf(T.LintLooksLiteral, key, key)
 	}

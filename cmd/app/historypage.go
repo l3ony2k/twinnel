@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -45,11 +47,11 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		return
 	}
 	hist := d.history // newest first, as history.list returns it
+	// No hash column (U40): it is in the detail, copyable.
 	cols := []ui.TableColumn{
 		{Title: T.HistoryTime, Width: 150},
 		{Title: T.HistoryKind, Width: 80},
 		{Title: T.HistorySize, Width: 80},
-		{Title: T.HistoryHash, Width: 110},
 		{Title: T.HistoryReason},
 	}
 	v.list.RowHeight = 30
@@ -75,11 +77,17 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 			case 2:
 				el = cell(c, status.Bytes(int64(e.Size)))
 			case 3:
-				el = cell(c, shortHash(e.Hash)).Font("monospace").FontSize(plat.calloutSize)
-			case 4:
-				el = cell(c, e.Reason).Tooltip(e.Reason)
+				reason := historyReason(e)
+				el = ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					if e.BeforeDuet {
+						tag(c, T.HistBeforeDuet)
+					}
+					cell(c, reason).SingleLine().Shrink(1).Tooltip(reason)
+				})
 			}
-			el.SingleLine()
+			if col != 3 {
+				el.SingleLine()
+			}
 			el.ContextMenu(func(m *ui.Menu) {
 				if m.Item(T.HistoryDiff).Disabled(a.hd.busy != "").Chosen() {
 					v.sel, v.reveal = e.ID, true
@@ -92,6 +100,9 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 				m.Separator()
 				if m.Item(T.CopyID).Chosen() {
 					copyText(c, e.ID)
+				}
+				if m.Item(T.HistCopyHash).Chosen() {
+					copyText(c, e.Hash)
 				}
 			})
 		})
@@ -114,7 +125,9 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 	}
 	detail := headedCard(c, func() {
 		ui.Text(c, T.HistoryEntry).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
-		ui.Text(c, entry.ID).Font("monospace").FontSize(plat.calloutSize).TextColor(t.TextMuted).Selectable()
+		if entry.BeforeDuet {
+			tag(c, T.HistBeforeDuet)
+		}
 		ui.Spacer(c)
 		if pushButton(c.Key("hist-diff"), T.HistoryDiff).Disabled(a.hd.busy != "").Clicked() {
 			a.historyDiff(s, entry.ID)
@@ -125,9 +138,27 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 	}, func() {
 		kv(c, T.HistoryTime, entry.Time.Local().Format("2006-01-02 15:04:05"))
 		kv(c, T.HistoryKind, T.HistoryKindName(entry.Kind))
-		if entry.Reason != "" {
-			kv(c, T.HistoryReason, entry.Reason)
+		if r := historyReason(*entry); r != "" {
+			kv(c, T.HistoryReason, r)
 		}
+		if m := entry.Layers; m != nil {
+			kvWith(c, T.HistOverrides, func() {
+				ui.Text(c, manifestNames(m)).Grow(1).Wrap().LineHeight(lineText)
+			})
+		}
+		// The hash and the ID are identifiers: quiet, copyable (U40).
+		kvWith(c, T.HistoryHash, func() {
+			num(ui.Text(c, shortHash(entry.Hash)).Font("monospace").FontSize(plat.calloutSize).TextColor(t.TextMuted).
+				Tooltip(entry.Hash).Selectable()).ContextMenu(func(m *ui.Menu) {
+				if m.Item(T.HistCopyHash).Chosen() {
+					copyText(c, entry.Hash)
+				}
+				if m.Item(T.CopyID).Chosen() {
+					copyText(c, entry.ID)
+				}
+			})
+			meta(c, status.Bytes(int64(entry.Size)))
+		})
 		if v.diffErr != "" && v.diffID == entry.ID {
 			ui.Text(c, v.diffErr).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 		}
@@ -139,7 +170,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 			}
 		}
 		if r := v.result; r != nil {
-			applySummary(c, *r)
+			a.applySummary(c, *r)
 		}
 	})
 	// The detail sits under the table: bring it into view as a row is
@@ -179,7 +210,13 @@ func (a *app) historyDiff(s status.Snapshot, id string) {
 func (a *app) historyRollback(e rpc.HistoryEntry) {
 	T := i18n.T
 	when := e.Time.Local().Format("2006-01-02 15:04:05")
-	a.confirm(fmt.Sprintf(T.HistoryRollbackTitle, when), T.HistoryRollbackBody, T.HistoryRollback, func() {
+	// The confirm says what the rollback does to the overrides (U41):
+	// which turn off or on, or that they will not describe it at all.
+	body := T.HistoryRollbackBody
+	if lines := rollbackEffects(e.Layers, a.hd.layers); len(lines) > 0 {
+		body += "\n\n" + strings.Join(lines, "\n")
+	}
+	a.confirm(fmt.Sprintf(T.HistoryRollbackTitle, when), body, T.HistoryRollback, func() {
 		a.historyRollbackNow(e)
 	})
 }
@@ -194,10 +231,122 @@ func (a *app) historyRollbackNow(e rpc.HistoryEntry) {
 		}, func(err error) {
 			v := &a.hd.hist
 			v.result = nil
+			if err != nil {
+				if v.result = failedResult(err); v.result != nil {
+					a.hd.msg, a.hd.msgErr = "", false
+				}
+			}
 			if err == nil {
 				v.result = &res
 				v.diff, v.diffID = nil, ""
 			}
 		})
 	}
+}
+
+// historyReason words an entry's reason (U40): the helper's code in the
+// UI language, the user's own words as written.
+func historyReason(e rpc.HistoryEntry) string {
+	return i18n.T.HistoryReasonText(e.ReasonCode, e.ReasonArgs, e.Reason)
+}
+
+// manifestName is a manifest layer's name in the UI language.
+func manifestName(l rpc.ManifestLayer) string {
+	return i18n.T.TakeoverLayerName(l.NameCode, l.NameArgs, l.Name)
+}
+
+// manifestNames lists the overrides that were on in a manifest, in
+// compose order, the managed ones last.
+func manifestNames(m *rpc.LayerManifest) string {
+	T := i18n.T
+	var on []string
+	for _, l := range composeOrder(m.Layers) {
+		if l.Enabled {
+			on = append(on, manifestName(l))
+		}
+	}
+	if m.Coexist {
+		on = append(on, T.StageName("coexist"))
+	}
+	if len(m.LeakGuard) > 0 {
+		on = append(on, T.StageName("guard"))
+	}
+	if len(on) == 0 {
+		return "—"
+	}
+	return strings.Join(on, T.ListSep)
+}
+
+// composeOrder is the stored layers in the order compose uses: base
+// first, then user, each in their saved order (tech.md §3).
+func composeOrder(ls []rpc.ManifestLayer) []rpc.ManifestLayer {
+	out := slices.Clone(ls)
+	slices.SortStableFunc(out, func(a, b rpc.ManifestLayer) int {
+		return stageRank(a.Stage) - stageRank(b.Stage)
+	})
+	return out
+}
+
+func stageRank(stage string) int {
+	switch stage {
+	case stageBase:
+		return 0
+	case stageUser:
+		return 1
+	}
+	return 2
+}
+
+// rollbackEffects says what rolling back to an entry composed from target
+// does to the overrides now (cur, the layer list with the managed rows):
+// which turn off, which on, which have other content. A nil target (a
+// backup, an older entry) is a config the overrides do not describe.
+func rollbackEffects(target *rpc.LayerManifest, cur []rpc.Layer) []string {
+	T := i18n.T
+	if target == nil {
+		return []string{T.RollbackNoLayers}
+	}
+	then := map[string]rpc.ManifestLayer{}
+	for _, l := range target.Layers {
+		then[l.ID] = l
+	}
+	var off, on, diff []string
+	for _, l := range cur {
+		wasOn, hash := false, ""
+		switch {
+		case l.ID == coexistLayerID:
+			wasOn = target.Coexist
+		case l.Managed: // leak guard
+			wasOn = len(target.LeakGuard) > 0
+		default:
+			if m, ok := then[l.ID]; ok {
+				wasOn, hash = m.Enabled, m.Hash
+			}
+		}
+		switch {
+		case l.Enabled && !wasOn:
+			off = append(off, layerTitle(l))
+		case !l.Enabled && wasOn:
+			on = append(on, layerTitle(l))
+		case l.Enabled && !l.Managed && hash != "" && l.Hash != "" && hash != l.Hash:
+			diff = append(diff, layerTitle(l))
+		}
+		delete(then, l.ID)
+	}
+	for _, m := range composeOrder(target.Layers) { // deleted since
+		if _, ok := then[m.ID]; ok && m.Enabled {
+			on = append(on, manifestName(m))
+		}
+	}
+	var out []string
+	if len(off) > 0 {
+		out = append(out, i18n.F(T.RollbackDisables, strings.Join(off, T.ListSep)))
+	}
+	if len(on) > 0 {
+		out = append(out, i18n.F(T.RollbackEnables, strings.Join(on, T.ListSep)))
+	}
+	if len(diff) > 0 {
+		out = append(out, i18n.F(T.RollbackChanges, strings.Join(diff, T.ListSep)))
+	}
+	return out
 }

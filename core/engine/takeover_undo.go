@@ -117,7 +117,7 @@ func (e *Engine) TakeoverUndo(ctx context.Context, p rpc.TakeoverUndoParams) (rp
 	}
 	e.adopting.Store(true) // no auto-apply while the store changes
 	defer e.adopting.Store(false)
-	if err := e.restoreExact(ctx, ad.LiveConfig, backup, mode, "undo takeover "+ad.PlanID); err != nil {
+	if err := e.restoreExact(ctx, ad.LiveConfig, backup, mode, store.HistoryMeta{Reason: "undo takeover " + ad.PlanID, Code: store.ReasonTakeoverUndo, Args: []string{ad.PlanID}}); err != nil {
 		mark(rpc.UndoRestoreConfig, "failed", err.Error())
 		res.Error = "restore: " + err.Error()
 		return res, nil

@@ -15,6 +15,8 @@ import (
 	"math"
 	"math/rand/v2"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -152,7 +154,20 @@ func (s *server) handler() http.Handler {
 		s.mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 	})
-	mux.HandleFunc("PUT /configs", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	// A config holding the marker duet-test-reload-fail is refused, as
+	// mihomo refuses one it cannot load, so the app's failed-reload state
+	// can be shown (shots, design review U53).
+	mux.HandleFunc("PUT /configs", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Path string `json:"path"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		if b, err := os.ReadFile(body.Path); err == nil && strings.Contains(string(b), "duet-test-reload-fail") {
+			http.Error(w, `{"message":"synthetic reload failure (duet-test-reload-fail)"}`, http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("POST /cache/fakeip/flush", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	mux.HandleFunc("POST /cache/dns/flush", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	mux.HandleFunc("GET /proxies", func(w http.ResponseWriter, r *http.Request) {

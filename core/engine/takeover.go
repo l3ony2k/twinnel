@@ -512,13 +512,13 @@ func (e *Engine) Adopt(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult,
 
 	// ---- 5. apply ----
 	start := e.now()
-	ar, aerr := e.Apply(ctx, rpc.ApplyParams{Reason: "adopt " + p.PlanID, Force: true})
+	ar, aerr := e.Apply(ctx, rpc.ApplyParams{Reason: "adopt " + p.PlanID, ReasonCode: store.ReasonAdopt, ReasonArgs: []string{p.PlanID}, Force: true})
 	res.Apply = ar
 	if aerr != nil {
 		step("apply", "failed", aerr.Error())
 		// Apply restores the previous file itself; make sure it is byte-exact.
 		if cur, err := os.ReadFile(plan.Live); err != nil || sha256Hex(cur) != plan.LiveHash {
-			if rerr := e.restoreExact(ctx, plan.Live, live, liveMode, "adopt "+p.PlanID+" failed"); rerr != nil {
+			if rerr := e.restoreExact(ctx, plan.Live, live, liveMode, store.HistoryMeta{Reason: "adopt " + p.PlanID + " failed", Code: store.ReasonAdoptFailed, Args: []string{p.PlanID}}); rerr != nil {
 				step("restore", "failed", rerr.Error())
 			} else {
 				step("restore", "ok", "live config written back")
@@ -566,7 +566,7 @@ func (e *Engine) Adopt(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult,
 		res.Worse = worse
 		if len(worse) > 0 {
 			step("health after", "failed", "worse: "+strings.Join(worse, ", ")+"; "+checkLine(res.HealthAfter))
-			if rerr := e.restoreExact(ctx, plan.Live, live, liveMode, "adopt "+p.PlanID+" rolled back"); rerr != nil {
+			if rerr := e.restoreExact(ctx, plan.Live, live, liveMode, store.HistoryMeta{Reason: "adopt " + p.PlanID + " rolled back", Code: store.ReasonTakeoverUndo, Args: []string{p.PlanID}}); rerr != nil {
 				step("rollback", "failed", rerr.Error())
 				res.Error = fmt.Sprintf("health got worse after adopt (%s) and the rollback failed: %v; restore %s by hand", strings.Join(worse, ", "), rerr, backup)
 			} else {
@@ -756,7 +756,7 @@ func (e *Engine) backupSince(t time.Time) string {
 
 // restoreExact writes data back to path byte for byte, reloads mihomo if it
 // runs and waits for its controller, and records a rollback in history.
-func (e *Engine) restoreExact(ctx context.Context, path string, data []byte, mode fs.FileMode, reason string) error {
+func (e *Engine) restoreExact(ctx context.Context, path string, data []byte, mode fs.FileMode, meta store.HistoryMeta) error {
 	e.applyMu.Lock()
 	defer e.applyMu.Unlock()
 	st, err := e.Store.Settings()
@@ -786,7 +786,7 @@ func (e *Engine) restoreExact(ctx context.Context, path string, data []byte, mod
 			return err
 		}
 	}
-	if _, err := e.Store.AddHistory(store.HistoryRollback, reason, stripSecretBytes(data), e.now(), st.HistoryKeep); err != nil {
+	if _, err := e.Store.AddHistoryMeta(store.HistoryRollback, meta, stripSecretBytes(data), e.now(), st.HistoryKeep); err != nil {
 		e.log().Warn("history", "err", err)
 	}
 	e.triggerHealth("rollback")
@@ -818,7 +818,7 @@ func (e *Engine) SecureController(ctx context.Context) (rpc.ControllerSecureResu
 	if err := e.Secrets.Set(store.SecretController, secret); err != nil {
 		return out, rpc.Errorf(rpc.CodeFailed, "store the secret: %v", err)
 	}
-	ar, aerr := e.Apply(ctx, rpc.ApplyParams{Reason: "controller.secure", Force: true})
+	ar, aerr := e.Apply(ctx, rpc.ApplyParams{Reason: "controller.secure", ReasonCode: store.ReasonSecure, Force: true})
 	out.Apply = ar
 	if aerr != nil {
 		if old != "" {
