@@ -82,6 +82,9 @@ func mcpDeps(socket string) agent.Deps {
 		ReadOnly:   os.Getenv(status.EnvReadOnly) == "1",
 		Version:    coreversion.Version,
 	}
+	d.HelperBinaries = func(ctx context.Context, running string) *coreversion.HelperBinaries {
+		return collectHelperBinaries(ctx, 5*time.Second, running)
+	}
 	d.Doctor = func(ctx context.Context) (json.RawMessage, error) {
 		settings := health.DefaultSettings()
 		env, err := newHealthEnv(healthEnvOptions{Controller: d.Controller, Settings: &settings})

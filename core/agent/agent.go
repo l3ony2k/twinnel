@@ -40,6 +40,7 @@ import (
 	"github.com/l3ony2k/twinnel/core/mihomo"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/version"
 )
 
 // Caller is a connection to the helper (*rpc.Client).
@@ -62,6 +63,10 @@ type Deps struct {
 	// Doctor runs the local health checks (`twinnel doctor --json`); nil: the
 	// doctor tool is not offered.
 	Doctor func(ctx context.Context) (json.RawMessage, error)
+	// HelperBinaries compares the helper binary shipped with Twinnel with
+	// the installed one, given the running helper's version ("" unknown);
+	// nil: the version tool leaves it out.
+	HelperBinaries func(ctx context.Context, running string) *version.HelperBinaries
 	// ReadOnly refuses every operate and configure tool (TWINNEL_READ_ONLY).
 	ReadOnly bool
 	// Version is Twinnel's version.

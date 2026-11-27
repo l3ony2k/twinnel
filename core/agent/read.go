@@ -27,7 +27,8 @@ online peers), the last health result and which agent tiers are on. Start here.`
 		toolOpts{noHelper: true}, s.status)
 
 	addTool(s, rpc.TierRead, "version", "Versions",
-		`Versions of Twinnel, the helper, the mihomo kernel (running, installed, previous), Tailscale, and the
+		`Versions of Twinnel, the helper (and its two binaries: the one shipped with Twinnel and the installed one,
+with a warning when they differ), the mihomo kernel (running, installed, previous), Tailscale, and the
 geo databases. With check_updates it also asks GitHub for the latest mihomo release and geo files
 (network requests; nothing is installed).`,
 		toolOpts{noHelper: true, openWorld: true}, s.version)
@@ -328,6 +329,12 @@ func (s *Server) version(c *call, in versionIn) (any, error) {
 			if v, err := mc.Version(c.ctx); err == nil {
 				out["mihomo_running"] = v.Version
 			}
+		}
+	}
+	if s.d.HelperBinaries != nil {
+		running, _ := out["helper"].(string)
+		if hb := s.d.HelperBinaries(c.ctx, running); hb != nil {
+			out["helper_binaries"] = hb
 		}
 	}
 	return out, nil

@@ -15,11 +15,13 @@ import (
 )
 
 func fakeVersionSources(t *testing.T, h func() (rpc.Status, error), m func() (mihomo.Version, error), ts func() (string, error)) {
-	oldH, oldM, oldT := helperStatus, mihomoVersion, tailscaleVersion
+	oldH, oldM, oldT, oldP := helperStatus, mihomoVersion, tailscaleVersion, helperBinaryPaths
 	helperStatus = func(context.Context, string) (rpc.Status, error) { return h() }
 	mihomoVersion = func(context.Context, string, string) (mihomo.Version, error) { return m() }
 	tailscaleVersion = func(context.Context) (string, error) { return ts() }
-	t.Cleanup(func() { helperStatus, mihomoVersion, tailscaleVersion = oldH, oldM, oldT })
+	// Never the machine's own helper binaries (TestVersionHelperDrift sets them).
+	helperBinaryPaths = func() (string, string) { return "", "" }
+	t.Cleanup(func() { helperStatus, mihomoVersion, tailscaleVersion, helperBinaryPaths = oldH, oldM, oldT, oldP })
 }
 
 func TestVersionAllReachable(t *testing.T) {
@@ -80,5 +82,55 @@ func TestVersionMihomoViaHelper(t *testing.T) {
 	rep := collectVersions(context.Background(), time.Second, "/x.sock", "127.0.0.1:9090", "")
 	if rep.Mihomo.Version != "v1.18.0" || rep.Mihomo.Error != "" || !strings.Contains(rep.Mihomo.Detail, "via the helper") {
 		t.Fatalf("%+v", rep.Mihomo)
+	}
+}
+
+// The helper's two copies (Windows: bin\ beside the CLI and Program Files)
+// show under twinnel-helper, and a difference is a warning.
+func TestVersionHelperDrift(t *testing.T) {
+	fakeVersionSources(t,
+		func() (rpc.Status, error) { return rpc.Status{HelperVersion: "0.1.0"}, nil },
+		func() (mihomo.Version, error) { return mihomo.Version{}, errors.New("refused") },
+		func() (string, error) { return "", errors.New("no tailscaled") },
+	)
+	const bundled, installed = `C:\Users\u\AppData\Local\Programs\Twinnel\bin\twinnel-helper.exe`, `C:\Program Files\Twinnel\twinnel-helper.exe`
+	helperBinaryPaths = func() (string, string) { return bundled, installed }
+	versions := map[string]string{bundled: "0.2.0", installed: "0.1.0"}
+	oldV := binaryVersion
+	binaryVersion = func(_ context.Context, bin string) (string, error) { return versions[bin], nil }
+	t.Cleanup(func() { binaryVersion = oldV })
+
+	rep := collectVersions(context.Background(), time.Second, `\\.\pipe\twinnel-helper`, "127.0.0.1:9090", "")
+	hb := rep.HelperBinaries
+	if hb == nil || hb.Bundled.Version != "0.2.0" || hb.Installed.Version != "0.1.0" || !strings.Contains(hb.Warning, "twinnel helper upgrade") {
+		t.Fatalf("%+v", hb)
+	}
+	var b bytes.Buffer
+	writeVersions(&b, rep)
+	for _, s := range []string{"  installed     0.1.0  (" + installed + ")", "  bundled       0.2.0  (" + bundled + ")", "warning: the installed helper (0.1.0) is older"} {
+		if !strings.Contains(b.String(), s) {
+			t.Errorf("output lacks %q:\n%s", s, b.String())
+		}
+	}
+	var j map[string]any
+	out, _ := json.Marshal(rep)
+	json.Unmarshal(out, &j)
+	if j["helper_binaries"] == nil {
+		t.Errorf("json lacks helper_binaries: %s", out)
+	}
+
+	// Same binaries, running an old one: restart.
+	versions[bundled], versions[installed] = "0.2.0", "0.2.0"
+	rep = collectVersions(context.Background(), time.Second, "x", "127.0.0.1:9090", "")
+	if w := rep.HelperBinaries.Warning; !strings.Contains(w, "running helper (0.1.0)") {
+		t.Fatalf("warning = %q", w)
+	}
+	// All in step: no warning line.
+	helperStatus = func(context.Context, string) (rpc.Status, error) { return rpc.Status{HelperVersion: "0.2.0"}, nil }
+	rep = collectVersions(context.Background(), time.Second, "x", "127.0.0.1:9090", "")
+	b.Reset()
+	writeVersions(&b, rep)
+	if rep.HelperBinaries.Warning != "" || strings.Contains(b.String(), "warning") {
+		t.Fatalf("unexpected warning:\n%s", b.String())
 	}
 }
