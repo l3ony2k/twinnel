@@ -29,7 +29,9 @@ export const STOCK = [
   'layers', 'history', 'undo-2', 'cpu', 'rss', 'square-pen', 'file-lock', 'server', 'map',
   'app-window', 'import', 'key-round',
   // added by ui-final
-  'file-diff', 'eye'
+  'file-diff', 'eye',
+  // added by pages-rest (日志 toolbar)
+  'pause', 'play'
 ];
 const DUET = ['duet'];
 const TRAY = ['duet', 'duet-warn', 'duet-error', 'duet-unknown', 'duet-tsdown', 'duet-mode', 'duet-nohelper'];
