@@ -271,6 +271,7 @@ type Strings struct {
 	AgentStrings           // agent.go
 	ImportStrings          // importcfg.go
 	PlatformStrings        // platform.go
+	TSLoginStrings         // tslogin.go
 }
 
 // zh is the Chinese text.
@@ -833,6 +834,7 @@ var zh = Strings{
 	StatusStrings:          zhStatus,
 	SidebarStrings:         zhSidebar,
 	OverviewStrings:        zhOverview,
+	TSLoginStrings:         zhTSLogin,
 	PagesStrings:           zhPages,
 	AgentStrings:           zhAgent,
 	ImportStrings:          zhImport,

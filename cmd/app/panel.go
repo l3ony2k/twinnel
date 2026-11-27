@@ -455,16 +455,19 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 	// The header's switch connects and disconnects, as Tailscale's own
 	// menu does.
 	moduleHeader(c, tsMark(s), tsColor(t, s), T.Tailscale, summary, detail, func() {
-		switch {
-		case needsLogin(s):
-			a.tsLoginButton(c, s)
-		case ts.Reachable:
+		// Every other state has its action in the panel below.
+		if ph := tsPhaseOf(s); ph == tsRunning || ph == tsStarting {
 			a.tsPowerSwitch(c, s).Size(32, 18).Radius(9)
 		}
 	})
 	a.controlError(c, pendTS)
-	if !ts.Reachable || needsLogin(s) {
-		return // its addresses and exit node are not this node's now
+	if a.tsPanelShown(s) {
+		// Not running, or logging in: the state's action, card-size. Its
+		// addresses and exit node are not this node's now.
+		ui.Column(c).PaddingX(rowInset).Padding(4, rowInset).Children(func() {
+			a.tsLoginPanel(c, s, tsPanelOpts{Compact: true})
+		})
+		return
 	}
 	if ip := st.Self.IPv4(); ip.IsValid() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).MinHeight(panelRowH).Children(func() {
@@ -521,12 +524,6 @@ func versionSuffix(v string) string {
 		return ""
 	}
 	return " · " + v
-}
-
-// needsLogin: Tailscale answers and wants a login.
-func needsLogin(s status.Snapshot) bool {
-	st := s.Tailscale.State.BackendState
-	return s.Tailscale.Reachable && (st == "NeedsLogin" || st == "NeedsMachineAuth")
 }
 
 // fitShotPanel sizes shot mode's stand-in for the flyout (a hidden window)

@@ -562,6 +562,7 @@ var en = Strings{
 	StatusStrings:          enStatus,
 	SidebarStrings:         enSidebar,
 	OverviewStrings:        enOverview,
+	TSLoginStrings:         enTSLogin,
 	PagesStrings:           enPages,
 	AgentStrings:           enAgent,
 	ImportStrings:          enImport,

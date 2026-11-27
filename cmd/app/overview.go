@@ -503,22 +503,10 @@ func (a *app) tsCardRows(c *ui.Context, s status.Snapshot) ovRows {
 	ts := s.Tailscale
 	st := ts.State
 	rows := ovRows{}
-	if !ts.Reachable {
-		rows[slotBody] = func() {
-			a.cardDown(c, svcTailscale, ts.Err)
-			kv(c, T.Install, T.InstallKind(string(ts.Install.Kind)))
-		}
-		return rows
-	}
-	if needsLogin(s) {
-		// Logged out: the node's addresses and devices are not its own
-		// now; the way back in is the one action.
-		rows[slotBody] = func() {
-			kvWith(c, T.State, func() {
-				ui.Text(c, T.TSState(st.BackendState)).Grow(1).SingleLine()
-				a.tsLoginButton(c, s)
-			})
-		}
+	if a.tsPanelShown(s) {
+		// Not running, or logging in: the card is the state and its one
+		// action (tslogin.go); the node's rows are not its own now.
+		rows[slotBody] = func() { a.tsLoginPanel(c, s, tsPanelOpts{Compact: true}) }
 		return rows
 	}
 	rows[slotState] = func() {
@@ -570,7 +558,7 @@ func (a *app) tsCardRows(c *ui.Context, s status.Snapshot) ovRows {
 				e := num(ui.Text(c, exp)).SingleLine().Shrink(1)
 				if st.KeyExpiresWithin(s.Time, status.KeyExpiryWarning) {
 					e.TextColor(pal(t).warnText)
-					ui.Link(c, T.KeyRenew, tailscaleAdminURL).FontSize(plat.calloutSize)
+					a.tsReauthButton(c, s)
 				}
 			})
 		}
