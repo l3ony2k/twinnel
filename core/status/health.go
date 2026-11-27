@@ -49,6 +49,17 @@ func (h Health) Counts() (warn, fail int) {
 	return c[health.StatusWarn], c[health.StatusFail]
 }
 
+// SetExitNodeAccepted records the exit node the user accepted ("" for
+// none) and re-rates the snapshot.
+func (m *Monitor) SetExitNodeAccepted(name string) {
+	m.update(func(s *Snapshot) { s.AcceptedExitNode = name })
+}
+
+// Stale reports whether the last report is older than after at now.
+func (h Health) Stale(now time.Time, after time.Duration) bool {
+	return h.Report != nil && now.Sub(h.Report.Started) > after
+}
+
 // HealthTimeout bounds one run of all checks.
 const HealthTimeout = 60 * time.Second
 
@@ -79,7 +90,7 @@ func (m *Monitor) RunHealth(ctx context.Context) {
 			return
 		}
 		h.Err = ""
-		h.Report = rep
+		m.rawHealth = rep // update applies the accepted causes
 	})
 }
 

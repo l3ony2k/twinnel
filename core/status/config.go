@@ -24,17 +24,25 @@ type Config struct {
 	// Language is the UI language (a core/i18n tag such as "en"); ""
 	// follows the system's preferred languages.
 	Language string `json:"language,omitempty"`
+	// ExitNodeAccepted is the Tailscale exit node the user chose to use
+	// while mihomo's TUN is on: its conflict shows as accepted, not as a
+	// failure. Cleared when the exit node changes or turns off.
+	ExitNodeAccepted string `json:"exitNodeAccepted,omitempty"`
 
-	// From the environment only, never saved.
+	// From the environment only, never saved. AllowWrites is on unless
+	// DUET_READ_ONLY=1: a deny switch for development and test runs
+	// (shots, agents), not a product setting. What a control can change
+	// follows from the state of what it acts on (Snapshot.Can).
 	AllowWrites   bool `json:"-"`
 	SecretFromEnv bool `json:"-"`
 }
 
 // Environment variables read by LoadConfig.
 const (
-	EnvController  = "DUET_CONTROLLER"
-	EnvSecret      = "DUET_MIHOMO_SECRET"
-	EnvAllowWrites = "DUET_ALLOW_WRITES"
+	EnvController = "DUET_CONTROLLER"
+	EnvSecret     = "DUET_MIHOMO_SECRET"
+	// EnvReadOnly=1 keeps every write off (development and test runs).
+	EnvReadOnly = "DUET_READ_ONLY"
 )
 
 // DefaultPrimaryGroup is the group shown in the panel when none is set.
@@ -61,7 +69,7 @@ func LoadConfig(path string, getenv func(string) string) (Config, error) {
 		c.Secret = v
 		c.SecretFromEnv = true
 	}
-	c.AllowWrites = getenv(EnvAllowWrites) == "1"
+	c.AllowWrites = getenv(EnvReadOnly) != "1"
 	if c.Controller == "" {
 		c.Controller = "127.0.0.1:9090"
 	}

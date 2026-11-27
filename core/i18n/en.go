@@ -79,7 +79,7 @@ var en = Strings{
 	TSDown:             "Disconnect",
 	OpenMainWindow:     "Open Main Window",
 	Quit:               "Quit",
-	WritesDisabledHint: "Set DUET_ALLOW_WRITES=1 and reopen duet to make changes",
+	WritesDisabledHint: "Read-only mode",
 	ErrorPrefix:        "Error: ",
 
 	TSStates: map[string]string{
@@ -122,7 +122,7 @@ var en = Strings{
 	PathDirect:    "Direct",
 	PathDERP:      "DERP relay",
 	PathPeerRelay: "Peer relay",
-	PathIdle:      "Idle",
+	PathIdle:      "Not connected",
 	Online:        "Online",
 	Offline:       "Offline",
 	NoPeers:       "No other devices",
@@ -548,6 +548,7 @@ var en = Strings{
 	AboutStrings:      enAbout,
 	TakeoverStrings:   enTakeover,
 	HelperMgmtStrings: enHelperMgmt,
+	StatusStrings:     enStatus,
 }
 
 var enControls = ControlStrings{

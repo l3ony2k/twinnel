@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/l3ony2k/duet/core/health"
 	"github.com/l3ony2k/duet/core/mihomo"
 	"github.com/l3ony2k/duet/core/tailscale"
 )
@@ -41,6 +42,9 @@ type Options struct {
 	PrimaryGroup  string
 	TestURL       string
 	WritesAllowed bool
+	// ExitNodeAccepted is the exit node the user accepted (Config); see
+	// SetExitNodeAccepted.
+	ExitNodeAccepted string
 
 	// HealthInterval is how often the health checks run in the background
 	// (they also run at start and on demand, RunHealth). Default 10 min;
@@ -72,6 +76,8 @@ type Monitor struct {
 
 	mKick  chan struct{}
 	tsKick chan struct{}
+
+	rawHealth *health.Report // last report as run; snap.Health.Report has the accepted causes applied
 
 	logMu     sync.Mutex
 	logCancel context.CancelFunc
@@ -110,6 +116,7 @@ func NewMonitor(o Options) *Monitor {
 		tsKick: make(chan struct{}, 1),
 	}
 	m.snap.WritesAllowed = o.WritesAllowed
+	m.snap.AcceptedExitNode = o.ExitNodeAccepted
 	m.snap.Tailscale.Install = o.Install
 	m.snap.Time = o.Now()
 	Evaluate(&m.snap)
@@ -208,6 +215,9 @@ func (m *Monitor) notify() {
 func (m *Monitor) update(fn func(s *Snapshot)) {
 	m.mu.Lock()
 	fn(&m.snap)
+	if m.rawHealth != nil {
+		m.snap.Health.Report = health.Accept(m.rawHealth, m.snap.acceptedCauses()...)
+	}
 	m.snap.Time = m.o.Now()
 	m.snap.Loaded = m.mDone && m.tDone
 	Evaluate(&m.snap)
