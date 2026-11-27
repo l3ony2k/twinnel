@@ -109,8 +109,10 @@ func (ResolverBinding) Run(ctx context.Context, env Env) Result {
 	switch {
 	case len(stale) > 0:
 		res.Status, res.Summary, res.Fix = StatusWarn, fmt.Sprintf(L.msgBindStale, staleIface, current), fix
+		res.because(ReasonBindStale)
 	case len(unbound) > 0 && hosts == 0:
 		res.Status, res.Summary, res.Fix = StatusWarn, L.msgBindMissing, fix
+		res.because(ReasonBindMissing)
 	case len(unbound) > 0:
 		res.Summary = L.msgBindHostsOnly
 	default:
@@ -206,7 +208,8 @@ func (FakeIPMode) Run(ctx context.Context, env Env) Result {
 	default:
 		res.Status = StatusWarn
 		res.Summary = fmt.Sprintf(L.msgWildcardBad, mode)
-		res.Fix = &FixHint{Text: L.fixWildcard, AutoFix: FixCoexist}
+		res.Fix = &FixHint{Text: L.fixWildcard}
+		res.because(ReasonFakeIPWildcard)
 	}
 	return res
 }
@@ -273,6 +276,8 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	prox, chain, err := ee.ProxiedEgress(ctx, url)
 	if err != nil {
 		res.Status, res.Summary = StatusWarn, fmt.Sprintf(L.msgEgressErr, err)
+		res.Fix = &FixHint{Text: L.fixEgressProbe, AutoFix: FixEgressProbe}
+		res.because(ReasonEgressFailed)
 		return res
 	}
 	leaf := "?"
@@ -295,7 +300,8 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	if direct[prox] {
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgEgressSame, leaf)
-		res.Fix = &FixHint{Text: L.fixEgress}
+		res.Fix = &FixHint{Text: L.fixEgress, Param: egressGroup(ctx, env, leaf)}
+		res.because(ReasonEgressSame)
 		return res
 	}
 	rt, err := env.MihomoRuntime(ctx)
@@ -382,4 +388,21 @@ func ParseEgressBody(body string) (netip.Addr, error) {
 		return a, nil
 	}
 	return netip.Addr{}, fmt.Errorf("no IP in the echo response")
+}
+
+// egressGroup is the sensitive group whose current node is leaf (the one
+// to pick another node for), else the first sensitive group.
+func egressGroup(ctx context.Context, env Env, leaf string) string {
+	groups := env.Settings().SensitiveGroups
+	if rt, err := env.MihomoRuntime(ctx); err == nil {
+		for _, g := range groups {
+			if ch := followNow(rt.Proxies, g); ch[len(ch)-1] == leaf {
+				return g
+			}
+		}
+	}
+	if len(groups) > 0 {
+		return groups[0]
+	}
+	return ""
 }

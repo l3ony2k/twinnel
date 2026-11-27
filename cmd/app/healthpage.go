@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -133,16 +134,13 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 	groupBox(c, t).Children(func() {
 		icon, col, label := healthStatusLook(t, rep.Overall)
 		head := healthHeadline(label, cnt)
-		// The headline is the one number the banner and the sidebar show,
-		// at their level (Snapshot.HealthBadge): a finding they call a
-		// warning is a warning here too, not 1 项失败 in red (R-kubai-6).
-		if n, l := s.HealthBadge(); n > 0 && l != status.LevelOK {
-			icon, col = levelIcon(l), levelColor(t, l)
-			for _, r := range s.Reasons {
-				if r.Code == status.ReasonHealth {
-					head = healthReasonShort(r)
-				}
-			}
+		// The headline is the one number the banner, the sidebar, the
+		// overview and the flyout show (Snapshot.HealthBadge: failures
+		// and warnings together, split in words), in their level's color
+		// (a finding before takeover is a warning: R-kubai-6), with ⊗
+		// when failures are in it.
+		if r, ok := healthReason(s); ok {
+			icon, col, head = healthReasonIcon(r), levelColor(t, r.Level), healthReasonShort(r)
 		}
 		ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
 			ui.Icon(c, icon).FontSize(iconLarge).TextColor(col).Shrink(0)
@@ -198,6 +196,10 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			}
 		})
 	}
+	// Failures first, then warnings, each in report order.
+	sort.SliceStable(problems, func(i, j int) bool {
+		return problems[i].Status == health.StatusFail && problems[j].Status != health.StatusFail
+	})
 	list(T.HealthProblems, "", problems, nil)
 	// An accepted exit node: its check, and the checks it breaks grouped
 	// under it, folded; none of them counts.
@@ -221,6 +223,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 		})
 	})
 	list(T.HealthPassed, "", rest, nil)
+	a.fixSheet(c, s)
 }
 
 // healthDemoted: the banner rates the checks' failures as warnings (a
@@ -250,14 +253,20 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 	off := egressOff(cr)
 	// The egress row's own fix (检测出口) is on the row, not in the fold.
 	fix := cr.Fix != nil && !(egress && cr.Fix.AutoFix == health.FixEgressProbe)
-	expandable := len(cr.Evidence) > 0 || fix ||
+	// Reasons with fixes (health-fixes) stand for the hint's text.
+	reasons := len(cr.Reasons) > 0 && (cr.Status == health.StatusWarn || cr.Status == health.StatusFail)
+	if reasons {
+		fix = false
+	}
+	expandable := len(cr.Evidence) > 0 || fix || reasons ||
 		cr.Summary != "" && cr.Status != health.StatusSkip && cr.Status != health.StatusAccepted ||
 		egress && !off && cr.Summary != ""
-	look := cr.Status
-	if demote && look == health.StatusFail {
-		look = health.StatusWarn
+	// A failure keeps its ⊗ shape; before takeover it wears the
+	// warning's color, as the banner rates it (R-kubai-6).
+	icon, col, _ := healthStatusLook(t, cr.Status)
+	if demote && cr.Status == health.StatusFail {
+		_, col, _ = healthStatusLook(t, health.StatusWarn)
 	}
-	icon, col, _ := healthStatusLook(t, look)
 	_, _, stateText := healthStatusLook(t, cr.Status)
 	if off {
 		// Not tested yet: a setting, not a finding. The power glyph,
@@ -292,8 +301,13 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 				tag(c, T.HealthAccepted)
 			case !open:
 				// Cut to one line; the whole sentence on hover, as
-				// macOS shows a truncated cell's text.
-				ui.Text(c, cr.Summary).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(cr.Summary)
+				// macOS shows a truncated cell's text. A failing check
+				// says its first reason in plain words.
+				line := cr.Summary
+				if reasons {
+					line = rowFixLine(cr, reportPlatform(s))
+				}
+				ui.Text(c, line).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(line)
 			}
 			ui.Spacer(c)
 			if egress {
@@ -306,6 +320,12 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 					if busyButton(c.Key("fix-inline"), act.label, false, busy, act.off).Clicked() {
 						act.run()
 					}
+				}
+			}
+			if a.fx.undo[cr.ID] != nil && !reasons {
+				// Fixed: the way back stays on the row, wherever it moved.
+				if busyButton(c.Key("fix-undo-inline"), T.FixUndo, false, a.fx.running, a.fx.running).Clicked() {
+					a.undoFix(cr.ID, s)
 				}
 			}
 			if expandable {
@@ -328,7 +348,14 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 			return
 		}
 		ui.Column(c).Gap(10).MarginStart(26).Children(func() {
-			if cr.Status != health.StatusSkip || egress {
+			if reasons {
+				a.reasonFixes(c, cr, s)
+				// The check's own words, for whoever wants them.
+				ui.Column(c).Gap(4).Children(func() {
+					small(c, T.FixDetails)
+					ui.Text(c, cr.Summary).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
+				})
+			} else if cr.Status != health.StatusSkip || egress {
 				ui.Text(c, cr.Summary).Wrap().LineHeight(lineText).Selectable()
 			}
 			if egress && cr.Egress != nil {
@@ -424,10 +451,8 @@ func healthAge(s status.Snapshot) string {
 func healthHeadline(label string, cnt map[health.Status]int) string {
 	T := i18n.T
 	switch {
-	case cnt[health.StatusFail] > 0:
-		return i18n.F(T.HealthFailN, cnt[health.StatusFail])
-	case cnt[health.StatusWarn] > 0:
-		return i18n.F(T.HealthWarnN, cnt[health.StatusWarn])
+	case cnt[health.StatusFail]+cnt[health.StatusWarn] > 0:
+		return T.HealthCount(cnt[health.StatusFail], cnt[health.StatusWarn], false)
 	case cnt[health.StatusOK] > 0:
 		return T.PanelHealthOK
 	}
@@ -440,7 +465,7 @@ func healthCountsText(cnt map[health.Status]int) string {
 	for _, k := range []struct {
 		st    health.Status
 		label string
-	}{{health.StatusWarn, T.HealthWarn}, {health.StatusFail, T.HealthFail}, {health.StatusSkip, T.HealthSkip}} {
+	}{{health.StatusFail, T.HealthFail}, {health.StatusWarn, T.HealthWarn}, {health.StatusSkip, T.HealthSkip}} {
 		if n := cnt[k.st]; n > 0 {
 			parts = append(parts, fmt.Sprintf("%s %d", k.label, n))
 		}

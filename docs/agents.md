@@ -50,6 +50,7 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 | `status` | helper, mihomo (mode, TUN, the node of each selector group), stored config (subscription, overrides, last apply, drift), Tailscale, last health, the tiers. Works without the helper (reports it). |
 | `version` | Twinnel, helper, kernel, Tailscale; `check_updates` asks GitHub for the latest kernel and geo files |
 | `health` | the helper's checks; `run=true` runs them now |
+| `health_fixes` | why a check fails (reason codes) and each reason's fix: `auto` (one call), `guided` (where in the app), `manual` (why Twinnel can't, what to do instead); see [health-fixes.md](health-fixes.md) |
 | `doctor` | `twinnel doctor` in-process (when the helper is down) |
 | `proxies` | groups, current node, members, last delays; `group` for one with its chain |
 | `connections` | open connections summarized: top destinations, rules, chains, processes |
@@ -64,9 +65,9 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 | `agent_activity` | what agents changed, newest first |
 | `admin_only` | where the person does an action agents never get |
 
-**operate**: `set_mode`, `select_node`, `delay_test`, `health_egress_run` (two GETs to an IP-echo address; operate because it sends traffic out), `set_tun`, `tailscale_up`, `tailscale_down`, `set_exit_node`, `clear_exit_node`, `refresh_subscription`, `flush_fakeip`.
+**operate**: `set_mode`, `select_node`, `delay_test`, `health_egress_run` (two GETs to an IP-echo address; operate because it sends traffic out), `set_tun`, `tailscale_up`, `tailscale_down`, `set_exit_node`, `clear_exit_node`, `refresh_subscription`, `flush_fakeip`, `health_fix` (a reason's one-click fix when it only switches something reversible: rerun, egress test, rule mode, exit node off, restart mihomo/tailscaled; checks again; `undo` reverts).
 
-**configure**: `layer_put`, `layer_remove`, `layer_enable`, `layer_order`, `sub_put`, `sub_activate`, `sub_remove`, `apply`, `history_rollback`, `settings_update` (no agent fields), `config_import` (plan first, then `confirm=true`).
+**configure**: `layer_put`, `layer_remove`, `layer_enable`, `layer_order`, `sub_put`, `sub_activate`, `sub_remove`, `apply`, `history_rollback`, `settings_update` (no agent fields), `config_import` (plan first, then `confirm=true`), `health_fix_config` (a reason's one-click fix that changes the config or the system DNS: coexistence or leak guard override, controller on loopback, controller secret, system DNS; checks again; `undo` reverts where possible).
 
 `apply` always takes two calls: without `preview_hash` it returns the preview (diff, validation, reload impact) for the agent to show the person; with that `preview_hash` it applies exactly that config, or refuses if the overrides changed since. The result has `history_id` and `rollback_id`; `history_rollback id=<rollback_id>` undoes it. An invalid config is never written; one that breaks mihomo after reload is restored by the helper.
 

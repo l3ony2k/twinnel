@@ -167,6 +167,7 @@ func TestEveryToolRedacts(t *testing.T) {
 		"layer_order": {"ids": []string{"extra"}}, "sub_put": {"id": "main", "url": agenttest.SubURL},
 		"sub_activate": {"id": "spare"}, "sub_remove": {"id": "spare"}, "apply": nil,
 		"history_rollback": {"id": "h-1"}, "settings_update": {"history_keep": 40},
+		"health_fixes": nil, "health_fix": {"check": "dns.tailnet"}, "health_fix_config": {"check": "dns.tailnet"},
 		"config_import": {"path": importFile(t, "subs.txt", "Main "+agenttest.SubURL+"\n"), "confirm": true},
 	}
 	for _, ti := range e.srv.Tools() {
