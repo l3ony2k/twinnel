@@ -13,9 +13,9 @@ HANDOFF.md
 /helper.exe
 /cli
 /helper
-/duet
-/duet-helper
+/twinnel
+/twinnel-helper
 /cmd/app/app
 /fakemihomo
-/duet
-/duet-helper
+/twinnel
+/twinnel-helper

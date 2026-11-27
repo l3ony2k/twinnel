@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/l3ony2k/duet/core/kernel"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // ServiceRunner carries out service plans. cmd/helper sets Exec and Files
@@ -23,7 +23,7 @@ type ServiceRunner struct {
 
 // serviceOps is the fixed allowlist of service operations per managed
 // service. The helper's own service is not in it: stopping or restarting
-// it over its own socket would cut the call short (use `duet helper
+// it over its own socket would cut the call short (use `twinnel helper
 // install/uninstall`).
 var serviceOps = map[string][]service.Op{
 	"mihomo":     {service.OpStart, service.OpStop, service.OpRestart, service.OpInstall, service.OpUninstall},
@@ -72,7 +72,7 @@ func (e *Engine) ServiceOp(ctx context.Context, name string, op service.Op) (rpc
 	out := rpc.ServiceOpResult{Name: name, Op: string(op), Steps: []string{}}
 	if _, known := serviceOps[name]; !known {
 		if name == "helper" {
-			return out, rpc.ErrInvalid("the helper's own service is managed with `duet helper install/uninstall`, not over RPC")
+			return out, rpc.ErrInvalid("the helper's own service is managed with `twinnel helper install/uninstall`, not over RPC")
 		}
 		return out, rpc.ErrInvalid("unknown service %q (mihomo, tailscaled)", name)
 	}
@@ -91,7 +91,7 @@ func (e *Engine) ServiceOp(ctx context.Context, name string, op service.Op) (rpc
 	case "mihomo":
 		spec.Label = st.Mihomo.ServiceLabel
 		if st.Mihomo.ServiceAdopted && (op == service.OpInstall || op == service.OpUninstall) {
-			return out, rpc.ErrInvalid("%s was adopted with its own service definition; duet does not replace or remove it", spec.Label)
+			return out, rpc.ErrInvalid("%s was adopted with its own service definition; Twinnel does not replace or remove it", spec.Label)
 		}
 		if op == service.OpInstall {
 			if spec, err = e.mihomoSpec(st); err != nil {

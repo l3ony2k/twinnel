@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // Level is the overall status color.
@@ -137,7 +137,7 @@ type Snapshot struct {
 	Helper        Helper
 	Level         Level
 	Reasons       []Reason
-	WritesAllowed bool // off only in development and test runs (DUET_READ_ONLY=1)
+	WritesAllowed bool // off only in development and test runs (TWINNEL_READ_ONLY=1)
 	Loaded        bool // both sides answered or failed at least once
 	// AcceptedExitNode is the exit node the user accepted using while
 	// mihomo's TUN is on (Config.ExitNodeAccepted).
@@ -210,7 +210,7 @@ func (s Snapshot) acceptedCauses() []string {
 	return nil
 }
 
-// TakenOver reports whether duet manages the config: the helper says it
+// TakenOver reports whether Twinnel manages the config: the helper says it
 // applied one or has an active subscription. Without a helper answer it
 // is false when no helper is installed and true otherwise, so a helper
 // that went down after takeover does not make problems look harmless.
@@ -314,7 +314,7 @@ func Evaluate(s *Snapshot) {
 	var rs []Reason
 	add := func(l Level, code, text string) { rs = append(rs, Reason{Level: l, Text: text, Code: code}) }
 	// down says "can't reach X" in the UI language, with the reason in
-	// words when duet knows it; the system's own text goes in Raw.
+	// words when Twinnel knows it; the system's own text goes in Raw.
 	down := func(code, head, err string) {
 		text := head
 		if why := i18n.NetReason(err); why != "" {
@@ -368,11 +368,11 @@ func Evaluate(s *Snapshot) {
 	// The health checks overlap the reasons above (mihomo down fails some of
 	// them too), but they also see what the snapshot cannot: routes, DNS,
 	// rules. One number counts: the failures, else the warnings. Before
-	// duet manages the config, failures are what it found on this Mac,
+	// Twinnel manages the config, failures are what it found on this Mac,
 	// not something that broke: a warning.
 	warn, fail := s.Health.Counts()
 	// Failures that only an exit node the user has not decided on yet
-	// causes are a choice to make, not something duet broke: a warning,
+	// causes are a choice to make, not something Twinnel broke: a warning,
 	// with 接受 / 关闭出口节点 next to it (design review U4).
 	exitOnly := false
 	if fail > 0 && ts.Reachable && st.ExitNode != nil && s.Health.Report != nil {

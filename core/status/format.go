@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
 // Menu bar rates use binary units (1 K = 1024 B), as Bytes and Rate do in

@@ -8,13 +8,13 @@ import (
 
 // English must not leak into the Chinese UI (design review U57): every
 // zh text, and every coded helper message worded in zh, may hold ASCII
-// words of 4 or more letters only when they are names duet keeps as
+// words of 4 or more letters only when they are names Twinnel keeps as
 // written (products, config syntax, commands).
 var allowedASCII = map[string]bool{}
 
 func init() {
 	for _, w := range strings.Fields(`
-		mihomo Tailscale tailscale tailscaled tailnet duet MagicDNS DERP YAML yaml
+		mihomo Tailscale tailscale tailscaled tailnet Twinnel MagicDNS DERP YAML yaml
 		Clash Party Verge Homebrew brew LaunchDaemon LaunchDaemons GitHub Alpha
 		fake http https sudo security find generic password plist json
 		DIRECT REJECT GLOBAL PROXY Shields TCP UDP HTTP HTTPS SOCKS IPv4 IPv6 IPLC
@@ -37,7 +37,7 @@ var (
 )
 
 // EnglishWords returns the English words in a Chinese UI text that are
-// not names duet keeps as written (design review U57). Tests use it on
+// not names Twinnel keeps as written (design review U57). Tests use it on
 // whatever a page shows.
 func EnglishWords(s string) []string {
 	// Placeholders and config keys in quotes or code spans are syntax.

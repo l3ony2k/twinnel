@@ -32,7 +32,7 @@ const (
 	trayDir = "assets/icons/tray"
 )
 
-var states = []string{"duet", "duet-warn", "duet-error", "duet-unknown", "duet-tsdown", "duet-mode", "duet-nohelper"}
+var states = []string{"twinnel", "twinnel-warn", "twinnel-error", "twinnel-unknown", "twinnel-tsdown", "twinnel-mode", "twinnel-nohelper"}
 
 func main() {
 	if _, err := os.Stat("go.mod"); err != nil {
@@ -50,13 +50,13 @@ func main() {
 	for _, e := range icns {
 		ents = append(ents, entry{e.typ, e.size, pngOf(mac.Image(e.size, e.size, nil))})
 	}
-	write(appOut+"/macos/duet.icns", icnsOf(ents))
-	write(appOut+"/macos/duet-1024.png", pngOf(mac.Image(1024, 1024, nil)))
+	write(appOut+"/macos/twinnel.icns", icnsOf(ents))
+	write(appOut+"/macos/twinnel-1024.png", pngOf(mac.Image(1024, 1024, nil)))
 	// The app's own 关于 page shows the icon at 64 pt (128 px @2x); 256
 	// leaves room for a larger scale. Embedded by appicon.go.
-	write(appOut+"/macos/duet-256.png", pngOf(mac.Image(256, 256, nil)))
+	write(appOut+"/macos/twinnel-256.png", pngOf(mac.Image(256, 256, nil)))
 	// The flat master for mygo.json "icon" (every platform but macOS, which takes the .icns).
-	write(appOut+"/duet-1024.png", pngOf(win.Image(1024, 1024, nil)))
+	write(appOut+"/twinnel-1024.png", pngOf(win.Image(1024, 1024, nil)))
 
 	// Windows .ico: the small drawing up to 32 px, the full one above.
 	var ico []entry
@@ -67,13 +67,13 @@ func main() {
 		}
 		ico = append(ico, entry{"", n, pngOf(src.Image(n, n, nil))})
 	}
-	write(appOut+"/windows/duet.ico", icoOf(ico))
+	write(appOut+"/windows/twinnel.ico", icoOf(ico))
 
 	// Linux hicolor theme.
 	for _, n := range []int{16, 22, 24, 32, 48, 64, 128, 256, 512} {
-		write(fmt.Sprintf("%s/linux/hicolor/%dx%d/apps/duet.png", appOut, n, n), pngOf(linux.Image(n, n, nil)))
+		write(fmt.Sprintf("%s/linux/hicolor/%dx%d/apps/twinnel.png", appOut, n, n), pngOf(linux.Image(n, n, nil)))
 	}
-	copyFile(appSrc+"/linux.svg", appOut+"/linux/hicolor/scalable/apps/duet.svg")
+	copyFile(appSrc+"/linux.svg", appOut+"/linux/hicolor/scalable/apps/twinnel.svg")
 
 	// Menu bar (macOS template images): 18 pt tall (mygo sizes tray images to 18 pt), @2x and @1x.
 	for _, s := range states {
@@ -100,9 +100,9 @@ func main() {
 		check(err)
 		write(fmt.Sprintf("%s/linux/%s-symbolic.svg", trayDir, s), bytes.ReplaceAll(b, []byte("#000000"), []byte("#2e3436")))
 	}
-	b, err := os.ReadFile(trayDir + "/svg/duet-sq.svg")
+	b, err := os.ReadFile(trayDir + "/svg/twinnel-sq.svg")
 	check(err)
-	write(appOut+"/linux/hicolor/symbolic/apps/duet-symbolic.svg", bytes.ReplaceAll(b, []byte("#000000"), []byte("#2e3436")))
+	write(appOut+"/linux/hicolor/symbolic/apps/twinnel-symbolic.svg", bytes.ReplaceAll(b, []byte("#000000"), []byte("#2e3436")))
 	fmt.Println("done")
 }
 

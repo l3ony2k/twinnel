@@ -1,6 +1,6 @@
 package rpc
 
-// The helper's own lifecycle: what `duet helper uninstall` and the app's
+// The helper's own lifecycle: what `twinnel helper uninstall` and the app's
 // 后台助手 section need to know, and a restart without a password.
 const (
 	// MethodHelperInfo is read-only: the helper's version, where its log
@@ -23,11 +23,11 @@ type HelperInfo struct {
 
 	// Mihomo is the mihomo service the helper manages.
 	Mihomo HelperMihomoService `json:"mihomo"`
-	// Hardened is set after `duet helper harden apply`: mihomo runs from
-	// duet's LaunchDaemon, and Old is the service it replaced.
+	// Hardened is set after `twinnel helper harden apply`: mihomo runs from
+	// Twinnel's LaunchDaemon, and Old is the service it replaced.
 	Hardened *HelperHardened `json:"hardened,omitempty"`
 	// SecretKeys are the keys in the secret store (keychain item service
-	// names are "duet." + key).
+	// names are "twinnel." + key).
 	SecretKeys []string `json:"secret_keys,omitempty"`
 	// Subscriptions and Layers count the stored items (what --purge
 	// deletes).
@@ -38,7 +38,7 @@ type HelperInfo struct {
 
 type HelperMihomoService struct {
 	Label     string `json:"label"`
-	Adopted   bool   `json:"adopted,omitempty"`   // a plist duet found, not its own
+	Adopted   bool   `json:"adopted,omitempty"`   // a plist Twinnel found, not its own
 	Installed bool   `json:"installed,omitempty"` // its definition file exists
 	// Controller is mihomo's external-controller address.
 	Controller string `json:"controller,omitempty"`

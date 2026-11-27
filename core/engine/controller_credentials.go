@@ -3,7 +3,7 @@ package engine
 import (
 	"context"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // ControllerCredentials returns what a client needs to talk to the running

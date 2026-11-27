@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // Before takeover, health failures are findings: a warning, with the

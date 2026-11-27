@@ -19,7 +19,7 @@ import (
 // macOS; t.TempDir() is often longer).
 func shortSock(t *testing.T) string {
 	t.Helper()
-	d, err := os.MkdirTemp("", "duetrpc")
+	d, err := os.MkdirTemp("", "twinnelrpc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,5 +386,23 @@ func TestGroupAuthorizer(t *testing.T) {
 	none := &GroupAuthorizer{GID: -1, SelfUID: 501, LookupGroups: func(int) ([]int, error) { return []int{80}, nil }}
 	if none.Authorize(Peer{UID: 502}) == nil {
 		t.Error("group rule disabled but peer allowed")
+	}
+}
+
+// A helper from before the rename is used only while the new one's socket
+// is missing.
+func TestPickSocket(t *testing.T) {
+	has := map[string]bool{}
+	ex := func(p string) bool { return has[p] }
+	if got := pickSocket("/new", "/old", ex); got != "/new" {
+		t.Errorf("none: %s", got)
+	}
+	has["/old"] = true
+	if got := pickSocket("/new", "/old", ex); got != "/old" {
+		t.Errorf("legacy only: %s", got)
+	}
+	has["/new"] = true
+	if got := pickSocket("/new", "/old", ex); got != "/new" {
+		t.Errorf("both: %s", got)
 	}
 }

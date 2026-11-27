@@ -3,15 +3,15 @@ package main
 import (
 	"testing"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// Before the takeover the helper's config path is duet's default, which
+// Before the takeover the helper's config path is Twinnel's default, which
 // nothing runs: the pages show the detected one, or nothing.
 func TestLiveConfigPath(t *testing.T) {
 	own := "/Users/example/mh/conf/config.yaml"
-	helperDefault := "/Library/Application Support/duet/mihomo/config.yaml"
+	helperDefault := "/Library/Application Support/twinnel/mihomo/config.yaml"
 	snap := func(taken bool) status.Snapshot {
 		st := &rpc.Status{Mihomo: rpc.MihomoStatus{ConfigPath: helperDefault}}
 		if taken {

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/health/healthtest"
+	. "github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/health/healthtest"
 )
 
 type varCheck struct {

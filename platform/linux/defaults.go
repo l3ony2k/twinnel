@@ -3,25 +3,25 @@ package linux
 import (
 	"os/user"
 
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
-// Install locations and unit names of duet on Linux. The macOS values live
+// Install locations and unit names of Twinnel on Linux. The macOS values live
 // in core/store and cmd/cli; these replace them where the code runs on
 // Linux.
 const (
 	// StateDir holds settings, layers, history, kernels and secrets.json.
-	StateDir = "/var/lib/duet"
-	// HelperBin is the installed duet-helper binary.
-	HelperBin = "/usr/local/libexec/duet-helper"
+	StateDir = "/var/lib/twinnel"
+	// HelperBin is the installed twinnel-helper binary.
+	HelperBin = "/usr/local/libexec/twinnel-helper"
 	// HelperUnit, MihomoUnit and TailscaledUnit are systemd unit names
 	// (without ".service"). tailscaled's is the one distro packages and
 	// Tailscale's own repository install.
-	HelperUnit     = "duet-helper"
-	MihomoUnit     = "duet-mihomo"
+	HelperUnit     = "twinnel-helper"
+	MihomoUnit     = "twinnel-mihomo"
 	TailscaledUnit = "tailscaled"
-	// DuetGroup is created when the distro has neither sudo nor wheel.
-	DuetGroup = "duet"
+	// TwinnelGroup is created when the distro has neither sudo nor wheel.
+	TwinnelGroup = "twinnel"
 )
 
 // SocketGroupCandidates are tried in order by SocketGroup: the group whose
@@ -30,7 +30,7 @@ const (
 var SocketGroupCandidates = []string{"sudo", "wheel"}
 
 // SocketGroup picks the group allowed to use the helper's socket: the first
-// of SocketGroupCandidates that exists, else DuetGroup (which then has to
+// of SocketGroupCandidates that exists, else TwinnelGroup (which then has to
 // be created; exists reports whether it already is). lookup is
 // user.LookupGroup when nil.
 func SocketGroup(lookup func(string) (*user.Group, error)) (group string, exists bool) {
@@ -42,8 +42,8 @@ func SocketGroup(lookup func(string) (*user.Group, error)) (group string, exists
 			return g, true
 		}
 	}
-	_, err := lookup(DuetGroup)
-	return DuetGroup, err == nil
+	_, err := lookup(TwinnelGroup)
+	return TwinnelGroup, err == nil
 }
 
 // LinuxLabels replaces the macOS default service labels in st with the

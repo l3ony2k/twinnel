@@ -3,7 +3,7 @@ package health
 import (
 	"context"
 
-	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
 // User-facing texts of the health package: one table per language, chosen
@@ -211,7 +211,7 @@ type texts struct {
 }
 
 var zhTexts = texts{
-	titleReport:      "duet 健康检查报告",
+	titleReport:      "Twinnel 健康检查报告",
 	labelOverall:     "总体",
 	labelTime:        "时间",
 	labelPlatform:    "平台",

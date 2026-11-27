@@ -12,8 +12,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 func sample(up, down int64) status.TrafficSample {
@@ -95,11 +95,11 @@ func TestTraySpeedImage(t *testing.T) {
 
 // TestTraySpeedShots writes the menu bar item in both layouts at several
 // rates, on a light and a dark bar, for review (the real menu bar cannot
-// be captured without showing it). DUET_TRAY_SHOTS=<dir>.
+// be captured without showing it). TWINNEL_TRAY_SHOTS=<dir>.
 func TestTraySpeedShots(t *testing.T) {
-	dir := os.Getenv("DUET_TRAY_SHOTS")
+	dir := os.Getenv("TWINNEL_TRAY_SHOTS")
 	if dir == "" {
-		t.Skip("DUET_TRAY_SHOTS not set")
+		t.Skip("TWINNEL_TRAY_SHOTS not set")
 	}
 	rates := [][2]int64{{0, 0}, {999, 1000}, {60 * 1024, 512 * 1024}, {3 << 20, 87 << 20}, {120 << 20, 1 << 30}}
 	icon := trayIcon(status.TrayOK)

@@ -3,17 +3,19 @@
 package main
 
 import (
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/platform/linux"
-	"github.com/l3ony2k/duet/platform/linux/systemd"
+	"errors"
+
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/platform/linux"
+	"github.com/l3ony2k/twinnel/platform/linux/systemd"
 )
 
 // socketGroup picks the helper's socket group (replaced in tests).
 var socketGroup = func() (string, bool) { return linux.SocketGroup(nil) }
 
 // planHelperInstall: the systemd plan from platform/linux (state dir
-// /var/lib/duet, binary /usr/local/libexec/duet-helper, unit duet-helper,
-// socket group sudo, else wheel, else a new "duet" group).
+// /var/lib/twinnel, binary /usr/local/libexec/twinnel-helper, unit twinnel-helper,
+// socket group sudo, else wheel, else a new "twinnel" group).
 func planHelperInstall(helperBin, stateDir, socket, label string) ([]service.Step, error) {
 	group, exists := socketGroup()
 	return linux.HelperInstallPlan(helperBin, stateDir, socket, label, group, exists)
@@ -41,7 +43,7 @@ const secretStore = "file"
 
 func planSecretsDelete([]string) []service.Step { return nil }
 
-// planMihomoRestore: `duet helper harden` is macOS-only, so there is
+// planMihomoRestore: `twinnel helper harden` is macOS-only, so there is
 // nothing to restore.
 func planMihomoRestore(from, to, toPlist string) (stop, start, undo []service.Step) {
 	return nil, nil, nil
@@ -49,3 +51,17 @@ func planMihomoRestore(from, to, toPlist string) (stop, start, undo []service.St
 
 // readServiceState is used by the macOS plans only.
 func readServiceState(string) (bool, []byte, error) { return false, nil, nil }
+
+// legacyInstall: there is no install from before the rename to migrate
+// here (the rename happened before a release for this platform).
+func legacyInstall() migrateSide { return migrateSide{} }
+
+func planHelperStop(string) ([]service.Step, error) {
+	return nil, errors.New("migrating a helper from before the rename is only implemented for macOS")
+}
+
+func planHelperStart(string) ([]service.Step, error) {
+	return nil, errors.New("migrating a helper from before the rename is only implemented for macOS")
+}
+
+var dropLegacySecrets = func([]string) []string { return nil }

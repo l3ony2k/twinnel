@@ -5,8 +5,8 @@ Everything here is generated; edit the sources, never the SVG/PNG outputs.
 | What | Where | Made with |
 |---|---|---|
 | In-app line icons | `*.svg` (embedded by `icons.go`) | Kubai line library (stock) and the draw-icons skill (product concepts) |
-| App mark | `duet.svg` | `src/duet.mjs`, kubai-line kit format |
-| Menu bar / tray marks | `tray/` | `src/duet.mjs` → `tray/svg/` → `../appicon/src/raster.go` |
+| App mark | `twinnel.svg` | `src/twinnel.mjs`, kubai-line kit format |
+| Menu bar / tray marks | `tray/` | `src/twinnel.mjs` → `tray/svg/` → `../appicon/src/raster.go` |
 | App icon (macOS, Windows, Linux) | `../appicon/` | `../appicon/src/appicon.mjs` → `raster.go` (see its README) |
 
 ## Icon language (the rules)
@@ -35,7 +35,7 @@ text in the sidebar, buttons and list rows:
 ## In-app icons
 
 `cmd/app/icons.go` loads `<name>.svg`. File names say what the icon shows; the table says
-what it stands for in duet. **New** = added in the design pass and not yet wired in `cmd/app`.
+what it stands for in Twinnel. **New** = added in the design pass and not yet wired in `cmd/app`.
 
 | File | Stands for | Source |
 |---|---|---|
@@ -52,9 +52,9 @@ what it stands for in duet. **New** = added in the design pass and not yet wired
 | `sidebar.svg` | 切换侧边栏 (the title bar toggle: expanded / icons only / hidden) | stock |
 | `rss.svg` **new** | 订阅 (a subscription: a remote feed fetched on a schedule) | stock |
 | `square-pen.svg` **new** | 覆写层 (an override layer the user edits) | stock |
-| `file-lock.svg` **new** | 托管层 (the managed layer duet owns; not hand-edited) | stock |
+| `file-lock.svg` **new** | 托管层 (the managed layer Twinnel owns; not hand-edited) | stock |
 | `undo-2.svg` **new** | 回滚 (roll back to a history entry) | stock |
-| `folder-search.svg` | 在 Finder 中显示 (reveal a file; 停止使用 duet inventory rows) | hand-drawn to the line rules (folder + magnifier badge) |
+| `folder-search.svg` | 在 Finder 中显示 (reveal a file; 停止使用 Twinnel inventory rows) | hand-drawn to the line rules (folder + magnifier badge) |
 | `server.svg` **new** | 服务 (mihomo / tailscaled services) | stock |
 | `map.svg` **new** | 地理数据库 (GeoIP / GeoSite) | stock |
 | `app-window.svg` **new** | 外部面板 (external UI) | stock |
@@ -76,7 +76,7 @@ what it stands for in duet. **New** = added in the design pass and not yet wired
 | `pause.svg`, `play.svg` | 日志 → 暂停 / 继续 | stock |
 | `triangle-alert.svg`, `circle-check.svg`, `circle-x.svg`, `circle-minus.svg` | 警告 / 正常 / 错误 / 跳过 | stock |
 | `chevron-right.svg`, `chevron-down.svg` | 折叠 / 展开 | stock |
-| `duet.svg` | app mark (sidebar, onboarding) | `src/duet.mjs` |
+| `twinnel.svg` | app mark (sidebar, onboarding) | `src/twinnel.mjs` |
 
 ## Menu bar marks (shape only)
 
@@ -86,13 +86,13 @@ picks one, highest priority first):
 
 | File | Shape | State |
 |---|---|---|
-| `duet-unknown.png` | two rings side by side, **not linked** | starting, nothing answered yet |
-| `duet-error.png` | "×" in the notch | mihomo unreachable / wrong secret, or another red reason |
-| `duet-tsdown.png` | linked rings, **slash over the right (Tailscale) ring** | mihomo fine, Tailscale down or stopped |
-| `duet-warn.png` | "!" in the notch | a yellow reason |
-| `duet-mode.png` | "→" in the notch | mihomo in direct or global mode (not rule) |
-| `duet-nohelper.png` | "–" in the notch | helper not installed / not running / refused |
-| `duet.png` | two linked rings | all fine |
+| `twinnel-unknown.png` | two rings side by side, **not linked** | starting, nothing answered yet |
+| `twinnel-error.png` | "×" in the notch | mihomo unreachable / wrong secret, or another red reason |
+| `twinnel-tsdown.png` | linked rings, **slash over the right (Tailscale) ring** | mihomo fine, Tailscale down or stopped |
+| `twinnel-warn.png` | "!" in the notch | a yellow reason |
+| `twinnel-mode.png` | "→" in the notch | mihomo in direct or global mode (not rule) |
+| `twinnel-nohelper.png` | "–" in the notch | helper not installed / not running / refused |
+| `twinnel.png` | two linked rings | all fine |
 
 - Size: mygo draws tray images **18 pt tall** and keeps the aspect ratio, so the marks are a wide
   crop (22×19.5 units of the 24 grid, same crop for every state so nothing jumps).
@@ -105,7 +105,7 @@ picks one, highest priority first):
 ## Re-rendering
 
 Needs: a copy of the kubai-line kit outside the repo (`../../icons-kit` here; the kit's licence
-keeps its files and rules out of this repo) with `./duet.mjs` registered in `set/index.mjs`,
+keeps its files and rules out of this repo) with `./twinnel.mjs` registered in `set/index.mjs`,
 the draw-icons skill, Node 18+, Chrome (the kit's checks), Go.
 
 ```sh
@@ -115,6 +115,6 @@ node assets/appicon/src/appicon.mjs                # app icon masters
 go run ./assets/appicon/src/raster.go              # every PNG / ICO / ICNS
 ```
 
-Checks: `node check.mjs --only <names>` in the kit (stock and `duet*` icons: no findings at
+Checks: `node check.mjs --only <names>` in the kit (stock and `Twinnel*` icons: no findings at
 strokes 1.5–2.5) and `icons.js lint all` / `render` / `sheet` for the drawn ones (no errors, no
 open warnings; waivers are written on the sources).

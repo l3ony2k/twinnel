@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // 关于 → 入门's first step opens the install guide, a page without a

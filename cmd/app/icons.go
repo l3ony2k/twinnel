@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/assets/icons"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/assets/icons"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // Line icons (assets/icons, Kubai line style, 24 grid, stroke 2). ui.Icon
@@ -47,7 +47,7 @@ var (
 	iconUpDown    = svgIcon("chevrons-up-down") // a pop-up row of the flyout
 	iconGlobe     = svgIcon("globe")
 	iconExitNode  = svgIcon("log-out")
-	iconDuet      = svgIcon("duet")
+	iconTwinnel   = svgIcon("twinnel")
 
 	iconManaged    = svgIcon("file-lock")
 	iconRollback   = svgIcon("undo-2")

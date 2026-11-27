@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo"
 )
 
-// finalShots (DUET_SHOTS_FLOW=final) captures what ui-final added that the
+// finalShots (TWINNEL_SHOTS_FLOW=final) captures what ui-final added that the
 // page walk does not show: a node tile with the keyboard focus (as ↓ moved
 // it), the devices card's card-size empty state, the panel's state marks.
 func (a *app) finalShots(save func(*mygo.Window, string)) {

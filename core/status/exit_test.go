@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/mihomo"
 )
 
 // A /proxies answer as mihomo sends it: the node's history carries the

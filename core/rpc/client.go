@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"net"
 	"os"
 	"strconv"
@@ -14,14 +15,28 @@ import (
 )
 
 // DefaultSocket is where the installed helper listens on macOS and Linux.
-const DefaultSocket = "/var/run/duet/helper.sock"
+const DefaultSocket = "/var/run/twinnel/helper.sock"
 
-// SocketFromEnv returns $DUET_SOCKET or DefaultSocket.
+// SocketFromEnv returns $TWINNEL_SOCKET, else DefaultSocket, else (while
+// only a helper from before the rename runs) legacy.Socket.
 func SocketFromEnv() string {
-	if s := os.Getenv("DUET_SOCKET"); s != "" {
+	if s := os.Getenv("TWINNEL_SOCKET"); s != "" {
 		return s
 	}
-	return DefaultSocket
+	return pickSocket(DefaultSocket, legacy.Socket, socketExists)
+}
+
+// pickSocket: def unless only old exists.
+func pickSocket(def, old string, exists func(string) bool) string {
+	if !exists(def) && exists(old) {
+		return old
+	}
+	return def
+}
+
+func socketExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }
 
 // Client is a JSON-RPC client over one connection. Calls may run

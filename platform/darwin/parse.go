@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/twinnel/core/health"
 )
 
 func lines(s string) []string {

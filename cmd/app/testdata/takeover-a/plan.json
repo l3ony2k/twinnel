@@ -231,7 +231,7 @@
  "validated": true,
  "warnings": [
   "the controller has no secret; run 加固控制接口 after adopt",
-  "the mihomo binary /Users/example/mihomo/bin/mihomo can be replaced without root (owned by uid 501), and the service runs it as root: anything running as that user can become root. duet runs it only without root for its own checks; to close this after the adopt, move the service to the managed kernel and a root-owned config dir (duet helper harden plan)"
+  "the mihomo binary /Users/example/mihomo/bin/mihomo can be replaced without root (owned by uid 501), and the service runs it as root: anything running as that user can become root. Twinnel runs it only without root for its own checks; to close this after the adopt, move the service to the managed kernel and a root-owned config dir (twinnel helper harden plan)"
  ],
  "summary": "Takeover plan 20261126-153012-a1b2\n  live      /Users/example/mihomo/conf/config.yaml\n  base      profiles/example-sub.yaml (explains all proxies, groups and rules)\n  layers    base, user-1, tailscale-coexist\n  coexist   on (MagicDNS fix)\n  validate  mihomo -t ok\n",
  "semdiff": "semantic diff live → composed\n  dns.nameserver-policy   + 3 entries (tailnet)\n  rules                   + 1 at head (100.64.0.0/10 DIRECT)\n  dns.fake-ip-filter      + +.ts.net\n  everything else equal\n",

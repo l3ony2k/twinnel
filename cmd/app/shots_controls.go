@@ -10,17 +10,17 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
 )
 
-// controlShots (DUET_SHOTS_FLOW=controls) renders the states of
+// controlShots (TWINNEL_SHOTS_FLOW=controls) renders the states of
 // pending.go and states.go that a live run rarely holds long enough to
 // capture: a pending switch and a failed one in the panel, a busy button,
 // skeleton rows, a loading box, the unreachable states, the unapplied
 // mark. Hidden windows, captured from memory, like every shot.
 func (a *app) controlShots(save func(*mygo.Window, string)) {
-	if os.Getenv("DUET_SHOTS_WRITE") == "1" && a.cfg.AllowWrites && a.cfg.Controller != "" &&
+	if os.Getenv("TWINNEL_SHOTS_WRITE") == "1" && a.cfg.AllowWrites && a.cfg.Controller != "" &&
 		!strings.HasSuffix(a.cfg.Controller, ":9090") { // a fake controller only, never the live one
 		a.optimisticShot(save)
 	}

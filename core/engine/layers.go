@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/core/takeover"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/core/takeover"
 )
 
 func reservedLayer(id string) bool { return id == CoexistLayerID || id == LeakGuardLayerID }

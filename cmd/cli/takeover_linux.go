@@ -15,15 +15,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/l3ony2k/duet/core/takeover"
-	"github.com/l3ony2k/duet/platform/linux"
+	"github.com/l3ony2k/twinnel/core/takeover"
+	"github.com/l3ony2k/twinnel/platform/linux"
 )
 
 func init() {
 	register("takeover", "inspect a hand-made mihomo + Tailscale setup and write a takeover plan (read-only)", runTakeover)
 }
 
-const takeoverUsage = `usage: duet takeover plan [--base FILE] [--out DIR] [flags]
+const takeoverUsage = `usage: twinnel takeover plan [--base FILE] [--out DIR] [flags]
 
 Finds the running mihomo service and Tailscale, picks the subscription the
 live config was built from, derives override layers (base settings, user
@@ -70,7 +70,7 @@ func runTakeover(args []string) error {
 		return err
 	}
 	if out == "" {
-		if out, err = os.MkdirTemp("", "duet-takeover-"); err != nil {
+		if out, err = os.MkdirTemp("", "twinnel-takeover-"); err != nil {
 			return err
 		}
 	} else if entries, err := os.ReadDir(out); err == nil && len(entries) > 0 {

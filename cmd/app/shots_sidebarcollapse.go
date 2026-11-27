@@ -9,7 +9,7 @@ import (
 
 // sidebarCollapseShots captures the sidebar's three modes (expanded, icons
 // only, hidden) on 总览, 总览 scrolled and 健康检查 (whose row has a count),
-// DUET_SHOTS_FLOW=sidecollapse. The window is the hidden shot window.
+// TWINNEL_SHOTS_FLOW=sidecollapse. The window is the hidden shot window.
 func (a *app) sidebarCollapseShots(save func(*mygo.Window, string)) {
 	yes := true
 	shotLights = true

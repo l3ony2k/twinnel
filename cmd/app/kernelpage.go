@@ -11,9 +11,9 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // The 内核 page: installed mihomo kernels, update check (stable/alpha),
@@ -100,7 +100,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 				running = st.Mihomo.Version
 			}
 			// Before the takeover the running mihomo is the user's own:
-			// duet's kernel (k.Active) is not what runs.
+			// Twinnel's kernel (k.Active) is not what runs.
 			own := !s.TakenOver()
 			kvTipWith(c, T.State, T.TipKernelState, nil, func() {
 				state := T.KernelStateManaged
@@ -115,7 +115,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 					effectChip(c, T.KernelPendingRestart, "", true, false)
 				}
 			})
-			// 使用中 is one row: duet's current kernel by version and file,
+			// 使用中 is one row: Twinnel's current kernel by version and file,
 			// or the binary that runs; rows without a value are left out
 			// (R-unslop-27).
 			switch {
@@ -136,11 +136,11 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 			if running != "" {
 				kvMono(c, T.KernelRunning, running)
 			}
-			if !own && !k.External && k.Previous != "" { // 上一个 only means something for duet's kernels
+			if !own && !k.External && k.Previous != "" { // 上一个 only means something for Twinnel's kernels
 				kvMono(c, T.KernelPrevious, k.Previous)
 			}
 		})
-		own := !s.TakenOver() // duet's kernels: none of them runs yet
+		own := !s.TakenOver() // Twinnel's kernels: none of them runs yet
 		for _, kv := range k.Installed {
 			listRow(c.Key(kv.Version)).Children(func() {
 				ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Children(func() {

@@ -3,18 +3,18 @@ package main
 import (
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// duetPair is the signature: one row of state marks, mihomo, Tailscale
+// twinnelPair is the signature: one row of state marks, mihomo, Tailscale
 // and the helper, each with its state in words as a tooltip and for
 // VoiceOver. State is told by shape as well as color (Differentiate
 // Without Color, and the owner's rule for the tray icon): a filled dot is
 // running, a ring with a dot in it needs attention, an empty ring is down
 // or unknown. A second row shows only when something asks for an action
 // (install the helper, start it, update it).
-func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
+func (a *app) twinnelPair(c *ui.Context, s status.Snapshot, padX float32) {
 	t := c.Theme()
 	T := i18n.T
 	a.windowKeys(c)

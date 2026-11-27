@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/twinnel/core/health"
 )
 
 // FakeClock is a health.Clock whose timers fire only when Advance is called.

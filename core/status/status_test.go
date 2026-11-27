@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // --- fakes (synthetic data) ---

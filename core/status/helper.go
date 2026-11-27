@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // HelperState is how the app stands with the root helper.
@@ -77,9 +77,13 @@ type HelperDialer func(ctx context.Context, socket string) (*rpc.Client, error)
 // All methods are safe for concurrent use.
 type HelperConn struct {
 	Socket string
+	// Resolve, when set, picks the socket again before each dial (the
+	// helper's socket moves when a helper from before the rename is
+	// migrated).
+	Resolve func() string
 	// Installed reports whether a helper is installed, to tell "not
 	// installed" from "not running" when the socket is missing. nil:
-	// installed is assumed (a socket from DUET_SOCKET, a dev run).
+	// installed is assumed (a socket from TWINNEL_SOCKET, a dev run).
 	Installed func() bool
 	Dial      HelperDialer // default: rpc.Dial over the unix transport
 	// OnChange is called (on a connection goroutine) after the state or
@@ -189,8 +193,17 @@ func (h *HelperConn) Run(ctx context.Context) {
 // session dials, then follows events until the connection breaks. It
 // reports whether it got connected.
 func (h *HelperConn) session(ctx context.Context) bool {
+	if h.Resolve != nil {
+		sock := h.Resolve()
+		h.mu.Lock()
+		h.Socket = sock
+		h.mu.Unlock()
+	}
+	h.mu.Lock()
+	sock := h.Socket
+	h.mu.Unlock()
 	dctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	c, err := h.Dial(dctx, h.Socket)
+	c, err := h.Dial(dctx, sock)
 	cancel()
 	if err != nil {
 		h.set(func(s *Helper) { s.State, s.Err, s.Status = h.classify(err), ShortError(err), nil })

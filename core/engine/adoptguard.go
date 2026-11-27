@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/l3ony2k/duet/core/kernel"
-	"github.com/l3ony2k/duet/core/takeover"
+	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/takeover"
 )
 
 // adoptDirOwner decides who must own the adopted config dir from now on
@@ -53,7 +53,7 @@ func adoptDirOwner(probe takeover.Probe, m *takeover.MihomoSetup) (*int, error) 
 	if owner == 0 {
 		svc := m.Service
 		if svc == nil || svc.Kind != "launchd-daemon" {
-			return nil, fmt.Errorf("the config dir %s is owned by root, but the setup was not found in a LaunchDaemon; duet only writes into a root-owned dir that a root-owned LaunchDaemon uses", dirs[0])
+			return nil, fmt.Errorf("the config dir %s is owned by root, but the setup was not found in a LaunchDaemon; Twinnel only writes into a root-owned dir that a root-owned LaunchDaemon uses", dirs[0])
 		}
 		fi, err := os.Lstat(svc.Path)
 		if err != nil {
@@ -99,5 +99,5 @@ func binaryWarning(bin string) string {
 	if err != nil || t.Trusted {
 		return ""
 	}
-	return fmt.Sprintf("the mihomo binary %s can be replaced without root (%s), and the service runs it as root: anything running as that user can become root. duet runs it only without root for its own checks; to close this after the adopt, move the service to the managed kernel and a root-owned config dir (duet helper harden plan)", bin, t.Why)
+	return fmt.Sprintf("the mihomo binary %s can be replaced without root (%s), and the service runs it as root: anything running as that user can become root. Twinnel runs it only without root for its own checks; to close this after the adopt, move the service to the managed kernel and a root-owned config dir (twinnel helper harden plan)", bin, t.Why)
 }

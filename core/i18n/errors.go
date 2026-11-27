@@ -3,22 +3,22 @@ package i18n
 import (
 	"strings"
 
-	"github.com/l3ony2k/duet/core/msg"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/msg"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // Errors said in words (review R-unslop-20). The helper answers in English
 // (an RPC error's message, often a Go error chain); a page shows a line in
 // the UI language instead: the coded message (MsgTexts), a network error
 // (PlainNetError), a kind of failure the RPC code names, or the system's
-// reason at the end of the chain. What duet has no words for is the
+// reason at the end of the chain. What Twinnel has no words for is the
 // generic MsgUnknown line, never the English text itself.
 
 // ErrorStrings are the words for failures that have no message code.
 type ErrorStrings struct {
 	// Why a system call failed (the end of a Go error chain).
 	ErrNoFile, ErrPermission string
-	// ErrGeneric is a failure duet has no words for, outside the helper.
+	// ErrGeneric is a failure Twinnel has no words for, outside the helper.
 	ErrGeneric string
 	// ErrWithReason joins a generic line and a reason: %[1]s line, %[2]s reason.
 	ErrWithReason string
@@ -66,7 +66,7 @@ func HomePath(p string) string {
 
 // ErrorText words an error text in the UI language: a coded helper
 // message, a network error, or the generic line (with the system's reason
-// when duet knows it). Never the English text itself.
+// when Twinnel knows it). Never the English text itself.
 func (s *Strings) ErrorText(raw string) string {
 	return s.wordError(0, raw, s.ErrGeneric)
 }
@@ -118,7 +118,7 @@ func (s *Strings) ControlReason(svc, raw string) string {
 }
 
 // sysReason is the system's reason at the end of an error chain in the UI
-// language, "" when duet does not know it.
+// language, "" when Twinnel does not know it.
 func (s *Strings) sysReason(raw string) string {
 	r := strings.ToLower(raw)
 	switch {

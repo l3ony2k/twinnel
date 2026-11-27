@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/takeover"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/takeover"
 )
 
 // takeoverEffects says what adopt does to each piece of the existing

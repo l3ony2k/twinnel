@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/twinnel/core/health"
 )
 
 func fixture(t *testing.T, name string) []byte {

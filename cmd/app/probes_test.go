@@ -10,9 +10,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // forbiddenProbes stands in for the host while a shot run is tested: any
@@ -73,7 +73,7 @@ func TestShotFlowsAreHermetic(t *testing.T) {
 	for _, flow := range flows {
 		t.Run("flow="+flow, func(t *testing.T) {
 			env := scratchShotEnv(t)
-			env["DUET_SHOTS_FLOW"] = flow
+			env["TWINNEL_SHOTS_FLOW"] = flow
 			t.Setenv("HOME", env["HOME"]) // os.UserConfigDir
 			a, err := newApp(envFunc(env))
 			if err != nil {
@@ -83,12 +83,12 @@ func TestShotFlowsAreHermetic(t *testing.T) {
 				t.Fatalf("shot run uses %T, want *shotProbes", a.probes)
 			}
 			if a.cfg.AllowWrites {
-				t.Error("shot run allows writes without DUET_READ_ONLY=0")
+				t.Error("shot run allows writes without TWINNEL_READ_ONLY=0")
 			}
 			ctx := context.Background()
 			cc := controllerConfig(a.cfg, a.creds.cur)
-			if cc.Controller != env["DUET_CONTROLLER"] {
-				t.Errorf("controller %q, want the fake %q", cc.Controller, env["DUET_CONTROLLER"])
+			if cc.Controller != env["TWINNEL_CONTROLLER"] {
+				t.Errorf("controller %q, want the fake %q", cc.Controller, env["TWINNEL_CONTROLLER"])
 			}
 			src := newHealthSource(a.probes, cc)
 			if src == nil {
@@ -106,12 +106,12 @@ func TestShotFlowsAreHermetic(t *testing.T) {
 			}
 			for _, args := range [][]string{{"version", "--short"}, installArgs("--dry-run"), upgradeArgs("--check", "--json")} {
 				if out, err := a.runCLI(ctx, args...); err != nil || out == "" {
-					t.Errorf("duet %v: %q %v", args, out, err)
+					t.Errorf("Twinnel %v: %q %v", args, out, err)
 				}
 			}
 			for _, args := range [][]string{installArgs("--yes"), upgradeArgs("--yes"), {"helper", "restart"}} {
 				if _, err := a.runCLI(ctx, args...); err == nil {
-					t.Errorf("shot run ran duet %v", args)
+					t.Errorf("shot run ran Twinnel %v", args)
 				}
 			}
 			if l := a.probes.liveSetup(); l.found() {

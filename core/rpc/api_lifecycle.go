@@ -1,12 +1,12 @@
 package rpc
 
-// What duet put on this Mac and how to leave it: helper.inventory lists
+// What Twinnel put on this Mac and how to leave it: helper.inventory lists
 // the helper's own pieces (read-only); takeover.undo puts the setup back
 // as it was before takeover.adopt.
 const (
 	// MethodHelperInventory is read-only: what the helper installed and
 	// keeps (its binary and service, the state dir by part, keychain item
-	// names, a duet mihomo service). Never a secret value.
+	// names, a Twinnel mihomo service). Never a secret value.
 	MethodHelperInventory = "helper.inventory"
 	// MethodTakeoverUndo writes the pre-takeover config back byte for
 	// byte, reloads mihomo and removes what adopt imported. With DryRun it
@@ -28,11 +28,11 @@ const (
 	InvKernels         = "kernels"
 	InvLogs            = "logs"
 	InvSecrets         = "secrets"        // Names: the keychain keys
-	InvMihomoService   = "duet-mihomo"    // duet's own mihomo LaunchDaemon (installed or hardened)
+	InvMihomoService   = "twinnel-mihomo" // Twinnel's own mihomo LaunchDaemon (installed or hardened)
 	InvAdoptedService  = "adopted-mihomo" // the person's mihomo service; kept, listed for completeness
 )
 
-// InventoryItem is one thing duet installed or keeps.
+// InventoryItem is one thing Twinnel installed or keeps.
 type InventoryItem struct {
 	Kind  string   `json:"kind"`
 	Path  string   `json:"path,omitempty"`
@@ -46,9 +46,9 @@ type InventoryItem struct {
 type Inventory struct {
 	Items []InventoryItem `json:"items"`
 	// Adopted is the takeover plan the running setup came from ("" when
-	// duet never took over); takeover.undo works only then.
+	// Twinnel never took over); takeover.undo works only then.
 	Adopted string `json:"adopted,omitempty"`
-	// Hardened: mihomo was moved to duet's own service; undo refuses
+	// Hardened: mihomo was moved to Twinnel's own service; undo refuses
 	// (uninstalling with the move back does it).
 	Hardened bool `json:"hardened,omitempty"`
 }
@@ -110,8 +110,8 @@ const (
 	EffTailscale     = "tailscale"
 
 	ActKeep      = "keep"      // stays as it is
-	ActRewrite   = "rewrite"   // duet writes it (after a backup)
-	ActStore     = "store"     // copied into duet's secret store
+	ActRewrite   = "rewrite"   // Twinnel writes it (after a backup)
+	ActStore     = "store"     // copied into Twinnel's secret store
 	ActUnchanged = "unchanged" // not touched at all
 	ActNone      = "none"      // there is none
 	ActSkip      = "skip"      // found, but not imported (Detail says why)

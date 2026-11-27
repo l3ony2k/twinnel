@@ -17,12 +17,12 @@ import (
 // Markers that steer the fakes from inside a config.
 const (
 	// MarkInvalid makes the fake `mihomo -t` reject the config.
-	MarkInvalid = "duet-test-invalid"
+	MarkInvalid = "twinnel-test-invalid"
 	// MarkBreakController makes the fake controller stop answering after it
 	// loads the config.
-	MarkBreakController = "duet-test-break-controller"
+	MarkBreakController = "twinnel-test-break-controller"
 	// MarkReloadFail makes PUT /configs fail.
-	MarkReloadFail = "duet-test-reload-fail"
+	MarkReloadFail = "twinnel-test-reload-fail"
 )
 
 // Controller is a fake mihomo external-controller.
@@ -150,7 +150,7 @@ func (c *Controller) SetDown(d bool) {
 
 // FakeMihomoScript is a /bin/sh stand-in for the mihomo binary.
 const FakeMihomoScript = `#!/bin/sh
-# Fake mihomo for duet tests. Answers -v and -t only.
+# Fake mihomo for Twinnel tests. Answers -v and -t only.
 case "$1" in
 -v)
   echo "Mihomo Meta v1.19.34 darwin arm64 with go1.27.4 (fake)"

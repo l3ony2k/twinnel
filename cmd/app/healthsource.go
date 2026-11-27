@@ -5,11 +5,11 @@ import (
 	"errors"
 	"sync/atomic"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/rpc/healthsrc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc/healthsrc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // helperHealth is the app's health source. While the helper is connected

@@ -14,10 +14,10 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // The 订阅与覆写 page: subscriptions, the layer list, the layer editor,
@@ -126,13 +126,13 @@ func codeTheme(t *ui.Theme) *editor.Theme {
 	return ct
 }
 
-// codeView is an editor in duet's code theme.
+// codeView is an editor in Twinnel's code theme.
 func codeView(c *ui.Context, st *editor.State) ui.Element {
 	st.Theme = codeTheme(c.Theme())
 	return editor.View(c, st)
 }
 
-// diffView is a diff in duet's code theme.
+// diffView is a diff in Twinnel's code theme.
 func diffView(c *ui.Context, d *editor.DiffState) ui.Element {
 	d.Theme = codeTheme(c.Theme())
 	return editor.DiffView(c, d)
@@ -166,7 +166,7 @@ func (a *app) configPage(c *ui.Context, s status.Snapshot) {
 	a.rowMarks()
 	a.flushUndoToast(c)
 	// The page reads as the compose stack: where it stands against what
-	// mihomo runs, then the subscription, your overrides, and duet's.
+	// mihomo runs, then the subscription, your overrides, and Twinnel's.
 	a.applyCard(c, s)
 	a.subscriptionsCard(c, s)
 	a.overridesCard(c, s)
@@ -513,7 +513,7 @@ func (a *app) overridesCard(c *ui.Context, s status.Snapshot) {
 	}
 }
 
-// managedCard lists the layers duet generates (Tailscale coexistence,
+// managedCard lists the layers Twinnel generates (Tailscale coexistence,
 // leak guard). They come after the person's, pinned; 托管 is said once,
 // by the section, not on every row.
 func (a *app) managedCard(c *ui.Context, s status.Snapshot) {
@@ -1129,7 +1129,7 @@ func rowBody(c *ui.Context) ui.Element {
 // managedBody is what an open managed layer does, in words and lists:
 // what coexistence adds for the tailnet, which groups leak guard
 // protects (and where to choose them). The generated YAML is one click
-// away, sized to its text, without duet's English header comment.
+// away, sized to its text, without Twinnel's English header comment.
 func (a *app) managedBody(c *ui.Context, l rpc.Layer, s status.Snapshot, w bool) {
 	t := c.Theme()
 	T := i18n.T
@@ -1257,7 +1257,7 @@ func generatedHeight(text string) float32 {
 	return min(float32(lines)*codeLineH+16, 360)
 }
 
-// generatedText is a managed layer's YAML as shown: duet's header
+// generatedText is a managed layer's YAML as shown: Twinnel's header
 // comment (English, for the file) is left out.
 func generatedText(content string) string {
 	lines := strings.Split(content, "\n")
@@ -1298,7 +1298,7 @@ func (a *app) layerNotes() (notes []status.LintNote, blocked bool) {
 	if m := v.saveErr; m != nil && v.saveErrBuf == v.ed.Buffer.Version() {
 		text, raw := i18n.T.MsgText(*m, false)
 		if raw {
-			text = m.Text // a refusal duet has no words for: the helper's own, here at the editor
+			text = m.Text // a refusal Twinnel has no words for: the helper's own, here at the editor
 		}
 		_, line := layerErrorLine(*m)
 		notes = append([]status.LintNote{{Level: status.LevelError, Line: line, Text: text}}, notes...)

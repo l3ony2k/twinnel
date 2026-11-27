@@ -6,5 +6,5 @@ import _ "embed"
 
 // MacPNG is the macOS icon at 256 px (src/raster.go).
 //
-//go:embed macos/duet-256.png
+//go:embed macos/twinnel-256.png
 var MacPNG []byte

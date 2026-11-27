@@ -8,8 +8,8 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // credsState holds the controller address and secret from the helper
@@ -31,11 +31,11 @@ func controllerConfig(cfg status.Config, c *rpc.ControllerCredentials) status.Co
 	if c == nil {
 		return cfg
 	}
-	// Development: DUET_CONTROLLER pins the controller (and its secret
+	// Development: TWINNEL_CONTROLLER pins the controller (and its secret
 	// comes from the environment too), so a dev or shot run against a
 	// scratch helper never reaches the live mihomo through the helper's
 	// default settings.
-	if os.Getenv("DUET_CONTROLLER") != "" {
+	if os.Getenv("TWINNEL_CONTROLLER") != "" {
 		return cfg
 	}
 	if c.Controller != "" {

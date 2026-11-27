@@ -1,4 +1,4 @@
-// Package service is the platform-neutral model of the system services duet
+// Package service is the platform-neutral model of the system services Twinnel
 // manages (mihomo, tailscaled, the helper itself): a Spec describes what to
 // run, a Manager renders it to the platform's definition (launchd plist,
 // later systemd unit / Windows service) and turns operations into an

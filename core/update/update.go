@@ -1,4 +1,4 @@
-// Package update checks GitHub Releases for a newer duet. It only reads:
+// Package update checks GitHub Releases for a newer Twinnel. It only reads:
 // one unauthenticated GET, nothing is downloaded or installed.
 package update
 
@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/version"
+	"github.com/l3ony2k/twinnel/core/version"
 )
 
 // State is the outcome of a check.
@@ -50,7 +50,7 @@ type Options struct {
 }
 
 // UserAgent is the only identification sent: no version, user or machine.
-const UserAgent = "duet"
+const UserAgent = "twinnel"
 
 // Errors a check returns besides network errors.
 var (

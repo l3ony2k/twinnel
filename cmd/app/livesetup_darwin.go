@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/l3ony2k/duet/core/takeover"
-	"github.com/l3ony2k/duet/platform/darwin/takeoverprobe"
+	"github.com/l3ony2k/twinnel/core/takeover"
+	"github.com/l3ony2k/twinnel/platform/darwin/takeoverprobe"
 )
 
 // probeLiveSetup finds the mihomo launchd job (daemons, and agents of this

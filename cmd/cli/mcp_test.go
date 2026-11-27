@@ -12,17 +12,21 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/l3ony2k/duet/core/agent/agenttest"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/agent/agenttest"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
-// TestMain lets a test run this binary as `duet` (DUET_TEST_RUN_MAIN=1):
+// TestMain lets a test run this binary as `twinnel` (TWINNEL_TEST_RUN_MAIN=1):
 // the end-to-end MCP test talks to it over real stdin/stdout.
 func TestMain(m *testing.M) {
-	if os.Getenv("DUET_TEST_RUN_MAIN") == "1" {
+	if os.Getenv("TWINNEL_TEST_RUN_MAIN") == "1" {
 		main()
 		os.Exit(0)
 	}
+	// The machine running the tests may have a real helper from before
+	// the rename: no test may see it (tests that need one set their own).
+	legacyHelper = migrateSide{Label: "test.legacy.helper", StateDir: "/nonexistent/twinnel-test/old",
+		Socket: "/nonexistent/twinnel-test/old.sock", Bin: "/nonexistent/twinnel-test/old-bin", Plist: "/nonexistent/twinnel-test/old.plist"}
 	os.Exit(m.Run())
 }
 
@@ -38,11 +42,11 @@ func TestMCPStdioEndToEnd(t *testing.T) {
 	}
 	cmd := exec.Command(os.Args[0], "mcp")
 	cmd.Env = append(os.Environ(),
-		"DUET_TEST_RUN_MAIN=1",
-		"DUET_SOCKET="+h.Socket,
-		"DUET_CONTROLLER=", // credentials come from the (fake) helper
-		"DUET_TAILSCALE_STATUS_FILE="+ts,
-		"DUET_READ_ONLY=0",
+		"TWINNEL_TEST_RUN_MAIN=1",
+		"TWINNEL_SOCKET="+h.Socket,
+		"TWINNEL_CONTROLLER=", // credentials come from the (fake) helper
+		"TWINNEL_TAILSCALE_STATUS_FILE="+ts,
+		"TWINNEL_READ_ONLY=0",
 		"HOME="+t.TempDir(),
 	)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

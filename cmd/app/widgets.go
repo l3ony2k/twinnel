@@ -6,9 +6,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/msg"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/msg"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // The app's design tokens and shared pieces. Every page builds from these
@@ -495,7 +495,7 @@ func notice(c *ui.Context, icon *ui.SVG, text string) ui.Element {
 }
 
 // errorNote shows what failed, next to where it failed. A network error
-// duet knows (i18n.PlainNetError: 没能连上 GitHub …) is said in words, the
+// Twinnel knows (i18n.PlainNetError: 没能连上 GitHub …) is said in words, the
 // raw error under it small and selectable, as unreachableState does.
 func errorNote(c *ui.Context, text string) ui.Element {
 	t := c.Theme()
@@ -516,8 +516,8 @@ func errorNote(c *ui.Context, text string) ui.Element {
 }
 
 // warningNote shows a warning from the helper (compose, apply, takeover),
-// in the UI language when duet knows it (i18n.Warning).
-// One duet has no words for shows a generic line with the text behind
+// in the UI language when Twinnel knows it (i18n.Warning).
+// One Twinnel has no words for shows a generic line with the text behind
 // 复制原文 (msgNote, U57).
 func warningNote(c *ui.Context, w string) ui.Element {
 	return msgNote(c, msg.Parse(w), true)
@@ -867,7 +867,7 @@ func codeFrame(c *ui.Context, height float32, view func()) ui.Element {
 	return ui.Column(c).Height(height).Radius(plat.innerRadius).Border(1, pal(c.Theme()).groupLine).Clip().Children(view)
 }
 
-// The diff block (unslop R-38): duet's second moment, what a change does
+// The diff block (unslop R-38): Twinnel's second moment, what a change does
 // to the config, drawn as real lines on their own code surface. The
 // takeover verdict, 订阅与覆写 → 预览 and 历史 → 与当前对比 use the same
 // block, so the moment repeats: pal.code under the inner radius, 12 pt

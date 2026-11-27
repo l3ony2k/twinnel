@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
 // Every UI language has a layout, and the 语言 choices list 跟随系统 then

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/internal/rulegen"
+	"github.com/l3ony2k/twinnel/core/internal/rulegen"
 )
 
 // synthLive is liveHeader + the test proxies and groups + a large synthetic

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"io/fs"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // ConfigText returns a config as text for diffs, always without the

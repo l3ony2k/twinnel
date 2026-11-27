@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 const subBody = `proxies:

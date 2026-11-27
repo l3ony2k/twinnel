@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/mihomo"
 )
 
 // delayFake counts per-node delay requests and their concurrency. While

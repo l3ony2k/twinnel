@@ -10,20 +10,25 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/l3ony2k/duet/core/engine"
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/platform/darwin"
-	"github.com/l3ony2k/duet/platform/darwin/keychain"
-	"github.com/l3ony2k/duet/platform/darwin/launchd"
-	"github.com/l3ony2k/duet/platform/darwin/takeoverprobe"
+	"github.com/l3ony2k/twinnel/core/engine"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/legacy"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/platform/darwin"
+	"github.com/l3ony2k/twinnel/platform/darwin/keychain"
+	"github.com/l3ony2k/twinnel/platform/darwin/launchd"
+	"github.com/l3ony2k/twinnel/platform/darwin/takeoverprobe"
 )
 
 const hasKeychain = true
 
 func newKeychain(path string) (store.Secrets, error) {
-	return &keychain.Keychain{Path: path}, nil
+	k := &keychain.Keychain{Path: path}
+	if path == "" { // the installed helper: read items from before the rename too
+		k.LegacyService, k.LegacyAccount = legacy.KeychainService, legacy.KeychainAccount
+	}
+	return k, nil
 }
 
 func platformServices() service.Manager { return launchd.New() }

@@ -1,7 +1,7 @@
 package main
 
-// duet helper harden plan|apply: move an adopted mihomo to the managed
-// kernel, a root-owned config dir and duet's LaunchDaemon (one restart).
+// twinnel helper harden plan|apply: move an adopted mihomo to the managed
+// kernel, a root-owned config dir and Twinnel's LaunchDaemon (one restart).
 
 import (
 	"errors"
@@ -9,15 +9,15 @@ import (
 	"io"
 	"time"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
-const hardenUsage = `usage: duet helper harden plan [--kernel VERSION] [--new-secret] [--json]
-       duet helper harden apply [PLAN_ID] [--yes] [--skip-health] [--json]
+const hardenUsage = `usage: twinnel helper harden plan [--kernel VERSION] [--new-secret] [--json]
+       twinnel helper harden apply [PLAN_ID] [--yes] [--skip-health] [--json]
 
 Moves the adopted mihomo service (a root daemon running a binary and a
-config dir that your user can change) to duet's managed kernel, a
-root-owned config dir under the helper's state dir and duet's own
+config dir that your user can change) to Twinnel's managed kernel, a
+root-owned config dir under the helper's state dir and Twinnel's own
 LaunchDaemon. This RESTARTS mihomo once: the network is down for a few
 seconds. The old plist, binary and config dir stay on disk (the old label
 is only disabled), so it can be undone by hand (runbook step 8).
@@ -53,7 +53,7 @@ func runHardenPlan(args []string) error {
 	var plan rpc.HardenPlan
 	return cf.callPrint(rpc.MethodHardenPlan, p, &plan, func() {
 		printHardenPlan(stdout, plan)
-		fmt.Fprintf(stdout, "\nrun it (when nothing is downloading): duet helper harden apply %s\n", plan.PlanID)
+		fmt.Fprintf(stdout, "\nrun it (when nothing is downloading): twinnel helper harden apply %s\n", plan.PlanID)
 	})
 }
 
@@ -83,9 +83,9 @@ func runHardenApply(args []string) error {
 	}
 	if plan == nil {
 		if id != "" {
-			return fmt.Errorf("plan %s is not ready (%s); make a new one with `duet helper harden plan`", id, plans[0].State)
+			return fmt.Errorf("plan %s is not ready (%s); make a new one with `twinnel helper harden plan`", id, plans[0].State)
 		}
-		return errors.New("no ready harden plan; make one with `duet helper harden plan`")
+		return errors.New("no ready harden plan; make one with `twinnel helper harden plan`")
 	}
 	if !cf.json || !yes {
 		printHardenPlan(stdout, *plan)
@@ -189,7 +189,7 @@ func printHardenResult(w io.Writer, r rpc.HardenResult) {
 	case r.OK && r.DryRun:
 		fmt.Fprintln(w, "result:      dry run OK (nothing was stopped or started)")
 	case r.OK:
-		fmt.Fprintln(w, "result:      mihomo now runs from duet's kernel and config dir")
+		fmt.Fprintln(w, "result:      mihomo now runs from Twinnel's kernel and config dir")
 	case r.RolledBack:
 		fmt.Fprintf(w, "result:      ROLLED BACK: %s\n", r.Error)
 	default:

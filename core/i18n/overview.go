@@ -26,18 +26,18 @@ type OverviewStrings struct {
 	OvTailnet       string
 	OvDevices       string // Tailscale menu: open the devices page
 	OvAdminConsole  string // Tailscale menu: the admin console
-	OvTakeover      string // duet card: takeover row
+	OvTakeover      string // Twinnel card: takeover row
 	OvTakenOver     string
 	OvNotTakenOver  string
 	OvNeverApplied  string
 	OvApplyFailed   string // after the time of a failed apply
-	OvHealth        string // duet card: health row
-	OvHealthRerun   string // duet card's trailing button
+	OvHealth        string // Twinnel card: health row
+	OvHealthRerun   string // Twinnel card's trailing button
 	OvHealthOK      string
 	OvHealthFail    string // %d
 	OvHealthIssues  string // %d: findings rated a warning
-	OvRecent        string // card title: the last duet events
-	OvRecentAll     string // its trailing button: 日志 → duet
+	OvRecent        string // card title: the last twinnel events
+	OvRecentAll     string // its trailing button: 日志 → Twinnel
 	OvHelperVersion string // %s
 	OvMemoryTip     string // %s %s: what mihomo reports, what the system reports
 }
@@ -103,7 +103,7 @@ var enOverview = OverviewStrings{
 	OvDevices:       "Show Devices",
 	OvAdminConsole:  "Open Admin Console",
 	OvTakeover:      "Takeover",
-	OvTakenOver:     "Managed by duet",
+	OvTakenOver:     "Managed by Twinnel",
 	OvNotTakenOver:  "Not taken over",
 	OvNeverApplied:  "Not applied yet",
 	OvApplyFailed:   "failed",

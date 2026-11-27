@@ -9,11 +9,11 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/rpc/healthsrc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc/healthsrc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // Shared parts of the status surfaces (overview, flyout, sidebar foot,
@@ -495,12 +495,12 @@ func (a *app) tsLogin(s status.Snapshot) {
 	})
 }
 
-// gettingStarted is the 开始使用 strip while duet is not running the
+// gettingStarted is the 开始使用 strip while Twinnel is not running the
 // show yet: three steps, each done or not, each opening its page. It
 // goes once all three are done.
 func (a *app) gettingStarted(c *ui.Context, s status.Snapshot) {
 	if h := s.Helper.State; h != status.HelperNotInstalled && (h != status.HelperConnected || s.Helper.Status == nil) {
-		// Whether duet took over is known only from a connected helper
+		// Whether Twinnel took over is known only from a connected helper
 		// (or none installed): no strip that guesses.
 		return
 	}

@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"net/netip"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // Caller is the part of *rpc.Client the source needs. An app that

@@ -19,7 +19,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/twinnel/core/health"
 )
 
 var _ health.EgressEnv = (*Env)(nil)

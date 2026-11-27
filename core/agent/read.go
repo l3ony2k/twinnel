@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/config"
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/config"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // Read tools: always on while MCP is enabled. They change nothing.
@@ -21,13 +21,13 @@ type noArgs struct{}
 
 func (s *Server) registerRead() {
 	addTool(s, rpc.TierRead, "status", "Status",
-		`One snapshot of duet: the helper, mihomo (mode, TUN, version, the node each selector group uses),
+		`One snapshot of Twinnel: the helper, mihomo (mode, TUN, version, the node each selector group uses),
 the stored configuration (subscription, overrides, last apply, drift), Tailscale (state, exit node,
 online peers), the last health result and which agent tiers are on. Start here.`,
 		toolOpts{noHelper: true}, s.status)
 
 	addTool(s, rpc.TierRead, "version", "Versions",
-		`Versions of duet, the helper, the mihomo kernel (running, installed, previous), Tailscale, and the
+		`Versions of Twinnel, the helper, the mihomo kernel (running, installed, previous), Tailscale, and the
 geo databases. With check_updates it also asks GitHub for the latest mihomo release and geo files
 (network requests; nothing is installed).`,
 		toolOpts{noHelper: true, openWorld: true}, s.version)
@@ -54,7 +54,7 @@ since mihomo started.`,
 		toolOpts{}, s.traffic)
 
 	addTool(s, rpc.TierRead, "logs", "Logs",
-		`Recent log lines. source "duet" (default): what the helper did (applies, subscription updates,
+		`Recent log lines. source "twinnel" (default): what the helper did (applies, subscription updates,
 health changes, agent actions), newest last. source "mihomo": mihomo's live log, listened to for about
 3 seconds (mihomo keeps no backlog), at level (debug, info, warning, error; default info).`,
 		toolOpts{}, s.logs)
@@ -65,12 +65,12 @@ never shown.`,
 		toolOpts{}, s.subscriptions)
 
 	addTool(s, rpc.TierRead, "layers", "Overrides",
-		`The overrides (layers) duet composes on top of the subscription, in order: id, name, stage, format,
+		`The overrides (layers) Twinnel composes on top of the subscription, in order: id, name, stage, format,
 enabled, managed. With id, that override's YAML content (credentials redacted).`,
 		toolOpts{}, s.layers)
 
 	addTool(s, rpc.TierRead, "history", "Config history",
-		`The composed configs duet applied or backed up, newest first. With diff set to a history id, a
+		`The composed configs Twinnel applied or backed up, newest first. With diff set to a history id, a
 semantic diff of that entry against the running config (or against "against", another id): settings,
 groups, rules; node contents are never shown.`,
 		toolOpts{}, s.history)
@@ -83,7 +83,7 @@ errors (and which override causes them) and the reload's impact (e.g. TUN rebuil
 
 	addTool(s, rpc.TierRead, "takeover_plans", "Takeover plans",
 		`The takeover plans the helper made (adopting an existing mihomo setup): state, base, what it would
-import and change. Read-only: making or adopting a plan is done in the duet app.`,
+import and change. Read-only: making or adopting a plan is done in the Twinnel app.`,
 		toolOpts{}, s.takeoverPlans)
 
 	addTool(s, rpc.TierRead, "tailnet_peers", "Tailnet peers",
@@ -93,13 +93,13 @@ peer-relay, idle), whether it is or may be an exit node. online_only limits the 
 
 	if s.d.Doctor != nil {
 		addTool(s, rpc.TierRead, "doctor", "Doctor",
-			"Runs `duet doctor` here: the same coexistence checks as health, run by this process against the "+
+			"Runs `twinnel doctor` here: the same coexistence checks as health, run by this process against the "+
 				"running mihomo and Tailscale (read-only). Use it when the helper is not reachable.",
 			toolOpts{noHelper: true}, s.doctor)
 	}
 
 	addTool(s, rpc.TierRead, "agent_activity", "Agent activity",
-		`What local agents changed through duet, newest first: time, client, tool, arguments (redacted),
+		`What local agents changed through Twinnel, newest first: time, client, tool, arguments (redacted),
 result and how to undo it.`,
 		toolOpts{}, s.agentActivity)
 }
@@ -114,8 +114,8 @@ type groupNow struct {
 }
 
 type statusOut struct {
-	Duet   string `json:"duet_version"`
-	Helper struct {
+	Twinnel string `json:"twinnel_version"`
+	Helper  struct {
 		Reachable bool   `json:"reachable"`
 		Version   string `json:"version,omitempty"`
 		Error     string `json:"error,omitempty"`
@@ -173,7 +173,7 @@ type healthSum struct {
 
 func (s *Server) status(c *call, _ noArgs) (any, error) {
 	var out statusOut
-	out.Duet = s.d.Version
+	out.Twinnel = s.d.Version
 	if h, err := c.helper(); err != nil {
 		out.Helper.Error = err.Error()
 	} else {
@@ -290,7 +290,7 @@ type versionIn struct {
 }
 
 func (s *Server) version(c *call, in versionIn) (any, error) {
-	out := map[string]any{"duet": s.d.Version}
+	out := map[string]any{"twinnel": s.d.Version}
 	h, err := c.helper()
 	if err != nil {
 		out["helper_error"] = err.Error()
@@ -519,7 +519,7 @@ func (s *Server) traffic(c *call, _ noArgs) (any, error) {
 // ---- logs ----
 
 type logsIn struct {
-	Source string `json:"source,omitempty" jsonschema:"duet (default) or mihomo"`
+	Source string `json:"source,omitempty" jsonschema:"twinnel (default) or mihomo"`
 	Level  string `json:"level,omitempty" jsonschema:"mihomo only: debug, info (default), warning or error"`
 	Lines  int    `json:"lines,omitempty" jsonschema:"at most this many lines, newest (default 50, max 500)"`
 }
@@ -540,7 +540,7 @@ func (s *Server) logs(c *call, in logsIn) (any, error) {
 	n = min(n, 500)
 	var out []logLine
 	switch in.Source {
-	case "", "duet":
+	case "", "twinnel":
 		var r rpc.EventsWaitResult
 		if err := c.rpc(rpc.MethodEventsWait, rpc.EventsWaitParams{After: 0, TimeoutMS: 1}, &r); err != nil {
 			return nil, err
@@ -574,12 +574,12 @@ func (s *Server) logs(c *call, in logsIn) (any, error) {
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("source must be duet or mihomo")
+		return nil, fmt.Errorf("source must be twinnel or mihomo")
 	}
 	if len(out) > n {
 		out = out[len(out)-n:]
 	}
-	return map[string]any{"source": orDefault(in.Source, "duet"), "lines": out}, nil
+	return map[string]any{"source": orDefault(in.Source, "twinnel"), "lines": out}, nil
 }
 
 func orDefault(s, d string) string {

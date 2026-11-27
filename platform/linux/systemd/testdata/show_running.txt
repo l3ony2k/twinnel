@@ -4,6 +4,6 @@ SubState=running
 MainPID=4242
 ExecMainStatus=0
 NRestarts=2
-FragmentPath=/etc/systemd/system/duet-mihomo.service
-ExecStart={ path=/opt/duet/kernels/mihomo/current/mihomo ; argv[]=/opt/duet/kernels/mihomo/current/mihomo -d /var/lib/duet/mihomo -f /var/lib/duet/mihomo/config.yaml ; ignore_errors=no ; start_time=[Thu 2026-11-26 09:00:00 UTC] ; stop_time=[n/a] ; pid=4242 ; code=(null) ; status=0/0 }
+FragmentPath=/etc/systemd/system/twinnel-mihomo.service
+ExecStart={ path=/opt/twinnel/kernels/mihomo/current/mihomo ; argv[]=/opt/twinnel/kernels/mihomo/current/mihomo -d /var/lib/twinnel/mihomo -f /var/lib/twinnel/mihomo/config.yaml ; ignore_errors=no ; start_time=[Thu 2026-11-26 09:00:00 UTC] ; stop_time=[n/a] ; pid=4242 ; code=(null) ; status=0/0 }
 UnitFileState=enabled

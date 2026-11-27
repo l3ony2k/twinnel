@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/service"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
 // fakeSystem replaces every side effect of helper install/uninstall.
@@ -31,7 +31,7 @@ func installFakes(t *testing.T, euid int) *fakeSystem {
 	oldE, oldX, oldR, oldA, oldIn, oldOut, oldS := geteuid, executable, runElevated, applyPlan, stdin, stdout, helperServiceState
 	helperServiceState = func(string) (bool, []byte, error) { return f.loaded, f.def, nil }
 	geteuid = func() int { return f.euid }
-	executable = func() (string, error) { return "/Applications/duet app/duet", nil }
+	executable = func() (string, error) { return "/Applications/twinnel app/twinnel", nil }
 	runElevated = func(_ context.Context, argv []string, _, _ io.Writer) error {
 		f.elevated = append(f.elevated, argv)
 		return nil
@@ -48,7 +48,7 @@ func installFakes(t *testing.T, euid int) *fakeSystem {
 }
 
 func helperBinary(t *testing.T) string {
-	p := filepath.Join(t.TempDir(), "duet-helper")
+	p := filepath.Join(t.TempDir(), "twinnel-helper")
 	os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755)
 	return p
 }
@@ -66,8 +66,8 @@ func TestHelperInstallElevates(t *testing.T) {
 		t.Fatalf("applied %d elevated %d", len(f.applied), len(f.elevated))
 	}
 	argv := f.elevated[0]
-	want := `do shell script "'/Applications/duet app/duet' helper install --as-root --yes --helper-bin ` + bin +
-		` --state-dir '/Library/Application Support/duet' --socket /var/run/duet/helper.sock --label com.l3ony2k.duet.helper" with administrator privileges`
+	want := `do shell script "'/Applications/twinnel app/twinnel' helper install --as-root --yes --helper-bin ` + bin +
+		` --state-dir '/Library/Application Support/twinnel' --socket /var/run/twinnel/helper.sock --label com.l3ony2k.twinnel.helper" with administrator privileges`
 	if argv[0] != "/usr/bin/osascript" || argv[1] != "-e" || argv[2] != want {
 		t.Errorf("argv\n got %q\nwant %q", argv, want)
 	}
@@ -96,10 +96,10 @@ func TestHelperInstallNeedsConsent(t *testing.T) {
 	if err := runHelperInstall([]string{"--helper-bin", helperBinary(t)}); err != nil || len(f.elevated) != 1 {
 		t.Fatalf("consent: %v", err)
 	}
-	if err := runHelperInstall([]string{"--helper-bin", "/nonexistent/duet-helper", "--yes"}); err == nil || len(f.elevated) != 1 {
+	if err := runHelperInstall([]string{"--helper-bin", "/nonexistent/twinnel-helper", "--yes"}); err == nil || len(f.elevated) != 1 {
 		t.Errorf("missing binary: %v", err)
 	}
-	if err := runHelperInstall([]string{"--dry-run", "--helper-bin", "/nonexistent/duet-helper"}); err != nil || len(f.elevated) != 1 {
+	if err := runHelperInstall([]string{"--dry-run", "--helper-bin", "/nonexistent/twinnel-helper"}); err != nil || len(f.elevated) != 1 {
 		t.Errorf("dry run: %v", err)
 	}
 }
@@ -135,10 +135,10 @@ func TestHelperInstallAsRoot(t *testing.T) {
 		lines = append(lines, s.String())
 	}
 	want := []string{
-		"/bin/launchctl bootout system/com.l3ony2k.duet.helper  # errors ignored",
-		"rm -f /Library/LaunchDaemons/com.l3ony2k.duet.helper.plist",
-		"rm -f /Library/PrivilegedHelperTools/com.l3ony2k.duet.helper",
-		"rm -f /var/run/duet/helper.sock",
+		"/bin/launchctl bootout system/com.l3ony2k.twinnel.helper  # errors ignored",
+		"rm -f /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist",
+		"rm -f /Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper",
+		"rm -f /var/run/twinnel/helper.sock",
 	}
 	if strings.Join(lines, "\n") != strings.Join(want, "\n") {
 		t.Errorf("uninstall\n%s", strings.Join(lines, "\n"))

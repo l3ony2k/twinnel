@@ -37,7 +37,7 @@ const (
 	ReasonSubUpdated   = "subscription-updated" // args: subscription ID
 	ReasonTailnet      = "tailnet-changed"
 	ReasonRestore      = "restore-layers" // args: the history ID the overrides came from
-	ReasonCLI          = "cli-apply"      // duet compose --apply without --reason
+	ReasonCLI          = "cli-apply"      // twinnel compose --apply without --reason
 )
 
 // HistoryEntry is one line of history/index.json.
@@ -52,9 +52,9 @@ type HistoryEntry struct {
 	// empty when Reason is the user's own text.
 	ReasonCode string   `json:"reason_code,omitempty"`
 	ReasonArgs []string `json:"reason_args,omitempty"`
-	// BeforeDuet marks the copy of the config as it was before duet first
+	// BeforeTwinnel marks the copy of the config as it was before Twinnel first
 	// wrote it: the first backup ever, or the one taken by takeover.
-	BeforeDuet bool `json:"before_duet,omitempty"`
+	BeforeTwinnel bool `json:"before_duet,omitempty"` // stored name, kept from before the rename
 	// Layers: the overrides this config was composed from (applied and
 	// rollback entries made since the manifest exists). nil for a backup
 	// or an older entry.
@@ -63,11 +63,11 @@ type HistoryEntry struct {
 
 // HistoryMeta is what AddHistory records besides the bytes.
 type HistoryMeta struct {
-	Reason     string
-	Code       string
-	Args       []string
-	BeforeDuet bool
-	Layers     *LayerManifest
+	Reason        string
+	Code          string
+	Args          []string
+	BeforeTwinnel bool
+	Layers        *LayerManifest
 }
 
 // LayerManifest is the set of overrides a config was composed from: the
@@ -159,7 +159,7 @@ func (s *Store) AddHistory(kind, reason string, data []byte, at time.Time, keep 
 	return s.AddHistoryMeta(kind, HistoryMeta{Reason: reason}, data, at, keep)
 }
 
-// AddHistoryMeta is AddHistory with a reason code, the before-duet mark
+// AddHistoryMeta is AddHistory with a reason code, the before-Twinnel mark
 // and a layer manifest. Layer contents no entry refers to any more are
 // removed with the pruned entries.
 func (s *Store) AddHistoryMeta(kind string, meta HistoryMeta, data []byte, at time.Time, keep int) (HistoryEntry, error) {
@@ -183,7 +183,7 @@ func (s *Store) AddHistoryMeta(kind string, meta HistoryMeta, data []byte, at ti
 		return HistoryEntry{}, err
 	}
 	e := HistoryEntry{ID: id, Time: at, Hash: h, Size: len(data), Kind: kind, Reason: meta.Reason,
-		ReasonCode: meta.Code, ReasonArgs: meta.Args, BeforeDuet: meta.BeforeDuet, Layers: meta.Layers}
+		ReasonCode: meta.Code, ReasonArgs: meta.Args, BeforeTwinnel: meta.BeforeTwinnel, Layers: meta.Layers}
 	idx = append([]HistoryEntry{e}, idx...)
 	if keep > 0 && len(idx) > keep {
 		for _, old := range idx[keep:] {

@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"context"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -14,15 +15,15 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// The 停止使用 duet page (设置 → 停止使用 duet…): what duet installed on
+// The 停止使用 Twinnel page (设置 → 停止使用 Twinnel…): what Twinnel installed on
 // this Mac (helper.inventory plus the app's own pieces), then the ways
 // out, each with its list of what happens before anything runs:
-// 撤销接管 (takeover.undo), 卸载后台助手 and 完全移除 duet (the 后台助手
+// 撤销接管 (takeover.undo), 卸载后台助手 and 完全移除 Twinnel (the 后台助手
 // section's flows, helpermgmt.go), and 导出配置.
 
 const pageLeave = "leave"
@@ -48,9 +49,9 @@ const (
 	invLoginItem   = "login-item"
 )
 
-// duetAgentPrefix names duet's user LaunchAgents (none ships today; a
+// twinnelAgentPrefix names Twinnel's user LaunchAgents (none ships today; a
 // leftover from a development setup is listed and removed all the same).
-const duetAgentPrefix = "com.l3ony2k.duet"
+const twinnelAgentPrefix = "com.l3ony2k.twinnel"
 
 // appBackupsDir is where scripts/install-local.sh keeps old copies.
 func appBackupsDir() string {
@@ -58,16 +59,16 @@ func appBackupsDir() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, "Library", "Application Support", "duet", "backups")
+	return filepath.Join(home, "Library", "Application Support", "twinnel", "backups")
 }
 
-// launchAgents are duet's plists in ~/Library/LaunchAgents.
+// launchAgents are Twinnel's plists in ~/Library/LaunchAgents.
 func launchAgents() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil
 	}
-	m, _ := filepath.Glob(filepath.Join(home, "Library", "LaunchAgents", duetAgentPrefix+"*.plist"))
+	m, _ := filepath.Glob(filepath.Join(home, "Library", "LaunchAgents", twinnelAgentPrefix+"*.plist"))
 	return m
 }
 
@@ -99,9 +100,9 @@ func appInventory(bundle, prefs string, loginItem bool) []rpc.InventoryItem {
 func helperFilesOnDisk() []rpc.InventoryItem {
 	var out []rpc.InventoryItem
 	kinds := []string{rpc.InvHelperBinary, rpc.InvHelperService}
-	for i, p := range helperInstalledPaths {
+	for i, p := range helperInstalledPaths { // binary, plist; then the old name's
 		if fi, err := os.Stat(p); err == nil {
-			out = append(out, rpc.InventoryItem{Kind: kinds[i], Path: p, Size: fi.Size()})
+			out = append(out, rpc.InventoryItem{Kind: kinds[i%len(kinds)], Path: p, Size: fi.Size()})
 		}
 	}
 	return out
@@ -181,7 +182,7 @@ func invLabel(k string) string {
 	case rpc.InvSecrets:
 		return T.InvSecrets
 	case rpc.InvMihomoService:
-		return T.InvDuetMihomo
+		return T.InvTwinnelMihomo
 	case rpc.InvAdoptedService:
 		return T.InvAdoptedMihomo
 	case invApp:
@@ -200,7 +201,7 @@ func invLabel(k string) string {
 
 // invNested: the state dir's parts, drawn indented under it.
 // secretNames words the keychain items: 控制接口密钥、订阅「X」的地址
-// (walkthrough 2, N14). A key duet does not know shows as it is.
+// (walkthrough 2, N14). A key Twinnel does not know shows as it is.
 func secretNames(names []string) string {
 	T := i18n.T
 	var out []string
@@ -248,7 +249,7 @@ func (a *app) leaveSection(c *ui.Context, s status.Snapshot) {
 	})
 }
 
-// leavePage draws 停止使用 duet.
+// leavePage draws 停止使用 Twinnel.
 func (a *app) leavePage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	v := &a.hd.leave
@@ -544,7 +545,7 @@ func (a *app) exportConfig() {
 	go func() {
 		to, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
 			Parent: parent, Title: i18n.Cur().LeaveExport,
-			DefaultPath: "duet-config-" + time.Now().Format("20060102") + ".zip",
+			DefaultPath: "twinnel-config-" + time.Now().Format("20060102") + ".zip",
 			Filters:     []mygo.FileFilter{{Name: "ZIP", Extensions: []string{"zip"}}},
 		})
 		if err != nil || to == "" {
@@ -625,10 +626,10 @@ var bootoutAgent = func(plist string) error {
 	return exec.Command("launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), plist).Run()
 }
 
-// removeAppExtras removes the install backups and duet's LaunchAgents.
-// Only a backups dir named …/duet/backups is removed.
+// removeAppExtras removes the install backups and Twinnel's LaunchAgents.
+// Only a backups dir named …/twinnel/backups is removed.
 func removeAppExtras() {
-	if d := appBackupsDir(); d != "" && filepath.Base(d) == "backups" && filepath.Base(filepath.Dir(d)) == "duet" {
+	if d := appBackupsDir(); d != "" && filepath.Base(d) == "backups" && filepath.Base(filepath.Dir(d)) == "twinnel" {
 		os.RemoveAll(d)
 	}
 	for _, p := range launchAgents() {
@@ -636,6 +637,9 @@ func removeAppExtras() {
 		os.Remove(p)
 	}
 	removeCLILinks() // 设置 → 本地 Agent → 命令行工具
+	if d := legacyPrefsDir(); d != "" {
+		removeLegacyPrefs(d) // the app from before the rename
+	}
 }
 
 // appExtraItems words the app-side extras that exist, for the 完全移除
@@ -644,15 +648,17 @@ func appExtraItems() []string {
 	T := i18n.T
 	var out []string
 	if d := appBackupsDir(); d != "" {
-		if _, err := os.Stat(d); err == nil {
+		if _, err := os.Stat(d); err == nil || legacyLeftovers() {
 			out = append(out, T.ItemAppBackups)
 		}
+	} else if legacyLeftovers() {
+		out = append(out, T.ItemAppBackups)
 	}
 	if len(launchAgents()) > 0 {
 		out = append(out, T.ItemLaunchAgent)
 	}
 	for _, d := range cliTargets() {
-		if isDuetLink(filepath.Join(d, "duet")) {
+		if isTwinnelLink(filepath.Join(d, "twinnel")) || isLegacyLink(filepath.Join(d, legacy.CLI)) {
 			out = append(out, T.AgentCLI)
 			break
 		}

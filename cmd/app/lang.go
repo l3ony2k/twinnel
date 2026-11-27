@@ -9,22 +9,22 @@ import (
 	_ "github.com/egoist/mygo/locales/zh-Hans" // MyGo's own texts (menu roles, dialogs) in Chinese
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // The UI language: 设置 → 语言 picks 跟随系统 (status.Config.Language "")
 // or one of i18n.Langs(); following the system means the user's preferred
-// languages (zh-* → Chinese, anything else → English). DUET_LANG forces a
+// languages (zh-* → Chinese, anything else → English). TWINNEL_LANG forces a
 // language for one run without saving it (screenshots).
-const envLang = "DUET_LANG"
+const envLang = "TWINNEL_LANG"
 
-// forcedLang returns DUET_LANG's language, or "".
+// forcedLang returns TWINNEL_LANG's language, or "".
 func forcedLang() string { return i18n.Match(os.Getenv(envLang)) }
 
-// initLang tells MyGo the languages duet is written in, before Run: its
+// initLang tells MyGo the languages Twinnel is written in, before Run: its
 // own controls, menus and dialogs then follow the same language. Under
-// DUET_LANG it shows that one for this run only (MYGO_LOCALE saves
+// TWINNEL_LANG it shows that one for this run only (MYGO_LOCALE saves
 // nothing).
 func initLang() {
 	tags := []string{i18n.Fallback}
@@ -70,7 +70,7 @@ func setLayout(tag string) {
 	labelWidth, halfCardMin, levelColW = l.label, l.halfCard, l.logLevel
 }
 
-// uiLang returns the language to show: DUET_LANG, else the setting, else
+// uiLang returns the language to show: TWINNEL_LANG, else the setting, else
 // the system's. Main thread (PreferredLanguages).
 func (a *app) uiLang() string {
 	if f := forcedLang(); f != "" {

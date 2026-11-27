@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	coreversion "github.com/l3ony2k/duet/core/version"
+	coreversion "github.com/l3ony2k/twinnel/core/version"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 func fakeVersionSources(t *testing.T, h func() (rpc.Status, error), m func() (mihomo.Version, error), ts func() (string, error)) {
@@ -39,7 +39,7 @@ func TestVersionAllReachable(t *testing.T) {
 	}
 	var b bytes.Buffer
 	writeVersions(&b, rep)
-	for _, s := range []string{"duet         " + coreversion.String(), "duet-helper  1.2.3", "mihomo       v1.19.0", "tailscale    1.90.0"} {
+	for _, s := range []string{"twinnel         " + coreversion.String(), "twinnel-helper  1.2.3", "mihomo          v1.19.0", "tailscale       1.90.0"} {
 		if !strings.Contains(b.String(), s) {
 			t.Errorf("output lacks %q:\n%s", s, b.String())
 		}
@@ -59,7 +59,7 @@ func TestVersionNothingReachable(t *testing.T) {
 	}
 	var b bytes.Buffer
 	writeVersions(&b, rep)
-	if !strings.Contains(b.String(), "duet-helper  -  (/x.sock; not reachable: no socket)") {
+	if !strings.Contains(b.String(), "twinnel-helper  -  (/x.sock; not reachable: no socket)") {
 		t.Errorf("%s", b.String())
 	}
 	if _, err := json.Marshal(rep); err != nil {

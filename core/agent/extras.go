@@ -10,25 +10,25 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"gopkg.in/yaml.v3"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // ---- never via MCP ----
 
 // AdminActions are the actions agents never get, with where the person
-// does them in the duet app.
+// does them in the Twinnel app.
 var AdminActions = map[string]string{
 	"helper_install":    "设置 → 后台助手 (install from the app's onboarding)",
-	"helper_uninstall":  "设置 → 停止使用 duet → 卸载后台助手",
+	"helper_uninstall":  "设置 → 停止使用 Twinnel → 卸载后台助手",
 	"helper_upgrade":    "设置 → 后台助手 → 更新",
 	"takeover_adopt":    "接管 page: review the plan, then 接管",
-	"takeover_undo":     "设置 → 停止使用 duet → 撤销接管",
-	"harden":            "内核 page → 加固 (moves mihomo to duet's own service)",
+	"takeover_undo":     "设置 → 停止使用 Twinnel → 撤销接管",
+	"harden":            "内核 page → 加固 (moves mihomo to Twinnel's own service)",
 	"kernel_install":    "内核 page → 更新",
 	"kernel_rollback":   "内核 page → 回滚",
 	"service_stop":      "内核 page → mihomo service card",
 	"service_uninstall": "内核 page → mihomo service card",
-	"remove_duet":       "设置 → 停止使用 duet → 完全移除 duet",
+	"remove_twinnel":    "设置 → 停止使用 Twinnel → 完全移除 Twinnel",
 	"agent_switches":    "设置 → 本地 Agent",
 }
 
@@ -43,18 +43,18 @@ func (s *Server) registerAdminOnly() {
 	}
 	sort.Strings(names)
 	addTool(s, rpc.TierRead, "admin_only", "Actions for the person",
-		"Actions an agent can never take through duet, because they install, remove or move system pieces "+
+		"Actions an agent can never take through Twinnel, because they install, remove or move system pieces "+
 			"or change what agents may do: "+strings.Join(names, ", ")+". Call this with the action to get "+
-			"where the person does it in the duet app, then tell them. It changes nothing.",
+			"where the person does it in the Twinnel app, then tell them. It changes nothing.",
 		toolOpts{noHelper: true}, func(c *call, in adminIn) (any, error) {
 			where, ok := AdminActions[in.Action]
 			if !ok {
-				where = "the duet app"
+				where = "the Twinnel app"
 			}
 			return map[string]any{
 				"action":  in.Action,
 				"allowed": false,
-				"message": fmt.Sprintf("Agents cannot do this through duet. Ask the person to do it in the duet app: %s.", where),
+				"message": fmt.Sprintf("Agents cannot do this through Twinnel. Ask the person to do it in the Twinnel app: %s.", where),
 			}, nil
 		})
 }
@@ -62,13 +62,13 @@ func (s *Server) registerAdminOnly() {
 // ---- resources ----
 
 const (
-	resStatus = "duet://status"
-	resHealth = "duet://health"
-	resConfig = "duet://config/summary"
+	resStatus = "twinnel://status"
+	resHealth = "twinnel://health"
+	resConfig = "twinnel://config/summary"
 )
 
 func (s *Server) registerResources() {
-	s.addResource(resStatus, "status", "duet status snapshot (same as the status tool)", rpc.TierRead, true,
+	s.addResource(resStatus, "status", "twinnel status snapshot (same as the status tool)", rpc.TierRead, true,
 		func(c *call) (any, error) { return s.status(c, noArgs{}) })
 	s.addResource(resHealth, "health", "The last health check report", rpc.TierRead, false,
 		func(c *call) (any, error) { return s.health(c, healthIn{}) })
@@ -178,13 +178,13 @@ func (s *Server) registerPrompts() {
 		if sym == "" {
 			sym = "the network does not work as expected"
 		}
-		text := "Diagnose this with duet's tools: " + sym + `
+		text := "Diagnose this with Twinnel's tools: " + sym + `
 
 1. Call status. Note mihomo reachable/mode/TUN, Tailscale state and exit node, and health not_ok.
 2. Call health with run=true and read every warn or fail check's evidence and fix hint.
 3. If a site is involved: connections (is it there, which rule and chain), proxies for that chain's group
    (delays), and delay_test on the node in use.
-4. logs source=mihomo level=warning while the person retries, and logs source=duet for recent applies.
+4. logs source=mihomo level=warning while the person retries, and logs source=Twinnel for recent applies.
 5. Explain the cause in two or three sentences, with the evidence.
 Then propose the smallest fix. Do not change anything until the person agrees; prefer reversible operate
 tools, and say how to undo each step.`
@@ -202,7 +202,7 @@ tools, and say how to undo each step.`
 			return nil, fmt.Errorf("domain must be a plain domain name")
 		}
 		b, _ := json.Marshal(d)
-		text := "Make " + d + ` and its subdomains go DIRECT through mihomo, using duet's configure tools:
+		text := "Make " + d + ` and its subdomains go DIRECT through mihomo, using Twinnel's configure tools:
 
 1. Call layers. If an override with id "agent-direct" exists, read it (layers id=agent-direct) and add to it.
 2. layer_put id=agent-direct name="Direct (agent)" with content:
@@ -211,7 +211,7 @@ tools, and say how to undo each step.`
    ("+rules" puts the rule before the subscription's rules.)
 3. Call apply without preview_hash. Show the person the diff and validation, and wait for their yes.
 4. apply with the preview_hash. Report the history id and the rollback_id.
-If configure tools are off, tell the person and give them the override text to add in duet → 配置 instead.`
+If configure tools are off, tell the person and give them the override text to add in Twinnel → 配置 instead.`
 		return &mcp.GetPromptResult{Description: "Send a domain direct", Messages: []*mcp.PromptMessage{{Role: "user", Content: &mcp.TextContent{Text: text}}}}, nil
 	})
 }

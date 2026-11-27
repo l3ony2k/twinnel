@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/l3ony2k/duet/core/config"
+	"github.com/l3ony2k/twinnel/core/config"
 )
 
 // Redaction. Every tool output and error passes through redactJSON or
@@ -28,7 +28,7 @@ func sensitiveKey(k string) bool {
 	return config.IsSensitiveKey(k) || extraSensitiveRE.MatchString(k)
 }
 
-// safeJSONKeys are duet's own JSON fields whose names look sensitive but
+// safeJSONKeys are Twinnel's own JSON fields whose names look sensitive but
 // hold no secret (IDs, counts, booleans, key names).
 var safeJSONKeys = map[string]bool{
 	"active_subscription": true, "subscription": true, "subscriptions": true,

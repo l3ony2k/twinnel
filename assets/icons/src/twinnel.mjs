@@ -1,15 +1,15 @@
-// duet: the app mark, drawn by the rules in GUIDE.md (kubai line style).
+// twinnel: the app mark, drawn by the rules in GUIDE.md (kubai line style).
 // Two rings that cross: mihomo and Tailscale, the two cores running side by side. The right
 // ring is in front and cuts the left one where they cross. Status variants put a mark in a
 // round notch at the bottom right (a "!" for a warning, an "x" for an error), as kit.badge does.
 // The menu bar icon is a monochrome template: every state is told apart by shape alone.
-//   duet            all fine
-//   duet-warn       "!" in the notch
-//   duet-error      "x" in the notch
-//   duet-unknown    two rings side by side, not linked: still connecting / not known yet
-//   duet-tsdown     the linked pair with a slash over the right (Tailscale) ring: Tailscale is down
-//   duet-mode       "→" in the notch: mihomo is not in rule mode (direct or global)
-//   duet-nohelper   "–" in the notch: the helper is not installed / not connected
+//   twinnel            all fine
+//   twinnel-warn       "!" in the notch
+//   twinnel-error      "x" in the notch
+//   twinnel-unknown    two rings side by side, not linked: still connecting / not known yet
+//   twinnel-tsdown     the linked pair with a slash over the right (Tailscale) ring: Tailscale is down
+//   twinnel-mode       "→" in the notch: mihomo is not in rule mode (direct or global)
+//   twinnel-nohelper   "–" in the notch: the helper is not installed / not connected
 import { n, P, shell, line, solid } from '../parts.mjs';
 import { gapOf } from '../kit.mjs';
 import { circ } from '../smooth.mjs';
@@ -17,7 +17,7 @@ import { circ } from '../smooth.mjs';
 const R = 6.75; // outer radius of each ring
 const LX = 2 + R, RX = 22 - R, CY = 12;
 
-const duet = {
+const twinnel = {
   label: '双核', key: 'landscape', fit: 'x',
   light: [], // one mark: both rings keep the dark tone
   allow: { sliver: '只交付线性变体（菜单栏模板图标和界面图标）；面性中两个圆盘交叠，扣环处的切口必然留下小块，面性不使用' },
@@ -52,12 +52,12 @@ const MARKS = {
 
 function marked(mark, label) {
   return {
-    ...duet, label, name: `duet-${mark}`, base: 'duet', kind: 'badge', weights: null,
-    allow: { ...duet.allow, keyline: '角标在右下角的缺口里，伸出圆环的外框是有意的' },
+    ...twinnel, label, name: `twinnel-${mark}`, base: 'twinnel', kind: 'badge', weights: null,
+    allow: { ...twinnel.allow, keyline: '角标在右下角的缺口里，伸出圆环的外框是有意的' },
     draw(g, ctx) {
       const x = BX, y = BY;
       const parts = MARKS[mark](g, x, y);
-      return [...duet.draw(g, ctx), ...parts.map((b, i) => ({ ...b, n: i ? 'badge-dot' : 'badge', role: P, part: 'badge', ...(i ? {} : { cutD: circ(x, y, MARK + 0.25 + gapOf(g.s)), at: [x, y] }) }))];
+      return [...twinnel.draw(g, ctx), ...parts.map((b, i) => ({ ...b, n: i ? 'badge-dot' : 'badge', role: P, part: 'badge', ...(i ? {} : { cutD: circ(x, y, MARK + 0.25 + gapOf(g.s)), at: [x, y] }) }))];
     },
     fx: { t: 'keys', on: ['badge', 'badge-dot'], s: [1.2], o: [BX, BY], ms: 260 }
   };
@@ -65,19 +65,19 @@ function marked(mark, label) {
 
 // Tailscale down: the pair stays linked, a slash lies over the right (Tailscale) ring only.
 const slashed = (label, k = 4.6) => ({
-  ...duet, label, name: 'duet-tsdown', base: 'duet', weights: null,
-  allow: { ...duet.allow, keyline: '斜线只盖住右环' },
+  ...twinnel, label, name: 'twinnel-tsdown', base: 'twinnel', weights: null,
+  allow: { ...twinnel.allow, keyline: '斜线只盖住右环' },
   plan: '主体：两个扣在一起的圆环；右环（Tailscale）上压一条斜线，表示它关着',
   draw(g, ctx) {
     const d = g.seg(RX + k, CY - k, RX - k, CY + k);
-    return [...duet.draw(g, ctx), line(d, { n: 'slash', role: P, part: 'slash', cut: { d, w: g.s + 2 * gapOf(g.s) } })];
+    return [...twinnel.draw(g, ctx), line(d, { n: 'slash', role: P, part: 'slash', cut: { d, w: g.s + 2 * gapOf(g.s) } })];
   },
   fx: { t: 'draw', on: ['slash'] }
 });
 // Two whole rings side by side, not linked: nothing is connected yet.
 const apart = (label) => ({
-  ...duet, label, name: 'duet-unknown', base: 'duet', weights: null,
-  allow: { ...duet.allow },
+  ...twinnel, label, name: 'twinnel-unknown', base: 'twinnel', weights: null,
+  allow: { ...twinnel.allow },
   plan: '主体：两个分开、没有扣上的圆环：还没连上',
   draw(g) {
     const r = 4.5;
@@ -95,12 +95,12 @@ MARKS.mode = (g, x, y) => {
 };
 
 export default {
-  duet,
-  'duet-warn': marked('warn', '双核（警告）'),
-  'duet-error': marked('error', '双核（错误）'),
-  'duet-unknown': apart('双核（连接中）'),
-  'duet-tsdown': slashed('双核（Tailscale 断开）'),
+  twinnel,
+  'twinnel-warn': marked('warn', '双核（警告）'),
+  'twinnel-error': marked('error', '双核（错误）'),
+  'twinnel-unknown': apart('双核（连接中）'),
+  'twinnel-tsdown': slashed('双核（Tailscale 断开）'),
 
-  'duet-mode': marked('mode', '双核（非规则模式）'),
-  'duet-nohelper': marked('minus', '双核（后台助手未连接）')
+  'twinnel-mode': marked('mode', '双核（非规则模式）'),
+  'twinnel-nohelper': marked('minus', '双核（后台助手未连接）')
 };

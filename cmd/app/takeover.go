@@ -11,9 +11,9 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // The 接管 page: take over the existing mihomo setup. The helper inspects
@@ -37,7 +37,7 @@ type takeoverView struct {
 	adopt  *rpc.AdoptResult
 	secure *rpc.ControllerSecureResult
 
-	// fixture: the plan and result come from DUET_TAKEOVER_FIXTURE (a
+	// fixture: the plan and result come from TWINNEL_TAKEOVER_FIXTURE (a
 	// recorded plan.json / adopt.json, for screenshots); nothing is sent.
 	fixture bool
 

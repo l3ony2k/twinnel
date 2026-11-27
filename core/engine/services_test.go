@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // fakeManager plans like launchd does, in miniature.
@@ -68,7 +68,7 @@ func TestServiceOps(t *testing.T) {
 
 	// No runner: dry run.
 	r, err := h.e.ServiceOp(ctx, "mihomo", service.OpRestart)
-	if err != nil || !r.DryRun || len(r.Steps) != 1 || r.Steps[0] != "launchctl restart system/com.l3ony2k.duet.mihomo" {
+	if err != nil || !r.DryRun || len(r.Steps) != 1 || r.Steps[0] != "launchctl restart system/com.l3ony2k.twinnel.mihomo" {
 		t.Fatalf("dry run: %+v %v", r, err)
 	}
 
@@ -79,7 +79,7 @@ func TestServiceOps(t *testing.T) {
 		t.Fatalf("install: %+v %v", r, err)
 	}
 	st, _ := h.e.Store.Settings()
-	want := "write /defs/com.l3ony2k.duet.mihomo.plist: com.l3ony2k.duet.mihomo " + st.Mihomo.Binary + " -d " + h.confDir + " -f " + h.cfgPath
+	want := "write /defs/com.l3ony2k.twinnel.mihomo.plist: com.l3ony2k.twinnel.mihomo " + st.Mihomo.Binary + " -d " + h.confDir + " -f " + h.cfgPath
 	if len(files.ops) != 1 || files.ops[0] != want {
 		t.Errorf("files %q\nwant %q", files.ops, want)
 	}

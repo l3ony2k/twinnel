@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // Configure tools: change the stored configuration (off by default).
@@ -42,7 +42,7 @@ refresh_subscription downloads it; apply uses it when it is active.`,
 		toolOpts{idempotent: true, openWorld: true}, s.subPut)
 
 	addTool(s, rpc.TierConfigure, "sub_activate", "Activate subscription",
-		`Makes a subscription the one duet composes from. Stored only: call preview, then apply.
+		`Makes a subscription the one Twinnel composes from. Stored only: call preview, then apply.
 Undo: sub_activate with the previous id in the result.`,
 		toolOpts{idempotent: true}, s.subActivate)
 
@@ -67,7 +67,7 @@ with rollback_id in the result.`,
 		toolOpts{destructive: true}, s.historyRollback)
 
 	addTool(s, rpc.TierConfigure, "settings_update", "Change settings",
-		`Changes duet's stored settings: leak_guard_groups (proxy groups that must never go DIRECT),
+		`Changes Twinnel's stored settings: leak_guard_groups (proxy groups that must never go DIRECT),
 tailscale_coexist (the managed layer that keeps Tailscale working under mihomo's TUN and DNS),
 tailscale_resolver, history_keep (1..1000), kernel_channel (stable or alpha) and auto_apply (re-apply
 after subscription or tailnet changes). Only the fields given change. Leak guard and coexist take
@@ -89,7 +89,7 @@ func (s *Server) layerPut(c *call, in layerPutIn) (any, error) {
 	var old rpc.LayerContent
 	existed := c.rpc(rpc.MethodLayerGet, rpc.IDParams{ID: in.ID}, &old) == nil
 	if existed && old.Managed {
-		return nil, fmt.Errorf("%s is managed by duet; change it through settings_update", in.ID)
+		return nil, fmt.Errorf("%s is managed by Twinnel; change it through settings_update", in.ID)
 	}
 	var l rpc.Layer
 	if err := c.rpc(rpc.MethodLayerPut, rpc.LayerPutParams{ID: in.ID, Name: in.Name, Stage: in.Stage, Format: in.Format, Enabled: in.Enabled, Content: in.Content}, &l); err != nil {
@@ -113,7 +113,7 @@ func (s *Server) layerRemove(c *call, in idIn) (any, error) {
 		return nil, err
 	}
 	if old.Managed {
-		return nil, fmt.Errorf("%s is managed by duet; turn it off through settings_update", in.ID)
+		return nil, fmt.Errorf("%s is managed by Twinnel; turn it off through settings_update", in.ID)
 	}
 	if err := c.rpc(rpc.MethodLayerDelete, rpc.IDParams{ID: in.ID}, nil); err != nil {
 		return nil, err

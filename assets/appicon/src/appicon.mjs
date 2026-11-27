@@ -2,7 +2,7 @@
 //   node assets/appicon/src/appicon.mjs        → assets/appicon/src/*.svg
 //   go run ./assets/appicon/src/raster.go       → .icns, .ico, hicolor PNGs, tray PNGs
 //
-// The mark is the duet rings (../../icons/src/duet.mjs): two rings that link like chain links,
+// The mark is the twinnel rings (../../icons/src/twinnel.mjs): two rings that link like chain links,
 // mihomo on the left, Tailscale on the right; the left ring is in front at the top crossing, the
 // right one at the bottom. Geometry is the same as the line icon (24 grid, outer radius 6.75,
 // centres 8.75 / 15.25), drawn heavier (stroke 2.5) for an app icon.
@@ -98,7 +98,7 @@ const svg = (size, defs, body) => `<svg xmlns="http://www.w3.org/2000/svg" viewB
 // macOS 26 layered icon (Icon Composer): the rings as two flat layers on a 1024 canvas, no plate,
 // no masks (Icon Composer draws the background, shape, glass and shadow itself). Each ring is
 // one filled outline: the annulus with its gap cut by the other ring's band, as in rings() above.
-// icon.json in ../duet.icon is hand-written; this only refreshes the layer artwork.
+// icon.json in ../twinnel.icon is hand-written; this only refreshes the layer artwork.
 {
   const R = 6.75, s = 2.5, r = R - s / 2, w = s + 0.5 * s + 0.75, k = 26, o = 512 - 12 * k;
   const L = [o + (2 + R) * k, 512], Rc = [o + (22 - R) * k, 512];
@@ -120,11 +120,11 @@ const svg = (size, defs, body) => `<svg xmlns="http://www.w3.org/2000/svg" viewB
     return `M${P(oA)}A${f(ro)} ${f(ro)} 0 1 1 ${P(oB)}A${f(bB)} ${f(bB)} 0 0 ${sw(oB, iB)} ${P(iB)}` +
       `A${f(ri)} ${f(ri)} 0 1 0 ${P(iA)}A${f(bA)} ${f(bA)} 0 0 ${sw(iA, oA)} ${P(oA)}Z`;
   };
-  const dir = path.join(here, '..', 'duet.icon', 'Assets');
+  const dir = path.join(here, '..', 'twinnel.icon', 'Assets');
   fs.mkdirSync(dir, { recursive: true });
   const layer = (name, d, col) => fs.writeFileSync(path.join(dir, name),
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><path d="${d}" fill="${col}"/></svg>\n`);
   layer('mihomo-ring.svg', cut(L, Rc, 1), COLORS.left);
   layer('tailscale-ring.svg', cut(Rc, L, -1), COLORS.right);
 }
-console.log('mac.svg win.svg win-small.svg linux.svg duet.icon/Assets/*.svg →', here);
+console.log('mac.svg win.svg win-small.svg linux.svg twinnel.icon/Assets/*.svg →', here);

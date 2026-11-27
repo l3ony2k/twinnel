@@ -1,6 +1,6 @@
 package main
 
-// duet mcp: the MCP server for local AI agents (core/agent), on stdio.
+// twinnel mcp: the MCP server for local AI agents (core/agent), on stdio.
 
 import (
 	"context"
@@ -13,28 +13,28 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/l3ony2k/duet/core/agent"
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/tailscale"
-	coreversion "github.com/l3ony2k/duet/core/version"
+	"github.com/l3ony2k/twinnel/core/agent"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/tailscale"
+	coreversion "github.com/l3ony2k/twinnel/core/version"
 )
 
 func init() {
-	register("mcp", "serve duet to local AI agents over MCP (stdio); see docs/agents.md", runMCP)
+	register("mcp", "serve Twinnel to local AI agents over MCP (stdio); see docs/agents.md", runMCP)
 }
 
 // mcpUsage is printed for -h. stdout belongs to the protocol, so nothing
 // else is ever printed there.
-const mcpUsage = `usage: duet mcp [--list-tools] [--json]
+const mcpUsage = `usage: twinnel mcp [--list-tools] [--json]
 
-Serves duet's tools to an MCP client over stdin/stdout. Add it to a client:
+Serves Twinnel's tools to an MCP client over stdin/stdout. Add it to a client:
 
-  claude mcp add duet -- duet mcp
-  codex mcp add duet -- duet mcp
+  claude mcp add twinnel -- twinnel mcp
+  codex mcp add twinnel -- twinnel mcp
 
-The person turns agent access and its tiers on in duet → 设置 → 本地 Agent.
+The person turns agent access and its tiers on in Twinnel → 设置 → 本地 Agent.
 --list-tools prints the tools and their tiers and exits.
 
 `
@@ -65,8 +65,8 @@ func runMCP(args []string) error {
 }
 
 // mcpDeps wires the server to the helper on socket, the controller
-// (DUET_CONTROLLER pins it, for development), Tailscale's LocalAPI (or
-// DUET_TAILSCALE_STATUS_FILE) and the local doctor.
+// (TWINNEL_CONTROLLER pins it, for development), Tailscale's LocalAPI (or
+// TWINNEL_TAILSCALE_STATUS_FILE) and the local doctor.
 func mcpDeps(socket string) agent.Deps {
 	d := agent.Deps{
 		Dial: func(ctx context.Context) (agent.Caller, func(), error) {

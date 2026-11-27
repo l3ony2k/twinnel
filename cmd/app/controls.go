@@ -7,16 +7,16 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // The v0.2 controls. Each is enabled when what it acts on can act
 // (status.Snapshot.Can: mihomo's controller, Tailscale's LocalAPI, the
-// helper); DUET_READ_ONLY=1 turns them all off for development and test
+// helper); TWINNEL_READ_ONLY=1 turns them all off for development and test
 // runs, and the clients refuse writes on their own then. The switches and selects
 // are optimistic (pending.go): they show the new value at once and go back,
 // with controlError's note by them, if the change fails. Callers draw

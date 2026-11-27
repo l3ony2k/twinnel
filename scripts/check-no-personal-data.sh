@@ -3,7 +3,7 @@
 # private patterns listed one per line in a file kept OUTSIDE the repo.
 #
 # Usage: scripts/check-no-personal-data.sh [PATTERN_FILE]
-#   default PATTERN_FILE: $DUET_PRIVATE_PATTERNS, else ../../scratch/private-patterns.txt
+#   default PATTERN_FILE: $TWINNEL_PRIVATE_PATTERNS, else ../../scratch/private-patterns.txt
 #
 # Patterns are fixed strings, matched case-insensitively; blank lines and
 # lines starting with # are ignored. Short patterns match whole words only
@@ -13,7 +13,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-pf="${1:-${DUET_PRIVATE_PATTERNS:-../../scratch/private-patterns.txt}}"
+pf="${1:-${TWINNEL_PRIVATE_PATTERNS:-../../scratch/private-patterns.txt}}"
 if [ ! -f "$pf" ]; then
 	echo "pattern file not found: $pf (skipping)" >&2
 	exit 2

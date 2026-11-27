@@ -1,4 +1,4 @@
-# Publishing duet: pre-publish checklist
+# Publishing Twinnel: pre-publish checklist
 
 Everything here is still to do: no remote exists, nothing has been pushed, and the history has
 not been rewritten. The numbers come from read-only scans of a mirror clone made on 2026-11-27
@@ -11,24 +11,24 @@ from a worktree). Never print it, commit it, or paste its lines into an issue.
 
 | Decision | Today | Where it shows up |
 |---|---|---|
-| Project name | `duet` (placeholder) | everywhere; see the rename checklist in section 7 |
-| Owner / org on GitHub | none; `l3ony2k` appears in identifiers | module path, bundle id, launchd labels |
+| Project name | **decided: Twinnel** (twin + tunnel; was "duet" until 2026-11-27) | everywhere; section 7 lists the identifiers |
+| Owner / org on GitHub | **decided: personal account `l3ony2k`**, repo `github.com/l3ony2k/twinnel` (no remote added yet) | module path, bundle id, launchd labels |
 | Visibility | private, local only | — |
-| Bundle id | `io.github.l3ony2k.duet` | `cmd/app/mygo.json` |
-| launchd labels | `com.l3ony2k.duet.helper`, `com.l3ony2k.duet.mihomo` | helper, CLI, uninstall, docs |
-| Go module path | `github.com/l3ony2k/duet` | `go.mod`, every import |
+| Bundle id | `io.github.l3ony2k.twinnel` (app `Twinnel.app`) | `cmd/app/mygo.json` |
+| launchd labels | `com.l3ony2k.twinnel.helper`, `com.l3ony2k.twinnel.mihomo` | helper, CLI, uninstall, docs |
+| Go module path | `github.com/l3ony2k/twinnel` | `go.mod`, every import |
 | Branches to publish | 79 local branches (`feat/*`, `fix/*`, `docs/*`) | publish `main` only (and tags), not the agent branches |
 | Author identity | one name and one email on every commit | decide whether to publish that email or rewrite it to a GitHub `noreply` address (`--mailmap`) |
 | Release channel | none | signing and notarization, section 5 |
 
-Changing the launchd labels after people have installed the helper needs a migration (the
-uninstaller and `helper upgrade` look for the old label). Decide them before the first public
-release.
+Changing the launchd labels after people have installed the helper needs a migration. The
+rename from duet did exactly that (`cmd/cli/helper_migrate.go`, names in `core/legacy`): drop
+that code, and `core/legacy`, in the release after the first public one.
 
 ## 2. Backup (before touching history)
 
 ```sh
-B=~/duet-backup-$(date +%Y%m%d)          # outside the repo and the task folder
+B=~/twinnel-backup-$(date +%Y%m%d)          # outside the repo and the task folder
 mkdir -p "$B"
 git -C <repo> bundle create "$B/all.bundle" --all
 git clone --mirror <repo> "$B/mirror.git"
@@ -132,7 +132,7 @@ Run on the full history of a mirror clone, with `--redact`:
 
 ## 5. Licence and third-party notices
 
-- duet: MIT (`LICENSE`, "the duet authors"). Decide whether the copyright line names a person.
+- Twinnel: MIT (`LICENSE`, "Copyright (c) 2026 Leon and Claude").
 - `THIRD_PARTY_NOTICES.md` covers the Kubai Icons (MIT). It does not yet cover the Go modules
   compiled into the binaries. All of them are permissive, but MIT, BSD and ISC require their
   notices in binary distributions:
@@ -148,8 +148,8 @@ Run on the full history of a mirror clone, with `--redact`:
   To do: generate the notices at release time (e.g. `go-licenses report` / `save` over
   `./cmd/app ./cmd/helper ./cmd/cli`), ship them in the `.app` (`Contents/Resources`) and in the
   CLI archives, and add a pointer from `THIRD_PARTY_NOTICES.md`.
-- mihomo and Tailscale binaries are not bundled (duet downloads official mihomo releases at the
-  user's request), so their licences do not apply to duet's archives.
+- mihomo and Tailscale binaries are not bundled (Twinnel downloads official mihomo releases at the
+  user's request), so their licences do not apply to Twinnel's archives.
 - Kubai Icons: confirm the upstream licence file still says MIT at the commit the icons came from.
 
 ## 6. CI, signing and the icon
@@ -162,27 +162,27 @@ Run on the full history of a mirror clone, with `--redact`:
   `scripts/check-no-personal-data.sh` with a pattern file from a repository secret.
 - Signing: builds are signed ad hoc. A public download needs a Developer ID Application
   certificate and notarization: `SIGN_IDENTITY` and `NOTARY_PROFILE` in `scripts/build-release.sh`
-  (hardened runtime on `duet.app`, the CLI and the helper; the helper's launchd plist points at a
+  (hardened runtime on `Twinnel.app`, the CLI and the helper; the helper's launchd plist points at a
   path under `/Library/PrivilegedHelperTools`, so the installed copy must carry the same
   signature). In CI that means the certificate and an App Store Connect API key as secrets and a
   temporary keychain. Until then, release notes must say "right-click → Open".
 - Layered icon: `Assets.car` needs `actool` from Xcode 26. The draft release job in
-  `docs/release.md` runs on `macos-26` with `DUET_REQUIRE_LAYERED_ICON=1`; enable it as
+  `docs/release.md` runs on `macos-26` with `TWINNEL_REQUIRE_LAYERED_ICON=1`; enable it as
   `.github/workflows/release.yml` once tags are pushed.
 
-## 7. Rename checklist (if the name or owner changes)
+## 7. Rename checklist (if the name or owner changes again)
 
 Counted on 2026-11-27 with `git grep -c`:
 
 | Identifier | Files |
 |---|---|
-| `github.com/l3ony2k/duet` (module path, imports) | 266 files: `go.mod`, almost every `.go` file, the `-X` ldflags in `scripts/build-release.sh` (`go mod edit -module`, then rewrite the imports) |
-| `io.github.l3ony2k.duet` (bundle id) | `cmd/app/mygo.json` |
-| `com.l3ony2k.duet.helper` / `.mihomo` (launchd labels, plist names; 14 and 10 files) | `core/store/settings.go`, `cmd/helper`, `cmd/app/helper.go`, `cmd/app/leavepage.go`, `core/uninstall`, `core/engine`, tests, `cmd/app/testdata/shots-install-plan.txt`, `docs/architecture.md`, `docs/runbook-adopt-macos.md`, `docs/security-review.md`, `CONTRIBUTING.md`, `AGENTS.md` |
-| `/var/run/duet/helper.sock`, `/Library/Application Support/duet`, `/Library/PrivilegedHelperTools/…`, `~/Library/Application Support/duet` | helper, CLI and app defaults, docs |
-| `duet` as a command, app and archive name (`duet`, `duet-helper`, `duet.app`) | `scripts/build-release.sh`, `scripts/install-local.sh`, README, docs |
-| `DUET_*` environment variables | code, CONTRIBUTING, AGENTS |
-| `git clone https://github.com/l3ony2k/duet` | `README.md`, `README.zh-CN.md` |
+| `github.com/l3ony2k/twinnel` (module path, imports) | 266 files: `go.mod`, almost every `.go` file, the `-X` ldflags in `scripts/build-release.sh` (`go mod edit -module`, then rewrite the imports) |
+| `io.github.l3ony2k.twinnel` (bundle id) | `cmd/app/mygo.json` |
+| `com.l3ony2k.twinnel.helper` / `.mihomo` (launchd labels, plist names; 14 and 10 files) | `core/store/settings.go`, `cmd/helper`, `cmd/app/helper.go`, `cmd/app/leavepage.go`, `core/uninstall`, `core/engine`, tests, `cmd/app/testdata/shots-install-plan.txt`, `docs/architecture.md`, `docs/runbook-adopt-macos.md`, `docs/security-review.md`, `CONTRIBUTING.md`, `AGENTS.md` |
+| `/var/run/twinnel/helper.sock`, `/Library/Application Support/twinnel`, `/Library/PrivilegedHelperTools/…`, `~/Library/Application Support/twinnel` | helper, CLI and app defaults, docs |
+| `twinnel` as a command, app and archive name (`twinnel`, `twinnel-helper`, `Twinnel.app`) | `scripts/build-release.sh`, `scripts/install-local.sh`, README, docs |
+| `TWINNEL_*` environment variables (`DUET_*` still read for one release, `core/legacy`) | code, CONTRIBUTING, AGENTS |
+| `git clone https://github.com/l3ony2k/twinnel` | `README.md`, `README.zh-CN.md` |
 
 Then: regenerate the README screenshots (`scripts/readme-shots.sh`), since the app shows its name.
 

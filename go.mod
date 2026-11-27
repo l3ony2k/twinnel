@@ -1,4 +1,4 @@
-module github.com/l3ony2k/duet
+module github.com/l3ony2k/twinnel
 
 go 1.27.4
 

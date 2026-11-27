@@ -1,4 +1,4 @@
-// Package rpc is the protocol between the duet helper (root daemon) and its
+// Package rpc is the protocol between the twinnel helper (root daemon) and its
 // clients (the app and the CLI): JSON-RPC 2.0, one JSON object per line, over
 // a local stream socket (a unix socket on macOS/Linux; a named pipe on
 // Windows later, see Transport).
@@ -19,7 +19,7 @@ const Version = "2.0"
 const MaxMessageSize = 16 << 20
 
 // Request is a JSON-RPC 2.0 request. Notifications (no ID) are not used by
-// duet; the server answers them with nothing.
+// Twinnel; the server answers them with nothing.
 type Request struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id,omitempty"`
@@ -45,7 +45,7 @@ type Error struct {
 
 func (e *Error) Error() string { return fmt.Sprintf("rpc error %d: %s", e.Code, e.Message) }
 
-// Standard and duet error codes.
+// Standard and Twinnel error codes.
 const (
 	CodeParseError     = -32700
 	CodeInvalidRequest = -32600

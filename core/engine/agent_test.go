@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 func TestAgentSettingsDefaults(t *testing.T) {

@@ -1,10 +1,11 @@
-// Command duet is the command line client of duet.
+// Command twinnel is the command line client of Twinnel.
 //
 // Subcommands live in their own files and register themselves in init().
 package main
 
 import (
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"os"
 	"sort"
 )
@@ -24,7 +25,7 @@ func register(name, summary string, run func(args []string) error) {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: duet <command> [args]")
+	fmt.Fprintln(os.Stderr, "usage: twinnel <command> [args]")
 	names := make([]string, 0, len(commands))
 	for n := range commands {
 		names = append(names, n)
@@ -36,6 +37,9 @@ func usage() {
 }
 
 func main() {
+	if n := legacy.EnvNotice(legacy.ApplyEnvAliases()); n != "" {
+		fmt.Fprintln(os.Stderr, "twinnel:", n)
+	}
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(2)
@@ -49,7 +53,7 @@ func main() {
 		os.Exit(2)
 	}
 	if err := c.run(os.Args[2:]); err != nil {
-		fmt.Fprintln(os.Stderr, "duet:", err)
+		fmt.Fprintln(os.Stderr, "twinnel:", err)
 		os.Exit(1)
 	}
 }

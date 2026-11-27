@@ -65,7 +65,7 @@ func TestCheckAvailable(t *testing.T) {
 		t.Errorf("request %s %s", req.Method, req.URL)
 	}
 	// Nothing identifying: a generic agent, no credentials, no cookies.
-	if req.Header.Get("User-Agent") != "duet" || req.Header.Get("Authorization") != "" || req.Header.Get("Cookie") != "" || req.URL.RawQuery != "" {
+	if req.Header.Get("User-Agent") != "twinnel" || req.Header.Get("Authorization") != "" || req.Header.Get("Cookie") != "" || req.URL.RawQuery != "" {
 		t.Errorf("headers %v query %q", req.Header, req.URL.RawQuery)
 	}
 }

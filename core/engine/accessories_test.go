@@ -16,9 +16,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/engine/enginetest"
-	"github.com/l3ony2k/duet/core/kernel"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/engine/enginetest"
+	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // fakeGitHub serves release metadata and asset downloads for

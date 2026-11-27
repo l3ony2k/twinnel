@@ -1,6 +1,6 @@
 package main
 
-// duet doctor: one body for every OS; newHealthEnv (doctor_<os>.go) builds
+// twinnel doctor: one body for every OS; newHealthEnv (doctor_<os>.go) builds
 // the platform's health.Env.
 
 import (
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/twinnel/core/health"
 )
 
 // healthEnvOptions are the doctor flags that reach the platform Env.

@@ -68,7 +68,7 @@ const (
 	MethodControllerSecure = "controller.secure"
 
 	// Moving an adopted mihomo to the managed kernel, a root-owned config
-	// dir and a duet LaunchDaemon (security review finding 5).
+	// dir and a Twinnel LaunchDaemon (security review finding 5).
 	MethodHardenPlan  = "service.harden.plan"
 	MethodHardenApply = "service.harden.apply"
 	MethodHardenPlans = "service.harden.plans" // read: stored plans
@@ -259,8 +259,8 @@ type HistoryEntry struct {
 	// empty when Reason is the user's own text.
 	ReasonCode string   `json:"reason_code,omitempty"`
 	ReasonArgs []string `json:"reason_args,omitempty"`
-	// BeforeDuet: the config as it was before duet first wrote it.
-	BeforeDuet bool `json:"before_duet,omitempty"`
+	// BeforeTwinnel: the config as it was before Twinnel first wrote it.
+	BeforeTwinnel bool `json:"before_duet,omitempty"` // stored name, kept from before the rename
 	// Layers: the overrides the config was composed from; nil for a
 	// backup or an entry older than the manifest.
 	Layers *LayerManifest `json:"layers,omitempty"`
@@ -411,7 +411,7 @@ type SettingsUpdate struct {
 	KernelChannel     *string   `json:"kernel_channel,omitempty"`
 	AutoApply         *bool     `json:"auto_apply,omitempty"`
 	HealthEgress      *bool     `json:"health_egress,omitempty"`
-	// Agent changes the local agent switches. `duet mcp` never sends it:
+	// Agent changes the local agent switches. `twinnel mcp` never sends it:
 	// an agent cannot widen its own tiers.
 	Agent *AgentSettingsUpdate `json:"agent,omitempty"`
 }

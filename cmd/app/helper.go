@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"os"
 	"regexp"
 	"strings"
@@ -12,31 +13,37 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/msg"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/version"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/msg"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/version"
 )
 
-// Paths that tell an installed helper from none (see `duet helper install
+// Paths that tell an installed helper from none (see `twinnel helper install
 // --dry-run`): the binary and its LaunchDaemon plist.
+// A helper from before the rename counts as installed too: it runs until
+// 更新 migrates it.
 var helperInstalledPaths = []string{
-	"/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper",
-	"/Library/LaunchDaemons/com.l3ony2k.duet.helper.plist",
+	"/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper",
+	"/Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist",
+	legacy.HelperTools,
+	legacy.HelperPlist,
 }
 
 // startHelper starts the one helper connection of the app: dial (socket
-// from DUET_SOCKET, else the default), one events.wait long-poll, data
+// from TWINNEL_SOCKET, else the default), one events.wait long-poll, data
 // reloads after events. It lives across monitor restarts. Main thread.
 func (a *app) startHelper() {
 	hc := &status.HelperConn{Socket: rpc.SocketFromEnv()}
 	// Installed: the LaunchDaemon plist or the binary exists (readable
-	// without root). A development helper named by DUET_SOCKET counts as
+	// without root). A development helper named by TWINNEL_SOCKET counts as
 	// installed while its socket exists.
 	paths := helperInstalledPaths
-	if os.Getenv("DUET_SOCKET") != "" {
+	if os.Getenv("TWINNEL_SOCKET") != "" {
 		paths = []string{hc.Socket}
+	} else {
+		hc.Resolve = rpc.SocketFromEnv // the new socket once a legacy helper is migrated
 	}
 	hc.Installed = status.FileExists(paths...)
 	hc.OnChange = func(h status.Helper) {
@@ -336,7 +343,7 @@ func helperError(err error) string {
 }
 
 // helperMsg is a helper call's error as a coded message for msgNote: the
-// code when duet knows the text, and the helper's own text behind 复制原文.
+// code when Twinnel knows the text, and the helper's own text behind 复制原文.
 func helperMsg(err error) rpc.Msg {
 	var re *rpc.Error
 	if errors.As(err, &re) {
@@ -482,7 +489,7 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 func (a *app) helperDiagnostics(s status.Snapshot) string {
 	h := s.Helper
 	var b strings.Builder
-	fmt.Fprintf(&b, "duet %s\n", version.Version)
+	fmt.Fprintf(&b, "Twinnel %s\n", version.Version)
 	fmt.Fprintf(&b, "helper state: %d\n", h.State)
 	fmt.Fprintf(&b, "socket: %s\n", h.Socket)
 	if h.Err != "" {

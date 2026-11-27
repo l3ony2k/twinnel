@@ -1,30 +1,30 @@
-# duet for AI agents (MCP and the CLI)
+# Twinnel for AI agents (MCP and the CLI)
 
-duet lets a local AI agent (Claude Code, Codex, Cursor, or any MCP client) see and operate the mihomo + Tailscale setup it manages, within limits the person sets in the app. 中文摘要见文末。
+Twinnel lets a local AI agent (Claude Code, Codex, Cursor, or any MCP client) see and operate the mihomo + Tailscale setup it manages, within limits the person sets in the app. 中文摘要见文末。
 
 There are two ways in:
 
-- **`duet mcp`**: an MCP server on stdin/stdout. This is the supported way: it is tiered, redacted and logged.
-- **The `duet` CLI**: every command takes `--json` with a stable shape (below). Use it in scripts. It is not tiered: it does what the person running it may do.
+- **`twinnel mcp`**: an MCP server on stdin/stdout. This is the supported way: it is tiered, redacted and logged.
+- **The `twinnel` CLI**: every command takes `--json` with a stable shape (below). Use it in scripts. It is not tiered: it does what the person running it may do.
 
 ## Set up
 
-1. In duet: **设置 → 本地 Agent** (Settings → Local agents) → turn on **允许 MCP**. Optionally turn off **操作** (operate) or turn on **修改配置** (configure).
-2. Install the command line tool from the same section (a symlink to the CLI inside duet.app, in `/usr/local/bin` or `~/.local/bin`; **移除** takes it away; 完全移除 duet removes it too).
-3. Add duet to your client. The section shows these with the right path and a copy button; duet never edits another app's config:
+1. In Twinnel: **设置 → 本地 Agent** (Settings → Local agents) → turn on **允许 MCP**. Optionally turn off **操作** (operate) or turn on **修改配置** (configure).
+2. Install the command line tool from the same section (a symlink to the CLI inside Twinnel.app, in `/usr/local/bin` or `~/.local/bin`; **移除** takes it away; 完全移除 Twinnel removes it too).
+3. Add Twinnel to your client. The section shows these with the right path and a copy button; Twinnel never edits another app's config:
 
 ```sh
-claude mcp add duet -- /usr/local/bin/duet mcp     # Claude Code
-codex mcp add duet -- /usr/local/bin/duet mcp      # Codex
+claude mcp add twinnel -- /usr/local/bin/twinnel mcp     # Claude Code
+codex mcp add twinnel -- /usr/local/bin/twinnel mcp      # Codex
 ```
 
 ```json
-{ "mcpServers": { "duet": { "command": "/usr/local/bin/duet", "args": ["mcp"] } } }
+{ "mcpServers": { "twinnel": { "command": "/usr/local/bin/twinnel", "args": ["mcp"] } } }
 ```
 
 (Cursor: `~/.cursor/mcp.json`; most other clients take the same JSON.)
 
-The switches can also be set from a terminal: `duet settings --mcp on --agent-operate on --agent-configure off`. `duet mcp --list-tools` prints the tools and their tiers.
+The switches can also be set from a terminal: `twinnel settings --mcp on --agent-operate on --agent-configure off`. `twinnel mcp --list-tools` prints the tools and their tiers.
 
 ## Tiers
 
@@ -33,11 +33,11 @@ The switches can also be set from a terminal: `duet settings --mcp on --agent-op
 | read | on (while MCP is on) | everything that only reads |
 | operate | **on** | reversible switches of the running system |
 | configure | **off** | the stored configuration, apply, rollback, settings |
-| never | n/a | install/uninstall/upgrade the helper, adopt/harden/undo takeover, kernel install/rollback, stopping or uninstalling services, removing duet, the agent switches themselves |
+| never | n/a | install/uninstall/upgrade the helper, adopt/harden/undo takeover, kernel install/rollback, stopping or uninstalling services, removing Twinnel, the agent switches themselves |
 
 The switches live in the helper's settings (`agent` in `settings.json`), read on every tool call, so they apply to every client at once and take effect without restarting anything. A refused tool says which switch is off. `admin_only` tells the agent where in the app the person does a "never" action.
 
-With `DUET_READ_ONLY=1` in its environment, `duet mcp` refuses every operate and configure tool.
+With `TWINNEL_READ_ONLY=1` in its environment, `twinnel mcp` refuses every operate and configure tool.
 
 ## Tools
 
@@ -48,13 +48,13 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 | Tool | Does |
 |---|---|
 | `status` | helper, mihomo (mode, TUN, the node of each selector group), stored config (subscription, overrides, last apply, drift), Tailscale, last health, the tiers. Works without the helper (reports it). |
-| `version` | duet, helper, kernel, Tailscale; `check_updates` asks GitHub for the latest kernel and geo files |
+| `version` | Twinnel, helper, kernel, Tailscale; `check_updates` asks GitHub for the latest kernel and geo files |
 | `health` | the helper's checks; `run=true` runs them now |
-| `doctor` | `duet doctor` in-process (when the helper is down) |
+| `doctor` | `twinnel doctor` in-process (when the helper is down) |
 | `proxies` | groups, current node, members, last delays; `group` for one with its chain |
 | `connections` | open connections summarized: top destinations, rules, chains, processes |
 | `traffic` | throughput over ~3 s and totals |
-| `logs` | `source=duet` (the helper's events) or `source=mihomo` (live log for ~3 s, `level`) |
+| `logs` | `source=twinnel` (the helper's events) or `source=mihomo` (live log for ~3 s, `level`) |
 | `subscriptions` | id, name, active, interval, last fetch/error (never the URL) |
 | `layers` | the overrides; `id` returns one with its content (credentials redacted) |
 | `history` | applied configs; `diff=<id>` (and `against=<id>`) gives a semantic diff |
@@ -72,7 +72,7 @@ Every result is JSON text. Write tools return `previous` and `undo` (the call th
 
 Managed overrides (Tailscale coexist, leak guard) cannot be edited or removed through `layer_*`; use `settings_update`.
 
-**Resources**: `duet://status`, `duet://health`, `duet://config/summary` (mode, TUN, DNS, group/rule/node counts, overrides; no node details).
+**Resources**: `twinnel://status`, `twinnel://health`, `twinnel://config/summary` (mode, TUN, DNS, group/rule/node counts, overrides; no node details).
 
 **Prompts**: `diagnose_connectivity` (symptom), `add_direct_rule` (domain).
 
@@ -84,9 +84,9 @@ Managed overrides (Tailscale coexist, leak guard) cannot be edited or removed th
 
 ## Safety model
 
-- **Tiers** as above; the agent cannot change them (`settings_update` has no agent field; the helper's `settings.update` is only sent with one by the app or `duet settings`).
-- **Logged**: every operate/configure call that runs, whether it succeeds or fails, goes to the helper's agent log (`agent.record`: time, client name and version from MCP, tool, redacted arguments, result, undo). It shows in 日志 → duet (chip "Agent") and in 设置 → 本地 Agent → 最近操作. The log keeps the last 200 (`<state>/agent-activity.json`).
-- **Redacted**: nothing leaves `duet mcp` without passing the redactor: the controller secret (and any secret the server has seen, such as a URL passed to `sub_put`) is replaced, values under credential keys (`password`, `uuid`, `secret`, `token`, `private-key`, `psk`, `auth`, `short-id`, …) become `<redacted>`, URL user info and query strings are stripped, proxy provider URLs lose their path, and token-shaped path segments in free text are hidden. Configs are shown as semantic diffs, which never render node contents. `core/agent` tests call every tool against fixtures full of secrets and fail if any appears in any output or log record.
+- **Tiers** as above; the agent cannot change them (`settings_update` has no agent field; the helper's `settings.update` is only sent with one by the app or `twinnel settings`).
+- **Logged**: every operate/configure call that runs, whether it succeeds or fails, goes to the helper's agent log (`agent.record`: time, client name and version from MCP, tool, redacted arguments, result, undo). It shows in 日志 → Twinnel (chip "Agent") and in 设置 → 本地 Agent → 最近操作. The log keeps the last 200 (`<state>/agent-activity.json`).
+- **Redacted**: nothing leaves `twinnel mcp` without passing the redactor: the controller secret (and any secret the server has seen, such as a URL passed to `sub_put`) is replaced, values under credential keys (`password`, `uuid`, `secret`, `token`, `private-key`, `psk`, `auth`, `short-id`, …) become `<redacted>`, URL user info and query strings are stripped, proxy provider URLs lose their path, and token-shaped path segments in free text are hidden. Configs are shown as semantic diffs, which never render node contents. `core/agent` tests call every tool against fixtures full of secrets and fail if any appears in any output or log record.
 - **Not a security boundary**: an agent that runs as the person can run the CLI (or anything else) directly. The tiers keep a well-behaved agent inside what the person agreed to; they do not contain a hostile one. The helper itself only serves the admin group.
 
 ## CLI `--json`
@@ -111,8 +111,8 @@ Errors go to stderr and exit with status 1; with `--json` the `OpResult` command
 
 ## Agent skill
 
-[docs/skill/SKILL.md](skill/SKILL.md) is a short skill an agent can install (Claude Code: copy it to `~/.claude/skills/duet/SKILL.md`).
+[docs/skill/SKILL.md](skill/SKILL.md) is a short skill an agent can install (Claude Code: copy it to `~/.claude/skills/twinnel/SKILL.md`).
 
 ## 中文摘要
 
-在 duet 的 设置 → 本地 Agent 打开「允许 MCP」，即可让本机的 AI Agent 通过 `duet mcp` 查看状态（只读工具始终可用）；「操作」（默认开）允许切换模式、节点、TUN、Tailscale、出口节点等可撤销操作；「修改配置」（默认关）允许改覆写和订阅、应用、回滚。应用一定先返回预览，确认后才写入。安装、卸载、接管、内核更新只能在 duet 里做。每次改动都记录在 日志 → duet，所有输出都会去掉密钥、订阅地址和节点密码。
+在 Twinnel 的 设置 → 本地 Agent 打开「允许 MCP」，即可让本机的 AI Agent 通过 `twinnel mcp` 查看状态（只读工具始终可用）；「操作」（默认开）允许切换模式、节点、TUN、Tailscale、出口节点等可撤销操作；「修改配置」（默认关）允许改覆写和订阅、应用、回滚。应用一定先返回预览，确认后才写入。安装、卸载、接管、内核更新只能在 Twinnel 里做。每次改动都记录在 日志 → Twinnel，所有输出都会去掉密钥、订阅地址和节点密码。

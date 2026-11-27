@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // A check event names the check in the UI language, whatever language
@@ -61,13 +61,13 @@ func TestEventsAcrossHelperRestart(t *testing.T) {
 	}
 }
 
-// An apply from `duet compose --apply` is worded, not its command line
+// An apply from `twinnel compose --apply` is worded, not its command line
 // (new helpers send the code; older entries carry the text).
 func TestCLIApplyWorded(t *testing.T) {
 	defer i18n.Set("zh")
 	for _, lang := range []string{"zh", "en"} {
 		i18n.Set(lang)
-		for _, res := range []rpc.ApplyResult{{Reason: "duet compose --apply"}, {Reason: "duet compose --apply", ReasonCode: store.ReasonCLI}} {
+		for _, res := range []rpc.ApplyResult{{Reason: "twinnel compose --apply"}, {Reason: "twinnel compose --apply", ReasonCode: store.ReasonCLI}} {
 			res.Changed, res.Written = true, true
 			b, _ := json.Marshal(res)
 			r, _ := describeEvent(rpc.Event{Type: rpc.EventComposeApplied, Data: b}, nil)

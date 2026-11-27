@@ -10,11 +10,11 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/mihomo"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // 总览: what a mihomo + Tailscale user glances at, state first, then the
@@ -25,7 +25,7 @@ import (
 //   - four glance tiles: the exit's delay, connections, mihomo's memory,
 //     online devices (each opens its page);
 //   - the traffic chart, smaller than before: the page's one rich element;
-//   - mihomo | Tailscale, then duet | 最近活动, side by side when there is
+//   - mihomo | Tailscale, then Twinnel | 最近活动, side by side when there is
 //     room. Every card has a title and the same slot for a trailing action.
 //
 // Addresses, ports, versions and DNS modes are monospaced (monoText);
@@ -76,7 +76,7 @@ func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
 			func() ui.Element { return a.tailscaleCard(c, s, g) })
 		g.end(c)
 		ovPair(c, pair,
-			func() ui.Element { return a.duetCard(c, s) },
+			func() ui.Element { return a.twinnelCard(c, s) },
 			func() ui.Element { return a.recentCard(c, s) })
 	})
 	if bw := col.Bounds().W; bw > 0 && bw != a.ovWidth { // the width changed: lay out again
@@ -626,20 +626,20 @@ func shortTSVersion(v string) string {
 	return v
 }
 
-// --- duet ---
+// --- Twinnel ---
 
-// duetCard is duet's own state: the helper, the takeover, the last apply
+// twinnelCard is Twinnel's own state: the helper, the takeover, the last apply
 // and the health checks, each with the one action that moves it on.
-func (a *app) duetCard(c *ui.Context, s status.Snapshot) ui.Element {
+func (a *app) twinnelCard(c *ui.Context, s status.Snapshot) ui.Element {
 	T := i18n.T
-	return ovCard(c, "duet", "", func() {
+	return ovCard(c, "Twinnel", "", func() {
 		if pushButton(c.Key("health-rerun"), T.OvHealthRerun).Clicked() {
 			a.rerunHealth()
 		}
-	}, func() { a.duetSummary(c, s) })
+	}, func() { a.twinnelSummary(c, s) })
 }
 
-func (a *app) duetSummary(c *ui.Context, s status.Snapshot) {
+func (a *app) twinnelSummary(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	h := s.Helper
@@ -763,16 +763,16 @@ func healthReasonShort(r status.Reason) string {
 
 // --- 最近活动 ---
 
-// ovRecentN is how many of duet's events the overview lists.
+// ovRecentN is how many of Twinnel's events the overview lists.
 const ovRecentN = 3
 
-// recentCard lists duet's last few events (as 日志 → duet words them);
+// recentCard lists Twinnel's last few events (as 日志 → Twinnel words them);
 // 全部日志 opens that tab.
 func (a *app) recentCard(c *ui.Context, s status.Snapshot) ui.Element {
 	T := i18n.T
 	return ovCard(c, T.OvRecent, "", func() {
 		if pushButton(c.Key("recent-all"), T.OvRecentAll).Clicked() {
-			a.showDuetLog()
+			a.showTwinnelLog()
 		}
 	}, func() { a.recentEvents(c, s) })
 }

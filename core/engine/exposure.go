@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // exposureCheck looks at the controller settings of a config about to be
@@ -32,7 +32,7 @@ func exposureCheck(final []byte, st *store.Settings) (warnings []string, errs []
 			continue
 		}
 		if secret == "" {
-			errs = append(errs, fmt.Sprintf("duet refuses %s: %s listens beyond this Mac and the controller has no secret (anyone on the network could reconfigure the proxy); bind it to 127.0.0.1 or run controller.secure", key, addr))
+			errs = append(errs, fmt.Sprintf("Twinnel refuses %s: %s listens beyond this Mac and the controller has no secret (anyone on the network could reconfigure the proxy); bind it to 127.0.0.1 or run controller.secure", key, addr))
 		} else {
 			warnings = append(warnings, fmt.Sprintf("%s: %s is reachable from the network (protected by the secret only)", key, addr))
 		}
@@ -46,7 +46,7 @@ func exposureCheck(final []byte, st *store.Settings) (warnings []string, errs []
 			p = filepath.Join(st.Mihomo.ConfigDir, p)
 		}
 		if !inside(st.Mihomo.ConfigDir, filepath.Clean(p)) {
-			errs = append(errs, fmt.Sprintf("duet refuses %s: %s is outside the config dir %s (mihomo, as root, would create an unauthenticated controller socket there)", key, p, st.Mihomo.ConfigDir))
+			errs = append(errs, fmt.Sprintf("Twinnel refuses %s: %s is outside the config dir %s (mihomo, as root, would create an unauthenticated controller socket there)", key, p, st.Mihomo.ConfigDir))
 		}
 	}
 	return warnings, errs

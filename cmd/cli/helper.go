@@ -1,7 +1,7 @@
 package main
 
 // Client subcommands of the helper daemon (core/rpc over its unix socket),
-// and `duet helper install --dry-run`.
+// and `twinnel helper install --dry-run`.
 
 import (
 	"context"
@@ -16,8 +16,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 func init() {
@@ -31,7 +31,7 @@ func init() {
 	register("events", "print helper events (--follow to keep waiting)", runEvents)
 	register("helper", "helper status | install | uninstall | upgrade | restart | health | plans | adopt | discard | secure-controller | harden", runHelper)
 
-	// `duet compose` composes locally; with --apply/--preview it asks the
+	// `twinnel compose` composes locally; with --apply/--preview it asks the
 	// helper to compose from its own state instead.
 	local := commands["compose"]
 	commands["compose"] = command{local.summary + " (--apply / --preview: through the helper)", func(args []string) error {
@@ -56,7 +56,7 @@ type clientFlags struct {
 func newFlagSet(name, usage string) (*flag.FlagSet, *clientFlags) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	cf := &clientFlags{}
-	fs.StringVar(&cf.socket, "socket", rpc.SocketFromEnv(), "helper socket `PATH` (env DUET_SOCKET)")
+	fs.StringVar(&cf.socket, "socket", rpc.SocketFromEnv(), "helper socket `PATH` (env TWINNEL_SOCKET)")
 	fs.BoolVar(&cf.json, "json", false, "print the raw JSON result")
 	fs.DurationVar(&cf.timeout, "timeout", 3*time.Minute, "give up after `DURATION`")
 	fs.Usage = func() {
@@ -67,7 +67,7 @@ func newFlagSet(name, usage string) (*flag.FlagSet, *clientFlags) {
 }
 
 // parse handles -h (returns done=true) and flags after positional args
-// (`duet layer put my-rules file.yaml --stage base`).
+// (`twinnel layer put my-rules file.yaml --stage base`).
 func parse(fs *flag.FlagSet, args []string) (pos []string, done bool, err error) {
 	for {
 		if err := fs.Parse(args); err != nil {
@@ -153,7 +153,7 @@ func needArgs(pos []string, n int, usage string) error {
 // ---- status ----
 
 func runHelperStatus(args []string) error {
-	fs, cf := newFlagSet("status", "usage: duet status [--json]\n\n")
+	fs, cf := newFlagSet("status", "usage: twinnel status [--json]\n\n")
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
 	}
@@ -210,8 +210,8 @@ func orNone(s string) string {
 // ---- compose through the helper ----
 
 func runComposeHelper(args []string) error {
-	fs, cf := newFlagSet("compose", `usage: duet compose --apply [--reason TEXT] [--force]
-       duet compose --preview
+	fs, cf := newFlagSet("compose", `usage: twinnel compose --apply [--reason TEXT] [--force]
+       twinnel compose --preview
 
 --apply asks the helper to compose its subscription and layers, check the
 result with mihomo -t, back up the current config, write it and reload
@@ -239,7 +239,7 @@ checks.
 	var r rpc.ApplyResult
 	p := rpc.ApplyParams{Reason: reason, Force: force}
 	if reason == "" { // a code the app words; the text for older helpers and the CLI
-		p.Reason, p.ReasonCode = "duet compose --apply", store.ReasonCLI
+		p.Reason, p.ReasonCode = "twinnel compose --apply", store.ReasonCLI
 	}
 	err = cf.call(rpc.MethodComposeApply, p, &r)
 	if cf.json && err == nil {
@@ -286,12 +286,12 @@ func runKernel(args []string) error {
 	if len(args) > 0 && (args[0] == "geo" || args[0] == "ui") {
 		return runAccessory(args[0], args[1:])
 	}
-	fs, cf := newFlagSet("kernel", `usage: duet kernel list
-       duet kernel check [--channel stable|alpha]
-       duet kernel install [--channel stable|alpha] [--version V]
-       duet kernel rollback
-       duet kernel geo check|update [--force]
-       duet kernel ui check|update [--force]
+	fs, cf := newFlagSet("kernel", `usage: twinnel kernel list
+       twinnel kernel check [--channel stable|alpha]
+       twinnel kernel install [--channel stable|alpha] [--version V]
+       twinnel kernel rollback
+       twinnel kernel geo check|update [--force]
+       twinnel kernel ui check|update [--force]
 
 `)
 	var channel, version string
@@ -335,7 +335,7 @@ func runKernel(args []string) error {
 			fmt.Printf("channel:   %s\nlatest:    %s (%s, published %s)\nasset:     %s (%d bytes)\ndigest:    %s\ninstalled: %s\n",
 				r.Channel, r.Version, r.Tag, r.Published.Local().Format("2006-01-02"), r.Asset, r.Size, orNone(r.Digest), orNone(r.Current))
 			if r.UpdateAvailable {
-				fmt.Println("update available: duet kernel install")
+				fmt.Println("update available: twinnel kernel install")
 			} else {
 				fmt.Println("up to date")
 			}
@@ -356,12 +356,12 @@ func runKernel(args []string) error {
 // ---- layers ----
 
 func runLayer(args []string) error {
-	fs, cf := newFlagSet("layer", `usage: duet layer list
-       duet layer get ID
-       duet layer put ID FILE|- [--name N] [--stage base|user] [--format merge|verge] [--disabled]
-       duet layer rm ID
-       duet layer enable|disable ID
-       duet layer order ID...
+	fs, cf := newFlagSet("layer", `usage: twinnel layer list
+       twinnel layer get ID
+       twinnel layer put ID FILE|- [--name N] [--stage base|user] [--format merge|verge] [--disabled]
+       twinnel layer rm ID
+       twinnel layer enable|disable ID
+       twinnel layer order ID...
 
 Changes take effect at the next compose --apply.
 
@@ -396,13 +396,13 @@ Changes take effect at the next compose --apply.
 			w.Flush()
 		})
 	case "get":
-		if err := needArgs(pos, 2, "duet layer get ID"); err != nil {
+		if err := needArgs(pos, 2, "twinnel layer get ID"); err != nil {
 			return err
 		}
 		var lc rpc.LayerContent
 		return cf.callPrint(rpc.MethodLayerGet, rpc.IDParams{ID: pos[1]}, &lc, func() { fmt.Print(lc.Content) })
 	case "put":
-		if err := needArgs(pos, 3, "duet layer put ID FILE|-"); err != nil {
+		if err := needArgs(pos, 3, "twinnel layer put ID FILE|-"); err != nil {
 			return err
 		}
 		content, err := readFileOrStdin(pos[2])
@@ -419,12 +419,12 @@ Changes take effect at the next compose --apply.
 			fmt.Printf("stored layer %s (%s, %s, %d bytes, enabled=%v)\n", l.ID, l.Stage, l.Format, l.Size, l.Enabled)
 		})
 	case "rm":
-		if err := needArgs(pos, 2, "duet layer rm ID"); err != nil {
+		if err := needArgs(pos, 2, "twinnel layer rm ID"); err != nil {
 			return err
 		}
 		return cf.callPrint(rpc.MethodLayerDelete, rpc.IDParams{ID: pos[1]}, nil, func() { fmt.Println("removed", pos[1]) })
 	case "enable", "disable":
-		if err := needArgs(pos, 2, "duet layer enable|disable ID"); err != nil {
+		if err := needArgs(pos, 2, "twinnel layer enable|disable ID"); err != nil {
 			return err
 		}
 		return cf.callPrint(rpc.MethodLayerSetEnabled, rpc.LayerEnableParams{ID: pos[1], Enabled: pos[0] == "enable"}, nil,
@@ -445,11 +445,11 @@ func readFileOrStdin(p string) ([]byte, error) {
 // ---- subscriptions ----
 
 func runSub(args []string) error {
-	fs, cf := newFlagSet("sub", `usage: duet sub list
-       duet sub put ID [--name N] [--url URL|-] [--file FILE] [--interval MINUTES]
-       duet sub refresh ID
-       duet sub activate ID
-       duet sub rm ID
+	fs, cf := newFlagSet("sub", `usage: twinnel sub list
+       twinnel sub put ID [--name N] [--url URL|-] [--file FILE] [--interval MINUTES]
+       twinnel sub refresh ID
+       twinnel sub activate ID
+       twinnel sub rm ID
 
 The URL is stored as a secret by the helper and is never shown again.
 Use --url - to read it from stdin (keeps it out of the process list).
@@ -485,7 +485,7 @@ Use --url - to read it from stdin (keeps it out of the process list).
 			w.Flush()
 		})
 	case "put":
-		if err := needArgs(pos, 2, "duet sub put ID [flags]"); err != nil {
+		if err := needArgs(pos, 2, "twinnel sub put ID [flags]"); err != nil {
 			return err
 		}
 		p := rpc.SubPutParams{ID: pos[1], Name: name}
@@ -515,7 +515,7 @@ Use --url - to read it from stdin (keeps it out of the process list).
 			}
 		})
 	case "refresh":
-		if err := needArgs(pos, 2, "duet sub refresh ID"); err != nil {
+		if err := needArgs(pos, 2, "twinnel sub refresh ID"); err != nil {
 			return err
 		}
 		var r rpc.SubRefreshResult
@@ -527,12 +527,12 @@ Use --url - to read it from stdin (keeps it out of the process list).
 			}
 		})
 	case "activate":
-		if err := needArgs(pos, 2, "duet sub activate ID"); err != nil {
+		if err := needArgs(pos, 2, "twinnel sub activate ID"); err != nil {
 			return err
 		}
 		return cf.callPrint(rpc.MethodSubActivate, rpc.IDParams{ID: pos[1]}, nil, func() { fmt.Println("active:", pos[1]) })
 	case "rm":
-		if err := needArgs(pos, 2, "duet sub rm ID"); err != nil {
+		if err := needArgs(pos, 2, "twinnel sub rm ID"); err != nil {
 			return err
 		}
 		return cf.callPrint(rpc.MethodSubDelete, rpc.IDParams{ID: pos[1]}, nil, func() { fmt.Println("removed", pos[1]) })
@@ -543,7 +543,7 @@ Use --url - to read it from stdin (keeps it out of the process list).
 // ---- history ----
 
 func runHistory(args []string) error {
-	fs, cf := newFlagSet("history", "usage: duet history [list]\n       duet history rollback ID\n\n")
+	fs, cf := newFlagSet("history", "usage: twinnel history [list]\n       twinnel history rollback ID\n\n")
 	pos, done, err := parse(fs, args)
 	if done || err != nil {
 		return err
@@ -560,7 +560,7 @@ func runHistory(args []string) error {
 		})
 	}
 	if pos[0] == "rollback" {
-		if err := needArgs(pos, 2, "duet history rollback ID"); err != nil {
+		if err := needArgs(pos, 2, "twinnel history rollback ID"); err != nil {
 			return err
 		}
 		var r rpc.ApplyResult
@@ -572,7 +572,7 @@ func runHistory(args []string) error {
 // ---- settings, tailnet, service, events ----
 
 func runSettings(args []string) error {
-	fs, cf := newFlagSet("settings", `usage: duet settings [--leak-guard G1,G2|""] [--coexist on|off] [--resolver R]
+	fs, cf := newFlagSet("settings", `usage: twinnel settings [--leak-guard G1,G2|""] [--coexist on|off] [--resolver R]
                      [--history-keep N] [--channel stable|alpha] [--auto-apply on|off]
                      [--mcp on|off] [--agent-operate on|off] [--agent-configure on|off]
 
@@ -601,7 +601,7 @@ func runSettings(args []string) error {
 	})
 	fs.Func("channel", "kernel channel stable|alpha", func(s string) error { u.KernelChannel = &s; return nil })
 	var ag rpc.AgentSettingsUpdate
-	fs.Func("mcp", "local agents may use `duet mcp` `on|off`", boolFlag(&ag.MCP))
+	fs.Func("mcp", "local agents may use `twinnel mcp` `on|off`", boolFlag(&ag.MCP))
 	fs.Func("agent-operate", "agents may operate (mode, node, TUN, exit node...) `on|off`", boolFlag(&ag.Operate))
 	fs.Func("agent-configure", "agents may change the stored configuration and apply `on|off`", boolFlag(&ag.Configure))
 	pos, done, err := parse(fs, args)
@@ -654,7 +654,7 @@ func boolFlag(dst **bool) func(string) error {
 }
 
 func runTailnet(args []string) error {
-	fs, cf := newFlagSet("tailnet", "usage: duet tailnet refresh\n\n")
+	fs, cf := newFlagSet("tailnet", "usage: twinnel tailnet refresh\n\n")
 	pos, done, err := parse(fs, args)
 	if done || err != nil {
 		return err
@@ -674,9 +674,9 @@ func runTailnet(args []string) error {
 }
 
 func runService(args []string) error {
-	fs, cf := newFlagSet("service", `usage: duet service status mihomo|tailscaled|helper
-       duet service start|stop|restart mihomo|tailscaled
-       duet service install|uninstall mihomo   (LaunchDaemon generated from the helper's settings)
+	fs, cf := newFlagSet("service", `usage: twinnel service status mihomo|tailscaled|helper
+       twinnel service start|stop|restart mihomo|tailscaled
+       twinnel service install|uninstall mihomo   (LaunchDaemon generated from the helper's settings)
 
 `)
 	pos, done, err := parse(fs, args)
@@ -712,7 +712,7 @@ func runService(args []string) error {
 }
 
 func runEvents(args []string) error {
-	fs, cf := newFlagSet("events", "usage: duet events [--follow] [--after SEQ]\n\n")
+	fs, cf := newFlagSet("events", "usage: twinnel events [--follow] [--after SEQ]\n\n")
 	var follow bool
 	var after uint64
 	fs.BoolVar(&follow, "follow", false, "keep waiting for new events")
@@ -790,19 +790,19 @@ func runHelper(args []string) error {
 	case "harden":
 		return runHelperHarden(args)
 	}
-	fmt.Fprint(os.Stderr, `usage: duet helper status [--json]
-       duet helper install [--dry-run] [--yes] [flags]   (asks for the administrator password)
-       duet helper uninstall [--purge] [--restore-mihomo | --keep-mihomo] [--dry-run] [--yes] [--json]
-       duet helper upgrade [--check] [--force] [--dry-run] [--yes] [--json]   (the helper next to this duet)
-       duet helper restart [--yes]
-       duet helper health [--run] [--json]
-       duet helper egress [--json]   (the egress test once: two HTTPS requests to an IP-echo address)
-       duet helper plans [PLAN_ID] [--json]
-       duet helper adopt PLAN_ID [--yes] [--skip-health]
-       duet helper discard PLAN_ID [--force]
-       duet helper secure-controller [--yes]
-       duet helper harden plan [--kernel VERSION] [--new-secret] [--json]
-       duet helper harden apply [PLAN_ID] [--yes] [--skip-health]
+	fmt.Fprint(os.Stderr, `usage: twinnel helper status [--json]
+       twinnel helper install [--dry-run] [--yes] [flags]   (asks for the administrator password)
+       twinnel helper uninstall [--purge] [--restore-mihomo | --keep-mihomo] [--dry-run] [--yes] [--json]
+       twinnel helper upgrade [--check] [--force] [--dry-run] [--yes] [--json]   (the helper next to this Twinnel)
+       twinnel helper restart [--yes]
+       twinnel helper health [--run] [--json]
+       twinnel helper egress [--json]   (the egress test once: two HTTPS requests to an IP-echo address)
+       twinnel helper plans [PLAN_ID] [--json]
+       twinnel helper adopt PLAN_ID [--yes] [--skip-health]
+       twinnel helper discard PLAN_ID [--force]
+       twinnel helper secure-controller [--yes]
+       twinnel helper harden plan [--kernel VERSION] [--new-secret] [--json]
+       twinnel helper harden apply [PLAN_ID] [--yes] [--skip-health]
 `)
 	return errors.New("helper: want status, install, uninstall, upgrade, restart, health, plans, adopt, discard, secure-controller or harden")
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/egoist/mygo"
 )
 
-// delayShots (DUET_SHOTS_FLOW=delay) shows 全部测速 on the proxies page:
+// delayShots (TWINNEL_SHOTS_FLOW=delay) shows 全部测速 on the proxies page:
 // before, while the batch runs (spinner and progress) and after. Against
 // the fake controller only; delay tests are reads either way.
 func (a *app) delayShots(save func(*mygo.Window, string)) {

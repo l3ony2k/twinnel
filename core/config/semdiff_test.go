@@ -227,11 +227,11 @@ func TestRedactURL(t *testing.T) {
 // TestRealSemDiff compares two real configs (read-only). It prints only the
 // redacted text.
 //
-//	DUET_SEMDIFF_A=live.yaml DUET_SEMDIFF_B=composed.yaml go test -run RealSemDiff -v ./core/config/
+//	TWINNEL_SEMDIFF_A=live.yaml TWINNEL_SEMDIFF_B=composed.yaml go test -run RealSemDiff -v ./core/config/
 func TestRealSemDiff(t *testing.T) {
-	pa, pb := os.Getenv("DUET_SEMDIFF_A"), os.Getenv("DUET_SEMDIFF_B")
+	pa, pb := os.Getenv("TWINNEL_SEMDIFF_A"), os.Getenv("TWINNEL_SEMDIFF_B")
 	if pa == "" || pb == "" {
-		t.Skip("set DUET_SEMDIFF_A and DUET_SEMDIFF_B")
+		t.Skip("set TWINNEL_SEMDIFF_A and TWINNEL_SEMDIFF_B")
 	}
 	a, err := os.ReadFile(pa)
 	if err != nil {

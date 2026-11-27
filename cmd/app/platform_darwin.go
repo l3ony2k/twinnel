@@ -9,7 +9,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/l3ony2k/duet/platform/darwin"
+	"github.com/l3ony2k/twinnel/platform/darwin"
 )
 
 // macOSMajor is the running macOS's major version (26 for Tahoe), or 0

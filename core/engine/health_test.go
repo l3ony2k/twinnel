@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/health/healthtest"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/rpc/healthsrc"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/health/healthtest"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc/healthsrc"
 )
 
 // stubEnv is a health.Env whose only fact is the platform; the fake check
@@ -72,7 +72,7 @@ func TestHealthRPC(t *testing.T) {
 	chk, _ := newHealth(h)
 
 	// Serve the engine over a real socket and read it with healthsrc.
-	d, _ := os.MkdirTemp("", "dueth")
+	d, _ := os.MkdirTemp("", "twinnelh")
 	t.Cleanup(func() { os.RemoveAll(d) })
 	sock := filepath.Join(d, "h.sock")
 	tr := rpc.NewUnixTransport()

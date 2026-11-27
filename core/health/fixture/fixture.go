@@ -13,7 +13,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/twinnel/core/health"
 )
 
 // Machine is everything a health run reads. Zero fields read as empty
@@ -49,7 +49,7 @@ type Env struct {
 	M     Machine
 	Prefs health.Settings
 	// TailscaleFn, when set, replaces M.Tailscale (e.g. a parsed
-	// DUET_TAILSCALE_STATUS_FILE, so the checks and the pages agree).
+	// TWINNEL_TAILSCALE_STATUS_FILE, so the checks and the pages agree).
 	// Lookups and routes of tailnet names then follow it.
 	TailscaleFn func(ctx context.Context) (*health.TailscaleStatus, error)
 }

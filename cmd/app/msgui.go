@@ -8,13 +8,13 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/msg"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/msg"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // Helper messages on screen (design review U57): a coded message in the
-// UI language; one duet has no words for shows a generic line, and the
+// UI language; one Twinnel has no words for shows a generic line, and the
 // helper's own text stays behind 复制原文 and the tooltip, never as the
 // line itself.
 

@@ -4,8 +4,8 @@
 //
 // Three sources (see ../README.md for which icon comes from where):
 //   STOCK    icons from the Kubai line library, exported by name with the kit (stroke 2, outline)
-//   duet.mjs the app mark and the menu bar states, drawn in the kit's format (copied into
-//            <kit>/set/duet.mjs and registered in <kit>/set/index.mjs before exporting)
+//   twinnel.mjs the app mark and the menu bar states, drawn in the kit's format (copied into
+//            <kit>/set/twinnel.mjs and registered in <kit>/set/index.mjs before exporting)
 //   drawn/   product icons drawn with the draw-icons skill: sources in drawn/source/, built by
 //            `node <draw-icons>/scripts/icons.js build` (run in assets/icons) into drawn/*.svg
 // The kit and the draw-icons skill stay outside the repo (their licences keep the tooling out).
@@ -33,17 +33,17 @@ export const STOCK = [
   // added by pages-rest (日志 toolbar)
   'pause', 'play'
 ];
-const DUET = ['duet'];
-const TRAY = ['duet', 'duet-warn', 'duet-error', 'duet-unknown', 'duet-tsdown', 'duet-mode', 'duet-nohelper'];
+const TWINNEL = ['twinnel'];
+const TRAY = ['twinnel', 'twinnel-warn', 'twinnel-error', 'twinnel-unknown', 'twinnel-tsdown', 'twinnel-mode', 'twinnel-nohelper'];
 
-// 1. keep the kit's copy of duet.mjs in step with ours
-const kitDuet = path.join(kit, 'set', 'duet.mjs');
-fs.copyFileSync(path.join(here, 'duet.mjs'), kitDuet);
+// 1. keep the kit's copy of twinnel.mjs in step with ours
+const kitTwinnel = path.join(kit, 'set', 'twinnel.mjs');
+fs.copyFileSync(path.join(here, 'twinnel.mjs'), kitTwinnel);
 const idx = path.join(kit, 'set', 'index.mjs');
-if (!fs.readFileSync(idx, 'utf8').includes('duet.mjs')) throw new Error(`register ./duet.mjs in ${idx} first`);
+if (!fs.readFileSync(idx, 'utf8').includes('twinnel.mjs')) throw new Error(`register ./twinnel.mjs in ${idx} first`);
 
-// 2. stock + duet, outline at stroke 2 in black (ui.Icon recolours them with the text colour)
-execFileSync('node', ['export.mjs', '--only', [...STOCK, ...DUET].join(','), '--stroke', '2', '--variant', 'outline', '--color', '#000000', '--out', icons], { cwd: kit, stdio: 'inherit' });
+// 2. stock + twinnel, outline at stroke 2 in black (ui.Icon recolours them with the text colour)
+execFileSync('node', ['export.mjs', '--only', [...STOCK, ...TWINNEL].join(','), '--stroke', '2', '--variant', 'outline', '--color', '#000000', '--out', icons], { cwd: kit, stdio: 'inherit' });
 
 // 3. product icons built by draw-icons (currentColor), copied next to the rest
 const drawn = path.join(icons, 'drawn');
@@ -63,4 +63,4 @@ for (const name of TRAY) {
   // y 2.25..21.75 keeps the rings centred and leaves room for the notch marks ("!" reaches 21.7)
   fs.writeFileSync(path.join(svgDir, `${name}.svg`), svg.replace(/viewBox="[^"]*"/, 'viewBox="1 2.25 22 19.5"').replace(/width="24" height="24"/, 'width="22" height="19.5"') + '\n');
 }
-console.log(`stock ${STOCK.length} + duet + drawn ${fs.readdirSync(drawn).filter((f) => f.endsWith('.svg')).length} → ${icons}; tray ${TRAY.length} → ${svgDir}`);
+console.log(`stock ${STOCK.length} + twinnel + drawn ${fs.readdirSync(drawn).filter((f) => f.endsWith('.svg')).length} → ${icons}; tray ${TRAY.length} → ${svgDir}`);

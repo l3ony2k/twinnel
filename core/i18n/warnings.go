@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/msg"
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/msg"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // The helper reports compose, apply and takeover warnings and errors as
@@ -15,11 +15,11 @@ import (
 // Strings.Msg words a code in the UI language.
 
 // WarningKind names the kind of a known warning ("reload-disrupts", ...),
-// or "" for one duet does not know. The UI uses it to skip what another
+// or "" for one Twinnel does not know. The UI uses it to skip what another
 // row already says.
 func WarningKind(w string) string { return msg.Kind(w) }
 
-// Warning returns w in the UI language when it is a text duet knows, w
+// Warning returns w in the UI language when it is a text Twinnel knows, w
 // itself otherwise.
 func (s *Strings) Warning(w string) string {
 	if out, ok := s.Msg(msg.Parse(w)); ok {
@@ -98,7 +98,7 @@ var msgSubjects = map[string]struct {
 }
 
 // reasonOf is why a system call or a connection failed, in words; "" when
-// duet does not know the error.
+// Twinnel does not know the error.
 func (s *Strings) reasonOf(raw string) string {
 	if why := netReason(s, raw); why != "" {
 		return why
@@ -109,7 +109,7 @@ func (s *Strings) reasonOf(raw string) string {
 var tailVerb = regexp.MustCompile(`(：|: )%(\[\d+\])?s$`)
 
 // MsgHead words m without its trailing detail (the system's error after
-// the colon), for a one-line row such as 日志 → duet; a code the app does
+// the colon), for a one-line row such as 日志 → Twinnel; a code the app does
 // not know is the generic line.
 func (s *Strings) MsgHead(m rpc.Msg) string {
 	tmpl, ok := s.MsgTexts[m.Code]
@@ -160,7 +160,7 @@ var legacyReasons = []struct {
 	{"harden", regexp.MustCompile(`^harden (\S+)$`)},
 	{"subscription-updated", regexp.MustCompile(`^subscription (\S+) updated$`)},
 	{"tailnet-changed", regexp.MustCompile(`^tailnet changed$`)},
-	{"cli-apply", regexp.MustCompile(`^duet compose --apply$`)},
+	{"cli-apply", regexp.MustCompile(`^twinnel compose --apply$`)},
 }
 
 // HistoryReasonCode returns an entry's reason code: its own, or one read

@@ -17,7 +17,7 @@ type AboutStrings struct {
 	UpdateDownload    string
 	UpdateNone        string // no release published (yet)
 	UpdateFailed      string // %s: the short reason
-	UpdateFailedPlain string // no reason duet can word
+	UpdateFailedPlain string // no reason Twinnel can word
 	UpdateRateLimit   string
 
 	// 基本信息.
@@ -54,7 +54,7 @@ var zhAbout = AboutStrings{
 	AboutPlatform: "平台",
 
 	Components: "组件版本",
-	CompApp:    "duet App",
+	CompApp:    "Twinnel App",
 	CompCLI:    "命令行工具",
 	CompHelper: "后台助手",
 
@@ -68,14 +68,14 @@ var zhAbout = AboutStrings{
 	NavBack:              "返回",
 
 	FAQ:          "常见问题",
-	FAQVPNQ:      "为什么 duet 不占用系统 VPN 通道？",
-	FAQVPNA:      "mihomo 和 tailscaled 各用自己的虚拟网卡，系统 VPN 通道留空；duet 只生成让两者共存的设置。",
+	FAQVPNQ:      "为什么 Twinnel 不占用系统 VPN 通道？",
+	FAQVPNA:      "mihomo 和 tailscaled 各用自己的虚拟网卡，系统 VPN 通道留空；Twinnel 只生成让两者共存的设置。",
 	FAQReadOnlyQ: "为什么有些按钮带锁？",
 	FAQReadOnlyA: "带锁表示现在还做不了：切换节点和模式要能连上 mihomo，改配置、服务和内核要先安装后台助手。把指针放在锁上可以看原因。",
 	FAQRollbackQ: "配置改坏了怎么回滚？",
 	FAQRollbackA: "在「历史」里选一个版本，点「回滚到这里」。内核在「内核」页回滚。",
-	FAQQuitQ:     "退出 duet 会断网吗？",
-	FAQQuitA:     "不会。mihomo 和 Tailscale 作为系统服务运行，duet 只是控制面板。",
+	FAQQuitQ:     "退出 Twinnel 会断网吗？",
+	FAQQuitA:     "不会。mihomo 和 Tailscale 作为系统服务运行，Twinnel 只是控制面板。",
 
 	Links:       "链接",
 	LinkRepo:    "GitHub 仓库",

@@ -6,9 +6,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/l3ony2k/duet/core/engine"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/engine"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 const hasKeychain = false

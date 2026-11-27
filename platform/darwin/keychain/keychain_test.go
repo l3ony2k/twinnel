@@ -4,14 +4,17 @@ package keychain
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 type call struct {
@@ -45,14 +48,14 @@ func TestSecretNeverInArgv(t *testing.T) {
 	if strings.Contains(c.stdin, "s3cr3t") {
 		t.Error("secret in clear on stdin; want hex")
 	}
-	want := `add-generic-password -U -a "duet" -s "duet.subscription-url/main" -l "duet.subscription-url/main" -X 68747470733a2f2f7375622e6578616d706c652f783f746f6b656e3d733363723374 "/tmp/x.keychain"` + "\n"
+	want := `add-generic-password -U -a "twinnel" -s "twinnel.subscription-url/main" -l "twinnel.subscription-url/main" -X 68747470733a2f2f7375622e6578616d706c652f783f746f6b656e3d733363723374 "/tmp/x.keychain"` + "\n"
 	if c.stdin != want {
 		t.Errorf("stdin\n got %q\nwant %q", c.stdin, want)
 	}
 }
 
 func TestEncoding(t *testing.T) {
-	for _, v := range []string{"", "abc", "deadbeef", "秘密", "a\nb", "duet-b64:x", "\xff"} {
+	for _, v := range []string{"", "abc", "deadbeef", "秘密", "a\nb", b64Marker + "x", "\xff"} {
 		e := encode(v)
 		if d, err := decode(e); err != nil || d != v {
 			t.Errorf("%q -> %q -> %q %v", v, e, d, err)
@@ -69,7 +72,7 @@ func TestGetDelete(t *testing.T) {
 	if v, err := k.Get(store.SecretController); err != nil || v != "value" {
 		t.Errorf("get: %q %v", v, err)
 	}
-	if got := strings.Join(calls[0].args, " "); got != "find-generic-password -a duet -s duet.controller-secret -w /Library/Keychains/System.keychain" {
+	if got := strings.Join(calls[0].args, " "); got != "find-generic-password -a twinnel -s twinnel.controller-secret -w /Library/Keychains/System.keychain" {
 		t.Errorf("argv %q", got)
 	}
 	k.Run = fake(&calls, exitNotFound, "")
@@ -103,21 +106,21 @@ func TestRefusesBadInput(t *testing.T) {
 
 // TestRealKeychain round-trips through a throwaway keychain file. It does
 // not touch the login or System keychain or the search list. Opt in with
-// DUET_REAL_KEYCHAIN=1.
+// TWINNEL_REAL_KEYCHAIN=1.
 func TestRealKeychain(t *testing.T) {
-	if os.Getenv("DUET_REAL_KEYCHAIN") != "1" {
-		t.Skip("set DUET_REAL_KEYCHAIN=1")
+	if os.Getenv("TWINNEL_REAL_KEYCHAIN") != "1" {
+		t.Skip("set TWINNEL_REAL_KEYCHAIN=1")
 	}
-	path := filepath.Join(t.TempDir(), "duet-test.keychain")
+	path := filepath.Join(t.TempDir(), "twinnel-test.keychain")
 	if out, err := exec.Command(securityBin, "create-keychain", "-p", "test", path).CombinedOutput(); err != nil {
 		t.Fatalf("create-keychain: %v %s", err, out)
 	}
-	k := &Keychain{Path: path, Service: "duet-test"}
+	k := &Keychain{Path: path, Service: "twinnel-test"}
 	if _, err := k.Get("a"); !errors.Is(err, store.ErrNoSecret) {
 		t.Fatalf("empty: %v", err)
 	}
 	v := `p@ss "w" \ $x 'q' 秘密 deadbeef`
-	for _, val := range []string{v, "deadbeef", "line\nbreak\x00", "duet-b64:abc", "plain-ascii token"} {
+	for _, val := range []string{v, "deadbeef", "line\nbreak\x00", b64Marker + "abc", "plain-ascii token"} {
 		if err := k.Set("a/b", val); err != nil {
 			t.Fatal(err)
 		}
@@ -130,5 +133,78 @@ func TestRealKeychain(t *testing.T) {
 	}
 	if _, err := k.Get("a/b"); !errors.Is(err, store.ErrNoSecret) {
 		t.Fatalf("after delete: %v", err)
+	}
+}
+
+// memKeychain answers find/delete/add (security -i) from a map of
+// "account|service" → stored data.
+func memKeychain(items map[string]string, calls *[]string) Runner {
+	addRE := regexp.MustCompile(`^add-generic-password -U -a "([^"]*)" -s "([^"]*)" -l "[^"]*" -X ([0-9a-f]*) "[^"]*"\n$`)
+	return func(_ context.Context, stdin []byte, args ...string) ([]byte, []byte, int, error) {
+		*calls = append(*calls, strings.Join(args, " "))
+		switch args[0] {
+		case "find-generic-password":
+			v, ok := items[args[2]+"|"+args[4]]
+			if !ok {
+				return nil, nil, exitNotFound, nil
+			}
+			return []byte(v + "\n"), nil, 0, nil
+		case "delete-generic-password":
+			k := args[2] + "|" + args[4]
+			if _, ok := items[k]; !ok {
+				return nil, nil, exitNotFound, nil
+			}
+			delete(items, k)
+			return nil, nil, 0, nil
+		case "-i":
+			m := addRE.FindStringSubmatch(string(stdin))
+			if m == nil {
+				return nil, []byte("bad add"), 1, nil
+			}
+			b, _ := hex.DecodeString(m[3])
+			items[m[1]+"|"+m[2]] = string(b)
+			return nil, nil, 0, nil
+		}
+		return nil, []byte("unexpected"), 1, nil
+	}
+}
+
+// An item from before the rename is read, copied to the new name and kept
+// (a rolled-back migration needs it); Delete removes both, so a deleted
+// secret cannot come back from the old item.
+func TestLegacyItems(t *testing.T) {
+	items := map[string]string{
+		"duet|duet.controller-secret":     "old-secret",
+		"duet|duet.subscription-url/main": "https://sub.example/x",
+	}
+	var calls []string
+	k := &Keychain{Run: memKeychain(items, &calls), LegacyService: legacy.KeychainService, LegacyAccount: legacy.KeychainAccount}
+	if v, err := k.Get(store.SecretController); err != nil || v != "old-secret" {
+		t.Fatalf("get: %q %v", v, err)
+	}
+	if items["twinnel|twinnel.controller-secret"] != "old-secret" || items["duet|duet.controller-secret"] != "old-secret" {
+		t.Errorf("not copied, or the old item removed: %v", items)
+	}
+	// The new item wins once it exists.
+	items["twinnel|twinnel.controller-secret"] = "new-secret"
+	if v, _ := k.Get(store.SecretController); v != "new-secret" {
+		t.Errorf("get after set: %q", v)
+	}
+	if err := k.Delete("subscription-url/main"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Get("subscription-url/main"); !errors.Is(err, store.ErrNoSecret) {
+		t.Errorf("deleted secret came back: %v (%v)", err, items)
+	}
+	// Without Legacy set, the old items are never looked at.
+	items["duet|duet.other"] = "x"
+	plain := &Keychain{Run: memKeychain(items, &calls)}
+	if _, err := plain.Get("other"); !errors.Is(err, store.ErrNoSecret) {
+		t.Errorf("plain keychain read a legacy item: %v", err)
+	}
+	for _, c := range calls {
+		if strings.Contains(c, "secret") && strings.Contains(c, "old-secret") {
+			t.Errorf("secret in argv: %s", c)
+		}
 	}
 }

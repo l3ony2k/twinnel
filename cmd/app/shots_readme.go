@@ -9,18 +9,18 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// readmeShots (DUET_SHOTS_FLOW=readme) captures the README's pictures
+// readmeShots (TWINNEL_SHOTS_FLOW=readme) captures the README's pictures
 // against the hermetic stack scripts/readme-shots.sh seeds: 总览 with the
 // egress result, 策略组, Tailscale 设备, 健康检查, 订阅与覆写 with a
 // preview of a pending layer change, 历史 with a diff, 设置 → 本地 Agent,
 // the flyout and the menu bar icon states. Nothing is written: the
 // egress test is the fixture's probe and the agent switches are set in
-// memory. Run once per DUET_LANG and DUET_THEME.
+// memory. Run once per TWINNEL_LANG and TWINNEL_THEME.
 func (a *app) readmeShots(save func(*mygo.Window, string)) {
 	const w, h = 1100, 720
 	on := func(fn func()) { mygo.RunOnMain(func() { fn(); a.invalidate() }) }
@@ -93,7 +93,7 @@ func (a *app) readmeShots(save func(*mygo.Window, string)) {
 	shot("tailscale")
 	page(pageHealth, h)
 	shot("health")
-	if os.Getenv("DUET_README_PART") == "health" { // the warning variant: health only
+	if os.Getenv("TWINNEL_README_PART") == "health" { // the warning variant: health only
 		return
 	}
 
@@ -133,7 +133,7 @@ func (a *app) readmeShots(save func(*mygo.Window, string)) {
 		a.hd.settings.Agent = rpc.AgentSettings{MCP: true, Operate: true}
 		v := &a.agent
 		v.activity, v.actLoaded, v.actErr, v.actSeq = acts, true, "", a.hd.lastEvent.Seq
-		v.shotLinks = []string{"/usr/local/bin/duet"}
+		v.shotLinks = []string{"/usr/local/bin/twinnel"}
 		a.shotSection = "agent"
 	}
 	on(agentOn)
@@ -156,7 +156,7 @@ func (a *app) readmeShots(save func(*mygo.Window, string)) {
 	}
 
 	// The menu bar icon's states, one PNG each; the script makes a strip.
-	dir := os.Getenv("DUET_SHOTS")
+	dir := os.Getenv("TWINNEL_SHOTS")
 	for _, v := range []status.TrayIcon{status.TrayOK, status.TrayWarn, status.TrayError, status.TrayUnknown,
 		status.TrayTSDown, status.TrayMode, status.TrayNoHelper} {
 		if err := os.WriteFile(filepath.Join(dir, "tray-"+string(v)+".png"), trayIcon(v), 0o644); err != nil {

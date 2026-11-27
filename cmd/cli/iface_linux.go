@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/l3ony2k/duet/platform/linux"
+	"github.com/l3ony2k/twinnel/platform/linux"
 )
 
 // tailscaleIface returns the device that carries 100.100.100.100

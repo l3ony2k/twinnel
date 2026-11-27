@@ -3,7 +3,7 @@ package msg
 import (
 	"testing"
 
-	"github.com/l3ony2k/duet/core/config"
+	"github.com/l3ony2k/twinnel/core/config"
 )
 
 // The layer errors come from the real merge, so a reworded one fails here.

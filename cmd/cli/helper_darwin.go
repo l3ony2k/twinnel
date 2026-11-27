@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/platform/darwin/keychain"
-	"github.com/l3ony2k/duet/platform/darwin/launchd"
+	"github.com/l3ony2k/twinnel/core/legacy"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/platform/darwin/keychain"
+	"github.com/l3ony2k/twinnel/platform/darwin/launchd"
 )
 
 // helperInstallDir holds the installed helper binary.
@@ -86,23 +87,26 @@ func readServiceState(label string) (loaded bool, def []byte, err error) {
 // secretStore: the installed helper keeps secrets in the System keychain.
 const secretStore = "keychain"
 
-// planSecretsDelete deletes the helper's keychain items (a missing one is
-// not an error: `security` exits 44, ignored).
+// planSecretsDelete deletes the helper's keychain items, and the ones of
+// the same keys from before the rename (a missing one is not an error:
+// `security` exits 44, ignored).
 func planSecretsDelete(keys []string) []service.Step {
 	var steps []service.Step
-	for _, k := range keys {
-		steps = append(steps, service.Step{Kind: service.StepRun, IgnoreError: true, Argv: []string{
-			"/usr/bin/security", "delete-generic-password", "-a", keychain.DefaultAccount,
-			"-s", keychain.DefaultService + "." + k, keychain.SystemKeychain,
-		}})
+	for _, names := range [][2]string{{keychain.DefaultAccount, keychain.DefaultService}, {legacy.KeychainAccount, legacy.KeychainService}} {
+		for _, k := range keys {
+			steps = append(steps, service.Step{Kind: service.StepRun, IgnoreError: true, Argv: []string{
+				"/usr/bin/security", "delete-generic-password", "-a", names[0],
+				"-s", names[1] + "." + k, keychain.SystemKeychain,
+			}})
+		}
 	}
 	return steps
 }
 
-// planMihomoRestore is the documented move back from duet's mihomo
+// planMihomoRestore is the documented move back from Twinnel's mihomo
 // LaunchDaemon to the original one (runbook step 8c), in three parts run
-// with waits in between: stop duet's, start the original, and undo (start
-// duet's again) when the original does not answer.
+// with waits in between: stop Twinnel's, start the original, and undo (start
+// Twinnel's again) when the original does not answer.
 func planMihomoRestore(from, to, toPlist string) (stop, start, undo []service.Step) {
 	lc := "/bin/launchctl"
 	run := func(ignore bool, args ...string) service.Step {
@@ -117,4 +121,45 @@ func planMihomoRestore(from, to, toPlist string) (stop, start, undo []service.St
 		run(false, "bootstrap", "system", serviceDefinition(from)),
 	}
 	return stop, start, undo
+}
+
+// legacyInstall is the helper as installed before the rename to Twinnel.
+func legacyInstall() migrateSide {
+	return migrateSide{
+		Label: legacy.HelperLabel, StateDir: legacy.StateDir, Socket: legacy.Socket,
+		Bin: legacy.HelperTools, Plist: legacy.HelperPlist,
+	}
+}
+
+// planHelperStop unloads a helper's LaunchDaemon and waits until launchd
+// let go of it. Its plist and binary stay.
+func planHelperStop(label string) ([]service.Step, error) { return launchd.New().PlanStop(label) }
+
+// planHelperStart loads an installed, unloaded helper (enable, bootstrap).
+func planHelperStart(label string) ([]service.Step, error) {
+	return launchd.New().PlanStartOrRestart(label, false)
+}
+
+// dropLegacySecrets deletes the keychain items from before the rename
+// whose value the current item holds (copied by the new helper when it
+// first read them). An item not copied yet stays: the helper still reads
+// it from there. Replaceable in tests.
+var dropLegacySecrets = func(keys []string) []string {
+	cur := &keychain.Keychain{}
+	old := &keychain.Keychain{Service: legacy.KeychainService, Account: legacy.KeychainAccount}
+	var notes []string
+	for _, k := range keys {
+		v, err := cur.Get(k)
+		if err != nil {
+			notes = append(notes, "keychain item "+legacy.KeychainService+"."+k+" kept: "+err.Error())
+			continue
+		}
+		if ov, err := old.Get(k); err != nil || ov != v {
+			continue // no old item, or another value: leave it alone
+		}
+		if err := old.Delete(k); err != nil {
+			notes = append(notes, "keychain item "+legacy.KeychainService+"."+k+" kept: "+err.Error())
+		}
+	}
+	return notes
 }

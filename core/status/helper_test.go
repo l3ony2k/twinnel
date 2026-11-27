@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 type denyPeers struct{}
@@ -215,3 +215,32 @@ func TestMonitorSetHelper(t *testing.T) {
 
 // fakeMihomoForHelper is never called: the monitor is not run.
 type fakeMihomoForHelper struct{ MihomoSource }
+
+// Resolve picks the socket again before each dial: a helper from before
+// the rename is followed to its new socket once migrated.
+func TestHelperConnResolveFollowsSocket(t *testing.T) {
+	oldSock, newSock := helperSock(t), helperSock(t)
+	var mu sync.Mutex
+	cur := oldSock
+	rec := newRecorder()
+	hc := newConn(oldSock, rec, true)
+	hc.Resolve = func() string { mu.Lock(); defer mu.Unlock(); return cur }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, stopOld := fakeHelper(t, oldSock, rpc.AllowAll{})
+	go hc.Run(ctx)
+	rec.waitFor(t, "connected to the old socket", func() bool {
+		return len(rec.states) > 0 && rec.last().State == HelperConnected && rec.last().Socket == oldSock
+	})
+
+	stopOld()
+	os.Remove(oldSock)
+	fakeHelper(t, newSock, rpc.AllowAll{})
+	mu.Lock()
+	cur = newSock
+	mu.Unlock()
+	hc.Retry()
+	rec.waitFor(t, "connected to the new socket", func() bool {
+		return len(rec.states) > 0 && rec.last().State == HelperConnected && rec.last().Socket == newSock
+	})
+}

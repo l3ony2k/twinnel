@@ -11,7 +11,7 @@ import (
 // partyMerge is a port of Clash Party's deepMerge(target, other, true)
 // (src/main/utils/merge.ts, branch smart_core, read 2026-11-26) on decoded
 // YAML. Kept literal, bugs included, so the differential test below shows
-// exactly where duet deliberately differs.
+// exactly where Twinnel deliberately differs.
 func partyMerge(target, other map[string]any) map[string]any {
 	trimWrap := func(s string) string {
 		if strings.HasPrefix(s, "<") && strings.HasSuffix(s, ">") {
@@ -94,7 +94,7 @@ func decodeAny(t *testing.T, s string) map[string]any {
 	return m
 }
 
-// TestMergeMatchesClashParty runs duet's Merge and the Clash Party algorithm
+// TestMergeMatchesClashParty runs Twinnel's Merge and the Clash Party algorithm
 // on tricky inputs. same=true cases must agree; same=false cases are the
 // documented deliberate differences (see Merge's doc comment) and must still
 // differ, so a change in either side is noticed.
@@ -149,7 +149,7 @@ func TestMergeMatchesClashParty(t *testing.T) {
 			if eq != c.same {
 				ob, _ := yaml.Marshal(ours)
 				tb, _ := yaml.Marshal(theirs)
-				t.Errorf("same=%v, want %v\nduet:\n%s\nparty:\n%s", eq, c.same, ob, tb)
+				t.Errorf("same=%v, want %v\nTwinnel:\n%s\nparty:\n%s", eq, c.same, ob, tb)
 			}
 		})
 	}

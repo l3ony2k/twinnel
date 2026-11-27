@@ -11,9 +11,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"tailscale.com/ipn"
 
-	"github.com/l3ony2k/duet/core/agent/agenttest"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/tailscale"
+	"github.com/l3ony2k/twinnel/core/agent/agenttest"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 // tsFake is the synthetic status file with recorded (not applied) writes.
@@ -238,8 +238,8 @@ func TestTierGating(t *testing.T) {
 func TestReadOnlyEnv(t *testing.T) {
 	e := newEnv(t, func(d *Deps) { d.ReadOnly = true })
 	e.setAgent(rpc.AgentSettings{MCP: true, Operate: true, Configure: true})
-	e.fails("set_tun", map[string]any{"enabled": false}, "DUET_READ_ONLY")
-	e.fails("apply", nil, "DUET_READ_ONLY")
+	e.fails("set_tun", map[string]any{"enabled": false}, "TWINNEL_READ_ONLY")
+	e.fails("apply", nil, "TWINNEL_READ_ONLY")
 	e.ok("status", nil)
 }
 
@@ -372,7 +372,7 @@ func TestManagedLayersStayManaged(t *testing.T) {
 func TestAdminOnly(t *testing.T) {
 	e := newEnv(t, nil)
 	m := e.ok("admin_only", map[string]any{"action": "helper_uninstall"})
-	if m["allowed"] != false || !strings.Contains(m["message"].(string), "停止使用 duet") {
+	if m["allowed"] != false || !strings.Contains(m["message"].(string), "停止使用 Twinnel") {
 		t.Fatalf("admin_only = %v", m)
 	}
 }

@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
 // The 安装后台助手 page: 开始使用 (概览), 关于 → 入门 and 设置 → 后台助手

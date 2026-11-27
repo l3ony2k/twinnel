@@ -9,18 +9,18 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// derpInfoShots (DUET_SHOTS_FLOW=derpinfo) captures the overview, the
+// derpInfoShots (TWINNEL_SHOTS_FLOW=derpinfo) captures the overview, the
 // health page, the Tailscale page and the flyout with a synthetic health
-// report in which tailnet peers are relayed: DUET_RELAYED_REPORT names
+// report in which tailnet peers are relayed: TWINNEL_RELAYED_REPORT names
 // the directory the health test TestRelayedPeersNeverWarn wrote it to
 // (report-<lang>.json). Nothing is sent or written.
 func (a *app) derpInfoShots(save func(*mygo.Window, string)) {
-	b, err := os.ReadFile(filepath.Join(os.Getenv("DUET_RELAYED_REPORT"), "report-"+i18n.Tag()+".json"))
+	b, err := os.ReadFile(filepath.Join(os.Getenv("TWINNEL_RELAYED_REPORT"), "report-"+i18n.Tag()+".json"))
 	if err != nil {
 		log.Print(err)
 		return

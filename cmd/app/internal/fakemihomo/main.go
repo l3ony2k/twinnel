@@ -197,7 +197,7 @@ func (s *server) handler() http.Handler {
 		s.mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 	})
-	// A config holding the marker duet-test-reload-fail is refused, as
+	// A config holding the marker twinnel-test-reload-fail is refused, as
 	// mihomo refuses one it cannot load, so the app's failed-reload state
 	// can be shown (shots, design review U53).
 	mux.HandleFunc("PUT /configs", func(w http.ResponseWriter, r *http.Request) {
@@ -205,8 +205,8 @@ func (s *server) handler() http.Handler {
 			Path string `json:"path"`
 		}
 		json.NewDecoder(r.Body).Decode(&body)
-		if b, err := os.ReadFile(body.Path); err == nil && strings.Contains(string(b), "duet-test-reload-fail") {
-			http.Error(w, `{"message":"synthetic reload failure (duet-test-reload-fail)"}`, http.StatusBadRequest)
+		if b, err := os.ReadFile(body.Path); err == nil && strings.Contains(string(b), "twinnel-test-reload-fail") {
+			http.Error(w, `{"message":"synthetic reload failure (twinnel-test-reload-fail)"}`, http.StatusBadRequest)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

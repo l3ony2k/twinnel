@@ -15,7 +15,7 @@ type StatusStrings struct {
 	FindingsView      string // → health page
 	FindingsTakeover  string // → takeover page
 
-	// 开始使用: three steps until duet runs the show.
+	// 开始使用: three steps until Twinnel runs the show.
 	GetStarted, StepCheckCoexist, StepTakeOver string
 
 	// The accepted exit node.

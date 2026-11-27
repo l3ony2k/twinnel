@@ -1,4 +1,4 @@
-# Security review of duet-helper (2026-11-26)
+# Security review of twinnel-helper (2026-11-26)
 
 Scope: the root helper (`cmd/helper`, `core/rpc`, `core/engine`, `core/store`, `core/kernel`, `core/service`, `platform/darwin/{launchd,keychain,takeoverprobe}`) and the CLI install path (`cmd/cli/helper*.go`), reviewed before the owner installs it as a LaunchDaemon on a daily-driver Mac.
 
@@ -19,7 +19,7 @@ Severity: **High** means a local user gets root, or arbitrary root file write or
 | 2 | High | Geo download staged with `O_TRUNC` through a planted symlink: arbitrary root file write | Fixed |
 | 3 | High | Config dir writes (config file, geo swap, UI swap) follow symlinked directories out of the dir | Fixed |
 | 4 | High | Adopt accepts any config dir found in a user-written LaunchAgent (for example `/etc/paths.d`) | Fixed |
-| 5 | High (pre-existing, not duet's) | The live LaunchDaemon runs `~/mihomo-migration/bin/mihomo` (owned by the user) as root, with a user-writable `-d` dir | Fix available: `duet helper harden apply` (owner runs it; one restart) |
+| 5 | High (pre-existing, not Twinnel's) | The live LaunchDaemon runs `~/mihomo-migration/bin/mihomo` (owned by the user) as root, with a user-writable `-d` dir | Fix available: `twinnel helper harden apply` (owner runs it; one restart) |
 | 6 | Medium | `config.get live` and the controller secret lookup read the config through a symlink: arbitrary root file read | Fixed |
 | 7 | Medium | `service.install` would create a root LaunchDaemon for a user-replaceable binary | Fixed |
 | 8 | Medium | A subscription can open the controller to the LAN without a secret, or put an unauthenticated controller socket anywhere | Fixed (refused at apply) |
@@ -42,7 +42,7 @@ Severity: **High** means a local user gets root, or arbitrary root file write or
 
 ### 2. Geo staging file opened through a symlink (High, fixed)
 
-**Exploit sketch.** The adopted config dir `~/mihomo-migration/conf` is user-writable. Plant `GeoIP.dat.duet-new -> /etc/sudoers.d/x`, set `geox-url.geoip` (a layer, or the subscription) to an https URL serving `"\n<user> ALL=(ALL) NOPASSWD: ALL\n"`, and call `geo.update`. The download was opened with `O_CREATE|O_TRUNC` and followed the link. The `.dat` format check only wants a leading `0x0a`, so a valid sudoers file is written as root.
+**Exploit sketch.** The adopted config dir `~/mihomo-migration/conf` is user-writable. Plant `GeoIP.dat.twinnel-new -> /etc/sudoers.d/x`, set `geox-url.geoip` (a layer, or the subscription) to an https URL serving `"\n<user> ALL=(ALL) NOPASSWD: ALL\n"`, and call `geo.update`. The download was opened with `O_CREATE|O_TRUNC` and followed the link. The `.dat` format check only wants a leading `0x0a`, so a valid sudoers file is written as root.
 
 **Fix.** All accessory I/O goes through an `os.Root` on the config dir. Staging files are removed and then created with `O_EXCL`, and swaps and rollbacks use `Root.Rename` and `Root.RemoveAll` with relative names.
 
@@ -74,13 +74,13 @@ The owner's real setup passes: a LaunchDaemon, with `conf` owned by the user.
 
 `/Library/LaunchDaemons/com.mihomo.proxy.plist` runs `/Users/<user>/mihomo-migration/bin/mihomo` as root, and that file is owned by the user. Any process running as the user can replace it and wait for the next restart. mihomo (root) also writes provider caches, `cache.db` and so on into the user-writable `-d` dir.
 
-duet does not make this worse: it never runs that binary as root itself, and adopt shows a warning (`binaryWarning`). Closing the hole needs a restart of mihomo, so it is a separate step the owner runs when idle:
+Twinnel does not make this worse: it never runs that binary as root itself, and adopt shows a warning (`binaryWarning`). Closing the hole needs a restart of mihomo, so it is a separate step the owner runs when idle:
 
-**`service.harden.plan` / `service.harden.apply`** (`duet helper harden plan|apply`, runbook step 8). One restart moves mihomo to:
+**`service.harden.plan` / `service.harden.apply`** (`twinnel helper harden plan|apply`, runbook step 8). One restart moves mihomo to:
 
 1. the managed kernel (root-owned, under the state dir; same version as running unless asked; sha256-checked download from the GitHub release);
 2. a root-owned config dir `<state>/mihomo` (0700). The composed config, geo databases, `cache.db`, the dashboard and provider files are copied through an `os.Root` on the old dir: symlinks and other non-regular entries are not copied, and the copy is capped (20 000 entries, 1 GiB). Absolute paths into the old dir are rewritten to relative ones when composing;
-3. duet's LaunchDaemon `com.l3ony2k.duet.mihomo` (`RequireTrusted` on the kernel before the cut).
+3. Twinnel's LaunchDaemon `com.l3ony2k.twinnel.mihomo` (`RequireTrusted` on the kernel before the cut).
 
 The cut is bootout old → bootstrap new → `/version` + health compare; on failure the old label is bootstrapped back. On success the old label is disabled in launchd (`launchctl disable`), not deleted, and the old binary and dir stay as a manual fallback. The apply also activates a pending controller secret, or a new one (`new_secret`), in the same restart.
 
@@ -127,7 +127,7 @@ The binary path comes from a plist, possibly a user-written agent. Adopt now req
 
 ### 14. Plain-http subscriptions (Low, fixed: warning)
 
-`subscription.put` accepts `http://` URLs. A network attacker on that path can read the URL (often a token) and serve a config, which is still bounded by finding 8 and `mihomo -t`. `subscription.put` now returns `warnings` for a plain-http URL (`rpc.Subscription.warnings`, set only by put); `duet sub put` prints it. The app should show it too.
+`subscription.put` accepts `http://` URLs. A network attacker on that path can read the URL (often a token) and serve a config, which is still bounded by finding 8 and `mihomo -t`. `subscription.put` now returns `warnings` for a plain-http URL (`rpc.Subscription.warnings`, set only by put); `twinnel sub put` prints it. The app should show it too.
 
 **Test.** `TestSubscriptionPutWarnsOnPlainHTTP`.
 
@@ -137,7 +137,7 @@ The binary path comes from a plist, possibly a user-written agent. Adopt now req
 
 ## Reviewed and found sound
 
-- **RPC server.** Fixed method allowlist and `DisallowUnknownFields`. `helper.info` (2026-11-27) is read-only and returns keychain item *names*, never values. `helper.restart` makes the helper exit so launchd starts it again (about 5 s without the helper); an authorized peer can already stop and start mihomo, which matters more, and this touches no other service. Upgrading, uninstalling and purging do not go through the socket: the CLI re-runs itself as root behind the administrator password (osascript), as install does; `--purge` deletes only a state dir whose name contains `duet` (absolute, not top-level). One JSON line is capped at 16 MiB, with 8 requests in flight per connection. `events.wait` is capped at 2 min and the bus at 256 events. Handler panics are recovered.
+- **RPC server.** Fixed method allowlist and `DisallowUnknownFields`. `helper.info` (2026-11-27) is read-only and returns keychain item *names*, never values. `helper.restart` makes the helper exit so launchd starts it again (about 5 s without the helper); an authorized peer can already stop and start mihomo, which matters more, and this touches no other service. Upgrading, uninstalling and purging do not go through the socket: the CLI re-runs itself as root behind the administrator password (osascript), as install does; `--purge` deletes only a state dir whose name contains `twinnel` (absolute, not top-level). One JSON line is capped at 16 MiB, with 8 requests in flight per connection. `events.wait` is capped at 2 min and the bus at 256 events. Handler panics are recovered.
 - **IDs.** Layer, subscription and plan IDs must match `^[a-z0-9][a-z0-9_-]{0,63}$` before they become file names. History IDs are checked in `store`. Launchd labels are checked (`checkLabel`).
 - **`takeover.plan` with a client-provided base.** Accepted if it is one of the candidates the helper found itself, or (2026-11-27, 换一个文件…) a file `takeover.AllowedBase` accepts: a regular file (not a symlink) that looks like a mihomo config, owned by root or the live config's owner, directly in one of the candidate search dirs or at most three levels under the live config's dir. Anything else (e.g. `/etc/passwd`) is refused before it is read.
 - **`helper.inventory` and `takeover.undo` (2026-11-27).** `helper.inventory` is read-only: paths, sizes, counts and keychain item *names*. `takeover.undo` writes back only the exact pre-takeover copy the helper took itself (`settings.adopted.backup`, inside its state dir) over the config path recorded at adopt, through the same confined write as rollbacks, then removes what adopt imported; it takes no paths from the client, and refuses when nothing was adopted or mihomo was hardened. `dry_run` changes nothing.
@@ -145,11 +145,11 @@ The binary path comes from a plist, possibly a user-written agent. Adopt now req
 - **UI zip.** Zip-slip and absolute or backslash paths are refused. Symlinks and other non-regular entries are refused. Limits: 5000 entries, 64 MiB zip, 256 MiB extracted; per-file reads are capped at the declared size and `archive/zip` rejects overlong entries.
 - **Keychain.** Secrets are piped to `security -i` as hex, so they are never in argv, the environment or a file. Keys are checked for quote and control characters. Items live in the System keychain, readable only by root (or with admin authentication).
 - **Logs.** `helper.log` (0644) records methods, uids, pids, durations and errors. Subscription URLs are redacted in fetch errors, and `ControllerCredentials` hides the secret in `String`, `GoString` and `LogValue`. No params are logged.
-- **Install (`duet helper install`).** The command is quoted in two layers: shell single quotes inside an AppleScript string literal. Control characters are refused, and osascript is exec'd with an argv. The binary is copied as root to `/Library/PrivilegedHelperTools/<label>` with mode 0755. The plist is 0644 in `/Library/LaunchDaemons`. The state dir and the socket dir are root-owned 0755. Mutations happen only after the plan has been printed and confirmed.
+- **Install (`twinnel helper install`).** The command is quoted in two layers: shell single quotes inside an AppleScript string literal. Control characters are refused, and osascript is exec'd with an argv. The binary is copied as root to `/Library/PrivilegedHelperTools/<label>` with mode 0755. The plist is 0644 in `/Library/LaunchDaemons`. The state dir and the socket dir are root-owned 0755. Mutations happen only after the plan has been printed and confirmed.
 - **Supply chain.** Direct dependencies are `golang.org/x/sys`, `gopkg.in/yaml.v3` and `tailscale.com` (LocalAPI types; pulls `x/crypto`, `x/net` and others), plus `egoist/mygo` (app only). All are pinned in `go.sum`. `govulncheck ./cmd/helper ./cmd/cli` on 2026-11-26 reported no vulnerabilities.
 
 ## Still to do
 
-- Finding 5: the owner runs `duet helper harden apply` when idle (one restart).
+- Finding 5: the owner runs `twinnel helper harden apply` when idle (one restart).
 - Finding 14 in the app: show `warnings` from `subscription.put`.
 - Consider an `O_NOFOLLOW` open for `helper.log`. The logs dir is root-owned inside the root-owned state dir, so this is not exploitable today.

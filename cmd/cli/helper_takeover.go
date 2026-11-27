@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 func takeoverPlanViaHelper(socket, base string, asJSON bool) error {
@@ -18,12 +18,12 @@ func takeoverPlanViaHelper(socket, base string, asJSON bool) error {
 	return cf.callPrint(rpc.MethodTakeoverPlan, rpc.TakeoverPlanParams{Base: base}, &p, func() {
 		fmt.Fprint(stdout, p.Summary)
 		fmt.Fprintf(stdout, "\nplan id:  %s (kept by the helper, state %s)\n", p.PlanID, p.State)
-		fmt.Fprintf(stdout, "next:     duet helper adopt %s\n", p.PlanID)
+		fmt.Fprintf(stdout, "next:     twinnel helper adopt %s\n", p.PlanID)
 	})
 }
 
 func runHelperPlans(args []string) error {
-	fs, cf := newFlagSet("helper plans", "usage: duet helper plans [PLAN_ID] [--json]\n\nLists the takeover plans the helper keeps; with PLAN_ID shows one in full.\n\n")
+	fs, cf := newFlagSet("helper plans", "usage: twinnel helper plans [PLAN_ID] [--json]\n\nLists the takeover plans the helper keeps; with PLAN_ID shows one in full.\n\n")
 	pos, done, err := parse(fs, args)
 	if done || err != nil {
 		return err
@@ -40,7 +40,7 @@ func runHelperPlans(args []string) error {
 			return
 		}
 		if len(r) == 0 {
-			fmt.Fprintln(stdout, "no plans (make one with: duet takeover plan --via-helper)")
+			fmt.Fprintln(stdout, "no plans (make one with: twinnel takeover plan --via-helper)")
 			return
 		}
 		w := tw()
@@ -53,14 +53,14 @@ func runHelperPlans(args []string) error {
 }
 
 func runHelperDiscard(args []string) error {
-	fs, cf := newFlagSet("helper discard", "usage: duet helper discard PLAN_ID [--force]\n\n")
+	fs, cf := newFlagSet("helper discard", "usage: twinnel helper discard PLAN_ID [--force]\n\n")
 	var force bool
 	fs.BoolVar(&force, "force", false, "also delete an adopted plan (it holds the backup of the live config)")
 	pos, done, err := parse(fs, args)
 	if done || err != nil {
 		return err
 	}
-	if err := needArgs(pos, 1, "duet helper discard PLAN_ID"); err != nil {
+	if err := needArgs(pos, 1, "twinnel helper discard PLAN_ID"); err != nil {
 		return err
 	}
 	return cf.callPrint(rpc.MethodTakeoverDiscard, rpc.TakeoverDiscardParams{PlanID: pos[0], Force: force}, nil, func() {
@@ -122,7 +122,7 @@ const adoptSteps = `What adopt does (the helper runs every step; nothing is done
 `
 
 func runHelperAdopt(args []string) error {
-	fs, cf := newFlagSet("helper adopt", "usage: duet helper adopt PLAN_ID [--yes] [--skip-health]\n\nTakes over the running mihomo with a plan from `duet takeover plan --via-helper`.\n\n")
+	fs, cf := newFlagSet("helper adopt", "usage: twinnel helper adopt PLAN_ID [--yes] [--skip-health]\n\nTakes over the running mihomo with a plan from `twinnel takeover plan --via-helper`.\n\n")
 	var yes, skipHealth bool
 	fs.BoolVar(&yes, "yes", false, "do not ask for confirmation")
 	fs.BoolVar(&skipHealth, "skip-health", false, "adopt without the before/after health comparison (no automatic rollback)")
@@ -130,7 +130,7 @@ func runHelperAdopt(args []string) error {
 	if done || err != nil {
 		return err
 	}
-	if err := needArgs(pos, 1, "duet helper adopt PLAN_ID"); err != nil {
+	if err := needArgs(pos, 1, "twinnel helper adopt PLAN_ID"); err != nil {
 		return err
 	}
 	var plans []rpc.TakeoverPlan
@@ -229,7 +229,7 @@ func printAdopt(w io.Writer, r rpc.AdoptResult) {
 }
 
 func runHelperSecure(args []string) error {
-	fs, cf := newFlagSet("helper secure-controller", "usage: duet helper secure-controller [--yes]\n\nGenerates a new controller secret, keeps it in the helper's secret store\n(macOS: System keychain) and applies it. Clients of the controller (the web\ndashboard, scripts) then need the new secret.\n\n")
+	fs, cf := newFlagSet("helper secure-controller", "usage: twinnel helper secure-controller [--yes]\n\nGenerates a new controller secret, keeps it in the helper's secret store\n(macOS: System keychain) and applies it. Clients of the controller (the web\ndashboard, scripts) then need the new secret.\n\n")
 	var yes bool
 	fs.BoolVar(&yes, "yes", false, "do not ask for confirmation")
 	if _, done, err := parse(fs, args); done || err != nil {

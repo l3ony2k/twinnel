@@ -5,14 +5,14 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
-// agentShots (DUET_SHOTS_FLOW=agent) captures 设置 → 本地 Agent: off (no
+// agentShots (TWINNEL_SHOTS_FLOW=agent) captures 设置 → 本地 Agent: off (no
 // activity), on with operate and recent actions and the command line tool
 // installed, and the tool's failure row. The switches and the activity
 // are set in memory over the scratch helper's settings; nothing is
-// written. Run with DUET_LANG=zh|en and DUET_THEME=light|dark.
+// written. Run with TWINNEL_LANG=zh|en and TWINNEL_THEME=light|dark.
 func (a *app) agentShots(save func(*mygo.Window, string)) {
 	now := time.Now()
 	acts := []rpc.AgentAction{
@@ -37,9 +37,9 @@ func (a *app) agentShots(save func(*mygo.Window, string)) {
 		cli   int
 	}{
 		{"settings-agent-off", rpc.AgentSettings{Operate: true}, []rpc.AgentAction{}, nil, "", 0},
-		{"settings-agent-on", rpc.AgentSettings{MCP: true, Operate: true}, acts, []string{"/usr/local/bin/duet"}, "", 0},
+		{"settings-agent-on", rpc.AgentSettings{MCP: true, Operate: true}, acts, []string{"/usr/local/bin/twinnel"}, "", 0},
 		{"settings-agent-json", rpc.AgentSettings{MCP: true, Operate: true, Configure: true}, acts[:2], nil,
-			"symlink /usr/local/bin/duet: permission denied", 3},
+			"symlink /usr/local/bin/twinnel: permission denied", 3},
 	} {
 		apply := func() {
 			if a.hd.settings == nil {

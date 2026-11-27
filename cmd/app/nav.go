@@ -83,7 +83,7 @@ func navList(c *ui.Context, selected *string, sections []navSection, active bool
 	}
 	changed := false
 	_, gap, _ := navMetrics()
-	list := ui.Column(c.Key("nav")).Gap(gap).Focusable().Role(ui.RoleTree).Label("duet")
+	list := ui.Column(c.Key("nav")).Gap(gap).Focusable().Role(ui.RoleTree).Label("Twinnel")
 	list.Children(func() {
 		for si, s := range sections {
 			if s.title != "" {

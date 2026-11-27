@@ -7,7 +7,7 @@ import (
 
 // TakeoverStrings word what the helper's takeover plan reports by code
 // (core/takeover Change.Code, WhyCode, DerivedLayer.NameCode). The helper
-// keeps the English texts for the CLI; a code duet does not know here
+// keeps the English texts for the CLI; a code Twinnel does not know here
 // falls back to them.
 type TakeoverStrings struct {
 	// ChangeCounts parts, joined by ListSep; %s: a count.

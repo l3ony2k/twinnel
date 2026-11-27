@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 const impactBase = `mixed-port: 7899
@@ -169,11 +169,11 @@ func TestReloadImpact(t *testing.T) {
 	}
 }
 
-// DUET_IMPACT_A=live.yaml DUET_IMPACT_B=composed.yaml go test -run RealReloadImpact -v ./core/engine/
+// TWINNEL_IMPACT_A=live.yaml TWINNEL_IMPACT_B=composed.yaml go test -run RealReloadImpact -v ./core/engine/
 func TestRealReloadImpact(t *testing.T) {
-	a, b := os.Getenv("DUET_IMPACT_A"), os.Getenv("DUET_IMPACT_B")
+	a, b := os.Getenv("TWINNEL_IMPACT_A"), os.Getenv("TWINNEL_IMPACT_B")
 	if a == "" || b == "" {
-		t.Skip("set DUET_IMPACT_A and DUET_IMPACT_B")
+		t.Skip("set TWINNEL_IMPACT_A and TWINNEL_IMPACT_B")
 	}
 	ba, err := os.ReadFile(a)
 	if err != nil {

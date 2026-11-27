@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/tailscale"
-	"github.com/l3ony2k/duet/platform/darwin"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/tailscale"
+	"github.com/l3ony2k/twinnel/platform/darwin"
 )
 
 // statusFile reads tailscale.StatusFileEnv's file in place of
@@ -24,15 +24,15 @@ func statusFile() func(context.Context) ([]byte, error) {
 }
 
 // devConfigPath pins the mihomo config the in-process checks read on a
-// dev run (DUET_CONTROLLER set): DUET_MIHOMO_CONFIG, else the default
+// dev run (TWINNEL_CONTROLLER set): TWINNEL_MIHOMO_CONFIG, else the default
 // path under $HOME (the scratch home). Without it the checks would find
 // the live LaunchDaemon's config. Empty (discover) on a normal run. Shot
 // runs never get here: they read a fixture (probes.go).
 func devConfigPath() string {
-	if p := os.Getenv("DUET_MIHOMO_CONFIG"); p != "" {
+	if p := os.Getenv("TWINNEL_MIHOMO_CONFIG"); p != "" {
 		return p
 	}
-	if os.Getenv("DUET_CONTROLLER") == "" {
+	if os.Getenv("TWINNEL_CONTROLLER") == "" {
 		return ""
 	}
 	return filepath.Join(os.Getenv("HOME"), ".config", "mihomo", "config.yaml")

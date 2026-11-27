@@ -5,8 +5,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
 // Alert is a desktop notification the app should show.

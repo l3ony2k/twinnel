@@ -1,10 +1,10 @@
 {
-  "name": "duet",
-  "identifier": "io.github.l3ony2k.duet",
+  "name": "Twinnel",
+  "identifier": "io.github.l3ony2k.twinnel",
   "out": "../../dist",
-  "icon": "../../assets/appicon/duet-1024.png",
+  "icon": "../../assets/appicon/twinnel-1024.png",
   "macos": {
-    "icon": "../../assets/appicon/macos/duet.icns",
+    "icon": "../../assets/appicon/macos/twinnel.icns",
     "infoPlist": { "LSUIElement": true }
   }
 }

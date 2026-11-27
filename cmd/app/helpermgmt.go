@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,17 +14,17 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/core/uninstall"
-	"github.com/l3ony2k/duet/core/version"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/core/uninstall"
+	"github.com/l3ony2k/twinnel/core/version"
 )
 
 // The 后台助手 section of 设置: the helper's state and version (against the
 // app's), 更新 when the helper bundled with the app is newer, 重启, 查看日志,
-// 卸载… and 完全移除 duet…. Every write goes through the CLI (`duet helper
+// 卸载… and 完全移除 Twinnel…. Every write goes through the CLI (`twinnel helper
 // upgrade|restart|uninstall`), which asks for the administrator password
 // once, as install does. A helper whose version differs from the app's is
 // one row (需要更新后台助手 with 更新) in the sidebar footer and on the
@@ -31,7 +32,7 @@ import (
 
 // helperMgmtView is the section's state. Main thread.
 type helperMgmtView struct {
-	check    *upgradeCheck // `duet helper upgrade --check --json`; nil until read
+	check    *upgradeCheck // `twinnel helper upgrade --check --json`; nil until read
 	checking bool
 	checkPID int // the helper process the check and info belong to
 
@@ -92,20 +93,28 @@ func (a *app) refreshHelperMgmt(s status.Snapshot) {
 	}()
 }
 
-// upgradeArgs are `duet helper upgrade` with the helper bundled next to
+// upgradeArgs are `twinnel helper upgrade` with the helper bundled next to
 // the CLI, when there is one.
 func upgradeArgs(extra ...string) []string {
 	args := []string{"helper", "upgrade"}
 	if cli, err := cliPath(); err == nil {
-		if p := filepath.Join(filepath.Dir(cli), "duet-helper"); fileExists(p) {
+		if p := filepath.Join(filepath.Dir(cli), "twinnel-helper"); fileExists(p) {
 			args = append(args, "--helper-bin", p)
 		}
 	}
 	return append(args, extra...)
 }
 
+// legacyHelper: the helper is the one installed before the rename (its
+// socket is the old one). 更新 migrates it.
+func legacyHelper(s status.Snapshot) bool { return s.Helper.Socket == legacy.Socket }
+
 // helperMatch is how the connected helper's version relates to the app's.
+// A helper from before the rename is older whatever its version says.
 func helperMatch(s status.Snapshot) version.Match {
+	if legacyHelper(s) && s.Helper.State != status.HelperNotInstalled {
+		return version.MatchHelperOlder
+	}
 	if !s.Helper.Connected() || s.Helper.Status == nil {
 		return version.MatchSame
 	}
@@ -123,7 +132,7 @@ func helperOutdated(s status.Snapshot) bool { return helperMatch(s) == version.M
 // is not older (the CLI refuses a downgrade).
 func (a *app) canUpdateHelper() bool {
 	c := a.hm.check
-	return c != nil && (c.Action == "upgrade" || c.Action == "restart")
+	return c != nil && (c.Action == "upgrade" || c.Action == "restart" || c.Action == "migrate")
 }
 
 // helperOpsEnabled: writes allowed and nothing running.
@@ -131,7 +140,7 @@ func (a *app) helperOpsEnabled(s status.Snapshot) bool {
 	return s.WritesAllowed && a.hm.running == "" && a.hd.busy == ""
 }
 
-// helperCLIOp runs a `duet helper …` command that elevates on its own;
+// helperCLIOp runs a `twinnel helper …` command that elevates on its own;
 // done runs on the main thread after success.
 func (a *app) helperCLIOp(label, doneText string, args []string, done func()) {
 	v := &a.hm
@@ -164,13 +173,13 @@ func (a *app) helperCLIOp(label, doneText string, args []string, done func()) {
 	}()
 }
 
-// cliFailure is the CLI's own last error line ("duet: …"), else err.
+// cliFailure is the CLI's own last error line ("twinnel: …"), else err.
 func cliFailure(out string, err error) string {
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
-		// The line may follow a prompt ("Proceed? [y/N] duet: …").
-		if j := strings.Index(lines[i], "duet: "); j >= 0 {
-			return strings.TrimSpace(lines[i][j+len("duet: "):])
+		// The line may follow a prompt ("Proceed? [y/N] twinnel: …").
+		if j := strings.Index(lines[i], "twinnel: "); j >= 0 {
+			return strings.TrimSpace(lines[i][j+len("twinnel: "):])
 		}
 	}
 	if err == nil {
@@ -269,11 +278,11 @@ func planText(p *uninstall.Plan, all bool) string {
 			}
 		case uninstall.Secrets:
 			*list = append(*list, T.ItemSecrets)
-		case uninstall.DuetMihomo:
+		case uninstall.TwinnelMihomo:
 			if list == &rm && p.Restore != nil {
-				*list = append(*list, fmt.Sprintf(T.ItemDuetMihomo, p.Restore.ToLabel))
+				*list = append(*list, fmt.Sprintf(T.ItemTwinnelMihomo, p.Restore.ToLabel))
 			} else {
-				*list = append(*list, T.ItemDuetMihomoKeep)
+				*list = append(*list, T.ItemTwinnelMihomoKeep)
 			}
 		case uninstall.OriginalMihomo:
 			*list = append(*list, T.ItemOriginalMihomo)
@@ -317,7 +326,7 @@ func (a *app) askUninstall() {
 	a.askRemove(false)
 }
 
-// askRemoveAll: 完全移除 duet…: the helper and the data (with the move
+// askRemoveAll: 完全移除 Twinnel…: the helper and the data (with the move
 // back of a hardened mihomo), then the app's own settings, 登录时打开 and
 // the app itself (to the Trash), and the app quits.
 func (a *app) askRemoveAll() {

@@ -3,7 +3,7 @@ package fixture
 import (
 	"net/netip"
 
-	"github.com/l3ony2k/duet/core/health"
+	"github.com/l3ony2k/twinnel/core/health"
 )
 
 // Synthetic is a healthy invented Mac: Wi-Fi on en0, mihomo in TUN mode on

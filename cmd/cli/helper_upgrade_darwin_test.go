@@ -11,13 +11,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/service"
-	"github.com/l3ony2k/duet/core/store"
-	"github.com/l3ony2k/duet/platform/darwin/launchd"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
+	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/platform/darwin/launchd"
 )
 
-const installedHelper = "/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper"
+const installedHelper = "/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper"
 
 // helperModel is the helper's service as the root run sees it: the steps
 // applied change whether launchd has it loaded and which version answers
@@ -43,7 +43,7 @@ func upgradeAsRoot(t *testing.T) (*helperModel, string) {
 	helperRPC = func(_ context.Context, _ string, method string, _, result any) error {
 		l.calls = append(l.calls, method)
 		if method != rpc.MethodStatus || m.answers == "" {
-			return errors.New("dial unix /var/run/duet/helper.sock: connect: no such file or directory")
+			return errors.New("dial unix /var/run/twinnel/helper.sock: connect: no such file or directory")
 		}
 		b, _ := json.Marshal(rpc.Status{HelperVersion: m.answers, PID: m.pid})
 		return json.Unmarshal(b, result)
@@ -70,7 +70,7 @@ func upgradeAsRoot(t *testing.T) (*helperModel, string) {
 				l.loaded, m.answers, m.pid = true, m.newVersion, m.pid+1
 			case "kickstart":
 				if !l.loaded {
-					return errors.New(`exit status 113: Could not find service "com.l3ony2k.duet.helper" in domain for system`)
+					return errors.New(`exit status 113: Could not find service "com.l3ony2k.twinnel.helper" in domain for system`)
 				}
 				m.answers, m.pid = m.newVersion, m.pid+1
 			}
@@ -108,7 +108,7 @@ func TestUpgradeSamePlistKickstartsOnly(t *testing.T) {
 	if err := runHelperUpgrade([]string{"--as-root", "--yes", "--helper-bin", bin}); err != nil {
 		t.Fatalf("%v\n%s", err, m.out.String())
 	}
-	if got := strings.Join(m.runLines(), "; "); got != "kickstart -k system/com.l3ony2k.duet.helper" {
+	if got := strings.Join(m.runLines(), "; "); got != "kickstart -k system/com.l3ony2k.twinnel.helper" {
 		t.Errorf("launchctl: %s", got)
 	}
 	if !strings.Contains(m.out.String(), "helper 0.3.0 answers") {
@@ -127,7 +127,7 @@ func TestUpgradeNewPlistWaitsAndRetries(t *testing.T) {
 	steps := m.steps()
 	var wait, boot int = -1, -1
 	for i, s := range steps {
-		if strings.HasPrefix(s, "wait until `/bin/launchctl print system/com.l3ony2k.duet.helper`") {
+		if strings.HasPrefix(s, "wait until `/bin/launchctl print system/com.l3ony2k.twinnel.helper`") {
 			wait = i
 		}
 		if strings.Contains(s, "launchctl bootstrap system") {
@@ -152,8 +152,8 @@ func TestUpgradeAsRootRecoversUnloadedHelper(t *testing.T) {
 		t.Fatalf("%v\n%s", err, m.out.String())
 	}
 	lines := m.runLines()
-	if n := len(lines); n < 2 || lines[n-2] != "enable system/com.l3ony2k.duet.helper" ||
-		lines[n-1] != "bootstrap system /Library/LaunchDaemons/com.l3ony2k.duet.helper.plist" {
+	if n := len(lines); n < 2 || lines[n-2] != "enable system/com.l3ony2k.twinnel.helper" ||
+		lines[n-1] != "bootstrap system /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist" {
 		t.Errorf("recovery: %v", lines)
 	}
 	out := m.out.String()
@@ -193,7 +193,7 @@ func TestRestartBootstrapsUnloadedHelper(t *testing.T) {
 	if err := runHelperRestart([]string{"--as-root", "--yes"}); err != nil {
 		t.Fatalf("%v\n%s", err, m.out.String())
 	}
-	if got := strings.Join(m.runLines(), "; "); got != "enable system/com.l3ony2k.duet.helper; bootstrap system /Library/LaunchDaemons/com.l3ony2k.duet.helper.plist" {
+	if got := strings.Join(m.runLines(), "; "); got != "enable system/com.l3ony2k.twinnel.helper; bootstrap system /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist" {
 		t.Errorf("launchctl: %s", got)
 	}
 }
@@ -208,7 +208,7 @@ func TestElevatedFailureReachesCaller(t *testing.T) {
 	l.exists[installedHelper] = true
 	l.statuses = []rpc.Status{{HelperVersion: "0.2.0", PID: 5}}
 	for _, c := range []struct{ stderr, want string }{
-		{"0:310: execution error: duet: helper upgrade failed: /bin/launchctl bootstrap system /Library/LaunchDaemons/x.plist: exit status 5: Bootstrap failed: 5: Input/output error (1)",
+		{"0:310: execution error: twinnel: helper upgrade failed: /bin/launchctl bootstrap system /Library/LaunchDaemons/x.plist: exit status 5: Bootstrap failed: 5: Input/output error (1)",
 			"helper upgrade failed: /bin/launchctl bootstrap system /Library/LaunchDaemons/x.plist: exit status 5: Bootstrap failed: 5: Input/output error"},
 		{"0:310: execution error: User canceled. (-128)", "cancelled; nothing was changed"},
 	} {

@@ -5,28 +5,28 @@ release build needs beyond a plain local build.
 
 ## The macOS 26 layered icon
 
-duet.app carries two icons:
+Twinnel.app carries two icons:
 
-- `AppIcon.icns` (`CFBundleIconFile`), from `assets/appicon/macos/duet.icns`. Every build has it;
+- `AppIcon.icns` (`CFBundleIconFile`), from `assets/appicon/macos/twinnel.icns`. Every build has it;
   macOS 15 and earlier show it.
-- `Assets.car` (`CFBundleIconName` = `duet`), compiled from the Icon Composer document
-  `assets/appicon/duet.icon`. macOS 26 shows it in every appearance (Default, Dark, Clear, Tinted).
+- `Assets.car` (`CFBundleIconName` = `twinnel`), compiled from the Icon Composer document
+  `assets/appicon/twinnel.icon`. macOS 26 shows it in every appearance (Default, Dark, Clear, Tinted).
 
 Compiling the `.icon` needs `actool` from Xcode 26 (`xcrun --find actool`). A Mac with only the
 Command Line Tools has no `actool`: the build then prints a warning and the app has the `.icns`
 only, which macOS 26 shows on a plain plate in Clear and Tinted mode. Release builds set
-`DUET_REQUIRE_LAYERED_ICON=1`, which turns that warning into an error, so a release never ships
+`TWINNEL_REQUIRE_LAYERED_ICON=1`, which turns that warning into an error, so a release never ships
 without the layered icon by accident.
 
 ```sh
-DUET_REQUIRE_LAYERED_ICON=1 scripts/build-release.sh -v 1.2.3
+TWINNEL_REQUIRE_LAYERED_ICON=1 scripts/build-release.sh -v 1.2.3
 ```
 
 Check a built app:
 
 ```sh
-plutil -p dist/app/darwin-arm64/duet.app/Contents/Info.plist | grep CFBundleIcon
-xcrun assetutil --info dist/app/darwin-arm64/duet.app/Contents/Resources/Assets.car | head
+plutil -p dist/app/darwin-arm64/Twinnel.app/Contents/Info.plist | grep CFBundleIcon
+xcrun assetutil --info dist/app/darwin-arm64/Twinnel.app/Contents/Resources/Assets.car | head
 ```
 
 ## Release job in GitHub Actions (draft, not enabled)
@@ -67,17 +67,17 @@ jobs:
           xcodebuild -version
       - name: build
         env:
-          DUET_REQUIRE_LAYERED_ICON: "1"
+          TWINNEL_REQUIRE_LAYERED_ICON: "1"
         run: scripts/build-release.sh
       - name: check the layered icon
         run: |
-          app=$(find dist/app -maxdepth 2 -name duet.app -type d | head -n 1)
+          app=$(find dist/app -maxdepth 2 -name Twinnel.app -type d | head -n 1)
           test -f "$app/Contents/Resources/Assets.car"
-          plutil -extract CFBundleIconName raw "$app/Contents/Info.plist" | grep -qx duet
+          plutil -extract CFBundleIconName raw "$app/Contents/Info.plist" | grep -qx Twinnel
           plutil -extract CFBundleIconFile raw "$app/Contents/Info.plist"
       - uses: actions/upload-artifact@<pin a release SHA> # v5
         with:
-          name: duet-${{ github.ref_name }}
+          name: twinnel-${{ github.ref_name }}
           path: |
             dist/*.tar.gz
             dist/app/*/*.dmg

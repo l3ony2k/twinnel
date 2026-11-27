@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/duet/core/engine"
-	"github.com/l3ony2k/duet/core/engine/enginetest"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/engine"
+	"github.com/l3ony2k/twinnel/core/engine/enginetest"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 // TestHelperEndToEnd starts the real daemon wiring (run) as the current
@@ -25,7 +25,7 @@ func TestHelperEndToEnd(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("unix socket + shell fake")
 	}
-	dir, err := os.MkdirTemp("", "duethelper") // short: sun_path limit
+	dir, err := os.MkdirTemp("", "twinnelhelper") // short: sun_path limit
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,8 +182,8 @@ func TestHelperEndToEnd(t *testing.T) {
 }
 
 func TestParseFlags(t *testing.T) {
-	o, err := parseFlags([]string{"--state-dir", "/tmp/x", "--socket", "/tmp/x/duet.sock", "--foreground"})
-	if err != nil || o.stateDir != "/tmp/x" || o.socket != "/tmp/x/duet.sock" || !o.foreground || o.group != "admin" {
+	o, err := parseFlags([]string{"--state-dir", "/tmp/x", "--socket", "/tmp/x/twinnel.sock", "--foreground"})
+	if err != nil || o.stateDir != "/tmp/x" || o.socket != "/tmp/x/twinnel.sock" || !o.foreground || o.group != "admin" {
 		t.Errorf("%+v %v", o, err)
 	}
 	if _, err := parseFlags([]string{"extra"}); err == nil {

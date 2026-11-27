@@ -8,24 +8,24 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
 )
 
-// lifecycleShots (DUET_SHOTS_FLOW=lifecycle) captures batch A's screens
+// lifecycleShots (TWINNEL_SHOTS_FLOW=lifecycle) captures batch A's screens
 // from synthetic state: the takeover plan (现在 | 接管后, 订阅原文, the
 // verdict and the 接管 row) and result (下一步) from
-// DUET_TAKEOVER_FIXTURE (default testdata/takeover-a), 停止使用 duet with
+// TWINNEL_TAKEOVER_FIXTURE (default testdata/takeover-a), 停止使用 Twinnel with
 // a made-up inventory, the helper's 未运行 card, the install preview's
 // failed state, the 内核 page with an adopted service, 关于 and 设置.
 // Nothing is sent to a helper and nothing is written.
 func (a *app) lifecycleShots(save func(*mygo.Window, string)) {
-	fix := os.Getenv("DUET_TAKEOVER_FIXTURE")
+	fix := os.Getenv("TWINNEL_TAKEOVER_FIXTURE")
 	if fix == "" {
 		fix = filepath.Join("cmd", "app", "testdata", "takeover-a")
 	}
-	connected := status.Helper{State: status.HelperConnected, Socket: "/var/run/duet/helper.sock",
+	connected := status.Helper{State: status.HelperConnected, Socket: "/var/run/twinnel/helper.sock",
 		Status: &rpc.Status{HelperVersion: "0.2.0", PID: 4242, Mihomo: rpc.MihomoStatus{
 			ConfigPath: "/Users/example/mihomo/conf/config.yaml", Version: "v1.19.33", Reachable: true}}}
 	shot := func(name, page, section string, h status.Helper, height int, prep func()) {
@@ -84,25 +84,25 @@ func (a *app) lifecycleShots(save func(*mygo.Window, string)) {
 		}
 	})
 
-	// 停止使用 duet.
+	// 停止使用 Twinnel.
 	home := "/Users/example"
 	leave := leaveView{loaded: true, inv: &rpc.Inventory{Adopted: "plan-20261127-101500-5a5a5a5a", Items: []rpc.InventoryItem{
-		{Kind: rpc.InvHelperBinary, Path: "/Library/PrivilegedHelperTools/com.l3ony2k.duet.helper", Size: 14_200_000},
-		{Kind: rpc.InvHelperService, Path: "/Library/LaunchDaemons/com.l3ony2k.duet.helper.plist", Label: "com.l3ony2k.duet.helper"},
-		{Kind: rpc.InvHelperSocket, Path: "/var/run/duet/helper.sock"},
-		{Kind: rpc.InvStateDir, Path: "/Library/Application Support/duet", Size: 61_400_000},
-		{Kind: rpc.InvSubscriptions, Path: "/Library/Application Support/duet/subscriptions", Size: 48_213, Count: 1},
-		{Kind: rpc.InvLayers, Path: "/Library/Application Support/duet/layers", Size: 3_100, Count: 2},
-		{Kind: rpc.InvHistory, Path: "/Library/Application Support/duet/history", Size: 912_000, Count: 14},
-		{Kind: rpc.InvTakeoverBackups, Path: "/Library/Application Support/duet/takeover", Size: 220_000, Count: 1},
-		{Kind: rpc.InvKernels, Path: "/Library/Application Support/duet/kernels", Size: 59_800_000},
-		{Kind: rpc.InvLogs, Path: "/Library/Application Support/duet/logs", Size: 380_000},
+		{Kind: rpc.InvHelperBinary, Path: "/Library/PrivilegedHelperTools/com.l3ony2k.twinnel.helper", Size: 14_200_000},
+		{Kind: rpc.InvHelperService, Path: "/Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist", Label: "com.l3ony2k.twinnel.helper"},
+		{Kind: rpc.InvHelperSocket, Path: "/var/run/twinnel/helper.sock"},
+		{Kind: rpc.InvStateDir, Path: "/Library/Application Support/twinnel", Size: 61_400_000},
+		{Kind: rpc.InvSubscriptions, Path: "/Library/Application Support/twinnel/subscriptions", Size: 48_213, Count: 1},
+		{Kind: rpc.InvLayers, Path: "/Library/Application Support/twinnel/layers", Size: 3_100, Count: 2},
+		{Kind: rpc.InvHistory, Path: "/Library/Application Support/twinnel/history", Size: 912_000, Count: 14},
+		{Kind: rpc.InvTakeoverBackups, Path: "/Library/Application Support/twinnel/takeover", Size: 220_000, Count: 1},
+		{Kind: rpc.InvKernels, Path: "/Library/Application Support/twinnel/kernels", Size: 59_800_000},
+		{Kind: rpc.InvLogs, Path: "/Library/Application Support/twinnel/logs", Size: 380_000},
 		{Kind: rpc.InvSecrets, Names: []string{"controller-secret", "subscription-url/adopted"}},
 		{Kind: rpc.InvAdoptedService, Path: "/Library/LaunchDaemons/com.example.mihomo.plist", Label: "com.example.mihomo"},
 	}}, app: []rpc.InventoryItem{
-		{Kind: invApp, Path: "/Applications/duet.app", Size: 31_000_000},
-		{Kind: invAppPrefs, Path: filepath.Join(home, "Library", "Application Support", "duet", "app.json"), Size: 412},
-		{Kind: invAppBackups, Path: filepath.Join(home, "Library", "Application Support", "duet", "backups"), Size: 62_000_000, Count: 2},
+		{Kind: invApp, Path: "/Applications/Twinnel.app", Size: 31_000_000},
+		{Kind: invAppPrefs, Path: filepath.Join(home, "Library", "Application Support", "twinnel", "app.json"), Size: 412},
+		{Kind: invAppBackups, Path: filepath.Join(home, "Library", "Application Support", "twinnel", "backups"), Size: 62_000_000, Count: 2},
 		{Kind: invLoginItem},
 	}}
 	shot("leave", pageLeave, "", connected, 1500, func() { a.hd.leave = leave })
@@ -122,10 +122,10 @@ func (a *app) lifecycleShots(save func(*mygo.Window, string)) {
 	})
 
 	// Helper states and the install preview.
-	notRunning := status.Helper{State: status.HelperNotRunning, Socket: "/var/run/duet/helper.sock", Err: "dial unix /var/run/duet/helper.sock: connect: connection refused"}
+	notRunning := status.Helper{State: status.HelperNotRunning, Socket: "/var/run/twinnel/helper.sock", Err: "dial unix /var/run/twinnel/helper.sock: connect: connection refused"}
 	shot("helper-not-running", pageConfig, "", notRunning, 700, nil)
 	shot("install-preview-failed", pageInstall, "", status.Helper{State: status.HelperNotInstalled}, 1000, func() {
-		a.hd.onb = onboardingView{loaded: true, planErr: "duet: cannot find duet-helper next to the command line tool"}
+		a.hd.onb = onboardingView{loaded: true, planErr: "twinnel: cannot find twinnel-helper next to the command line tool"}
 	})
 	shot("install-preview-timeout", pageInstall, "", status.Helper{State: status.HelperNotInstalled}, 1000, func() {
 		a.hd.onb = onboardingView{loaded: true, timeout: true, planErr: "signal: killed"}
@@ -135,12 +135,12 @@ func (a *app) lifecycleShots(save func(*mygo.Window, string)) {
 	kernPrep := func() {
 		a.hm = helperMgmtView{check: &upgradeCheck{Action: "none"}, checkPID: 4242,
 			info: &rpc.HelperInfo{Mihomo: rpc.HelperMihomoService{Label: "com.example.mihomo", Adopted: true, Installed: true}}}
-		a.hd.kernels = &rpc.KernelList{Active: "/Library/Application Support/duet/kernels/v1.19.34/mihomo", Current: "v1.19.34", Previous: "v1.19.33",
-			Installed: []rpc.KernelVersion{{Version: "v1.19.34", Current: true, Path: "/Library/Application Support/duet/kernels/v1.19.34/mihomo"},
-				{Version: "v1.19.33", Previous: true, Path: "/Library/Application Support/duet/kernels/v1.19.33/mihomo"}}}
+		a.hd.kernels = &rpc.KernelList{Active: "/Library/Application Support/twinnel/kernels/v1.19.34/mihomo", Current: "v1.19.34", Previous: "v1.19.33",
+			Installed: []rpc.KernelVersion{{Version: "v1.19.34", Current: true, Path: "/Library/Application Support/twinnel/kernels/v1.19.34/mihomo"},
+				{Version: "v1.19.33", Previous: true, Path: "/Library/Application Support/twinnel/kernels/v1.19.33/mihomo"}}}
 		a.hd.kern.svc = serviceView{status: map[string]rpc.ServiceStatus{
 			"mihomo": {Name: "mihomo", Label: "com.example.mihomo", Installed: true, Loaded: true, Running: true, PID: 812,
-				Program: "/Library/Application Support/duet/kernels/v1.19.34/mihomo", Definition: "/Library/LaunchDaemons/com.example.mihomo.plist"},
+				Program: "/Library/Application Support/twinnel/kernels/v1.19.34/mihomo", Definition: "/Library/LaunchDaemons/com.example.mihomo.plist"},
 			"tailscaled": {Name: "tailscaled", Label: "homebrew.mxcl.tailscale", Installed: true, Loaded: true, Running: true, PID: 640,
 				Definition: "/Library/LaunchDaemons/homebrew.mxcl.tailscale.plist"},
 		}}

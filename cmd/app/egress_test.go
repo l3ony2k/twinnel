@@ -14,13 +14,13 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/l3ony2k/duet/core/engine"
-	"github.com/l3ony2k/duet/core/health"
-	"github.com/l3ony2k/duet/core/health/fixture"
-	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/rpc"
-	"github.com/l3ony2k/duet/core/status"
-	"github.com/l3ony2k/duet/core/store"
+	"github.com/l3ony2k/twinnel/core/engine"
+	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/health/fixture"
+	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/store"
 )
 
 type allowPeers struct{}
@@ -58,7 +58,7 @@ type scratchHelper struct {
 func newScratchHelper(t *testing.T) *scratchHelper {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
-	dir, err := os.MkdirTemp("", "duetegress") // short: unix socket paths are limited
+	dir, err := os.MkdirTemp("", "twinnelegress") // short: unix socket paths are limited
 	if err != nil {
 		t.Fatal(err)
 	}

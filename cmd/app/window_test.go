@@ -34,7 +34,7 @@ func TestTileStep(t *testing.T) {
 }
 
 // The sidebar's first nine pages get ⌘1…⌘9 in its order; 设置 has ⌘,;
-// 关于, the last row, has none (the app menu's 关于 duet opens it).
+// 关于, the last row, has none (the app menu's 关于 Twinnel opens it).
 func TestNavSectionsDigits(t *testing.T) {
 	want := []string{pageOverview, pageProxies, pageTailscale, pageHealth, pageConfig, pageHistory, pageKernel, pageTakeover, pageLogs}
 	n := 0
