@@ -16,9 +16,9 @@ func TestSDDLFor(t *testing.T) {
 		dir  bool
 		want string
 	}{
-		{user, false, "O:" + user + "D:P(A;;FA;;;" + user + ")(A;;FA;;;SY)(A;;FA;;;BA)"},
-		{user, true, "O:" + user + "D:P(A;OICI;FA;;;" + user + ")(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"},
-		{"S-1-5-18", false, "O:S-1-5-18D:P(A;;FA;;;S-1-5-18)(A;;FA;;;BA)"},
+		{user, false, "D:P(A;;FA;;;" + user + ")(A;;FA;;;SY)(A;;FA;;;BA)"},
+		{user, true, "D:P(A;OICI;FA;;;" + user + ")(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"},
+		{"S-1-5-18", false, "D:P(A;;FA;;;S-1-5-18)(A;;FA;;;BA)"},
 	} {
 		if got := sddlFor(c.sid, c.dir); got != c.want {
 			t.Errorf("sddlFor(%s, %v) = %s, want %s", c.sid, c.dir, got, c.want)

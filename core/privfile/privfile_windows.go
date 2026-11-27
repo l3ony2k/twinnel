@@ -12,9 +12,9 @@ import (
 )
 
 // SDDL is the security descriptor a private file (dir: a private dir,
-// whose ACEs its children inherit) gets: owned by the current user, a
-// protected DACL (nothing inherited from the folder) granting full control
-// to that user, LocalSystem and Administrators.
+// whose ACEs its children inherit) gets: a protected DACL (nothing
+// inherited from the folder) granting full control to the current user,
+// LocalSystem and Administrators.
 func SDDL(dir bool) (string, error) {
 	u, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil {
@@ -100,12 +100,11 @@ func Canonical(sddl string) (string, error) {
 	return sd.String(), nil
 }
 
-// Describe is path's owner and DACL as SDDL (for tests and diagnostics).
+// Describe is path's DACL as SDDL (for tests and diagnostics).
 // Windows may add the auto-inherited flags ("D:PAI"), which do not change
 // who has access; Describe drops them.
 func Describe(path string) (string, error) {
-	sd, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT,
-		windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	sd, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
 	if err != nil {
 		return "", err
 	}
