@@ -1,8 +1,9 @@
 package main
 
 import (
-	"archive/zip"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/l3ony2k/twinnel/core/legacy"
 	"io/fs"
@@ -15,9 +16,11 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"github.com/l3ony2k/twinnel/core/bundle"
 	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/status"
+	"github.com/l3ony2k/twinnel/core/version"
 )
 
 // The 停止使用 Twinnel page (设置 → 停止使用 Twinnel…): what Twinnel installed on
@@ -568,54 +571,59 @@ type exportCaller interface {
 	Call(ctx context.Context, method string, params, result any) error
 }
 
-// writeExport writes config.yaml (the live config as history keeps it,
-// without the controller secret) and overrides/<id>.yaml.
+// writeExport writes the export zip (core/bundle): manifest.json,
+// config.yaml (the live config without the controller secret), the
+// overrides and the subscriptions with their URLs, built by the helper
+// (config.export). A helper from before config.export gets the zip built
+// here from its lists, without subscriptions (their URLs never leave it).
 func writeExport(ctx context.Context, hc exportCaller, to string) error {
-	// The helper's own list, not whatever the app last loaded: the zip
-	// holds every override the inventory counts (walkthrough 2, N30).
-	var layers []rpc.Layer
-	if err := hc.Call(ctx, rpc.MethodLayerList, nil, &layers); err != nil {
-		return err
+	var x rpc.ConfigExport
+	err := hc.Call(ctx, rpc.MethodConfigExport, rpc.ConfigExportParams{}, &x)
+	var re *rpc.Error
+	if errors.As(err, &re) && re.Code == rpc.CodeMethodNotFound {
+		x.Zip, err = exportFromLists(ctx, hc)
 	}
-	var live rpc.ConfigText
-	if err := hc.Call(ctx, rpc.MethodConfigGet, rpc.ConfigGetParams{Source: rpc.ConfigLive}, &live); err != nil {
+	if err != nil {
 		return err
 	}
 	tmp := to + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-	zw := zip.NewWriter(f)
-	put := func(name, content string) error {
-		w, err := zw.Create(name)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write([]byte(content))
-		return err
-	}
-	err = put("config.yaml", live.Content)
-	for _, l := range layers {
-		if err != nil || l.Managed {
-			continue
-		}
-		var lc rpc.LayerContent
-		if err = hc.Call(ctx, rpc.MethodLayerGet, rpc.IDParams{ID: l.ID}, &lc); err == nil {
-			err = put("overrides/"+l.ID+".yaml", lc.Content)
-		}
-	}
-	if cerr := zw.Close(); err == nil {
-		err = cerr
-	}
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
+	if err := os.WriteFile(tmp, x.Zip, 0o600); err != nil {
 		os.Remove(tmp)
 		return err
 	}
 	return os.Rename(tmp, to)
+}
+
+// exportFromLists builds the zip from layer.list, layer.get and
+// config.get, for a helper without config.export.
+func exportFromLists(ctx context.Context, hc exportCaller) ([]byte, error) {
+	// The helper's own list, not whatever the app last loaded: the zip
+	// holds every override the inventory counts (walkthrough 2, N30).
+	var layers []rpc.Layer
+	if err := hc.Call(ctx, rpc.MethodLayerList, nil, &layers); err != nil {
+		return nil, err
+	}
+	var live rpc.ConfigText
+	if err := hc.Call(ctx, rpc.MethodConfigGet, rpc.ConfigGetParams{Source: rpc.ConfigLive}, &live); err != nil {
+		return nil, err
+	}
+	b := &bundle.Bundle{Config: live.Content}
+	for _, l := range layers {
+		if l.Managed {
+			continue
+		}
+		var lc rpc.LayerContent
+		if err := hc.Call(ctx, rpc.MethodLayerGet, rpc.IDParams{ID: l.ID}, &lc); err != nil {
+			return nil, err
+		}
+		b.Layers = append(b.Layers, bundle.Layer{ID: l.ID, Name: l.Name, Stage: l.Stage, Format: l.Format, Enabled: l.Enabled,
+			NameCode: l.NameCode, NameArgs: l.NameArgs, Content: lc.Content})
+	}
+	var buf bytes.Buffer
+	if err := bundle.Write(&buf, b, time.Now(), version.Version); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // --- the app's own pieces (完全移除) ---

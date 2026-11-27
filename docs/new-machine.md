@@ -61,7 +61,7 @@ GitHub、pkgs.tailscale.com、ghcr.io 在一些网络里连不上，而这时代
 
 ### 从备份导入
 
-从另一台机器导出的 zip（停止使用 → 导出配置）可以代替订阅链接：`twinnel setup --import 备份.zip`。导入本身由后台助手的 `config.import` 完成（另一个分支在做）；这个分支只留了接口（`setup.Env.ImportConfig`），没有它时导入会提示「这个版本还不能导入备份」。备份里有节点密码，可能还有订阅链接：用完请删除。
+从另一台机器导出的 zip（停止使用 → 导出配置）可以代替订阅链接：`twinnel setup --import 备份.zip`。导入由后台助手的 `config.import` 完成（`setup.ImportConfig`）：订阅和你自己的覆写（名称、顺序、开关）会保留，本机已有的同名项目保持不变；Tailscale 共存、防泄漏和接管生成的覆写在本机重新生成。备份里只有订阅链接时，会先下载一次订阅。备份里有节点密码，可能还有订阅链接：用完请删除。
 
 ## English
 
@@ -122,4 +122,4 @@ GitHub, pkgs.tailscale.com and ghcr.io are blocked on some networks, and there i
 
 ### Importing a backup
 
-A zip exported on another machine (Stop Using → Export) can replace the subscription URL: `twinnel setup --import backup.zip`. The import itself is the helper's `config.import` (built on another branch); this branch has only the hook (`setup.Env.ImportConfig`) and says "importing a backup is not available in this version yet" without it. The zip holds node passwords and maybe subscription URLs: delete it when you're done.
+A zip exported on another machine (Stop Using → Export) can replace the subscription URL: `twinnel setup --import backup.zip`. The import is the helper's `config.import` (`setup.ImportConfig`): subscriptions and your own overrides (names, order, on/off) come back, items whose ids are already here are kept as they are, and the Tailscale coexistence, leak guard and takeover overrides are rebuilt here. A subscription that came as a URL only is downloaded once. The zip holds node passwords and maybe subscription URLs: delete it when you're done.

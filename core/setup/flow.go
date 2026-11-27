@@ -162,10 +162,10 @@ type Env struct {
 	// user's PATH (core/clilink: never over another tailscale) and returns
 	// the link. nil: no link.
 	LinkTailscale func(cli string) (string, error)
-	// ImportConfig restores Options.ImportZip. HOOK: the helper's
-	// config.import RPC is built on feat/import-config; until it lands
-	// this is nil and an import fails with ErrNoImport. It reports whether
-	// the zip brought a subscription that is now active and fetched.
+	// ImportConfig restores Options.ImportZip: ImportConfig (importcfg.go,
+	// the helper's config.import). nil: an import fails with ErrNoImport.
+	// It reports whether the zip brought a subscription that is now
+	// active and fetched.
 	ImportConfig func(ctx context.Context, hc Caller, zip []byte) (ImportResult, error)
 }
 

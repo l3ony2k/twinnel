@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -165,6 +167,7 @@ func TestEveryToolRedacts(t *testing.T) {
 		"layer_order": {"ids": []string{"extra"}}, "sub_put": {"id": "main", "url": agenttest.SubURL},
 		"sub_activate": {"id": "spare"}, "sub_remove": {"id": "spare"}, "apply": nil,
 		"history_rollback": {"id": "h-1"}, "settings_update": {"history_keep": 40},
+		"config_import": {"path": importFile(t, "subs.txt", "Main "+agenttest.SubURL+"\n"), "confirm": true},
 	}
 	for _, ti := range e.srv.Tools() {
 		args, ok := calls[ti.Name]
@@ -407,4 +410,44 @@ func TestRedactURLTokens(t *testing.T) {
 			t.Errorf("redactString(%q) = %q, want %q", in, got, want)
 		}
 	}
+}
+
+// importFile writes a synthetic file to import.
+func importFile(t *testing.T, name, content string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestConfigImportPlansFirst(t *testing.T) {
+	e := newEnv(t, nil)
+	e.setAgent(rpc.AgentSettings{MCP: true, Operate: true})
+	f := importFile(t, "nodes.yaml", "+rules:\n  - DOMAIN,example.net,DIRECT\n")
+	e.fails("config_import", map[string]any{"path": f}, "configure tool")
+	if e.h.Called(rpc.MethodConfigImport) {
+		t.Fatal("a refused config_import reached the helper")
+	}
+	e.setAgent(rpc.AgentSettings{MCP: true, Operate: true, Configure: true})
+	e.fails("config_import", map[string]any{"path": "nodes.yaml"}, "absolute")
+
+	m := e.ok("config_import", map[string]any{"path": f})
+	plan := m["plan"].(map[string]any)
+	if m["imported"] != false || plan["conflicts"].(float64) != 1 || !strings.Contains(m["next"].(string), "on_conflict") {
+		t.Fatalf("plan: %v", m)
+	}
+	e.h.Mu.Lock()
+	dry := e.h.Imports[0].DryRun
+	e.h.Mu.Unlock()
+	if !dry {
+		t.Fatal("the plan call was not a dry run")
+	}
+	e.fails("config_import", map[string]any{"path": f, "confirm": true}, "conflict")
+	m = e.ok("config_import", map[string]any{"path": f, "confirm": true, "on_conflict": "rename"})
+	if m["imported"] != true || m["undo"] != "layer_remove id=nodes-2" {
+		t.Fatalf("import: %v", m)
+	}
+	e.noSecrets()
 }

@@ -65,9 +65,9 @@ var (
 		}
 		return nil
 	}
-	// setupImport restores an export zip. HOOK: the helper's config.import
-	// (feat/import-config); nil until it lands.
-	setupImport      func(ctx context.Context, hc setup.Caller, zip []byte) (setup.ImportResult, error)
+	// setupImport restores an export zip through the helper's
+	// config.import; a variable for tests.
+	setupImport      = setup.ImportConfig
 	setupInteractive = func() bool {
 		fi, err := os.Stdin.Stat()
 		return err == nil && fi.Mode()&os.ModeCharDevice != 0

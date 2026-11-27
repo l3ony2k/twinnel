@@ -96,6 +96,7 @@ func (a *app) mainView(c *ui.Context) {
 		}
 	})
 	a.sidebarChrome(c, toolbarHeight(c)) // the sidebar toggle and the divider's grip
+	a.importSheet(c, s)                  // importsheet.go: over the whole window
 	a.toasts(c)                          // toast.go
 }
 

@@ -3,7 +3,12 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/l3ony2k/twinnel/core/bundle"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
@@ -74,6 +79,18 @@ after subscription or tailnet changes). Only the fields given change. Leak guard
 effect at the next apply. The agent switches cannot be changed here. Undo: settings_update with the
 previous values in the result.`,
 		toolOpts{idempotent: true}, s.settingsUpdate)
+
+	addTool(s, rpc.TierConfigure, "config_import", "Import configuration",
+		`Imports subscriptions and the person's own overrides (names, order, on/off) from a file on this
+machine: a Twinnel export zip (停止使用 → 导出配置 on another machine), subscription URLs one per line, a
+Clash Verge Rev / Clash Party override YAML, or a whole mihomo config (becomes a subscription). Twinnel's
+own layers (Tailscale coexist, leak guard, takeover base) are rebuilt here, never imported. Two steps,
+always: call without confirm to get the plan (added, unchanged, invalid, and conflicts with ids in use)
+and show it to the person; then call with confirm=true, with on_conflict or resolve for any conflict.
+The file holds subscription URLs and node passwords: they are never returned. Stored only: call preview,
+then apply. Undo: layer_remove / sub_remove for what was added (in the result); a replaced item cannot be
+restored by a tool.`,
+		toolOpts{destructive: true}, s.configImport)
 }
 
 type layerPutIn struct {
@@ -293,4 +310,54 @@ func (s *Server) settingsUpdate(c *call, in settingsIn) (any, error) {
 	before.Agent, after.Agent = rpc.AgentSettings{}, rpc.AgentSettings{}
 	c.undo = "settings_update with the previous values"
 	return map[string]any{"settings": after, "previous": before, "next": "preview, then apply (leak guard and coexist)", "undo": c.undo}, nil
+}
+
+type importIn struct {
+	Path       string            `json:"path" jsonschema:"absolute path of the file on this machine"`
+	Confirm    bool              `json:"confirm,omitempty" jsonschema:"false (default): only show the plan; true: import"`
+	OnConflict string            `json:"on_conflict,omitempty" jsonschema:"for ids already in use: replace, skip or rename (default: stop and report them)"`
+	Resolve    map[string]string `json:"resolve,omitempty" jsonschema:"per item: \"layer:<id>\" or \"subscription:<id>\" to replace, skip or rename"`
+}
+
+func (s *Server) configImport(c *call, in importIn) (any, error) {
+	if !filepath.IsAbs(in.Path) {
+		return nil, errors.New("path must be absolute")
+	}
+	f, err := os.Open(in.Path)
+	if err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(io.LimitReader(f, bundle.MaxFile+1))
+	f.Close()
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > bundle.MaxFile {
+		return nil, fmt.Errorf("the file is larger than %d MiB", bundle.MaxFile>>20)
+	}
+	p := rpc.ConfigImportParams{Data: data, Name: filepath.Base(in.Path), DryRun: !in.Confirm, OnConflict: in.OnConflict, Resolve: in.Resolve}
+	var r rpc.ConfigImportResult
+	if err := c.rpc(rpc.MethodConfigImport, p, &r); err != nil {
+		return nil, err
+	}
+	if !in.Confirm {
+		next := "show this plan to the person; to import it, call config_import again with confirm=true"
+		if r.Conflicts > 0 {
+			next += " and on_conflict (replace, skip or rename) or resolve for each conflict"
+		}
+		return map[string]any{"imported": false, "plan": r, "next": next}, nil
+	}
+	var undo []string
+	for _, it := range r.Items {
+		if it.Action != rpc.ImportAdd && it.Action != rpc.ImportRename {
+			continue
+		}
+		if it.Kind == rpc.ImportKindLayer {
+			undo = append(undo, "layer_remove id="+it.NewID)
+		} else {
+			undo = append(undo, "sub_remove id="+it.NewID)
+		}
+	}
+	c.undo = strings.Join(undo, "; ")
+	return map[string]any{"imported": true, "result": r, "next": "preview, then apply", "undo": c.undo}, nil
 }
