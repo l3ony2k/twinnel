@@ -55,6 +55,7 @@ var (
 	iconDashboard  = svgIcon("app-window")
 	iconSecure     = svgIcon("key-round")
 	iconLock       = svgIcon("lock") // a control that needs the helper
+	iconPower      = svgIcon("power")
 	iconLeakGuard  = svgIcon("shield-droplet")
 	iconPathDirect = svgIcon("nodes-direct")
 	iconPathRelay  = svgIcon("nodes-relay")

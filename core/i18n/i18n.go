@@ -258,6 +258,7 @@ type Strings struct {
 	InfoTipStrings         // infotips.go
 	StatusStrings          // status.go
 	SidebarStrings         // sidebar.go
+	OverviewStrings        // overview.go
 }
 
 // zh is the Chinese text.
@@ -812,6 +813,7 @@ var zh = Strings{
 	InfoTipStrings:         zhInfoTips,
 	StatusStrings:          zhStatus,
 	SidebarStrings:         zhSidebar,
+	OverviewStrings:        zhOverview,
 }
 
 // F formats one of the strings.

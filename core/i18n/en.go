@@ -554,6 +554,7 @@ var en = Strings{
 	InfoTipStrings:         enInfoTips,
 	StatusStrings:          enStatus,
 	SidebarStrings:         enSidebar,
+	OverviewStrings:        enOverview,
 }
 
 var enControls = ControlStrings{

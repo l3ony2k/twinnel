@@ -443,37 +443,3 @@ func (a *app) gettingStarted(c *ui.Context, s status.Snapshot) {
 		}
 	})
 }
-
-// overviewHelperCard is the overview's helper card, only while the helper
-// is not connected (connected, the sidebar foot says so): its state and
-// the one action that moves it on.
-func (a *app) overviewHelperCard(c *ui.Context, s status.Snapshot) {
-	T := i18n.T
-	h := s.Helper
-	switch h.State {
-	case status.HelperNotInstalled:
-		card(c, T.Helper, func() {
-			kvWith(c, T.State, func() {
-				ui.Text(c, h.State.Text()).Grow(1).SingleLine()
-				if pushButton(c.Key("helper-install"), T.FixInstallHelper).Disabled(!s.WritesAllowed).Clicked() {
-					a.openPage(pageInstall)
-				}
-			})
-		})
-	case status.HelperNotRunning, status.HelperDenied:
-		card(c, T.Helper, func() {
-			kvWith(c, T.State, func() {
-				ui.Text(c, h.State.Text()).Grow(1).SingleLine()
-				if fileExists(a.helperLogFile()) && pushButton(c.Key("helper-log"), T.HelperViewLog).Clicked() {
-					a.openHelperLog()
-				}
-				if busyButton(c.Key("helper-restart"), T.HelperRestart, false, a.hm.running == T.HelperRestart, !a.helperOpsEnabled(s)).Clicked() {
-					a.restartHelper()
-				}
-			})
-			if a.hm.errMsg != "" {
-				errorNote(c, a.hm.errMsg)
-			}
-		})
-	}
-}

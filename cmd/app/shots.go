@@ -113,6 +113,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"takeoverexplain": a.takeoverExplainShots, // shots_takeoverexplain.go
 		"lifecycle":       a.lifecycleShots,       // shots_lifecycle.go
 		"status":          a.statusShots,          // shots_status.go
+		"overview":        a.overviewShots,        // shots_overview.go
 		"trayspeed":       a.trayspeedShots,       // shots_trayspeed.go
 		"infotips":        a.infoTipShots,         // shots_infotips.go
 		"derpinfo":        a.derpInfoShots,        // shots_derpinfo.go
