@@ -389,6 +389,8 @@ type Settings struct {
 	// Drift: mihomo runs a history entry the overrides do not compose
 	// (after a rollback); automatic re-compose waits until an apply.
 	Drift *Drift `json:"drift,omitempty"`
+	// Agent: 设置 → 本地 Agent (MCP and its tiers).
+	Agent AgentSettings `json:"agent"`
 }
 
 // Drift says mihomo runs a rolled-back history entry, not the overrides.
@@ -405,6 +407,9 @@ type SettingsUpdate struct {
 	HistoryKeep       *int      `json:"history_keep,omitempty"`
 	KernelChannel     *string   `json:"kernel_channel,omitempty"`
 	AutoApply         *bool     `json:"auto_apply,omitempty"`
+	// Agent changes the local agent switches. `duet mcp` never sends it:
+	// an agent cannot widen its own tiers.
+	Agent *AgentSettingsUpdate `json:"agent,omitempty"`
 }
 
 // ---- tailnet ----

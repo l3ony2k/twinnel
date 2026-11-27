@@ -47,7 +47,21 @@ type Settings struct {
 	// do not compose: mihomo runs a history entry, not compose(layers).
 	// Automatic re-compose waits while it is set; an apply clears it.
 	Drift *Drift `json:"drift,omitempty"`
+
+	// Agent: the local agent switches (`duet mcp`). Nil fields take their
+	// defaults: MCP off, operate on, configure off.
+	Agent AgentSettings `json:"agent,omitzero"`
 }
+
+// AgentSettings are the local agent switches.
+type AgentSettings struct {
+	MCP       bool  `json:"mcp,omitempty"`
+	Operate   *bool `json:"operate,omitempty"` // default true
+	Configure bool  `json:"configure,omitempty"`
+}
+
+// OperateOn is Operate with its default.
+func (a AgentSettings) OperateOn() bool { return a.Operate == nil || *a.Operate }
 
 // Drift: the running config is a history entry, not the overrides.
 type Drift struct {
