@@ -48,7 +48,7 @@ func (a *app) dnsRestoredActs(s status.Snapshot) []bannerAct {
 	}
 	T := i18n.T
 	var acts []bannerAct
-	if s.Can().Helper && a.hd.busy == "" {
+	if a.canRestartMihomo(s) {
 		acts = append(acts, bannerAct{key: "dns-restart", label: T.RestartMihomo,
 			run: func() { a.mihomoService(rpc.MethodServiceRestart, T.RestartMihomo) }})
 	}

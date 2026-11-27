@@ -156,3 +156,44 @@ func TestControllerOwnerCheckFound(t *testing.T) {
 		t.Fatal("the controller-owner row is not found")
 	}
 }
+
+// While another program's mihomo holds the controller, the 总览 banner
+// leads with the card's two ways out (Windows QA round 3, E), and no
+// control offers to start or restart Twinnel's mihomo: it cannot help.
+func TestForeignBannerOffersOwnerFixes(t *testing.T) {
+	i18n.Set("zh-Hans")
+	defer i18n.Set("zh-Hans")
+	a := &app{healthOpen: map[string]bool{}}
+	s := foreignSnap()
+	// The watchdog held the DNS back too (the foreign mihomo does not
+	// answer Twinnel's DNS): its 重启 mihomo must not lead either.
+	s.Helper.Status.DNSWatch = &rpc.DNSWatch{Phase: rpc.DNSWatchRestored}
+	s.Helper.Status.ActiveSubscription = "sub" // taken over: the fix runs, no step before it
+	s.Health.Report = &health.Report{Platform: "windows", Checks: []health.CheckReport{{ID: "controller-owner",
+		Result: health.Result{Status: health.StatusFail, Reasons: []string{health.ReasonOwnerOtherClient, health.ReasonOwnerPortShared}}}}}
+	status.Evaluate(&s)
+	if a.canRestartMihomo(s) || mihomoRestartHelps(s) {
+		t.Fatal("restarting mihomo is offered while another mihomo holds the port")
+	}
+	fixes := a.foreignFixes(s)
+	var fixKeys []string
+	for _, f := range fixes {
+		fixKeys = append(fixKeys, f.key)
+	}
+	if strings.Join(fixKeys, ",") != "foreign-move,foreign-quit" {
+		t.Fatalf("foreign fixes %v", fixKeys)
+	}
+	acts := a.bannerActs(s)
+	if len(acts) < 2 || acts[0].key != "foreign-move" || acts[0].label != i18n.T.ForeignMovePort || acts[1].key != "foreign-quit" {
+		t.Fatalf("banner acts %+v: want the owner fixes first", acts)
+	}
+	for _, act := range acts {
+		if act.label == i18n.T.RestartMihomo || act.label == i18n.T.StartMihomo {
+			t.Fatalf("banner offers %q in the foreign state", act.label)
+		}
+	}
+	// Twinnel's own mihomo: no owner fixes.
+	if f := a.foreignFixes(dnsSnap(rpc.DNSWatchWatching, true)); f != nil {
+		t.Fatalf("owner fixes without a foreign owner: %+v", f)
+	}
+}

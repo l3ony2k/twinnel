@@ -62,45 +62,63 @@ func controllerOwnerCheck(s status.Snapshot) (health.CheckReport, bool) {
 	return health.CheckReport{}, false
 }
 
-// foreignActions are the foreign state's two ways out, the controller-owner
+// mihomoRestartHelps reports whether starting or restarting Twinnel's
+// mihomo can change anything: not while another program's mihomo holds
+// the controller (Twinnel's could not bind the port; the ways out are
+// foreignFixes). Every 启动/重启 mihomo control asks it.
+func mihomoRestartHelps(s status.Snapshot) bool { return !s.MihomoView().Foreign() }
+
+// canRestartMihomo: the helper can restart mihomo now, and it would help.
+func (a *app) canRestartMihomo(s status.Snapshot) bool {
+	return s.Can().Helper && a.hd.busy == "" && mihomoRestartHelps(s)
+}
+
+// foreignFixes are the foreign state's two ways out, the controller-owner
 // row's fixes: 换个控制端口 (its one-click fix, previewed on the health
 // page as every fix is; the step before it when one is missing) and 怎么退出它
-// (the row opened, with the steps for this platform).
-func (a *app) foreignActions(c *ui.Context, s status.Snapshot, height float32) {
-	T := i18n.T
-	cr, ok := controllerOwnerCheck(s)
-	var move *fixAction
-	if ok {
-		for _, rf := range rowFixes(cr, reportPlatform(s)) {
-			if rf.reason == health.ReasonOwnerPortShared && rf.spec.Kind == health.FixAuto {
-				move = a.fixButton(cr, rf, s)
-				if move != nil && move.label == T.FixDo {
-					move.label = T.ForeignMovePort
-				}
-			}
-		}
+// (the row opened, with the steps for this platform). The 总览 card, the
+// flyout and the 总览 banner all offer these, in this order; nil unless
+// the view is foreign.
+func (a *app) foreignFixes(s status.Snapshot) []bannerAct {
+	if !s.MihomoView().Foreign() {
+		return nil
 	}
+	T := i18n.T
 	openRow := func() {
 		a.openPage(pageHealth)
 		a.healthOpen[(health.ControllerOwnerCheck{}).ID()] = true
 	}
+	var acts []bannerAct
+	if cr, ok := controllerOwnerCheck(s); ok {
+		for _, rf := range rowFixes(cr, reportPlatform(s)) {
+			if rf.reason != health.ReasonOwnerPortShared || rf.spec.Kind != health.FixAuto {
+				continue
+			}
+			if move := a.fixButton(cr, rf, s); move != nil {
+				label := move.label
+				if label == T.FixDo {
+					label = T.ForeignMovePort
+				}
+				run := move.run
+				acts = append(acts, bannerAct{key: "foreign-move", label: label, off: move.off, run: func() { openRow(); run() }})
+			}
+		}
+	}
+	return append(acts, bannerAct{key: "foreign-quit", label: T.ForeignQuitHow, run: openRow})
+}
+
+// foreignActions renders foreignFixes as buttons (the card, the flyout,
+// a page's foreign state); height 0 is the default.
+func (a *app) foreignActions(c *ui.Context, s status.Snapshot, height float32) {
 	ui.Row(c.Key("foreign-acts")).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
-		if move != nil {
-			b := pushButton(c.Key("foreign-move"), move.label).Disabled(move.off)
+		for _, act := range a.foreignFixes(s) {
+			b := pushButton(c.Key(act.key), act.label).Disabled(act.off)
 			if height > 0 {
 				b.Height(height)
 			}
 			if b.Clicked() {
-				openRow()
-				move.run()
+				act.run()
 			}
-		}
-		b := pushButton(c.Key("foreign-quit"), T.ForeignQuitHow)
-		if height > 0 {
-			b.Height(height)
-		}
-		if b.Clicked() {
-			openRow()
 		}
 	})
 }

@@ -91,6 +91,7 @@ func (a *app) openRequested(o launchOpen) {
 	case o.page != "":
 		a.wiz.checked = true // the page asked for stays in front
 		a.openPage(o.page)
+		forgetSubFrom(o.page) // opened from no page: a sub-page shows under its home row
 	default:
 		a.openMain()
 	}

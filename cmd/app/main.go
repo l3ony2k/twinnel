@@ -194,6 +194,11 @@ func newApp(getenv func(string) string) (*app, error) {
 	}
 	a.cfgPath = filepath.Join(dir, "twinnel", "app.json")
 	if !a.shotMode { // shots never read or write the person's setup state
+		// Once per start: an app.json from before it was protected keeps
+		// its folder's ACL on Windows until its next write otherwise.
+		if err := status.SecureAppFiles(a.cfgPath); err != nil {
+			log.Printf("protecting %s: %v", a.cfgPath, err)
+		}
 		a.wiz.path = wizardStatePath(a.cfgPath)
 		a.wiz.state = loadWizardState(a.wiz.path)
 	}

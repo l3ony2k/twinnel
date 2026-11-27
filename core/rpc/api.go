@@ -155,7 +155,11 @@ type ServiceHost struct {
 	Version string `json:"version,omitempty"`
 	// Stale: its file differs from the running helper's, or mihomo runs
 	// an older host. Error says why the last refresh failed.
-	Stale bool   `json:"stale,omitempty"`
+	Stale bool `json:"stale,omitempty"`
+	// Aside counts the old copies a refresh moved aside that are still
+	// on disk: a running service still uses them, and they are deleted
+	// once it restarts.
+	Aside int    `json:"aside,omitempty"`
 	Error string `json:"error,omitempty"`
 }
 

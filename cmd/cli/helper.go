@@ -211,8 +211,31 @@ func runHelperStatus(args []string) error {
 			k = "external " + s.Kernel.Active
 		}
 		fmt.Fprintf(w, "kernel\t%s\n", k)
+		if h := s.ServiceHost; h != nil {
+			fmt.Fprintf(w, "service host\t%s\n", serviceHostLine(*h))
+		}
 		w.Flush()
 	})
+}
+
+// serviceHostLine is Windows' service host in `helper status`: its
+// version and path, and what is pending (a refresh, old copies waiting
+// for mihomo to restart).
+func serviceHostLine(h rpc.ServiceHost) string {
+	line := orDash(h.Version) + " (" + h.Path + ")"
+	if h.Stale {
+		line += "; out of date: twinnel helper upgrade"
+	}
+	switch {
+	case h.Aside == 1:
+		line += "; 1 old copy waiting: mihomo still runs it, deleted when mihomo restarts"
+	case h.Aside > 1:
+		line += fmt.Sprintf("; %d old copies waiting: mihomo still runs one, deleted when mihomo restarts", h.Aside)
+	}
+	if h.Error != "" {
+		line += "; last refresh failed: " + h.Error
+	}
+	return line
 }
 
 func orNone(s string) string {

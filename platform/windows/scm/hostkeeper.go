@@ -10,7 +10,8 @@ import (
 )
 
 // HostKeeper keeps the service host up to date with the helper that runs
-// it (the helper's side of Host: it refreshes at start, and reports the
+// it (the helper's side of Host: it refreshes at start, deletes the
+// copies a refresh moved aside once no service runs them, and reports the
 // host in status.get).
 type HostKeeper struct {
 	Src      string          // the running helper's executable
@@ -71,6 +72,28 @@ func (k *HostKeeper) Refresh(ctx context.Context) (*rpc.ServiceHostRefresh, erro
 	return &rpc.ServiceHostRefresh{From: h.Version, To: after.Version, Replaced: !h.Same, Restarted: h.Restarts(k.Revision), Error: msg}, err
 }
 
+// Tidy deletes the copies moved aside by a refresh that no running
+// service uses any more: the helper runs it after it starts or stops a
+// service, and State when it reads the host again (a service the SCM
+// restarted by itself). Read only without Files.
+func (k *HostKeeper) Tidy(ctx context.Context) error {
+	h, err := k.tidy(ctx, k.read(ctx))
+	k.mu.Lock()
+	k.last, k.at = &h, k.now()
+	k.mu.Unlock()
+	return err
+}
+
+// tidy runs h's TidyPlan and returns the host as it is after.
+func (k *HostKeeper) tidy(ctx context.Context, h Host) (Host, error) {
+	steps := h.TidyPlan()
+	if len(steps) == 0 || k.Files == nil {
+		return h, nil
+	}
+	err := service.Apply(ctx, steps, k.Exec, k.Files)
+	return k.read(ctx), err
+}
+
 func (k *HostKeeper) store(h Host, err string) {
 	k.mu.Lock()
 	k.last, k.at, k.err = &h, k.now(), err
@@ -78,7 +101,7 @@ func (k *HostKeeper) store(h Host, err string) {
 }
 
 // State is the host for status.get (nil when it is not installed), read
-// again at most every TTL.
+// again (and tidied) at most every TTL.
 func (k *HostKeeper) State(ctx context.Context) *rpc.ServiceHost {
 	ttl := k.TTL
 	if ttl <= 0 {
@@ -88,7 +111,7 @@ func (k *HostKeeper) State(ctx context.Context) *rpc.ServiceHost {
 	h, at, msg := k.last, k.at, k.err
 	k.mu.Unlock()
 	if h == nil || k.now().Sub(at) > ttl {
-		r := k.read(ctx)
+		r, _ := k.tidy(ctx, k.read(ctx))
 		h = &r
 		k.mu.Lock()
 		k.last, k.at = h, k.now()
@@ -97,5 +120,5 @@ func (k *HostKeeper) State(ctx context.Context) *rpc.ServiceHost {
 	if !h.Present {
 		return nil
 	}
-	return &rpc.ServiceHost{Path: h.Path, Version: h.Version, Stale: h.Stale(k.Revision), Error: msg}
+	return &rpc.ServiceHost{Path: h.Path, Version: h.Version, Stale: h.Stale(k.Revision), Aside: len(h.Aside), Error: msg}
 }

@@ -105,3 +105,29 @@ func TestDirs(t *testing.T) {
 		assertInherited(t, f)
 	}
 }
+
+// Secure makes an existing file and dir private, leaves a private one as
+// it is, and ignores a missing path.
+func TestSecure(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "prefs")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, "app.json")
+	if err := os.WriteFile(p, []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 { // idempotent
+		if err := Secure(dir); err != nil {
+			t.Fatal(err)
+		}
+		if err := Secure(p); err != nil {
+			t.Fatal(err)
+		}
+		assertPrivate(t, dir, true)
+		assertPrivate(t, p, false)
+	}
+	if err := Secure(filepath.Join(dir, "missing.json")); err != nil {
+		t.Fatalf("missing: %v", err)
+	}
+}

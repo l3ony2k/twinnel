@@ -67,6 +67,21 @@ func mkdir(dir string) error {
 	return nil
 }
 
+func secure(path string, dir bool) error {
+	want, err := SDDL(dir)
+	if err != nil {
+		return err
+	}
+	canon, err := Canonical(want)
+	if err != nil {
+		return err
+	}
+	if got, err := Describe(path); err == nil && got == canon {
+		return nil
+	}
+	return SetSecurity(path, want)
+}
+
 // SetSecurity replaces path's owner and DACL with those in sddl ("O:…D:P…"),
 // protected from inheritance: for a file or dir that already exists (the
 // helper's state dir, winsec.SecureStateDir). Setting an owner other than

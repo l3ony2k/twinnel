@@ -89,6 +89,40 @@ func IsAside(name string) bool {
 	return strings.HasPrefix(n, AsidePrefix) && strings.HasSuffix(n, AsideSuffix)
 }
 
+// InUse reports whether a running service was started from path (an
+// aside copy that cannot be deleted yet).
+func (h Host) InUse(path string) bool {
+	for _, s := range h.Services {
+		if s.Running && strings.EqualFold(s.Image, path) {
+			return true
+		}
+	}
+	return false
+}
+
+// Idle are the aside copies no running service uses: TidyPlan deletes
+// them. A copy whose user is unknown (no right to read the process's
+// image) counts as idle; Windows refuses to delete it while it runs.
+func (h Host) Idle() []string {
+	var out []string
+	for _, p := range h.Aside {
+		if !h.InUse(p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// TidyPlan deletes the aside copies no running service uses any more (a
+// service that restarted runs the host's own file). Empty when none.
+func (h Host) TidyPlan() []service.Step {
+	var steps []service.Step
+	for _, p := range h.Idle() {
+		steps = append(steps, service.Step{Kind: service.StepRemove, Path: p, IgnoreError: true})
+	}
+	return steps
+}
+
 // RefreshPlan brings the host up to date with src (the helper binary it
 // is a copy of): the services on an older revision are stopped, the file
 // is moved aside and replaced when it differs, those services start

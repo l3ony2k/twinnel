@@ -76,8 +76,9 @@ var labelWidth float32 = 96
 // column stays aligned; setLayout resets it.
 var labelGrown float32
 
-// labelMax is the widest the label column grows: a longer label is cut
-// rather than squeezing the values.
+// labelMax is the widest the label column grows: a longer label wraps
+// onto a second line (labelWraps) rather than squeezing the values or
+// being cut ("后台助手服务（Windows 服务）" in Microsoft YaHei UI).
 const labelMax = 200
 
 // labelCol is the label column kv rows share.
@@ -94,6 +95,11 @@ func growLabel(need float32) bool {
 	return true
 }
 
+// labelWraps reports whether a label that needs need wraps in a column
+// extra wider than labelCol: only one wider than labelMax does, as the
+// column grows to fit any other.
+func labelWraps(need, extra float32) bool { return need > labelCol()+extra }
+
 // kvLabel is a kv row's label column: the label, with an ⓘ after it when
 // tip is not empty, extra wider than labelCol. The column widens to fit
 // the label (growLabel) and redraws once so earlier rows line up.
@@ -106,11 +112,19 @@ func kvLabel(c *ui.Context, label, tip string, more func(), extra float32) ui.El
 	if growLabel(need - extra) {
 		c.Invalidate()
 	}
+	// A label wider than the capped column wraps (at the text line
+	// height) instead of being cut; every other label is one line.
+	text := func(e ui.Element) ui.Element {
+		if labelWraps(need, extra) {
+			return e.Wrap().LineHeight(lineText)
+		}
+		return e.SingleLine()
+	}
 	if tip == "" {
-		return ui.Text(c, label).TextColor(t.TextMuted).Width(labelCol() + extra).Shrink(0).SingleLine()
+		return text(ui.Text(c, label).TextColor(t.TextMuted).Width(labelCol() + extra).Shrink(0))
 	}
 	return ui.Row(c).Gap(4).AlignItems(ui.Center).Width(labelCol() + extra).Shrink(0).Children(func() {
-		ui.Text(c, label).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		text(ui.Text(c, label).TextColor(t.TextMuted).Shrink(1).MinWidth(0))
 		infoTipAbout(c, label, tip, more)
 	})
 }
