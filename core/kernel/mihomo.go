@@ -12,6 +12,7 @@
 package kernel
 
 import (
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -42,7 +43,6 @@ const (
 	defaultAPI  = "https://api.github.com"
 	defaultRepo = "MetaCubeX/mihomo"
 	alphaTag    = "Prerelease-Alpha"
-	binName     = "mihomo"
 	maxDownload = 256 << 20
 )
 
@@ -182,7 +182,7 @@ func (m *Manager) Has(version string) bool {
 	if !ValidVersion(version) {
 		return false
 	}
-	fi, err := os.Stat(filepath.Join(m.Dir, version, binName))
+	fi, err := os.Stat(filepath.Join(m.Dir, version, m.binName()))
 	return err == nil && fi.Mode().IsRegular()
 }
 
@@ -206,7 +206,7 @@ func (m *Manager) release(ctx context.Context, channel, path string) (Release, e
 		return Release{}, fmt.Errorf("GitHub release: %w", err)
 	}
 	re := regexp.MustCompile(`^mihomo-` + regexp.QuoteMeta(m.goos()) + `-` + regexp.QuoteMeta(m.goarch()) +
-		`-(v\d+\.\d+\.\d+|alpha-[0-9a-f]{7,40})\.gz$`)
+		`-(v\d+\.\d+\.\d+|alpha-[0-9a-f]{7,40})` + regexp.QuoteMeta(m.assetExt()) + `$`)
 	for _, a := range gr.Assets {
 		mm := re.FindStringSubmatch(a.Name)
 		if mm == nil {
@@ -266,12 +266,16 @@ func (m *Manager) Install(ctx context.Context, r Release) (State, error) {
 	}
 	defer os.RemoveAll(tmp)
 
-	gz := filepath.Join(tmp, "download.gz")
+	gz := filepath.Join(tmp, "download"+m.assetExt())
 	if err := m.download(ctx, r.URL, gz, want); err != nil {
 		return State{}, err
 	}
-	bin := filepath.Join(tmp, binName)
-	if err := gunzip(gz, bin); err != nil {
+	bin := filepath.Join(tmp, m.binName())
+	unpack := gunzip
+	if m.assetExt() == ".zip" {
+		unpack = unzipExe
+	}
+	if err := unpack(gz, bin); err != nil {
 		return State{}, err
 	}
 	os.Remove(gz)
@@ -402,7 +406,24 @@ func ProbeVersion(ctx context.Context, bin string) (string, error) {
 }
 
 // Binary is the path the service runs: <Dir>/current/mihomo.
-func (m *Manager) Binary() string { return filepath.Join(m.Dir, "current", binName) }
+func (m *Manager) Binary() string { return filepath.Join(m.Dir, "current", m.binName()) }
+
+// binName is the kernel's file name in a version dir.
+func (m *Manager) binName() string {
+	if m.goos() == "windows" {
+		return "mihomo.exe"
+	}
+	return "mihomo"
+}
+
+// assetExt is the release archive's extension: Windows builds come as a
+// zip holding one .exe, the others gzipped.
+func (m *Manager) assetExt() string {
+	if m.goos() == "windows" {
+		return ".zip"
+	}
+	return ".gz"
+}
 
 func (m *Manager) link(name string) (string, error) {
 	t, err := os.Readlink(filepath.Join(m.Dir, name))
@@ -418,9 +439,51 @@ func (m *Manager) setLink(name, version string) error {
 	if err := os.Symlink(version, tmp); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, filepath.Join(m.Dir, name)); err != nil {
+	if err := replaceLink(tmp, filepath.Join(m.Dir, name)); err != nil {
 		os.Remove(tmp)
 		return err
+	}
+	return nil
+}
+
+// unzipExe extracts the one .exe of a Windows release zip
+// (mihomo-windows-<arch>.exe) to dst.
+func unzipExe(src, dst string) error {
+	zr, err := zip.OpenReader(src)
+	if err != nil {
+		return fmt.Errorf("unpack: %w", err)
+	}
+	defer zr.Close()
+	var exe *zip.File
+	for _, f := range zr.File {
+		if f.FileInfo().Mode().IsRegular() && strings.EqualFold(filepath.Ext(f.Name), ".exe") {
+			if exe != nil {
+				return fmt.Errorf("unpack: more than one .exe in the archive (%s, %s)", exe.Name, f.Name)
+			}
+			exe = f
+		}
+	}
+	if exe == nil {
+		return errors.New("unpack: no .exe in the archive")
+	}
+	in, err := exe.Open()
+	if err != nil {
+		return fmt.Errorf("unpack: %w", err)
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	n, err := io.Copy(out, io.LimitReader(in, maxDownload+1))
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil && n > maxDownload {
+		err = errors.New("archive entry too large")
+	}
+	if err != nil {
+		return fmt.Errorf("unpack: %w", err)
 	}
 	return nil
 }
@@ -431,7 +494,7 @@ func (m *Manager) Switch(version string) error {
 	if !ValidVersion(version) {
 		return fmt.Errorf("invalid version %q", version)
 	}
-	if fi, err := os.Stat(filepath.Join(m.Dir, version, binName)); err != nil || !fi.Mode().IsRegular() {
+	if fi, err := os.Stat(filepath.Join(m.Dir, version, m.binName())); err != nil || !fi.Mode().IsRegular() {
 		return fmt.Errorf("version %s is not installed", version)
 	}
 	cur, err := m.link("current")
@@ -478,7 +541,7 @@ func (m *Manager) List() (State, error) {
 		if !e.IsDir() || !ValidVersion(e.Name()) {
 			continue
 		}
-		bin := filepath.Join(m.Dir, e.Name(), binName)
+		bin := filepath.Join(m.Dir, e.Name(), m.binName())
 		fi, err := os.Stat(bin)
 		if err != nil {
 			continue

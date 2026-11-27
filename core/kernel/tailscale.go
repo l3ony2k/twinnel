@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -19,14 +20,26 @@ const (
 	TSStandalone = "standalone" // Tailscale.app from pkgs.tailscale.com (NetworkExtension)
 	TSAppStore   = "appstore"   // Tailscale.app from the Mac App Store (NetworkExtension)
 	TSStatic     = "static"     // official static tailscale/tailscaled binaries
+	TSWindows    = "windows"    // the official Windows client (MSI/EXE installer)
 	TSUnknown    = "unknown"
 )
 
 // TailscaleCandidates are the CLI paths searched when none is configured.
-var TailscaleCandidates = []string{
-	"/opt/homebrew/bin/tailscale",
-	"/usr/local/bin/tailscale",
-	"/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+var TailscaleCandidates = tailscaleCandidates()
+
+func tailscaleCandidates() []string {
+	if runtime.GOOS == "windows" {
+		pf := os.Getenv("ProgramFiles")
+		if pf == "" {
+			pf = `C:\Program Files`
+		}
+		return []string{filepath.Join(pf, "Tailscale", "tailscale.exe")}
+	}
+	return []string{
+		"/opt/homebrew/bin/tailscale",
+		"/usr/local/bin/tailscale",
+		"/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+	}
 }
 
 // TailscaleInfo is what the helper reports about Tailscale. Nothing is
@@ -79,6 +92,14 @@ func (p *TailscaleProbe) Find() string {
 	return ""
 }
 
+// winBase is the last element of a Windows (or slash) path.
+func winBase(p string) string {
+	if i := strings.LastIndexAny(p, `\/`); i >= 0 {
+		return p[i+1:]
+	}
+	return p
+}
+
 // Kind classifies an install from the CLI path.
 func (p *TailscaleProbe) Kind(path string) string {
 	eval := p.EvalSymlinks
@@ -90,6 +111,8 @@ func (p *TailscaleProbe) Kind(path string) string {
 		real = r
 	}
 	switch {
+	case strings.EqualFold(winBase(real), "tailscale.exe"):
+		return TSWindows
 	case strings.Contains(real, "/Cellar/") || strings.HasPrefix(real, "/opt/homebrew/") || strings.Contains(real, "/homebrew/"):
 		return TSBrew
 	case strings.Contains(real, "Tailscale.app/"):
@@ -172,6 +195,7 @@ func (p *TailscaleProbe) Latest(ctx context.Context, kind string) (string, error
 		Version         string
 		TarballsVersion string
 		MacZipsVersion  string
+		MSIsVersion     string
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&v); err != nil {
 		return "", fmt.Errorf("pkgs.tailscale.com: %w", err)
@@ -185,6 +209,10 @@ func (p *TailscaleProbe) Latest(ctx context.Context, kind string) (string, error
 	case TSStandalone, TSAppStore:
 		if v.MacZipsVersion != "" {
 			pick = v.MacZipsVersion
+		}
+	case TSWindows:
+		if v.MSIsVersion != "" {
+			pick = v.MSIsVersion
 		}
 	}
 	if pick == "" {
