@@ -22,9 +22,11 @@ import (
 //
 // Warned: a non-loopback controller with a secret.
 func exposureCheck(final []byte, st *store.Settings) (warnings []string, errs []string) {
-	secret, _ := topLevel(final, "secret")
+	// One parse for every key (a large config takes tens of ms each).
+	top := topLevels(final, "secret", "external-controller", "external-controller-tls", "external-controller-unix", "external-controller-pipe")
+	secret := top["secret"]
 	for _, key := range []string{"external-controller", "external-controller-tls"} {
-		addr, ok := topLevel(final, key)
+		addr, ok := top[key]
 		if !ok || strings.TrimSpace(addr) == "" {
 			continue
 		}
@@ -38,7 +40,7 @@ func exposureCheck(final []byte, st *store.Settings) (warnings []string, errs []
 		}
 	}
 	for _, key := range []string{"external-controller-unix", "external-controller-pipe"} {
-		p, ok := topLevel(final, key)
+		p, ok := top[key]
 		if !ok || strings.TrimSpace(p) == "" {
 			continue
 		}

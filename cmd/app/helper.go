@@ -64,6 +64,10 @@ func (a *app) startHelper() {
 	}
 	hc.OnEvents = func(evs []rpc.Event) {
 		mygo.RunOnMain(func() {
+			evs = a.takeStages(evs)
+			if len(evs) == 0 {
+				return // only progress: nothing to reload
+			}
 			a.hd.lastEvent = evs[len(evs)-1]
 			a.recordEvents(evs)
 			if credentialsEvent(evs) {
@@ -126,6 +130,9 @@ type helperData struct {
 	unappliedCheck bool // a check runs
 	unappliedAgain bool // something changed during it: check again
 	unappliedErr   bool // the last check failed: whether 应用 has work is unknown
+	// applyStage is the running apply's stage (rpc.Stage*), from the
+	// helper's compose.stage events; "" before the first.
+	applyStage string
 
 	cfg   configView
 	hist  historyView
@@ -254,7 +261,8 @@ func opResult(label string) (text string, quiet bool) {
 }
 
 // checkUnapplied asks the helper whether the composed config differs from
-// the one mihomo runs (compose.preview, read-only), for unappliedNote.
+// the one mihomo runs (compose.status: no mihomo -t, so it stays quick
+// after every save), for unappliedNote.
 // One check at a time; a change meanwhile asks again. Main thread.
 func (a *app) checkUnapplied() {
 	d := &a.hd
@@ -270,8 +278,7 @@ func (a *app) checkUnapplied() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
-		var r rpc.ComposeResult
-		err := hc.Call(ctx, rpc.MethodComposePreview, nil, &r)
+		r, err := composeStatus(ctx, hc)
 		mygo.RunOnMain(func() {
 			d.unappliedCheck = false
 			d.unapplied = err == nil && r.Changed // unknown reads as nothing to apply

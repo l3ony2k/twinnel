@@ -557,6 +557,7 @@ var en = Strings{
 	SetupStrings:           enSetup,
 	WizardStrings:          enWizard,
 	ConfigUIStrings:        enConfigUI,
+	ProgressStrings:        enProgress,
 	LifecycleStrings:       enLifecycle,
 	TakeoverExplainStrings: enTakeoverExplain,
 	InfoTipStrings:         enInfoTips,

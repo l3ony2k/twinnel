@@ -53,7 +53,7 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | Group | Methods |
 |---|---|
 | status | `status.get` |
-| compose | `compose.preview`, `compose.apply` |
+| compose | `compose.preview`, `compose.apply`, `compose.status` (hash and whether the composed config differs from the file on disk, without `mihomo -t`: the app's 未应用 check after every edit) |
 | history | `history.list`, `history.rollback` |
 | layers | `layer.list`, `layer.get`, `layer.put`, `layer.delete`, `layer.set_enabled`, `layer.reorder` |
 | subscriptions | `subscription.list`, `subscription.put`, `subscription.delete`, `subscription.activate`, `subscription.refresh` |
@@ -69,7 +69,7 @@ This describes the code as it is. Product goals are in `requirements.md`, the or
 | controller | `controller.credentials` (the controller address and the secret mihomo loaded, for the app; any authorized peer can already reconfigure mihomo), `controller.secure` (generate a secret, store it, write it into the config and reload; it takes effect at mihomo's next start) |
 | takeover | `takeover.plan` (discover, plan and keep the plan under `<state>/takeover/<id>/`), `takeover.plans`, `takeover.discard`, `takeover.adopt {plan_id, confirm_hash}`, `takeover.undo {dry_run}` (write back the pre-takeover copy, remove what adopt imported) (see [Takeover](#takeover)) |
 | harden | `service.harden.plan`, `service.harden.plans`, `service.harden.apply`: move an adopted mihomo to the managed kernel, a root-owned config dir and Twinnel's LaunchDaemon in one restart (macOS; see [Takeover](#takeover)) |
-| events | `events.wait {after, timeout_ms}`: long-poll on a ring buffer. Types: `compose.applied/failed`, `state.changed`, `subscription.updated/failed`, `tailnet.changed`, `kernel.changed`, `check.changed`, `health.updated`, `accessory.changed`, `service.changed`, `takeover.changed`, `helper.started/stopping`, `events.truncated`. |
+| events | `events.wait {after, timeout_ms}`: long-poll on a ring buffer. Types: `compose.applied/failed`, `state.changed`, `subscription.updated/failed`, `tailnet.changed`, `kernel.changed`, `check.changed`, `health.updated`, `accessory.changed`, `service.changed`, `takeover.changed`, `helper.started/stopping`, `events.truncated`, `compose.stage` (an apply's or rollback's progress: `validate`, `write`, `reload`, `verify`; clients show it and keep it out of logs). |
 
 No method takes a filesystem path or a command. Paths (mihomo binary, config dir and file, controller address, service labels) live only in the helper's `settings.json`. Error codes besides JSON-RPC's own: -32001 unauthorized, -32002 failed, -32003 not found, -32004 busy, -32005 not implemented.
 
@@ -79,7 +79,7 @@ No method takes a filesystem path or a command. Paths (mihomo binary, config dir
 
 1. **Compose** the active subscription with the enabled layers. Layers are sorted by stage: `base` → `user` (in saved order) → `coexist` (Tailscale, generated) → `guard` (leak guard, generated), so the guard always runs last and the Tailscale rules end up at the very top.
 2. **Strip** the top-level `secret`. Hashes and history use this form.
-3. **Validate** with the official `mihomo -t` in a temp dir (geo files copied in, the real config dir allowed as a safe path). If it fails, nothing is written.
+3. **Validate** with the official `mihomo -t` in a temp dir next to `<state>/validate/geo`, the real config dir allowed as a safe path. The config dir's geo files are copied once into that cache (again when they change) and hard-linked into each run; geo files a passing run had to download are kept there too. A passing result is remembered by the bytes, the binary and the geo files, so a preview followed by an apply runs `mihomo -t` once. If it fails, nothing is written.
 4. Unchanged bytes are a no-op unless forced. If mihomo is not running, the file is written and used at the next start (with a warning).
 5. **Back up** the file on disk if it is not already the latest history entry (its `secret:` line removed).
 6. **Write** atomically, re-inserting the controller secret (from the secret store, a layer, or the file being replaced), keeping the file mode. When there is no secret anywhere and the helper manages the config (no file yet, or the file lives in the state dir), it generates one into the secret store and says so in a warning.

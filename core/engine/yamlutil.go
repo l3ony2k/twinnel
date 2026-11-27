@@ -2,6 +2,7 @@ package engine
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 
 	"github.com/l3ony2k/twinnel/core/config"
@@ -24,6 +25,25 @@ func topLevel(cfg []byte, key string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// topLevels is topLevel for several keys with one parse: the scalar
+// values found, by key.
+func topLevels(cfg []byte, keys ...string) map[string]string {
+	out := map[string]string{}
+	root, err := config.Parse(cfg)
+	if err != nil {
+		return out
+	}
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		k := root.Content[i].Value
+		if root.Content[i+1].Kind == yaml.ScalarNode && slices.Contains(keys, k) {
+			if _, seen := out[k]; !seen {
+				out[k] = root.Content[i+1].Value
+			}
+		}
+	}
+	return out
 }
 
 // withoutSecret removes the top-level secret from an encoded config. The
