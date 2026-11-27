@@ -239,5 +239,47 @@ func TestSaveStageTimings(t *testing.T) {
 				})
 			}
 		}
+		// The helper's path with the real binary and the geo files in the
+		// config dir: the first check fills the geo cache; later ones
+		// link it, and an apply of what a preview checked skips -t.
+		if geo := os.Getenv("TWINNEL_BENCH_GEO"); geo != "" {
+			st, _ := e.Store.Settings()
+			es, _ := os.ReadDir(geo)
+			for _, de := range es {
+				b, _ := os.ReadFile(filepath.Join(geo, de.Name()))
+				os.WriteFile(filepath.Join(st.Mihomo.ConfigDir, de.Name()), b, 0o644)
+			}
+			e.Store.UpdateSettings(func(st *store.Settings) error { st.Mihomo.Binary = bin; return nil })
+			e.Validate = nil
+			for i := 0; i < 3; i++ {
+				e.PutLayer(rpc.LayerPutParams{ID: "lan", Content: fmt.Sprintf("+rules:\n  - GEOSITE,cn,DIRECT\n  - DOMAIN-SUFFIX,lan%d.example,DIRECT\n", i)})
+				stage("status (helper path)", func() error { _, err := e.ComposeStatus(ctx); return err })
+				stage("preview (real -t, geo)", func() error {
+					r, err := e.Preview(ctx)
+					if err == nil && !r.Valid {
+						t.Logf("invalid: %v", r.ValidateErrors)
+					}
+					return err
+				})
+				stage("apply after preview", func() error { _, err := e.Apply(ctx, rpc.ApplyParams{Reason: "bench"}); return err })
+			}
+		}
+	}
+}
+
+// BenchmarkApply10k is compose.apply of a changed 10k-rule config with
+// mihomo -t stubbed out and no mihomo to reload: compose, checks, backup,
+// write, history.
+func BenchmarkApply10k(b *testing.B) {
+	sb := newSaveBench(b, benchRules, okValidate)
+	ctx := context.Background()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		sb.e.PutLayer(rpc.LayerPutParams{ID: "lan", Content: fmt.Sprintf("+rules:\n  - DOMAIN-SUFFIX,lan%d.example,DIRECT\n", i)})
+		b.StartTimer()
+		if _, err := sb.e.Apply(ctx, rpc.ApplyParams{Reason: "bench"}); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
