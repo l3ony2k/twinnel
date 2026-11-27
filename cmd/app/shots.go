@@ -76,6 +76,11 @@ func (a *app) shots(dir string) {
 			mygo.App.Quit()
 			return
 		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "configui" { // shots_configui.go
+			a.configUIShots(save)
+			mygo.App.Quit()
+			return
+		}
 		if os.Getenv("DUET_SHOTS_FLOW") == "takeover" {
 			a.takeoverE2E(save)
 			mygo.App.Quit()

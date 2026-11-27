@@ -18,9 +18,7 @@ func (e *Engine) Register(s *rpc.Server) {
 
 	rpc.Typed(s, rpc.MethodComposePreview, func(ctx context.Context, _ rpc.Empty) (rpc.ComposeResult, error) { return e.Preview(ctx) })
 	rpc.Typed(s, rpc.MethodComposeApply, func(ctx context.Context, p rpc.ApplyParams) (*rpc.ApplyResult, error) {
-		if p.Reason == "" {
-			p.Reason = "manual"
-		}
+		// No reason: Apply records the code "apply" (a client words it).
 		return e.Apply(ctx, p)
 	})
 
