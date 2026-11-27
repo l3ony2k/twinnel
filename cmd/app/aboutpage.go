@@ -36,7 +36,14 @@ type aboutView struct {
 	cliLoaded  bool
 
 	faqOpen map[string]bool
+
+	// reveal is a section to scroll to in the next frame (the anchor a
+	// link on another page names, e.g. 了解接管); "" none.
+	reveal string
 }
+
+// aboutTakeoverAnchor is 接管是什么, the target of 了解接管 (接管 page).
+const aboutTakeoverAnchor = "takeover"
 
 // appIconImage is the app icon, decoded once.
 var appIconImage = func() ui.ImageSource {
@@ -112,6 +119,7 @@ func (a *app) aboutPage(c *ui.Context, s status.Snapshot) {
 	a.aboutComponents(c, s)
 	a.aboutBasics(c, s)
 	a.aboutSteps(c, s)
+	a.aboutTakeover(c)
 	a.aboutFAQ(c)
 	aboutLinks(c)
 }
@@ -228,8 +236,12 @@ func (a *app) aboutBasics(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	card(c, T.AboutBasics, func() {
 		pathRow(c, "prefs", T.AppPrefs, a.cfgPath)
-		if st := s.Helper.Status; st != nil && st.Mihomo.ConfigPath != "" {
-			pathRow(c, "mihomo-config", T.MihomoConfigRow, st.Mihomo.ConfigPath)
+		// The config the running mihomo uses: the helper's own path is
+		// duet's default until the takeover.
+		if p := a.liveConfigPath(s); p != "" {
+			pathRow(c, "mihomo-config", T.MihomoConfigRow, p)
+		} else if a.live.loaded || a.shotMode {
+			kv(c.Key("mihomo-config"), T.MihomoConfigRow, T.TkNotDetected)
 		}
 		in := s.Tailscale.Install
 		ts := T.InstallKind(string(in.Kind)) + sourceSuffix(in.Source)
@@ -334,6 +346,73 @@ func (a *app) aboutFAQ(c *ui.Context) {
 				}
 			})
 		}
+	})
+}
+
+// aboutTakeover: 接管是什么, in detail: before and after as a flow, what
+// takeover changes on disk, how to change the config afterwards, how to
+// undo it, and when not to take over. 了解接管 on the 接管 page scrolls
+// here (aboutView.reveal).
+func (a *app) aboutTakeover(c *ui.Context) {
+	t := c.Theme()
+	T := i18n.T
+	sub := func(title string) {
+		ui.Text(c, title).FontWeight(plat.headingWeight).SingleLine().Margin(4, 0, 0, 0)
+	}
+	para := func(text string) {
+		ui.Text(c, text).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
+	}
+	el := card(c, T.AboutTakeover, func() {
+		flowRow(c, "now", T.TkNow, T.AbtTkYourConfig, "mihomo")
+		flowRow(c, "after", T.TkAfter, T.AbtTkSub+" + "+T.AbtTkLayers, T.AbtTkComposed, "mihomo")
+
+		sub(T.AbtTkChanges)
+		ui.Column(c).Gap(4).Children(func() {
+			for i, line := range []string{T.AbtTkBackup, T.AbtTkRewrite, T.AbtTkKeep, T.AbtTkAutoUndo} {
+				ui.Row(c.Key(fmt.Sprint("chg", i))).Gap(8).AlignItems(ui.Start).Children(func() {
+					// The bullet sits on the first line's middle.
+					ui.Box(c).Height(plat.calloutSize * lineText).AlignItems(ui.Center).Justify(ui.Center).Shrink(0).Children(func() {
+						dot(c, t.TextMuted, 4)
+					})
+					para(line)
+				})
+			}
+		})
+
+		sub(T.AbtTkEdit)
+		para(T.AbtTkEditBody)
+		if actionLink(c.Key("go-config"), T.PageConfig).Clicked() {
+			a.showPage(pageConfig)
+		}
+
+		sub(T.AbtTkUndo)
+		para(T.AbtTkUndoBody)
+		if actionLink(c.Key("go-leave"), T.LeavePage).Clicked() {
+			a.showPage(pageLeave)
+		}
+
+		sub(T.AbtTkWhenNot)
+		para(T.AbtTkWhenNotBody)
+	})
+	if a.about.reveal == aboutTakeoverAnchor {
+		a.about.reveal = ""
+		el.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollStart, Animation: &rowMove})
+	}
+}
+
+// flowRow is one line of the before/after picture: a label, then the
+// steps as quiet chips joined by arrows.
+func flowRow(c *ui.Context, key, label string, steps ...string) {
+	t := c.Theme()
+	kvWith(c.Key(key), label, func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Shrink(1).Children(func() {
+			for i, st := range steps {
+				if i > 0 {
+					ui.Icon(c, iconCollapsed).FontSize(iconInline).TextColor(t.TextMuted).Shrink(0)
+				}
+				tag(c.Key(fmt.Sprint("step", i)), st)
+			}
+		})
 	})
 }
 

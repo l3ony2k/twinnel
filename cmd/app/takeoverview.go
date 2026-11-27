@@ -25,6 +25,9 @@ func (a *app) takeoverPage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	v := &a.hd.take
 	pageTitle(c, T.PageTakeover)
+	if !a.takeoverAdopted() && a.section("plan") {
+		a.takeoverIntro(c)
+	}
 	if !v.fixture && !a.helperGate(c, s) {
 		return
 	}
@@ -71,15 +74,66 @@ func (a *app) takeoverAdopted() bool {
 	return false
 }
 
-// takeoverEmpty: before any plan, what runs now (from the status the
-// app already has), then 生成接管计划 with a 只读 badge: making a plan
-// changes nothing.
+// takeoverIntro: what takeover does, in one line and three points, and
+// 了解接管, which opens 关于 at 接管是什么. Drawn until duet took over.
+func (a *app) takeoverIntro(c *ui.Context) {
+	t := c.Theme()
+	T := i18n.T
+	groupBox(c, t).Gap(10).Children(func() {
+		ui.Text(c, T.TkIntroLead).FontWeight(plat.headingWeight).Wrap().LineHeight(lineText)
+		ui.Column(c).Gap(6).Children(func() {
+			for i, p := range []struct {
+				icon *ui.SVG
+				text string
+			}{
+				{iconConfig, T.TkIntroManage},
+				{iconService, T.TkIntroKeep},
+				{iconRollback, T.TkIntroUndo},
+			} {
+				ui.Row(c.Key(fmt.Sprint("intro", i))).Gap(8).AlignItems(ui.Start).Children(func() {
+					ui.Icon(c, p.icon).FontSize(iconInline).TextColor(t.Accent).MarginY(1).Shrink(0)
+					ui.Text(c, p.text).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Shrink(1)
+				})
+			}
+		})
+		if actionLink(c.Key("learn"), T.TkLearnMore).Clicked() {
+			a.openAboutTakeover()
+		}
+	})
+}
+
+// openAboutTakeover opens 关于 scrolled to 接管是什么.
+func (a *app) openAboutTakeover() {
+	a.about.reveal = aboutTakeoverAnchor
+	a.showPage(pageAbout)
+}
+
+// tipHead is a card heading with an ⓘ right after the title (infoTip:
+// what the card is for), then trailing at the right. For headedCard and
+// listCard.
+func (a *app) tipHead(c *ui.Context, title, tip string, more func(), trailing ...func()) func() {
+	return func() {
+		ui.Text(c, title).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine()
+		infoTip(c, title, tip, more)
+		ui.Spacer(c)
+		for _, f := range trailing {
+			if f != nil {
+				f()
+			}
+		}
+	}
+}
+
+// takeoverEmpty: before any plan, what runs now (the running mihomo's
+// service, binary and config, detected as a plan would; the helper's own
+// settings are duet's defaults until the takeover), then 生成接管计划
+// with its note: making a plan changes nothing.
 func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	d := &a.hd
 	v := &d.take
-	card(c, T.TakeoverFound, func() {
+	headedCard(c, a.tipHead(c, T.TakeoverFound, T.TipFound, nil), func() {
 		if v.unsupported {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText)
@@ -92,11 +146,14 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 			}
 			return T.TkFoundNotRunning
 		}
-		if st := s.Helper.Status; st != nil && st.Mihomo.ConfigPath != "" {
-			kvWith(c, T.TakeoverLive, func() {
-				ui.Text(c, filepath.Base(st.Mihomo.ConfigPath)).SingleLine().Tooltip(st.Mihomo.ConfigPath)
-				meta(c, filepath.Dir(st.Mihomo.ConfigPath)).Shrink(1)
+		a.liveFileRow(c, "config", T.TakeoverLive, a.liveConfigPath(s))
+		if l := a.live; l.Label != "" {
+			kvWith(c.Key("service"), T.TkFoundService, func() {
+				ui.Text(c, l.Label).SingleLine().Shrink(1).Selectable().Tooltip(l.Plist)
 			})
+		}
+		if l := a.live; l.Binary != "" {
+			a.liveFileRow(c, "binary", T.TkFoundBinary, l.Binary)
 		}
 		mv := running(s.Mihomo.Reachable)
 		if s.Mihomo.Version != "" {
@@ -113,7 +170,7 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 			if v.loading {
 				ui.Spinner(c)
 			}
-			tag(c, T.TkReadOnly)
+			small(c, T.TkPlanNote).SingleLine().Shrink(1)
 			// Planning is read-only for the system (the helper writes the
 			// plan into its own state dir), so it needs no write permission.
 			can := s.Helper.Connected() && d.busy == "" && !v.unsupported && !v.fixture
@@ -123,6 +180,24 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 		})
 		if v.listErr != "" {
 			errorNote(c, T.ErrorPrefix+v.listErr)
+		}
+	})
+}
+
+// liveFileRow is a file of the running setup: its name, the folder after
+// it; 未检测到 once detection found nothing, 加载中 before it finished.
+func (a *app) liveFileRow(c *ui.Context, key, label, path string) {
+	t := c.Theme()
+	T := i18n.T
+	kvWith(c.Key(key), label, func() {
+		switch {
+		case path != "":
+			ui.Text(c, filepath.Base(path)).SingleLine().Shrink(0).Selectable().Tooltip(path)
+			meta(c, filepath.Dir(path)).Shrink(1)
+		case a.live.loaded || a.shotMode:
+			ui.Text(c, T.TkNotDetected).TextColor(t.TextMuted).SingleLine()
+		default:
+			ui.Text(c, T.Loading).TextColor(t.TextMuted).SingleLine()
 		}
 	})
 }
@@ -144,7 +219,7 @@ func (a *app) takeoverPlanList(c *ui.Context, s status.Snapshot) {
 			a.takeoverMakePlan("")
 		}
 	}
-	listCard(c, listHead(c, nil, T.TakeoverPlans, trailing), func() {
+	listCard(c, a.tipHead(c, T.TakeoverPlans, T.TipPlans, nil, trailing), func() {
 		for _, p := range v.plans {
 			a.takeoverPlanRow(c, s, p)
 		}
@@ -293,7 +368,7 @@ func (a *app) takeoverEffectsCard(c *ui.Context, p *rpc.TakeoverPlan) {
 		a.takeoverFoundLegacy(c, p)
 		return
 	}
-	listCard(c, listHead(c, nil, T.TakeoverFound, nil), func() {
+	listCard(c, a.tipHead(c, T.TakeoverFound, T.TipEffects, nil), func() {
 		listRow(c).Children(func() {
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, "").Width(effectItemWidth).Shrink(0)
@@ -372,7 +447,7 @@ func (a *app) takeoverBaseCard(c *ui.Context, p *rpc.TakeoverPlan) {
 			others = append(others, cd)
 		}
 	}
-	listCard(c, listHead(c, nil, T.TakeoverBase, trailing), func() {
+	listCard(c, a.tipHead(c, T.TakeoverBase, T.TipBase, nil, trailing), func() {
 		// The rule: the result must behave like the running config.
 		listRow(c).Children(func() {
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
@@ -469,7 +544,7 @@ func (a *app) takeoverPickBase(live string) {
 func (a *app) takeoverLayersCard(c *ui.Context, p *rpc.TakeoverPlan) {
 	t := c.Theme()
 	T := i18n.T
-	card(c, T.Layers, func() {
+	headedCard(c, a.tipHead(c, T.Layers, T.TipLayers, nil), func() {
 		if len(p.Layers) == 0 {
 			small(c, T.TakeoverNoLayers)
 		}
@@ -500,7 +575,7 @@ func (a *app) takeoverVerdictCard(c *ui.Context, p *rpc.TakeoverPlan) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.take
-	card(c, T.TakeoverVerdict, func() {
+	headedCard(c, a.tipHead(c, T.TakeoverVerdict, T.TipVerdict, nil), func() {
 		verdict, col := T.TakeoverEquivalent, t.Success
 		if !p.Equivalent {
 			verdict, col = T.TakeoverNotEquivalent, t.Warning
@@ -777,7 +852,7 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.take
-	card(c, T.TakeoverAdopt, func() {
+	headedCard(c, a.tipHead(c, T.TakeoverAdopt, T.TipAdopt, a.openAboutTakeover), func() {
 		switch p.State {
 		case rpc.PlanAdopted:
 			at := ""
@@ -1117,7 +1192,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.take
-	card(c, T.SecureTitle, func() {
+	headedCard(c, a.tipHead(c, T.SecureTitle, T.TipSecure, nil), func() {
 		set := a.creds.cur != nil && a.creds.cur.Secret != ""
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, T.TkSecretState).TextColor(t.TextMuted).Width(labelWidth).Shrink(0)
