@@ -21,6 +21,11 @@ type texts struct {
 	stepPortMove, stepPortWrite, stepPortRestart   string
 	stepPortNote                                   string
 	stepTUNStack, stepTUNRebuild, layerTUNStack    string
+	// The undo's preview (UndoPreview).
+	undoLayerBack, undoLayerDelete, undoLayerHistory string
+	undoSettings, undoDNS, undoMode, undoExit        string
+	undoAutostart, undoNothing                       string
+	undoFailsAgain, undoFailsReason                  string
 }
 
 var zh = texts{
@@ -53,6 +58,17 @@ var zh = texts{
 	stepTUNStack:          "加一个覆写：tun.stack 改为 gvisor",
 	stepTUNRebuild:        "TUN 会重建，网络断一两秒",
 	layerTUNStack:         "TUN 用 gvisor 栈",
+	undoLayerBack:         "覆写「%s」恢复为修复前的内容",
+	undoLayerDelete:       "删除修复加的覆写「%s」",
+	undoLayerHistory:      "覆写「%s」恢复为历史记录 %s 里的内容",
+	undoSettings:          "设置恢复为修复前的值",
+	undoDNS:               "各网络连接的 DNS 恢复为修复前的设置",
+	undoMode:              "mihomo 切回 %s 模式",
+	undoExit:              "Tailscale 重新使用出口节点 %s",
+	undoAutostart:         "重新启用这些自启动项：%s",
+	undoNothing:           "这个修复没有改动覆写或设置，没有可撤销的内容",
+	undoFailsAgain:        "撤销后回到修复前的状态，这项检查会再次不通过。",
+	undoFailsReason:       "撤销后回到修复前的状态，这个问题会再出现：%s",
 }
 
 var en = texts{
@@ -85,6 +101,17 @@ var en = texts{
 	stepTUNStack:          "Add an override: tun.stack becomes gvisor",
 	stepTUNRebuild:        "The TUN is rebuilt; the network drops for a second or two",
 	layerTUNStack:         "TUN on the gvisor stack",
+	undoLayerBack:         "Put the override “%s” back as it was before the fix",
+	undoLayerDelete:       "Remove the override “%s” the fix added",
+	undoLayerHistory:      "Put the override “%s” back as in history entry %s",
+	undoSettings:          "Put the settings back as they were before the fix",
+	undoDNS:               "Put the DNS of the network connections back as before the fix",
+	undoMode:              "Switch mihomo back to %s mode",
+	undoExit:              "Use the Tailscale exit node %s again",
+	undoAutostart:         "Enable these autostart entries again: %s",
+	undoNothing:           "this fix changed no override or setting, so there is nothing to undo",
+	undoFailsAgain:        "Undoing goes back to the state before the fix, and this check fails again.",
+	undoFailsReason:       "Undoing goes back to the state before the fix, and this problem comes back: %s",
 }
 
 func tx(tag string) *texts {

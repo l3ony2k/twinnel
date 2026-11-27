@@ -65,3 +65,53 @@ func TestDoctorFix(t *testing.T) {
 		}
 	}
 }
+
+// fixHelper restores the DNS on dns.restore.
+func (h *fixHelper) restore() { h.pointed = false }
+
+// doctor --undo says what the undo does and that the check fails again,
+// and asks before it runs.
+func TestDoctorUndoWarns(t *testing.T) {
+	for _, answer := range []string{"n\n", "y\n"} {
+		h := &undoHelper{fixHelper{pointed: true}}
+		var out bytes.Buffer
+		err := runDoctorFix(fixOptions{undo: `{"action":"system-dns","check":"system-dns","reason":"` + health.ReasonDNSNotMihomo + `","dns":true}`,
+			in: strings.NewReader(answer), out: &out,
+			fixer: func(context.Context) (*healthfix.Fixer, func(), error) {
+				return &healthfix.Fixer{Helper: h, Lang: "en", Platform: health.Darwin}, func() {}, nil
+			}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := out.String()
+		if !strings.Contains(s, "comes back") || !strings.Contains(s, "undo? [y/N]") {
+			t.Errorf("no warning before the undo:\n%s", s)
+		}
+		if (answer == "y\n") == h.pointed {
+			t.Errorf("answer %q: pointed %v\n%s", answer, h.pointed, s)
+		}
+	}
+}
+
+type undoHelper struct{ fixHelper }
+
+func (h *undoHelper) Call(ctx context.Context, method string, p, result any) error {
+	if method == rpc.MethodDNSRestore {
+		h.restore()
+		return nil
+	}
+	return h.fixHelper.Call(ctx, method, p, result)
+}
+
+// The printed undo is one single-quoted word in sh and PowerShell even
+// when a layer's content has a quote.
+func TestUndoArgQuotes(t *testing.T) {
+	a := undoArg(&healthfix.Undo{Action: "x", Layers: []healthfix.LayerBefore{{ID: "l", Content: "name: 'it''s'\n"}}})
+	if strings.Contains(a, "'") {
+		t.Fatalf("quote in %s", a)
+	}
+	var u healthfix.Undo
+	if err := json.Unmarshal([]byte(a), &u); err != nil || u.Layers[0].Content != "name: 'it''s'\n" {
+		t.Fatalf("%+v %v", u, err)
+	}
+}

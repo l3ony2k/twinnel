@@ -24,7 +24,7 @@
 
 | 原因 | 修法 |
 |---|---|
-| `tun-dataplane/tcp-dead`（栈不是 gvisor） | 一键 `tun-stack-gvisor`：加覆写 `tun-stack`（`tun:\n  stack: gvisor`），应用；撤销删掉它再应用。同 id 的覆写已存在时，失败会写回原内容，撤销改为回滚到修复前的历史。 |
+| `tun-dataplane/tcp-dead`（栈不是 gvisor） | 一键 `tun-stack-gvisor`：加覆写 `tun-stack`（`tun:\n  stack: gvisor`），应用。同 id 的覆写已存在时保留它的位置和名字，修复前的内容记在撤销里；撤销把覆写写回修复前的样子（原来没有就删掉）再应用，覆写库和运行中的配置一起回去（见 health-fixes.md「撤销」）。 |
 | `tun-dataplane/tcp-dead-gvisor` | 一键 `restart-mihomo` |
 | `tun-dataplane/dial-failed`（不是超时的出错） | 一键 `rerun` |
 

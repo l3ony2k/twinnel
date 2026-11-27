@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -13,26 +14,83 @@ import (
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
-// fakeHelper answers the helper methods the fixes use and remembers the
-// state they change. health.run reports the fixed check as ok once a
-// write that fixes it happened.
+// fakeHelper is a fake engine: it answers the helper methods the fixes
+// use and keeps the state they change, as the helper does. The layer
+// store (layers, settings) is what layer.* and settings.* change; the
+// running config is what compose.apply composes from the store, and what
+// history.rollback puts back without touching the store. health.run
+// reports the fixed check as ok once a write that fixes it happened.
 type fakeHelper struct {
 	calls    []string
 	settings rpc.Settings
-	layers   map[string]string
+	layers   []fakeLayer // stored, in order
+	running  string      // the running config (composed)
+	history  []fakeEntry
 	dns      rpc.DNSStatus
+	pointed  bool
+	disabled []string // autostart entries off
 	fixed    bool
 	failOn   string
+	failAt   int // fail the failOn call number failAt (0: every one)
+	seen     map[string]int
+}
+
+type fakeLayer struct {
+	rpc.LayerContent
+}
+
+type fakeEntry struct {
+	id      string
+	running string
+	layers  []fakeLayer
 }
 
 func newFakeHelper() *fakeHelper {
-	return &fakeHelper{layers: map[string]string{},
+	return &fakeHelper{seen: map[string]int{},
 		dns: rpc.DNSStatus{Supported: true, Target: []string{"127.0.0.1"}, Services: []rpc.DNSService{{Name: "Wi-Fi", Servers: []string{"192.168.1.1"}}}}}
+}
+
+// layer is the content of a stored layer ("" when there is none).
+func (h *fakeHelper) layer(id string) (string, bool) {
+	for _, l := range h.layers {
+		if l.ID == id {
+			return l.Content, true
+		}
+	}
+	return "", false
+}
+
+func (h *fakeHelper) put(l rpc.LayerContent) {
+	for i := range h.layers {
+		if h.layers[i].ID == l.ID {
+			h.layers[i].LayerContent = l
+			return
+		}
+	}
+	h.layers = append(h.layers, fakeLayer{l})
+}
+
+// compose is the config the store composes to.
+func (h *fakeHelper) compose() string {
+	var b strings.Builder
+	for _, l := range h.layers {
+		if l.Enabled {
+			b.WriteString("# " + l.ID + "\n" + l.Content + "\n")
+		}
+	}
+	if h.settings.TailscaleCoexist {
+		b.WriteString("# coexist\n")
+	}
+	if len(h.settings.LeakGuardGroups) > 0 {
+		b.WriteString("# guard " + strings.Join(h.settings.LeakGuardGroups, ",") + "\n")
+	}
+	return b.String()
 }
 
 func (h *fakeHelper) Call(_ context.Context, method string, params, result any) error {
 	h.calls = append(h.calls, method)
-	if method == h.failOn {
+	h.seen[method]++
+	if method == h.failOn && (h.failAt == 0 || h.failAt == h.seen[method]) {
 		return errors.New("refused by the fake")
 	}
 	set := func(v any) {
@@ -51,22 +109,84 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 			h.settings.TailscaleCoexist = *u.TailscaleCoexist
 		}
 		if u.LeakGuardGroups != nil {
-			h.settings.LeakGuardGroups = *u.LeakGuardGroups
+			h.settings.LeakGuardGroups = slices.Clone(*u.LeakGuardGroups)
 		}
+	case rpc.MethodLayerGet:
+		id := params.(rpc.IDParams).ID
+		for _, l := range h.layers {
+			if l.ID == id {
+				set(l.LayerContent)
+				return nil
+			}
+		}
+		return rpc.ErrNotFound("layer", id)
 	case rpc.MethodLayerPut:
 		p := params.(rpc.LayerPutParams)
-		h.layers[p.ID] = p.Content
+		l := rpc.LayerContent{Layer: rpc.Layer{ID: p.ID, Name: p.ID, Stage: "user", Format: "merge", Enabled: true}}
+		for _, x := range h.layers {
+			if x.ID == p.ID {
+				l = x.LayerContent
+			}
+		}
+		if p.Name != "" {
+			l.Name = p.Name
+		}
+		if p.Stage != "" {
+			l.Stage = p.Stage
+		}
+		if p.Format != "" {
+			l.Format = p.Format
+		}
+		if p.Enabled != nil {
+			l.Enabled = *p.Enabled
+		}
+		l.Content = p.Content
+		h.put(l)
 	case rpc.MethodLayerDelete:
-		delete(h.layers, params.(rpc.IDParams).ID)
+		id := params.(rpc.IDParams).ID
+		i := slices.IndexFunc(h.layers, func(l fakeLayer) bool { return l.ID == id })
+		if i < 0 {
+			return rpc.ErrNotFound("layer", id)
+		}
+		h.layers = slices.Delete(h.layers, i, i+1)
+	case rpc.MethodLayerRestore:
+		p := params.(rpc.LayerRestoreParams)
+		i := slices.IndexFunc(h.history, func(e fakeEntry) bool { return e.id == p.HistoryID })
+		if i < 0 {
+			return rpc.ErrNotFound("history entry", p.HistoryID)
+		}
+		for _, id := range p.IDs {
+			j := slices.IndexFunc(h.history[i].layers, func(l fakeLayer) bool { return l.ID == id })
+			if j < 0 {
+				return rpc.ErrInvalid("layer %s is not in history entry %s", id, p.HistoryID)
+			}
+			h.put(h.history[i].layers[j].LayerContent)
+		}
 	case rpc.MethodDNSStatus:
 		set(h.dns)
 	case rpc.MethodHistoryList:
-		set([]rpc.HistoryEntry{{ID: "h1", Time: time.Unix(100, 0), Kind: "applied"}, {ID: "h2", Time: time.Unix(200, 0), Kind: "applied"}})
+		var out []rpc.HistoryEntry
+		for i, e := range h.history {
+			out = append(out, rpc.HistoryEntry{ID: e.id, Time: time.Unix(int64(100*(i+1)), 0), Kind: "applied"})
+		}
+		set(out)
+	case rpc.MethodHistoryRollback:
+		id := params.(rpc.IDParams).ID
+		i := slices.IndexFunc(h.history, func(e fakeEntry) bool { return e.id == id })
+		if i < 0 {
+			return rpc.ErrNotFound("history entry", id)
+		}
+		h.running = h.history[i].running // the store is left as it is
 	case rpc.MethodAutostartChange:
 		p := params.(rpc.AutostartChangeParams)
 		r := rpc.AutostartChangeResult{Steps: []string{`C:\Windows\System32\schtasks.exe /Change /TN \synthetic /Disable`}}
 		if !p.Preview {
 			h.fixed = p.Op == "disable"
+			if h.fixed {
+				h.disabled = slices.Clone(p.IDs)
+			} else {
+				h.disabled = nil
+			}
 			r.Undo = &rpc.AutostartChangeParams{IDs: p.IDs, Op: "enable"}
 		}
 		set(r)
@@ -82,7 +202,15 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 		h.dns.Recorded, h.dns.Unprotected = h.dns.Unprotected, nil
 		h.fixed = true
 		set(h.dns)
-	case rpc.MethodComposeApply, rpc.MethodControllerSecure, rpc.MethodDNSPoint, rpc.MethodServiceRestart, rpc.MethodHealthEgress:
+	case rpc.MethodComposeApply:
+		h.fixed = true
+		h.running = h.compose()
+		h.history = append(h.history, fakeEntry{id: fmt.Sprintf("h%d", len(h.history)+1), running: h.running, layers: slices.Clone(h.layers)})
+	case rpc.MethodDNSPoint:
+		h.fixed, h.pointed = true, true
+	case rpc.MethodDNSRestore:
+		h.pointed = false
+	case rpc.MethodControllerSecure, rpc.MethodServiceRestart, rpc.MethodHealthEgress:
 		h.fixed = true
 		if method == rpc.MethodHealthEgress {
 			set(h.report())
@@ -206,14 +334,19 @@ func TestUndoPutsBack(t *testing.T) {
 		t.Fatalf("undo: %v, coexist %v", err, h.settings.TailscaleCoexist)
 	}
 
-	// Coexist already on: undo rolls back to the newest history entry.
+	// Coexist already on: the fix only regenerates the override from the
+	// tailnet; nothing stored changes, so there is no undo (a rollback
+	// would leave the running config behind the store).
 	h = newFakeHelper()
 	h.settings.TailscaleCoexist = true
 	f.Helper = h
 	p, _ = f.Plan(ctx, cr, health.ReasonExcludeMissing)
+	if p.Undo {
+		t.Error("plan offers an undo with coexist on already")
+	}
 	out, _ = f.Apply(ctx, p)
-	if out.Undo == nil || out.Undo.HistoryID != "h2" {
-		t.Fatalf("undo %+v, want history h2", out.Undo)
+	if out.Undo != nil {
+		t.Fatalf("undo %+v, want none", out.Undo)
 	}
 
 	// Loopback layer: added, and removed on undo.
@@ -222,11 +355,11 @@ func TestUndoPutsBack(t *testing.T) {
 	cr.Fix = &health.FixHint{Param: "9097"}
 	p, _ = f.Plan(ctx, cr, health.ReasonCtlExposed)
 	out, _ = f.Apply(ctx, p)
-	if !strings.Contains(h.layers[LoopbackLayerID], "127.0.0.1:9097") {
-		t.Fatalf("layer %q", h.layers[LoopbackLayerID])
+	if c, _ := h.layer(LoopbackLayerID); !strings.Contains(c, "127.0.0.1:9097") {
+		t.Fatalf("layer %q", c)
 	}
 	f.Undo(ctx, out.Undo)
-	if _, ok := h.layers[LoopbackLayerID]; ok {
+	if _, ok := h.layer(LoopbackLayerID); ok {
 		t.Fatal("layer kept after undo")
 	}
 

@@ -12,21 +12,23 @@
 - 文案：`core/health/fixtexts.go`，每个原因一句「问题」（Plain）和一句「怎么办」（How），中英双语，平台措辞不同的单独写。
 - 执行：`core/healthfix`（Plan / Apply / Undo），app、`twinnel doctor --fix <check>`、MCP（`health_fixes` / `health_fix` / `health_fix_config`）共用同一套。
 - 写系统的修复都经后台助手，沿用它的安全规则：配置改动走 compose.apply（`mihomo -t` 校验、备份、失败回滚）；系统 DNS 走 dns.point（先备份，dns.restore 撤销，mihomo DNS 不应答时拒绝）。
+- **撤销 = 覆写库和运行中的配置一起回到修复前**（`core/healthfix/undo.go`）。改配置的修复都走同一条路 `changeConfig`：写之前用 layer.get / settings.get 记下它要写的每个覆写和设置原来的样子（`Undo.Layers`：原内容、名字、阶段、格式、开关，或「原来没有」；`Undo.Settings`），撤销时 `restoreConfig` 原样写回（原来没有的删掉）再 compose.apply。撤销的应用失败时，覆写库也回到修复后的样子（仍在运行的那份），两边不会不一致。不用 history.rollback：它只换运行中的配置，覆写库还是修复后的，下一次自动应用会把修复又带回来（Windows QA B4）。旧版本打印的 `history_id` 撤销仍然接受：从那条历史的清单里写回该动作的覆写（layer.restore）再应用。
+- **撤销前先说会回到失败状态**：`Fixer.UndoPreview` 列出撤销的步骤，并给一句警告（「撤销后回到修复前的状态，这个问题会再出现：<问题>」）。app 的「撤销修复」先弹确认框，`twinnel doctor --undo` 先打印再问（`--yes` 跳过询问，警告照样打印），MCP 的修复结果带 `undo_warning`、撤销结果带 `warning`。
 
 ## 一键修复的动作
 
 | 动作 | 做什么 | 撤销 |
 |---|---|---|
-| `tailscale-coexist-override` | 必要时打开「Tailscale 共存」覆写；tailnet.refresh 按当前 tailnet 重新生成；compose.apply | 原来关着：关回去再应用；原来开着：history.rollback 到修复前最新的一条 |
+| `tailscale-coexist-override` | 必要时打开「Tailscale 共存」覆写；tailnet.refresh 按当前 tailnet 重新生成；compose.apply | 原来关着：关回去再应用；原来开着：覆写库没有变化（只按当前 tailnet 重新生成），没有撤销 |
 | `leak-guard-override` | 把有问题的敏感策略组加进「防泄漏」的组；compose.apply | 组列表改回原样再应用 |
-| `controller-loopback` | 加覆写 `controller-loopback`：`external-controller: 127.0.0.1:<原端口>`；compose.apply | 删掉这个覆写再应用 |
+| `controller-loopback` | 加覆写 `controller-loopback`：`external-controller: 127.0.0.1:<原端口>`；compose.apply | 写回原来的覆写（原来没有就删掉）再应用 |
 | `controller-port` | controller.move：找一个空闲端口，把 Twinnel 的控制接口改过去（覆写 `controller-port`），写入配置但不去重载占着旧端口的别人的 mihomo，再重启 Twinnel 的 mihomo（装了服务时） | 不能撤销（旧端口还被别的程序占着）；预览里说明 |
 | `controller-secret` | controller.secure：新随机密钥，存助手，应用 | 不能撤销（旧密钥不保留）；预览里说明 |
 | `system-dns` | dns.point（预览逐条列出 服务：旧 DNS → 新 DNS）。已经指向 mihomo 的服务备份记为「自动（DHCP）」，从不把目标地址记成备份 | dns.restore |
 | `dns-backup` | dns.backup：为指向 mihomo 却没有备份的服务记下「自动（DHCP）」，不改现在的 DNS；mihomo 停着也能做，之后看门狗就能临时恢复（预览逐条列出服务） | 无需撤销（只多了一条备份） |
 | `mode-rule` | mihomo 切回 rule 模式 | 切回原模式 |
 | `exit-node-off` | Tailscale 停用出口节点 | 重新选回原出口节点 |
-| `tun-stack-gvisor` | 加覆写 `tun-stack`：`tun.stack: gvisor`；compose.apply（TUN 重建，网络断一两秒） | 删掉这个覆写再应用 |
+| `tun-stack-gvisor` | 写覆写 `tun-stack`：`tun.stack: gvisor`，打开；已有同 id 的覆写时保留它的位置和名字；compose.apply（TUN 重建，网络断一两秒） | 写回原来的覆写（内容、开关；原来没有就删掉）再应用 |
 | `restart-mihomo` / `restart-tailscaled` | service.restart（网络/tailnet 断几秒，预览里说明） | 无需撤销 |
 | `egress-probe` | health.egress 再测一次出口 | 无需撤销 |
 | `rerun` | 重新运行检查 | 无需撤销 |
@@ -97,5 +99,6 @@
 
 - `core/health/reasons_test.go`：每个原因有修法、有中英文、每个平台都有；每个原因有一个合成场景真的触发它；任何 warn/fail 都带原因；`reasons.go` 里新加的 `Reason*` 常量没进目录就失败。
 - `core/healthfix/healthfix_test.go`：每个原因 × 每个平台：一键修复在假助手上执行后检查变为通过，能撤销的撤销后复原；去调整有目标；无法自动修复有解释。另测失败回滚、没有助手时被挡住、同类原因合并。
+- `core/healthfix/undo_test.go`：`TestEveryUndoRestores` 在假引擎（覆写库、设置、运行中的配置、带清单的历史；history.rollback 只换运行中的配置）上跑每个能撤销的一键修复 × 每个平台 × 两种起点（空的；同 id 的覆写已手写、共存和防泄漏已开），断言撤销后 覆写库 == 运行中的配置 == 修复前，且预览警告说出问题。另测 B4、撤销应用失败、旧版 history_id 撤销。
 - `cmd/app/healthfix_test.go`：每个原因在 app 里都有行上的文字和一个 app 认识的动作（去调整的目标有页面）。
 - `cmd/cli/doctor_fix_test.go`、`core/agent/healthfix_test.go`：CLI 预览、询问、执行、重新检查、给出撤销；MCP 按层级分 operate / configure。

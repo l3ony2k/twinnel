@@ -25,16 +25,16 @@ func TestTUNStackFix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(h.layers[health.TUNStackLayerID], "stack: gvisor") {
-		t.Fatalf("layer %q", h.layers[health.TUNStackLayerID])
+	if c, _ := h.layer(health.TUNStackLayerID); !strings.Contains(c, "stack: gvisor") {
+		t.Fatalf("layer %q", c)
 	}
-	if !slices.Contains(h.calls, rpc.MethodComposeApply) || out.Undo == nil || out.Undo.LayerID != health.TUNStackLayerID {
+	if !slices.Contains(h.calls, rpc.MethodComposeApply) || out.Undo == nil || len(out.Undo.Layers) != 1 || !out.Undo.Layers[0].Absent {
 		t.Fatalf("calls %v undo %+v", h.calls, out.Undo)
 	}
 	if _, err := f.Undo(ctx, out.Undo); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := h.layers[health.TUNStackLayerID]; ok {
+	if _, ok := h.layer(health.TUNStackLayerID); ok {
 		t.Fatal("undo left the override")
 	}
 
@@ -45,7 +45,7 @@ func TestTUNStackFix(t *testing.T) {
 	if _, err := f.Apply(ctx, p); err == nil {
 		t.Fatal("apply error lost")
 	}
-	if _, ok := h.layers[health.TUNStackLayerID]; ok {
+	if _, ok := h.layer(health.TUNStackLayerID); ok {
 		t.Fatal("failed fix left the override")
 	}
 }
