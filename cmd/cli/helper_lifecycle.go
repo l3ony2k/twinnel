@@ -15,7 +15,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -41,19 +40,7 @@ var (
 		return c.Call(ctx, method, params, result)
 	}
 	// binaryVersion runs `<bin> --version` ("twinnel-helper 1.2.3").
-	binaryVersion = func(ctx context.Context, bin string) (string, error) {
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-		out, err := exec.CommandContext(ctx, bin, "--version").Output()
-		if err != nil {
-			return "", fmt.Errorf("%s --version: %w", bin, err)
-		}
-		f := strings.Fields(string(out))
-		if len(f) < 2 {
-			return "", fmt.Errorf("%s --version: unexpected output %q", bin, strings.TrimSpace(string(out)))
-		}
-		return f[len(f)-1], nil
-	}
+	binaryVersion = version.Binary
 	// controllerUp reports whether mihomo's controller answers HTTP at
 	// all (401 counts: it runs, with a secret).
 	controllerUp = func(ctx context.Context, addr string) bool {
@@ -347,7 +334,7 @@ func printUninstall(w io.Writer, p uninstall.Plan, steps, purge []service.Step) 
 		fmt.Fprintf(w, "  - %s\n", describeItem(it))
 	}
 	if !p.Known {
-		fmt.Fprintln(w, "# The helper's settings could not be read (it is not running). The run as root reads them and stops if mihomo depends on the helper.")
+		fmt.Fprintf(w, "# The helper's settings could not be read (it is not running). The run %s reads them and stops if mihomo depends on the helper.\n", service.Current().AsAdmin())
 	}
 	fmt.Fprintln(w, "steps:")
 	n := 0
@@ -374,7 +361,7 @@ func printUninstall(w io.Writer, p uninstall.Plan, steps, purge []service.Step) 
 		}
 		fmt.Fprintln(w, "     and stop: nothing else is removed")
 		n++
-		fmt.Fprintf(w, "%d. rm -f %s\n", n, serviceDefinition(r.FromLabel))
+		fmt.Fprintf(w, "%d. %s\n", n, service.Step{Kind: service.StepRemove, Path: serviceDefinition(r.FromLabel)})
 	}
 	for _, s := range append(append([]service.Step{}, steps...), purge...) {
 		n++
@@ -414,7 +401,7 @@ func describeItem(it uninstall.Item) string {
 	case uninstall.SystemDNS:
 		return "the system DNS Twinnel set (written back to the values recorded before)"
 	case uninstall.App:
-		return "Twinnel.app and the twinnel command"
+		return service.Current().App + " and the twinnel command"
 	}
 	return string(it.Kind) + " " + it.Path
 }
@@ -556,6 +543,7 @@ func helperUpgrade(ctx context.Context, f *installFlags, c UpgradeCheck, force b
 // person cannot fix from the app without a password, so root fixes it
 // here.
 func runVerified(op string, f *installFlags, steps []service.Step, want string) error {
+	recordPlan(steps)
 	return runAsRoot(op, f, func(w io.Writer) { service.FormatPlan(w, steps) }, func(ctx context.Context) error {
 		applyErr := applyPlan(ctx, steps)
 		var verifyErr error
@@ -746,7 +734,7 @@ func helperRestart(f *installFlags) error {
 			fmt.Fprintf(stdout, "# helper (pid %d) is restarting\n", r.PID)
 			return verifyHelper(ctx, f.socket, "", r.PID)
 		}
-		fmt.Fprintf(stdout, "# the helper cannot restart itself (%s); restarting its service as root\n", shortErr(err))
+		fmt.Fprintf(stdout, "# the helper cannot restart itself (%s); restarting its service %s\n", shortErr(err), service.Current().AsAdmin())
 	}
 	steps, err := planHelperRestart(f.label)
 	if err != nil {

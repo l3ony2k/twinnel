@@ -1,0 +1,95 @@
+{
+  "op": "install",
+  "ok": true,
+  "dry_run": true,
+  "output": [
+    "# twinnel helper install --dry-run: nothing below has been run.",
+    "1. install -d -m 0755 '/Library/Application Support/twinnel'",
+    "2. install -m 0755 /Applications/Twinnel.app/Contents/Resources/bin/twinnel-helper '/Library/Application Support/twinnel/bin/twinnel-helper'",
+    "3. install -d -m 0755 '/Library/Application Support/twinnel/logs'",
+    "4. launchctl bootout system/com.l3ony2k.twinnel.helper",
+    "5. wait until `launchctl print system/com.l3ony2k.twinnel.helper` says \"not loaded\" (up to 10s)",
+    "6. write /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist (mode 0644, 812 bytes)",
+    "----- /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist -----",
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">",
+    "<plist version=\"1.0\">",
+    "<dict>",
+    "\t<key>Label</key>",
+    "\t<string>com.l3ony2k.twinnel.helper</string>",
+    "\t<key>ProgramArguments</key>",
+    "\t<array>",
+    "\t\t<string>/Library/Application Support/twinnel/bin/twinnel-helper</string>",
+    "\t</array>",
+    "\t<key>RunAtLoad</key>",
+    "\t<true/>",
+    "\t<key>KeepAlive</key>",
+    "\t<true/>",
+    "</dict>",
+    "</plist>",
+    "----- end -----",
+    "7. launchctl enable system/com.l3ony2k.twinnel.helper",
+    "8. launchctl bootstrap system /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist  # retried up to 3 times while busy"
+  ],
+  "steps": [
+    {
+      "kind": "mkdir",
+      "text": "install -d -m 0755 '/Library/Application Support/twinnel'",
+      "path": "/Library/Application Support/twinnel"
+    },
+    {
+      "kind": "copy",
+      "text": "install -m 0755 /Applications/Twinnel.app/Contents/Resources/bin/twinnel-helper '/Library/Application Support/twinnel/bin/twinnel-helper'",
+      "path": "/Library/Application Support/twinnel/bin/twinnel-helper",
+      "src": "/Applications/Twinnel.app/Contents/Resources/bin/twinnel-helper"
+    },
+    {
+      "kind": "mkdir",
+      "text": "install -d -m 0755 '/Library/Application Support/twinnel/logs'",
+      "path": "/Library/Application Support/twinnel/logs"
+    },
+    {
+      "kind": "run",
+      "text": "launchctl bootout system/com.l3ony2k.twinnel.helper",
+      "argv": [
+        "launchctl",
+        "bootout",
+        "system/com.l3ony2k.twinnel.helper"
+      ]
+    },
+    {
+      "kind": "wait",
+      "text": "wait until `launchctl print system/com.l3ony2k.twinnel.helper` says \"not loaded\" (up to 10s)",
+      "argv": [
+        "launchctl",
+        "print",
+        "system/com.l3ony2k.twinnel.helper"
+      ]
+    },
+    {
+      "kind": "write",
+      "text": "write /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist (mode 0644, 436 bytes)",
+      "path": "/Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist",
+      "content": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>Label</key>\n\t<string>com.l3ony2k.twinnel.helper</string>\n\t<key>ProgramArguments</key>\n\t<array>\n\t\t<string>/Library/Application Support/twinnel/bin/twinnel-helper</string>\n\t</array>\n\t<key>RunAtLoad</key>\n\t<true/>\n\t<key>KeepAlive</key>\n\t<true/>\n</dict>\n</plist>\n"
+    },
+    {
+      "kind": "run",
+      "text": "launchctl enable system/com.l3ony2k.twinnel.helper",
+      "argv": [
+        "launchctl",
+        "enable",
+        "system/com.l3ony2k.twinnel.helper"
+      ]
+    },
+    {
+      "kind": "run",
+      "text": "launchctl bootstrap system /Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist  # retried up to 3 times while busy",
+      "argv": [
+        "launchctl",
+        "bootstrap",
+        "system",
+        "/Library/LaunchDaemons/com.l3ony2k.twinnel.helper.plist"
+      ]
+    }
+  ]
+}

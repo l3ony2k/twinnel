@@ -8,8 +8,9 @@ import (
 	"testing"
 )
 
-// macWords are words a Windows user should not meet.
-var macWords = regexp.MustCompile(`\bMac\b|macOS|Finder|访达|钥匙串|[Kk]eychain|LaunchDaemon|launchd|程序坞|⌘|⌥|⌃|菜单栏|[Mm]enu bar|管理员密码|administrator password|系统设置|System Settings|废纸篓|Trash|\.app\b`)
+// macWords are words a Windows user should not meet (root included:
+// Windows says administrator, or SYSTEM for the service account).
+var macWords = regexp.MustCompile(`\bMac\b|macOS|Finder|访达|钥匙串|[Kk]eychain|LaunchDaemon|launchd|程序坞|⌘|⌥|⌃|菜单栏|[Mm]enu bar|管理员密码|administrator password|系统设置|System Settings|废纸篓|Trash|\.app\b|\broot\b`)
 
 // windowsHidden are fields Windows never shows (the Dock and menu bar
 // rows are macOS only, a Mac or Homebrew
@@ -19,6 +20,9 @@ var windowsHidden = map[string]bool{
 	".TraySpeedSwitch": true, ".NotificationsUnsupportedTip": true,
 	".InstallKinds[mac-standalone]": true, ".InstallKinds[mac-appstore]": true,
 	".TSUpdateHints[brew]": true, ".InvLaunchAgent": true, ".ItemLaunchAgent": true,
+	// Unix ownership checks and the launchctl/systemctl step: never on
+	// Windows (its plans are sc.exe steps).
+	".WarningTexts[binary-writable]": true, ".TkEffReplaceableTip": true, ".PlanBootstrap": true,
 }
 
 func TestWindowsWording(t *testing.T) {

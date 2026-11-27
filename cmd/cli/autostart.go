@@ -12,6 +12,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/autostart"
 	"github.com/l3ony2k/twinnel/core/rpc"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
 func init() {
@@ -73,7 +74,7 @@ func runAutostart(args []string) error {
 		var r rpc.AutostartChangeResult
 		return cf.callPrint(rpc.MethodAutostartChange, p, &r, func() {
 			if r.DryRun {
-				fmt.Fprintln(stdout, "# dry run: the helper is not running as root, nothing was run")
+				fmt.Fprintf(stdout, "# dry run: the helper is not running %s, nothing was run\n", service.Current().AsAdmin())
 			}
 			for _, s := range r.Steps {
 				fmt.Fprintln(stdout, "  "+s)

@@ -9,7 +9,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -82,13 +81,17 @@ const (
 	// StepRemoveAll deletes a directory tree (Windows purge; Unix plans
 	// keep `rm -rf`). Needs a Files with RemoveAll.
 	StepRemoveAll StepKind = "removeall"
+	// StepRename moves Src to Path (replacing it). On Windows it moves a
+	// running program's file aside, which the system allows while it
+	// refuses to overwrite or delete it. Needs a Files with Rename.
+	StepRename StepKind = "rename"
 )
 
 // Step is one action of a Plan.
 type Step struct {
 	Kind    StepKind
-	Path    string      // mkdir/copy(dst)/write/remove
-	Src     string      // copy
+	Path    string      // mkdir/copy(dst)/write/remove/rename(dst)
+	Src     string      // copy/rename
 	Mode    fs.FileMode // mkdir/copy/write
 	Content []byte      // write
 	Argv    []string    // run
@@ -123,57 +126,6 @@ var Sleep = func(ctx context.Context, d time.Duration) error {
 	case <-t.C:
 		return nil
 	}
-}
-
-// String renders the step as the shell command it is equivalent to.
-func (s Step) String() string {
-	var out string
-	switch s.Kind {
-	case StepMkdir:
-		out = fmt.Sprintf("install -d -m %04o %s", s.Mode.Perm(), shellQuote(s.Path))
-	case StepCopy:
-		out = fmt.Sprintf("install -m %04o %s %s", s.Mode.Perm(), shellQuote(s.Src), shellQuote(s.Path))
-	case StepWrite:
-		out = fmt.Sprintf("write %s (mode %04o, %d bytes)", shellQuote(s.Path), s.Mode.Perm(), len(s.Content))
-	case StepRemove:
-		out = "rm -f " + shellQuote(s.Path)
-	case StepRemoveAll:
-		out = "rm -rf " + shellQuote(s.Path)
-	case StepRun:
-		q := make([]string, len(s.Argv))
-		for i, a := range s.Argv {
-			q[i] = shellQuote(a)
-		}
-		out = strings.Join(q, " ")
-		if s.Retry > 0 {
-			out += fmt.Sprintf("  # retried up to %d times while busy", s.Retry)
-		}
-	case StepWait:
-		q := make([]string, len(s.Argv))
-		for i, a := range s.Argv {
-			q[i] = shellQuote(a)
-		}
-		until := fmt.Sprintf("%q", s.Until)
-		for _, o := range s.OrUntil {
-			until += fmt.Sprintf(" or %q", o)
-		}
-		out = fmt.Sprintf("wait until `%s` says %s (up to %s)", strings.Join(q, " "), until, s.Timeout)
-	default:
-		out = string(s.Kind)
-	}
-	if s.IgnoreError {
-		out += "  # errors ignored"
-	}
-	return out
-}
-
-func shellQuote(s string) string {
-	if s != "" && strings.IndexFunc(s, func(r rune) bool {
-		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("-_./:=@%+,", r))
-	}) < 0 {
-		return s
-	}
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // Manager is implemented per platform.
@@ -222,6 +174,13 @@ func Apply(ctx context.Context, steps []Step, ex Executor, files Files) error {
 				err = fmt.Errorf("cannot remove a directory tree with %T", files)
 			} else {
 				err = ra.RemoveAll(s.Path)
+			}
+		case StepRename:
+			rn, ok := files.(interface{ Rename(src, dst string) error })
+			if !ok {
+				err = fmt.Errorf("cannot rename with %T", files)
+			} else {
+				err = rn.Rename(s.Src, s.Path)
 			}
 		case StepRun:
 			err = runRetrying(ctx, s, ex)
@@ -296,21 +255,6 @@ func waitUntil(ctx context.Context, s Step, ex Executor) error {
 	}
 }
 
-// FormatPlan renders a plan for a dry run: each step on a line, file
-// contents of write steps included.
-func FormatPlan(w io.Writer, steps []Step) {
-	for i, s := range steps {
-		fmt.Fprintf(w, "%d. %s\n", i+1, s)
-		if s.Kind == StepWrite {
-			fmt.Fprintf(w, "----- %s -----\n%s", s.Path, s.Content)
-			if len(s.Content) > 0 && s.Content[len(s.Content)-1] != '\n' {
-				fmt.Fprintln(w)
-			}
-			fmt.Fprintf(w, "----- end -----\n")
-		}
-	}
-}
-
 // ExecExecutor runs commands with os/exec.
 type ExecExecutor struct{ Timeout time.Duration }
 
@@ -335,6 +279,9 @@ func (OSFiles) MkdirAll(p string, m fs.FileMode) error { return os.MkdirAll(p, m
 
 // RemoveAll deletes a directory tree.
 func (OSFiles) RemoveAll(p string) error { return os.RemoveAll(p) }
+
+// Rename moves src to dst, replacing dst.
+func (OSFiles) Rename(src, dst string) error { return os.Rename(src, dst) }
 func (OSFiles) Remove(p string) error {
 	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 		return err

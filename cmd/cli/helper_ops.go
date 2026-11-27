@@ -13,6 +13,7 @@ import (
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/rpc/healthsrc"
+	"github.com/l3ony2k/twinnel/core/service"
 )
 
 var serviceMethods = map[string]string{
@@ -28,7 +29,7 @@ func serviceOp(cf *clientFlags, op, name string) error {
 	var r rpc.ServiceOpResult
 	return cf.callPrint(method, rpc.ServiceParams{Name: name}, &r, func() {
 		if r.DryRun {
-			fmt.Fprintf(stdout, "# dry run: the helper is not running as root, nothing was run\n")
+			fmt.Fprintf(stdout, "# dry run: the helper is not running %s, nothing was run\n", service.Current().AsAdmin())
 		}
 		fmt.Fprintf(stdout, "%s %s (%s):\n", r.Op, r.Name, r.Label)
 		for i, s := range r.Steps {

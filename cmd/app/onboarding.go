@@ -118,13 +118,16 @@ func (a *app) loadInstallPlan() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), installPlanTimeout)
 		defer cancel()
-		out, err := a.runCLI(ctx, installArgs("--dry-run")...)
+		out, err := a.runCLI(ctx, installArgs("--dry-run", "--json")...)
 		timedOut := errors.Is(ctx.Err(), context.DeadlineExceeded)
 		mygo.RunOnMain(func() {
 			v.loading, v.loaded = false, true
 			v.plan, v.planErr, v.timeout = out, "", timedOut
 			if err != nil {
-				v.planErr = strings.TrimSpace(out)
+				v.planErr = planError(out)
+				if v.planErr == "" {
+					v.planErr = strings.TrimSpace(out)
+				}
 				if v.planErr == "" {
 					v.planErr = err.Error()
 				}
