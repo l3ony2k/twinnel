@@ -103,7 +103,7 @@ func (a *app) applyLang() {
 	}
 	a.setDockMenu()
 	if a.tray != nil {
-		if runtime.GOOS == "linux" {
+		if plat.panelWindow {
 			a.tray.SetMenu(a.trayMenu())
 		}
 		if a.mon != nil {
@@ -135,13 +135,18 @@ func (a *app) setLanguage(tag string) {
 	a.applyLang()
 }
 
-// trayMenu is the tray's menu (right click; the only menu on Linux).
+// trayMenu is the tray's menu (right click; on Linux the icon's menu,
+// which opens on a left click too where the panel does not activate it).
 func (a *app) trayMenu() *mygo.Menu {
-	return mygo.NewMenu([]*mygo.MenuItem{
+	var items []*mygo.MenuItem
+	if plat.panelWindow {
+		items = append(items, &mygo.MenuItem{Label: i18n.T.TrayShowPanel, Click: func(*mygo.MenuItem, *mygo.Window) { a.togglePanel() }})
+	}
+	return mygo.NewMenu(append(items, []*mygo.MenuItem{
 		{Label: i18n.T.OpenMainWindow, Click: func(*mygo.MenuItem, *mygo.Window) { a.openMain() }},
 		mygo.Separator(),
 		{Label: i18n.T.Quit, Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
-	})
+	}...))
 }
 
 // langOptions are the 语言 choices: 跟随系统 in the UI language, then each

@@ -217,8 +217,13 @@ func (a *app) ready() {
 		mygo.App.SetMenu(a.appMenu())
 	}
 	a.readyDock()
-	if runtime.GOOS == "linux" {
+	if plat.panelWindow {
+		// Linux: AppIndicator always has a menu (a right click; KDE's left
+		// click); the icon's activation (a left click on quickshell and
+		// others, a double click on GNOME) opens the panel.
 		a.tray.SetMenu(a.trayMenu())
+		a.tray.OnClick(a.togglePanel)
+		a.checkTrayHost() // no tray to show the icon: open the window instead
 	} else {
 		a.tray.OnClick(a.togglePanel)
 		a.tray.OnRightClick(func() {
@@ -408,6 +413,10 @@ func (a *app) togglePanel() {
 		a.panel.OnClosed(func() { a.panel, a.panelShotH = nil, 0 })
 		return
 	}
+	if plat.panelWindow {
+		a.openPanelWindow() // panel_linux.go
+		return
+	}
 	a.unhideApp() // after syncDock's Hide
 	a.panel = mygo.NewFlyout(mygo.FlyoutOptions{
 		Tray:       a.tray,
@@ -446,16 +455,17 @@ func (a *app) openMain() {
 	a.unhideApp()
 	a.syncDockFor(true) // 打开窗口时: a Dock icon and ⌘Tab before it shows
 	a.win = mygo.NewWindow(mygo.WindowOptions{
-		Title:         i18n.T.AppName,
-		TitleBarStyle: plat.titleBar,
-		Vibrancy:      a.sidebarMaterial(),
-		Width:         a.winWidth(),
-		Height:        a.winHeight(),
-		MinWidth:      760,
-		MinHeight:     480,
-		StateKey:      a.stateKey(),
-		Hidden:        a.shotMode, // never shown: captured from memory
-		Content:       ui.View(a.mainView),
+		Title:          i18n.T.AppName,
+		TitleBarStyle:  plat.titleBar,
+		TitleBarHeight: plat.titleBarHeight,
+		Vibrancy:       a.sidebarMaterial(),
+		Width:          a.winWidth(),
+		Height:         a.winHeight(),
+		MinWidth:       760,
+		MinHeight:      480,
+		StateKey:       a.stateKey(),
+		Hidden:         a.shotMode, // never shown: captured from memory
+		Content:        ui.View(a.mainView),
 	})
 	a.win.OnClosed(func() {
 		a.win = nil
