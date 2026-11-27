@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -28,6 +29,13 @@ type credsState struct {
 // controllerConfig is cfg with the helper's controller credentials applied.
 func controllerConfig(cfg status.Config, c *rpc.ControllerCredentials) status.Config {
 	if c == nil {
+		return cfg
+	}
+	// Development: DUET_CONTROLLER pins the controller (and its secret
+	// comes from the environment too), so a dev or shot run against a
+	// scratch helper never reaches the live mihomo through the helper's
+	// default settings.
+	if os.Getenv("DUET_CONTROLLER") != "" {
 		return cfg
 	}
 	if c.Controller != "" {

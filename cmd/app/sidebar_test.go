@@ -20,17 +20,37 @@ func TestSideSnap(t *testing.T) {
 		{250, sideExpanded, 250},
 		{900, sideExpanded, sideMaxW},
 	} {
-		m, w := sideSnap(tc.raw, 200)
+		m, w := sideSnap(tc.raw, 200, sideMinW)
 		if m != tc.mode || w != tc.width {
 			t.Errorf("sideSnap(%v) = %v, %v; want %v, %v", tc.raw, m, w, tc.mode, tc.width)
 		}
 	}
 }
 
+// The labels' measured width raises the narrowest and the default
+// expanded width, never above sideMaxW, and the snapping follows it.
+func TestSidebarNeedRaisesWidths(t *testing.T) {
+	s := sidebarState{need: 260}
+	if s.minW() != 260 || s.expandedW() != 260 {
+		t.Errorf("need 260: min %v default %v", s.minW(), s.expandedW())
+	}
+	s.width = 200 // dragged narrower in a language that needed less
+	if s.expandedW() != 260 {
+		t.Errorf("dragged 200, need 260: %v", s.expandedW())
+	}
+	if m, w := sideSnap(250, 200, s.minW()); m != sideExpanded || w != 260 {
+		t.Errorf("snap 250 with min 260: %v %v", m, w)
+	}
+	s.need = 9000
+	if s.minW() != sideMaxW {
+		t.Errorf("need 9000: min %v", s.minW())
+	}
+}
+
 func TestSidebarCycleAndConfig(t *testing.T) {
 	var s sidebarState
 	s.load(status.Config{})
-	if s.mode != sideExpanded || s.expandedW() != plat.sidebarWidth+sidebarExtra {
+	if s.mode != sideExpanded || s.expandedW() != plat.sidebarWidth {
 		t.Fatalf("default: mode %v width %v", s.mode, s.expandedW())
 	}
 	want := []sidebarMode{sideRail, sideHidden, sideExpanded}

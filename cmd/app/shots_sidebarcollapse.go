@@ -8,11 +8,12 @@ import (
 )
 
 // sidebarCollapseShots captures the sidebar's three modes (expanded, icons
-// only, hidden) on 总览 and 健康检查 (whose row has a count to look at),
+// only, hidden) on 总览, 总览 scrolled and 健康检查 (whose row has a count),
 // DUET_SHOTS_FLOW=sidecollapse. The window is the hidden shot window.
 func (a *app) sidebarCollapseShots(save func(*mygo.Window, string)) {
 	yes := true
 	shotLights = true
+	mygo.RunOnMain(func() { a.win.SetSize(a.winWidth(), 660) }) // the main window's size, so pages scroll
 	for _, m := range []struct {
 		name string
 		mode sidebarMode
@@ -30,6 +31,24 @@ func (a *app) sidebarCollapseShots(save func(*mygo.Window, string)) {
 			time.Sleep(700 * time.Millisecond)
 			save(a.win, "side-"+m.name+"-"+page)
 		}
+		// 总览 scrolled: the toolbar's scroll edge over the page, beside
+		// the sidebar's material (one material per region, no corner).
+		mygo.RunOnMain(func() {
+			old := a.page
+			a.page = pageOverview
+			a.pageChanged(old)
+			if st := a.pageScroll[pageOverview]; st != nil {
+				st.Y = 240
+			}
+			a.win.Invalidate()
+		})
+		time.Sleep(700 * time.Millisecond)
+		save(a.win, "side-"+m.name+"-overview-scrolled")
+		mygo.RunOnMain(func() {
+			if st := a.pageScroll[pageOverview]; st != nil {
+				st.Y = 0
+			}
+		})
 	}
 }
 

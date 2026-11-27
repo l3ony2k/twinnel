@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -15,8 +16,8 @@ import (
 // as the owner's reference (a native Mac app) has it.
 //
 //   - Expanded: the source list as nav.go draws it, as wide as the user
-//     dragged it (sideMinW…sideMaxW), the platform's width (wider in some
-//     languages, sidebarExtra) until then.
+//     dragged it (between the measured labels' width and sideMaxW), the
+//     platform's width until then, or the labels' when they need more.
 //   - Icons only: a rail of the rows' icons, no section titles (a hairline
 //     between sections instead), each row's name as its tooltip, a count
 //     as a mark on the icon, the footer's states as their marks alone.
@@ -39,13 +40,21 @@ const (
 	sideHidden
 )
 
+// sideRailW is the rail's width: as wide as the traffic lights' cluster
+// with its margin on both sides (19 + 60 + 19 = 98 pt on macOS 26), so the
+// rail's material runs under the lights as every Mac sidebar's does, and
+// the lights never hang over the page. Without lights (full screen, other
+// platforms) a row of 36 in the sidebar's 10 pt padding. Set per frame
+// (sidebarFrame); main thread only.
+var sideRailW float32 = sideRailMin
+
 // Widths of the sidebar in points.
 const (
-	// sideRailW is the rail: a row of 36 (the 18 pt icon with Finder's
-	// 9 pt on either side) in the sidebar's 10 pt padding.
-	sideRailW = 56
-	sideMinW  = 180 // the narrowest expanded sidebar
-	sideMaxW  = 340 // the widest
+	sideRailMin = 56
+	sideMinW    = 180 // the narrowest expanded sidebar, unless its labels need more
+	sideMaxW    = 340 // the widest
+	// railRowW is a rail row's width (its selection), centered in the rail.
+	railRowW = 52
 	// sideHandleW is the divider's grip, over both sides of the line.
 	sideHandleW = 6
 )
@@ -74,6 +83,11 @@ type sidebarState struct {
 	// toggled is when the toggle last ran: the 显示 menu's key equivalent
 	// and the window's own shortcut both hear ⌃⌘S, and must cycle once.
 	toggled time.Time
+	// need is the narrowest expanded width that shows every label whole,
+	// measured in the current language (sidebarNeed); needKey is what it
+	// was measured for.
+	need    float32
+	needKey string
 }
 
 // load reads the state from the app's config, once.
@@ -89,7 +103,7 @@ func (s *sidebarState) load(cfg status.Config) {
 		s.mode, s.last = sideHidden, sideExpanded
 	}
 	if w := cfg.SidebarWidth; w > 0 {
-		s.width = min(max(w, sideMinW), sideMaxW)
+		s.width = min(max(w, sideMinW), sideMaxW) // and at least need, expandedW
 	}
 }
 
@@ -104,13 +118,18 @@ func (m sidebarMode) configValue() string {
 	return ""
 }
 
+// minW is the narrowest expanded width: sideMinW, or what the labels need.
+func (s *sidebarState) minW() float32 {
+	return min(max(sideMinW, s.need), sideMaxW)
+}
+
 // expandedW is the expanded sidebar's width: the dragged one, or the
-// platform's for the current language.
+// platform's; never narrower than its labels need.
 func (s *sidebarState) expandedW() float32 {
 	if s.width > 0 {
-		return s.width
+		return max(s.width, s.minW())
 	}
-	return plat.sidebarWidth + sidebarExtra
+	return max(plat.sidebarWidth, s.minW())
 }
 
 // layoutMode is the mode the sidebar's content is laid out in.
@@ -157,14 +176,14 @@ func (m sidebarMode) next() sidebarMode {
 // narrowest; hidden once the edge is nearer to the window's edge than to
 // the rail. width is the expanded width to keep (unchanged when not
 // expanded).
-func sideSnap(raw, width float32) (sidebarMode, float32) {
+func sideSnap(raw, width, minW float32) (sidebarMode, float32) {
 	switch {
 	case raw < sideRailW/2:
 		return sideHidden, width
-	case raw < (sideRailW+sideMinW)/2:
+	case raw < (sideRailW+minW)/2:
 		return sideRail, width
 	}
-	return sideExpanded, min(max(raw, sideMinW), sideMaxW)
+	return sideExpanded, min(max(raw, minW), sideMaxW)
 }
 
 // sidebarFrame builds the sidebar's frame, as wide as its mode, and the
@@ -172,6 +191,10 @@ func sideSnap(raw, width float32) (sidebarMode, float32) {
 func (a *app) sidebarFrame(c *ui.Context, body func()) {
 	s := &a.side
 	s.load(a.cfg)
+	sideRailW = railWidth(c)
+	if key := i18n.T.PageOverview + i18n.T.Helper; key != s.needKey {
+		s.need, s.needKey = sidebarNeed(c), key
+	}
 	if ui.Cmd != ui.Ctrl { // macOS: ⌃⌘S, as Finder's and Mail's Show Sidebar
 		c.OnWindowShortcut(ui.Ctrl|ui.Cmd, ui.KeyS, a.toggleSidebar)
 	}
@@ -186,20 +209,6 @@ func (a *app) sidebarFrame(c *ui.Context, body func()) {
 		navRail = s.layoutMode() == sideRail
 		defer func() { navRail = false }()
 		body()
-		if navRail {
-			// The rail is narrower than the traffic lights and the toggle:
-			// the toolbar band runs over it as over the page, one strip
-			// across the window (as Mail's and Notes' with a narrow
-			// sidebar), and the rail and its edge start under it.
-			t := c.Theme()
-			barH := toolbarHeight(c)
-			ui.Box(c.Key("rail-band")).Absolute().Top(0).Left(0).Right(0).Height(barH).
-				Background(t.Background).DragWindow().AccessHidden(true)
-			if c.Vibrancy() {
-				ui.Box(c.Key("rail-edge")).Absolute().Top(barH).Bottom(0).Right(0).Width(1).
-					Background(pal(t).separator).AccessHidden(true)
-			}
-		}
 	})
 }
 
@@ -270,32 +279,87 @@ func sidebarTop(c *ui.Context) float32 {
 	return toolbarHeight(c) + 4
 }
 
-// sideToggleX is the toggle's left edge: after the lights and a gap, or
-// the page's inset where there are none.
-func sideToggleX(c *ui.Context) float32 {
+// railWidth is the rail's width for this window (sideRailW).
+func railWidth(c *ui.Context) float32 {
+	bar := c.TitleBar()
+	if bar.Left <= 0 {
+		return sideRailMin
+	}
+	first := bar.Left - (2*trafficLightPitch + trafficLightD) // the red light's left edge
+	return max(sideRailMin, bar.Left+first)
+}
+
+// sideToggleX is the toggle's left edge. Over the expanded sidebar or a
+// hidden one: after the lights and a gap, as Finder's and Xcode's. Beside
+// the rail, which the lights fill: at the start of the page's toolbar.
+// Without lights: the window's inset.
+func (a *app) sideToggleX(c *ui.Context) float32 {
+	if a.side.mode == sideRail {
+		return sideRailW + sideToggleRailInset
+	}
 	if l := c.TitleBar().Left; l > 0 {
 		return l + sideToggleGap
 	}
 	return 12
 }
 
-// sideToggleW is the toggle's capsule: the toolbar face's insets around
-// the sidebar icon.
+// sideToggleRailInset is the toggle's inset from the rail's edge: a
+// toolbar item's place at the start of the page's toolbar.
+const sideToggleRailInset = 8
+
+// sideToggleW is the toggle's hover shape: a toolbar capsule's insets
+// around the sidebar icon.
 const sideToggleW = 2*toolbarPadX + iconSidebar
 
 // toolbarLead is the toolbar's left inset: the page's padding, or more
 // when the sidebar no longer covers the traffic lights and the toggle.
 func (a *app) toolbarLead(c *ui.Context) float32 {
-	clear := sideToggleX(c) + sideToggleW + toolbarGap + 4 - a.side.widthOf(a.side.mode)
+	clear := a.sideToggleX(c) + sideToggleW + toolbarGap - a.side.widthOf(a.side.mode)
 	return max(plat.pagePadX, clear)
 }
 
 // contentHairline is whether the page draws the line at its left edge:
-// beside an expanded sidebar (the rail draws its own under the toolbar
-// band, sidebarFrame; a hidden sidebar has none).
+// beside the sidebar or the rail, not when the sidebar is hidden.
 func (a *app) contentHairline() bool {
-	return a.side.mode == sideExpanded
+	return a.side.mode != sideHidden
 }
+
+// sidebarNeed measures the narrowest expanded sidebar that shows every
+// row's label whole with its count (two digits), every section title,
+// and the foot's lines, in the current language and type sizes. The
+// metrics are navRow's and duetPair's.
+func sidebarNeed(c *ui.Context) float32 {
+	_, _, iconSize := navMetrics()
+	text := func(s string, size float32, weight int) float32 {
+		w, _ := c.MeasureText(0, ui.Span{Text: s, Size: size, Weight: weight})
+		return float32(math.Ceil(float64(w)))
+	}
+	const sidePad, rowPad, gap = 10, 9, 8
+	badge := max(navBadgeH, text("88", plat.smallSize, 600)+12)
+	need := float32(0)
+	for _, sec := range navSections(88, 88, toneAttention) {
+		need = max(need, 2*sidePad+7+text(sec.title, plat.smallSize, 600))
+		for _, it := range sec.items {
+			w := 2*sidePad + 2*rowPad + iconSize + 2 + gap + text(it.label, plat.bodySize, 0)
+			if it.count > 0 {
+				w += gap + badge
+			}
+			need = max(need, w)
+		}
+	}
+	// The foot: one line per state, a mark of 8, a gap of 5, the name;
+	// the helper's action line ends in a chevron.
+	T := i18n.T
+	foot := []string{T.Mihomo, T.Tailscale, T.HelperShort, T.HelperNeedsUpdate, T.HelperDownRow,
+		T.Helper + " · " + T.HelperNotInstalled}
+	for _, l := range foot {
+		need = max(need, 2*sidePad+2*sideFootPadX+8+5+text(l, plat.smallSize, 0)+4+iconSmall)
+	}
+	return need
+}
+
+// sideFootPadX is the foot's inset in the sidebar (duetPair's padX).
+const sideFootPadX = 6
 
 // sidebarChrome builds what lies over the window's layout: the toggle on
 // the title bar and the divider's grip. Built after the content, so that
@@ -307,20 +371,26 @@ func (a *app) sidebarChrome(c *ui.Context, barH float32) {
 	if shotLights {
 		lightsOverlay(c)
 	}
-	// The toggle: a toolbar item as the page's (toolbarFace, glass on
-	// macOS 26+), centered on the traffic lights' line.
-	ui.Row(c.Key("side-toggle-bar")).Absolute().Left(sideToggleX(c)).Top(trafficLightsMid(c) - toolbarItemH/2).
-		Height(toolbarItemH).AlignItems(ui.Center).Children(func() {
-		toolbarActions(c, func() {
-			b := pushButton(c.Key("side-toggle"), "").Label(T.SidebarToggle).Tooltip(T.SidebarToggle)
-			b.Children(func() {
-				ui.Icon(c, iconSidebarToggle).FontSize(iconSidebar)
-			})
-			if b.Clicked() {
-				a.toggleSidebar()
-			}
-		})
+	// The toggle: a title bar button as Finder's and Xcode's on macOS 26,
+	// a bare glyph at rest, a toolbar capsule's fill on hover and press
+	// (no glass, no face), centered on the traffic lights' line.
+	t := c.Theme()
+	b := ui.Button(c.Key("side-toggle"), "").Label(T.SidebarToggle).Tooltip(T.SidebarToggle).
+		Absolute().Left(a.sideToggleX(c)).Top(trafficLightsMid(c)-toolbarItemH/2).
+		Size(sideToggleW, toolbarItemH).Padding(0).Radius(toolbarItemH / 2).
+		AlignItems(ui.Center).Justify(ui.Center).BorderWidth(0).Background(ui.Transparent)
+	switch {
+	case b.Pressed() || toolbarForce == "pressed":
+		b.Background(t.Text.Alpha(0.12))
+	case b.Hovered() || toolbarForce == "hover":
+		b.Background(t.Text.Alpha(0.07))
+	}
+	b.Children(func() {
+		ui.Icon(c, iconSidebarToggle).FontSize(iconSidebar).TextColor(t.TextMuted)
 	})
+	if b.Clicked() {
+		a.toggleSidebar()
+	}
 
 	// The divider's grip: over the line between the sidebar and the page,
 	// under the title bar (which drags the window). A hidden sidebar has
@@ -344,7 +414,7 @@ func (a *app) sidebarChrome(c *ui.Context, barH float32) {
 	default:
 		return
 	}
-	m, w := sideSnap(s.raw, s.width)
+	m, w := sideSnap(s.raw, s.width, s.minW())
 	if m == sideExpanded {
 		s.width = w
 	}
@@ -364,7 +434,7 @@ func railRow(c *ui.Context, it navItem, chosen, active bool) bool {
 	if it.count > 0 {
 		tip = fmt.Sprintf("%s · %d", it.label, it.count)
 	}
-	row := ui.Row(c.Key("nav:" + it.id)).Height(rowH).AlignItems(ui.Center).Justify(ui.Center).
+	row := ui.Row(c.Key("nav:" + it.id)).Width(railRowW).AlignSelf(ui.Center).Height(rowH).AlignItems(ui.Center).Justify(ui.Center).
 		Radius(navSelRadius).Tooltip(tip).Role(ui.RoleTreeItem).Label(tip).AccessSelected(chosen)
 	if it.digit > 0 {
 		row.KeyShortcuts(ui.Cmd, it.key)
@@ -427,7 +497,7 @@ func railMark(c *ui.Context, tone navTone, onAccent bool) ui.Element {
 func railGap(c *ui.Context) {
 	t := c.Theme()
 	rowH, _, _ := navMetrics()
-	ui.Column(c).Height(rowH / 2).Justify(ui.Center).PaddingX(8).AccessHidden(true).Children(func() {
+	ui.Column(c).Width(railRowW).AlignSelf(ui.Center).Height(rowH / 2).Justify(ui.Center).PaddingX(8).AccessHidden(true).Children(func() {
 		ui.Box(c).Height(1).Background(pal(t).separator)
 	})
 }
