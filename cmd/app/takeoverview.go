@@ -25,7 +25,8 @@ func (a *app) takeoverPage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	v := &a.hd.take
 	pageTitle(c, T.PageTakeover)
-	if !a.takeoverAdopted() && a.section("plan") {
+	managed := a.twinnelManaged(s)
+	if !managed && a.section("plan") {
 		a.takeoverIntro(c)
 	}
 	if !v.fixture && !a.helperGate(c, s) {
@@ -36,7 +37,10 @@ func (a *app) takeoverPage(c *ui.Context, s status.Snapshot) {
 		notice(c, iconWarning, T.TakeoverFixture)
 	}
 	if a.section("plan") {
-		if v.plan == nil {
+		switch {
+		case v.plan == nil && managed:
+			a.takeoverManaged(c, s)
+		case v.plan == nil:
 			a.takeoverEmpty(c, s, planErr)
 		}
 		a.takeoverPlanList(c, s)
@@ -88,6 +92,38 @@ func (a *app) takeoverAdopted() bool {
 		}
 	}
 	return false
+}
+
+// twinnelManaged: Twinnel already runs this machine's mihomo, by a
+// takeover or by a config of its own (the wizard): there is nothing to
+// take over, and the page says so instead of offering a plan against
+// Twinnel's own config. It is the same test as 总览's 已接管
+// (Snapshot.TakenOver), read only from a connected helper's status.
+func (a *app) twinnelManaged(s status.Snapshot) bool {
+	if a.hd.take.fixture {
+		return a.takeoverAdopted()
+	}
+	return a.takeoverAdopted() || (s.Helper.Connected() && s.Helper.Status != nil && s.TakenOver())
+}
+
+// takeoverManaged stands in for 现有安装 once Twinnel manages the setup:
+// what runs, and no 生成接管计划.
+func (a *app) takeoverManaged(c *ui.Context, s status.Snapshot) {
+	T := i18n.T
+	headedCard(c, func() {
+		ui.Text(c, T.TakeoverFound).FontSize(plat.headingSize).FontWeight(plat.headingWeight).SingleLine()
+	}, func() {
+		a.okLine(c, T.TakeoverManaged)
+		a.liveFileRow(c, "config", T.TakeoverLive, a.liveConfigPath(s))
+		mv := T.TkFoundNotRunning
+		if s.Mihomo.Reachable {
+			mv = T.TkFoundLive
+		}
+		if s.Mihomo.Version != "" {
+			mv += " · " + s.Mihomo.Version
+		}
+		kv(c, "mihomo", mv)
+	})
 }
 
 // takeoverIntro: what takeover does, in one line and three points, and

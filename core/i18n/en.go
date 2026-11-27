@@ -443,6 +443,7 @@ var en = Strings{
 	TakeoverDiscardTitle:   "Delete takeover plan “%s”?",
 	TakeoverDiscardBody:    "Your current config is not affected.",
 	TakeoverFound:          "Current setup",
+	TakeoverManaged:        "Already managed by Twinnel",
 	TakeoverLive:           "Config file",
 	TakeoverMihomoSvc:      "mihomo service",
 	TakeoverBinary:         "mihomo binary",

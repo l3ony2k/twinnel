@@ -208,6 +208,7 @@ type Strings struct {
 	TakeoverBinary, TakeoverSecretSet                                                 string
 	TakeoverTSSvc, TakeoverBase                                                       string
 	TakeoverUseBase                                                                   string
+	TakeoverManaged                                                                   string // Twinnel runs this setup already: nothing to take over
 	TakeoverCandScore                                                                 string // proxies same/total, groups same/total, tail/rules, head
 	TakeoverNoLayers                                                                  string
 	TakeoverRules                                                                     string // %d
@@ -724,6 +725,7 @@ var zh = Strings{
 	TakeoverDiscardTitle:   "删除接管计划「%s」？",
 	TakeoverDiscardBody:    "不影响现在的配置。",
 	TakeoverFound:          "现有安装",
+	TakeoverManaged:        "已由 Twinnel 管理",
 	TakeoverLive:           "配置文件",
 	TakeoverMihomoSvc:      "mihomo 服务",
 	TakeoverBinary:         "mihomo 程序",

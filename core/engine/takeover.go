@@ -87,6 +87,26 @@ func confirmHash(dir string) (string, error) {
 	return sha256Hex(b)[:16], nil
 }
 
+// discoverOptions are the takeover discovery options with the helper's
+// own setup, so discovery marks it (MihomoSetup.Twinnel) and no plan is
+// made against Twinnel's own config: its state dir, its mihomo service
+// unless that was adopted from the system, and the config it writes once
+// it adopted a setup or applied one.
+func (e *Engine) discoverOptions() takeover.DiscoverOptions {
+	o := e.TakeoverDiscover
+	own := takeover.Own{Dirs: []string{e.Store.Dir}}
+	if st, err := e.Store.Settings(); err == nil {
+		if !st.Mihomo.ServiceAdopted && st.Mihomo.ServiceLabel != "" {
+			own.Labels = append(own.Labels, st.Mihomo.ServiceLabel)
+		}
+		if st.Adopted != nil || e.lastApplyFromHistory() != nil {
+			own.Configs = append(own.Configs, st.Mihomo.ConfigFile)
+		}
+	}
+	o.Own = o.Own.With(own)
+	return o
+}
+
 func (e *Engine) takeoverProbe() (takeover.Probe, error) {
 	if e.TakeoverProbe == nil {
 		return nil, rpc.Errorf(rpc.CodeFailed, "takeover is not supported by this helper (no platform probe)")
@@ -108,11 +128,11 @@ func (e *Engine) TakeoverPlan(ctx context.Context, p rpc.TakeoverPlanParams) (rp
 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	opt := takeover.Options{DiscoverOptions: e.TakeoverDiscover}
+	opt := takeover.Options{DiscoverOptions: e.discoverOptions()}
 	if p.Base != "" {
 		// Only a candidate the helper found itself: a root helper must not
 		// import an arbitrary file a client names.
-		disc, err := takeover.Discover(ctx, probe, e.TakeoverDiscover)
+		disc, err := takeover.Discover(ctx, probe, opt.DiscoverOptions)
 		if err != nil {
 			return rpc.TakeoverPlan{}, rpc.Errorf(rpc.CodeFailed, "%v", err)
 		}
@@ -133,6 +153,9 @@ func (e *Engine) TakeoverPlan(ctx context.Context, p rpc.TakeoverPlanParams) (rp
 		opt.BasePath = want
 	}
 	plan, err := takeover.BuildPlan(ctx, probe, opt)
+	if errors.Is(err, takeover.ErrOwnSetup) {
+		return rpc.TakeoverPlan{}, rpc.ErrInvalid("%v", err)
+	}
 	if err != nil {
 		return rpc.TakeoverPlan{}, rpc.Errorf(rpc.CodeFailed, "takeover plan: %v", err)
 	}
@@ -424,7 +447,7 @@ func (e *Engine) Adopt(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult,
 
 	// ---- 1. the live setup still matches the plan ----
 	dctx, cancel := context.WithTimeout(ctx, time.Minute)
-	disc, err := takeover.Discover(dctx, probe, e.TakeoverDiscover)
+	disc, err := takeover.Discover(dctx, probe, e.discoverOptions())
 	cancel()
 	if err != nil {
 		return res, rpc.Errorf(rpc.CodeFailed, "discover: %v", err)

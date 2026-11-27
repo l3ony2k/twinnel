@@ -63,6 +63,9 @@ type MihomoSetup struct {
 	// Profiles are subscription profiles found next to the setup (e.g. a
 	// Clash Party profile index); URLs are redacted.
 	Profiles []Profile `json:"profiles,omitempty"`
+	// Twinnel: this is Twinnel's own setup (its service, or a config it
+	// writes), so there is nothing to take over.
+	Twinnel bool `json:"twinnel,omitempty"`
 }
 
 // Profile is a subscription entry from a GUI client's profile index.
@@ -95,6 +98,10 @@ type Discovery struct {
 type DiscoverOptions struct {
 	ConfigPath string // live config; default from the service's -d/-f
 	MihomoBin  string // default the service's binary
+	// Own is Twinnel's own setup beyond DefaultOwn (the helper's state
+	// dir and the config it writes): a setup it matches is marked
+	// MihomoSetup.Twinnel.
+	Own Own
 }
 
 // Discover finds the mihomo service, its files, and Tailscale. Read-only.
@@ -127,6 +134,7 @@ func Discover(ctx context.Context, p Probe, opt DiscoverOptions) (*Discovery, er
 	if m.Service == nil {
 		d.Warnings = append(d.Warnings, "no mihomo service found; using "+m.Config)
 	}
+	m.Twinnel = DefaultOwn().With(opt.Own).Has(m)
 	if err := m.readConfig(); err != nil {
 		return nil, err
 	}
