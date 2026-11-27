@@ -32,7 +32,10 @@ type StatusStrings struct {
 
 	// Fix buttons (health.Fix* codes).
 	FixRegenCoexist, FixOpenOverrides, FixTakeOver, FixInstallHelper, FixTestEgress string
-	DoneCoexistRegen                                                                string
+	// 出口 IP 实测: test again, the time of an on-demand result (%s), the
+	// 定期检测 switch.
+	EgressRetest, EgressTestedAt, EgressPeriodic string
+	DoneCoexistRegen                             string
 
 	// mihomo down: start it through the helper.
 	StartMihomo, RestartMihomo, StartShort string
@@ -80,6 +83,9 @@ var zhStatus = StatusStrings{
 	FixTakeOver:      "接管",
 	FixInstallHelper: "安装后台助手",
 	FixTestEgress:    "检测出口",
+	EgressRetest:     "重新检测",
+	EgressTestedAt:   "%s 检测",
+	EgressPeriodic:   "定期检测",
 	DoneCoexistRegen: "已重新生成 Tailscale 共存",
 
 	StartMihomo:   "启动 mihomo",
@@ -125,6 +131,9 @@ var enStatus = StatusStrings{
 	FixTakeOver:      "Take Over",
 	FixInstallHelper: "Install Helper",
 	FixTestEgress:    "Test Egress",
+	EgressRetest:     "Test Again",
+	EgressTestedAt:   "Tested %s",
+	EgressPeriodic:   "Test Periodically",
 	DoneCoexistRegen: "Tailscale coexistence regenerated",
 
 	StartMihomo:   "Start mihomo",

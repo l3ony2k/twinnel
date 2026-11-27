@@ -238,7 +238,7 @@ func opResult(label string) (text string, quiet bool) {
 	}
 	toggle, _, _ := strings.Cut(T.LayerToggle, "%s")
 	switch {
-	case label == T.LayerReorder, strings.HasPrefix(label, toggle), strings.HasPrefix(label, T.SubActivate+" "):
+	case label == T.LayerReorder, label == T.EgressPeriodic, strings.HasPrefix(label, toggle), strings.HasPrefix(label, T.SubActivate+" "):
 		return "", true
 	case label == T.Apply:
 		return T.DoneApplied, false

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -240,7 +241,7 @@ func (a *app) fixAction(cr health.CheckReport, s status.Snapshot) *fixAction {
 	case health.FixExitNodeOff:
 		return &fixAction{label: T.ExitNodeTurnOff, run: a.turnOffExitNode, off: !s.Can().Tailscale}
 	case health.FixEgressProbe:
-		if a.egressProbe == nil {
+		if !a.canTestEgress(s) {
 			return nil
 		}
 		return &fixAction{label: T.FixTestEgress, run: a.testEgress, off: a.egress.running}
@@ -250,30 +251,77 @@ func (a *app) fixAction(cr health.CheckReport, s status.Snapshot) *fixAction {
 
 // --- the egress test, on demand ---
 
-// egressState is the last on-demand egress test (health.LeakEgress with
-// the test turned on): two HTTPS requests to an IP-echo address, one
-// direct and one through mihomo. It stands in for the check's 未开启 row.
+// egressState is the on-demand egress test (health.LeakEgress with the
+// test turned on): two HTTPS requests to an IP-echo address, one direct
+// and one through mihomo. With the helper connected it runs there
+// (health.egress), which keeps the result in its reports; result is only
+// the in-process run's, without a helper (or with one older than
+// health.egress), standing in for the check's 未开启 row.
 type egressState struct {
 	running bool
 	result  *health.CheckReport
+	err     string // the last run failed (shown on the row)
+}
+
+// canTestEgress: the helper runs the test, or the app can.
+func (a *app) canTestEgress(s status.Snapshot) bool {
+	return s.Helper.Connected() && a.hc != nil && !a.shotMode || a.egressProbe != nil
 }
 
 func (a *app) testEgress() {
-	if a.egress.running || a.egressProbe == nil {
+	if a.egress.running {
 		return
 	}
-	a.egress.running = true
-	probe := a.egressProbe
+	hc, probe := a.hc, a.egressProbe
+	if hc != nil && !hc.State().Connected() || a.shotMode {
+		hc = nil // shots: the fixture's probe, never the scratch helper's real test
+	}
+	if hc == nil && probe == nil {
+		return
+	}
+	a.egress.running, a.egress.err = true, ""
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 70*time.Second)
 		defer cancel()
-		cr := probe(ctx)
+		var cr *health.CheckReport
+		var err error
+		if hc != nil {
+			err = hc.Call(ctx, rpc.MethodHealthEgress, rpc.HealthEgressParams{Lang: i18n.Tag()}, nil)
+			var re *rpc.Error
+			if errors.As(err, &re) && re.Code == rpc.CodeMethodNotFound && probe != nil {
+				hc, err = nil, nil // a helper older than health.egress: run it here
+			}
+		}
+		if hc == nil {
+			if cr = probe(ctx); cr != nil {
+				cr.At = time.Now()
+			}
+		}
 		mygo.RunOnMain(func() {
 			a.egress.running = false
-			a.egress.result = cr
+			if err != nil {
+				a.egress.err = helperError(err)
+			}
+			if hc == nil {
+				a.egress.result = cr
+			} else {
+				a.egress.result = nil // the helper's report has it now
+				a.runHealth()
+			}
 			a.invalidate()
 		})
 	}()
+}
+
+// setEgressPeriodic turns 定期检测 on or off in the helper's settings.
+func (a *app) setEgressPeriodic(on bool) {
+	a.helperOp(i18n.T.EgressPeriodic, 10*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
+		return hc.Call(ctx, rpc.MethodSettingsUpdate, rpc.SettingsUpdate{HealthEgress: &on}, nil)
+	}, func(err error) {
+		if err != nil {
+			a.toastErr = i18n.T.ErrorText(helperError(err))
+		}
+	})
 }
 
 // --- overview ---
