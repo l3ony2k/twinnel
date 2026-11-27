@@ -1065,6 +1065,7 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 		a.menuBarCard(c)
 	}
 	a.languageCard(c)
+	a.agentSection(c, s) // agentsection.go
 	a.refreshHelperMgmt(s)
 	a.helperSection(c, s)
 }

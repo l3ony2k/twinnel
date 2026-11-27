@@ -142,6 +142,7 @@ func (e *Engine) Register(s *rpc.Server) {
 		return e.HardenApply(ctx, p)
 	})
 	e.registerCredentials(s)
+	e.registerAgent(s)
 
 	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, p rpc.HealthLastParams) (rpc.HealthReport, error) {
 		return e.HealthLast(p.Lang)

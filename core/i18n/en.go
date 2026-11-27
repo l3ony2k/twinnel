@@ -560,6 +560,7 @@ var en = Strings{
 	StatusStrings:          enStatus,
 	SidebarStrings:         enSidebar,
 	OverviewStrings:        enOverview,
+	AgentStrings:           enAgent,
 }
 
 var enControls = ControlStrings{
