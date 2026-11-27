@@ -374,9 +374,9 @@ func TestVPNConflict(t *testing.T) {
 
 	e = healthyEnv()
 	e.ts.ExitNode = &e.ts.Peers[0]
-	want(t, VPNConflict{}, e, StatusFail, "exit node")
+	want(t, VPNConflict{}, e, StatusFail, "出口节点")
 	e.settings.AllowExitNode = true
-	want(t, VPNConflict{}, e, StatusWarn, "exit node")
+	want(t, VPNConflict{}, e, StatusWarn, "出口节点")
 
 	e = healthyEnv()
 	e.routes["1.1.1.1"] = RouteLookup{Interface: "utun3"}

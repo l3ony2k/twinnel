@@ -63,7 +63,7 @@ func (a *app) subPageHeader(c *ui.Context, title string) {
 // (helperGate), and a short 已安装 once it is connected.
 func (a *app) installPage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
-	a.subPageHeader(c, T.StepHelper)
+	a.subPageHeader(c, T.OnboardInstall)
 	if !a.helperGate(c, s) {
 		return
 	}

@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"os"
+	"os/exec"
 	"runtime"
 	"slices"
 	"strings"
@@ -36,6 +37,9 @@ type machineProbes interface {
 	// runCLI runs the duet command line tool (version, the helper install
 	// plan, the upgrade check, and the helper operations the user starts).
 	runCLI(ctx context.Context, args ...string) (string, error)
+	// processes lists the running processes (ps), for the overview's
+	// memory, CPU and uptime of mihomo and tailscaled.
+	processes(ctx context.Context) ([]status.ProcessEntry, error)
 }
 
 // hostProbes reads the real machine. Tests replace it with a probe set
@@ -49,7 +53,17 @@ type realProbes struct{}
 func (realProbes) runCLI(ctx context.Context, args ...string) (string, error) {
 	return execCLI(ctx, args...)
 }
-func (realProbes) liveSetup() liveSetup        { return probeLiveSetup() }
+func (realProbes) liveSetup() liveSetup { return probeLiveSetup() }
+func (realProbes) processes(ctx context.Context) ([]status.ProcessEntry, error) {
+	if runtime.GOOS == "windows" {
+		return nil, errors.New("no ps")
+	}
+	out, err := exec.CommandContext(ctx, "ps", status.PSArgs...).Output()
+	if err != nil {
+		return nil, err
+	}
+	return status.ParsePS(string(out)), nil
+}
 func (realProbes) tailscaleAPI() tailscale.API { return tailscale.DefaultAPI() }
 func (realProbes) tailscaleInstall() tailscale.Install {
 	return tailscale.DetectInstall(runtime.GOOS, func(p string) bool {
@@ -96,7 +110,16 @@ func (p *shotProbes) healthEnv(_ status.Config, settings health.Settings) health
 	}}
 }
 
-func (p *shotProbes) liveSetup() liveSetup        { return liveSetup{} }
+func (p *shotProbes) liveSetup() liveSetup { return liveSetup{} }
+
+// processes is a synthetic process list: mihomo and tailscaled with
+// plausible figures, nothing from this machine.
+func (p *shotProbes) processes(context.Context) ([]status.ProcessEntry, error) {
+	return []status.ProcessEntry{
+		{PID: 812, RSS: 61 << 20, CPU: 1.8, Elapsed: 9*24*time.Hour + 20*time.Hour + 38*time.Minute, Command: "/usr/local/bin/mihomo"},
+		{PID: 405, RSS: 27 << 20, CPU: 0.3, Elapsed: 10*24*time.Hour + time.Hour, Command: "/opt/homebrew/opt/tailscale/bin/tailscaled"},
+	}, nil
+}
 func (p *shotProbes) tailscaleAPI() tailscale.API { return tailscale.FileAPI(p.statusFile) }
 func (p *shotProbes) tailscaleInstall() tailscale.Install {
 	return tailscale.Install{Kind: tailscale.InstallTailscaled, Source: "brew", Daemon: "/opt/homebrew/opt/tailscale/bin/tailscaled"}
@@ -160,5 +183,17 @@ func newEgressProbe(p machineProbes, cfg status.Config) func(context.Context) *h
 			return nil
 		}
 		return &rep.Checks[0]
+	}
+}
+
+// newMihomoFile reads the mihomo config file through the probes' health
+// Env (the live config, or the fixture in shots); nil on platforms
+// without one.
+func newMihomoFile(p machineProbes, cfg status.Config) func(context.Context) (*health.MihomoConfig, error) {
+	if p.healthEnv(cfg, health.DefaultSettings()) == nil {
+		return nil
+	}
+	return func(ctx context.Context) (*health.MihomoConfig, error) {
+		return p.healthEnv(cfg, health.DefaultSettings()).MihomoConfig(ctx)
 	}
 }

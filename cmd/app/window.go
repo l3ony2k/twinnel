@@ -76,9 +76,9 @@ func (a *app) mainView(c *ui.Context) {
 				ui.Scroll(c.Key("page:"+a.page)).TrackScroll(st).Grow(1).ScrollbarInsets(barH, 0, 0, 0).Children(func() {
 					// Left-anchored as System Settings' detail pane: every
 					// page, 日志 included, starts on one edge; the column
-					// stops growing at contentMax.
+					// stops growing at pageMaxWidth.
 					ui.Column(c).Padding(barH+4, plat.pagePadX, 32).AlignItems(ui.Start).Children(func() {
-						ui.Column(c).Gap(gapGroup).FillWidth().MaxWidth(plat.contentMax).Children(func() {
+						ui.Column(c).Gap(gapGroup).FillWidth().MaxWidth(pageMaxWidth(a.page)).Children(func() {
 							a.pageBody(c, s)
 						})
 					})
@@ -125,9 +125,9 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 	spec := pageBar
 	// The title and the actions line up with the page's column: over its
 	// left and right edges at every width, as the column is left-anchored
-	// and no wider than contentMax. Logs fill the pane, and so does their
+	// and no wider than pageMaxWidth. Logs fill the pane, and so does their
 	// bar.
-	inner := float32(plat.contentMax)
+	inner := pageMaxWidth(a.page)
 	if a.page == pageLogs {
 		inner = 0
 	}
@@ -374,24 +374,7 @@ func pageTitle(c *ui.Context, title string) {
 	pageHeader(c, title, nil)
 }
 
-// --- overview ---
-
-func (a *app) overviewPage(c *ui.Context, s status.Snapshot) {
-	T := i18n.T
-	pageTitle(c, T.PageOverview)
-	a.verdict(c, s)
-	a.exitNodeAcceptedRow(c, s)
-	a.gettingStarted(c, s)
-	a.actionNotes(c, s)
-	card(c, T.Traffic, func() { a.trafficChart(c, s) })
-	// Side by side; stacked when a language's longer rows need more than
-	// half the page (halfCardMin).
-	ui.Row(c).Gap(gapGroup).AlignItems(ui.Stretch).Wrap().Children(func() {
-		cardWith(c, T.Mihomo, func() { a.mihomoMenu(c, s) }, func() { a.mihomoSummary(c, s) }).Basis(0).Grow(1).MinWidth(halfCardMin)
-		card(c, T.Tailscale, func() { a.tailscaleSummary(c, s) }).Basis(0).Grow(1).MinWidth(halfCardMin)
-	})
-	a.overviewHelperCard(c, s)
-}
+// --- overview (overview.go) ---
 
 // verdict is the overall state in one line, with what makes it so.
 func (a *app) verdict(c *ui.Context, s status.Snapshot) {
@@ -425,91 +408,6 @@ func (a *app) verdict(c *ui.Context, s status.Snapshot) {
 	})
 }
 
-func (a *app) mihomoSummary(c *ui.Context, s status.Snapshot) {
-	t := c.Theme()
-	T := i18n.T
-	m := s.Mihomo
-	if !m.Reachable {
-		kv(c, T.State, T.Unreachable)
-		unreachableLine(c, svcMihomo, m.Err)
-		kv(c, T.Controller, a.mh.BaseURL())
-		return
-	}
-	kv(c, T.State, T.Running)
-	kv(c, T.Version, m.Version)
-	kvWith(c, T.Mode, func() { kvControl(a.modeControl(c, s)) })
-	a.controlError(c, pendMode)
-	tun := T.TunOff
-	if m.Config.Tun.Enable {
-		tun = m.Config.Tun.Device + sourceSuffix(m.Config.Tun.Stack) // the switch says it is on
-	}
-	kvTipWith(c, T.Tun, T.InfoTun, nil, func() {
-		a.tunSwitch(c, s)
-		ui.Text(c, tun).TextColor(t.TextMuted).SingleLine().Shrink(1)
-	})
-	a.controlError(c, pendTun)
-	if p := m.Primary; p != nil {
-		// One row for where traffic leaves: the node and its delay; the
-		// route to it (the main group and what it selected) on hover.
-		route := strings.Join(append([]string{p.Name}, p.Chain...), " → ")
-		kvWith(c, T.Exit, func() {
-			ui.Text(c, p.Node).SingleLine().Shrink(1).MinWidth(0).Tooltip(route)
-			ui.Spacer(c)
-			num(ui.Text(c, p.DelayText()).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
-		})
-	}
-	kv(c, T.Connections, fmt.Sprint(m.Connections))
-}
-
-// tailscaleAdminURL is the tailnet's machines page, where a node key is
-// renewed.
-const tailscaleAdminURL = "https://login.tailscale.com/admin/machines"
-
-func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
-	t := c.Theme()
-	T := i18n.T
-	ts := s.Tailscale
-	st := ts.State
-	if !ts.Reachable {
-		kv(c, T.State, T.Unreachable)
-		unreachableLine(c, svcTailscale, ts.Err)
-		kv(c, T.Install, T.InstallKind(string(ts.Install.Kind)))
-		return
-	}
-	if needsLogin(s) {
-		// Logged out: the node's addresses and devices are not its own
-		// now; the way back in is the one action.
-		kvWith(c, T.State, func() {
-			ui.Text(c, T.TSState(st.BackendState)).Grow(1).SingleLine()
-			a.tsLoginButton(c, s)
-		})
-		return
-	}
-	kv(c, T.State, T.TSState(st.BackendState))
-	kv(c, T.SelfName, st.Self.Name)
-	if ip := st.Self.IPv4(); ip.IsValid() {
-		kv(c, T.SelfIP, ip.String())
-	}
-	kv(c, T.OnlinePeers, fmt.Sprintf("%d / %d", st.OnlinePeers(), len(st.Peers)))
-	kvTipWith(c, T.ExitNode, T.InfoExitNode, nil, func() { kvControl(a.exitNodePicker(c, s)) })
-	a.controlError(c, pendExit)
-	kv(c, T.MagicDNS, onOff(st.Prefs.MagicDNS))
-	if st.KeyExpiry != nil {
-		exp := st.KeyExpiry.Local().Format("2006-01-02") + " (" + status.Until(s.Time, *st.KeyExpiry) + ")"
-		if !st.KeyExpiresWithin(s.Time, status.KeyExpiryWarning) {
-			kv(c, T.KeyExpiry, exp)
-		} else {
-			kvWith(c, T.KeyExpiry, func() {
-				num(ui.Text(c, exp).TextColor(pal(t).warnText).SingleLine().Shrink(1))
-				ui.Link(c, T.KeyRenew, tailscaleAdminURL).FontSize(plat.calloutSize)
-			})
-		}
-	}
-	kvWith(c, T.Install, func() { // wraps: long in some languages, and the card is half wide
-		num(ui.Text(c, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source)).Grow(1).Wrap().LineHeight(lineText).Selectable())
-	})
-}
-
 func sourceSuffix(s string) string {
 	if s == "" {
 		return ""
@@ -528,15 +426,15 @@ func onOff(b bool) string {
 func trafficSpan(d time.Duration) string {
 	sec := int(d.Round(time.Second) / time.Second)
 	if sec < 60 {
-		return fmt.Sprintf(i18n.T.TrafficLastSec, max(sec, 1))
+		return i18n.F(i18n.T.TrafficLastSec, max(sec, 1))
 	}
-	return fmt.Sprintf(i18n.T.TrafficLastMin, sec/60)
+	return i18n.F(i18n.T.TrafficLastMin, sec/60)
 }
 
 // trafficChart draws the last two minutes of download and upload rates:
 // the overview's one rich element. Download carries the accent; upload is
 // a quiet second line.
-func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
+func (a *app) trafficChart(c *ui.Context, s status.Snapshot, height float32) {
 	t := c.Theme()
 	T := i18n.T
 	hist := a.mon.TrafficHistory()
@@ -555,15 +453,6 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 		}
 		figure(T.Download, t.Accent, s.Mihomo.Traffic.Down)
 		figure(T.Upload, up, s.Mihomo.Traffic.Up)
-		ui.Spacer(c)
-		if s.Mihomo.Reachable {
-			ui.Column(c).Gap(2).AlignItems(ui.End).Children(func() {
-				if len(hist) > 1 {
-					num(small(c, trafficSpan(hist[len(hist)-1].Time.Sub(hist[0].Time))))
-				}
-				num(small(c, fmt.Sprintf("%s ↓ %s  ↑ %s", T.Total, status.Bytes(s.Mihomo.Traffic.DownTotal), status.Bytes(s.Mihomo.Traffic.UpTotal))))
-			})
-		}
 	})
 	const n = 120
 	var hi float64 = 1024
@@ -590,9 +479,9 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 		down[i] = y.At(float64(h.Down) / unit)
 		upv[i] = y.At(float64(h.Up) / unit)
 	}
-	grid := pal(t).separator
+	grid := t.Text.Alpha(0.06) // quieter than a separator: the plot's lines lead (R-unslop-9)
 	axes := chart.Axes{Right: ticks, Label: func(_ chart.Side, tk chart.Tick) {
-		num(ui.Text(c, tk.Label).FontSize(plat.smallSize).TextColor(t.TextMuted).NoWrap())
+		monoText(c, tk.Label).FontSize(plat.smallSize).TextColor(t.TextMuted).NoWrap()
 	}}
 	describe := func(i int) string {
 		h := hist[i]
@@ -606,9 +495,21 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 			if len(xs) < 2 {
 				return
 			}
-			p.FillPath(chart.Area(r, xs, nil, down, chart.CurveMonotone), t.Accent.Alpha(0.14))
-			p.StrokePath(chart.Line(r, xs, upv, chart.CurveMonotone), 1.5, up.Alpha(0.8))
-			p.StrokePath(chart.Line(r, xs, down, chart.CurveMonotone), 2, t.Accent)
+			// Download's area is a tone ramp in the accent, strongest at
+			// the line's highest point and gone at the baseline, so the
+			// line leads and the fill never reads as a slab (R-unslop-9).
+			var peak float32
+			for _, v := range down {
+				peak = max(peak, v)
+			}
+			ramp := r
+			ramp.Y = chart.Y(r, peak)
+			ramp.H = r.Y + r.H - ramp.Y
+			p.ClipPath(chart.Area(r, xs, nil, down, chart.CurveMonotone), func() {
+				p.FillGradient(ramp, ui.LinearGradient{From: t.Accent.Alpha(trafficRampAlpha(t)), To: t.Accent.Alpha(0), Angle: 180}, 0)
+			})
+			p.StrokePath(chart.Line(r, xs, upv, chart.CurveMonotone), 1.25, up)
+			p.StrokePath(chart.Line(r, xs, down, chart.CurveMonotone), 1.5, t.Accent)
 		})
 		// The readout: under the pointer (or the arrow keys), a guide at
 		// the nearest sample, a dot on each line, and the sample's rates
@@ -655,7 +556,16 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot) {
 				num(small(c, status.Ago(s.Time, h.Time)).NoWrap())
 			})
 		})
-	}).Label(T.Traffic).Height(176).Gap(8)
+	}).Label(T.Traffic).Height(height).Gap(8)
+}
+
+// trafficRampAlpha is the download fill's opacity at the line: lighter
+// in the light appearance, where the same alpha reads stronger.
+func trafficRampAlpha(t *ui.Theme) float32 {
+	if t.Dark {
+		return 0.22
+	}
+	return 0.16
 }
 
 // shotReadout shows the chart's readout in screenshots (DUET_SHOTS_READOUT),
@@ -976,6 +886,9 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 		}
 	}
 	title := fmt.Sprintf("%s · %d / %d", T.Devices, online, len(peers))
+	if len(peers) == 0 { // the empty state says it (R-unslop-29)
+		title = T.Devices
+	}
 	cardTip(c, title, T.TipPeerPath, nil, func() {
 		if len(peers) == 0 {
 			// In a card under the account's: the card size of an empty

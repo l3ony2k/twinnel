@@ -50,7 +50,7 @@ type langLayout struct {
 
 var langLayouts = map[string]langLayout{
 	"zh-Hans": {label: 96},
-	"en":      {label: 116, halfCard: 330}, // "This Mac's name"
+	"en":      {label: 116, halfCard: 360}, // "This Mac's name"
 }
 
 // halfCardMin is langLayout.halfCard of the current language. (The

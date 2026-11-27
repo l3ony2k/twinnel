@@ -37,6 +37,10 @@ func (f *forbiddenProbes) runCLI(_ context.Context, args ...string) (string, err
 	return "", nil
 }
 func (f *forbiddenProbes) liveSetup() liveSetup { f.hit("liveSetup"); return liveSetup{} }
+func (f *forbiddenProbes) processes(context.Context) ([]status.ProcessEntry, error) {
+	f.hit("processes")
+	return nil, nil
+}
 func (f *forbiddenProbes) tailscaleAPI() tailscale.API {
 	f.hit("tailscaleAPI")
 	return tailscale.FileAPI("/nonexistent")

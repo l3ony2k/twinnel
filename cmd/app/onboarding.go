@@ -208,8 +208,7 @@ func (a *app) installPlanCard(c *ui.Context) {
 			case v.loading && v.plan == "":
 				listRow(c).Children(func() {
 					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-						ui.Spinner(c)
-						small(c, T.Loading)
+						ui.Spinner(c).Label(T.Loading) // the spinner says it (R-unslop-29)
 					})
 				})
 			case v.planErr != "" || v.timeout:

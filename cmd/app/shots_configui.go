@@ -159,7 +159,7 @@ func (a *app) configUIShots(save func(*mygo.Window, string)) {
 		scrollTop()
 		wait(time.Second)
 		save(a.win, "c11-config-drift")
-		on(func() { a.restoreLayers(i18n.T.DriftRestore, target.ID, nil) })
+		on(func() { a.restoreLayers(i18n.T.DriftRestore, i18n.T.DoneRestored, target.ID, nil) })
 		wait(1500 * time.Millisecond)
 		save(a.win, "c12-config-restored")
 	}

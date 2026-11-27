@@ -295,7 +295,7 @@ func (a *app) inventoryCard(c *ui.Context, s status.Snapshot) {
 			return
 		}
 		if v.err != "" {
-			listRow(c).Children(func() { errorNote(c, T.ErrorPrefix+v.err) })
+			listRow(c).Children(func() { errorNote(c, v.err) })
 		}
 		for i, it := range items {
 			listRow(c.Key(fmt.Sprint("inv", i))).Children(func() {
@@ -321,11 +321,16 @@ func (a *app) inventoryCard(c *ui.Context, s status.Snapshot) {
 					case it.Size > 0:
 						num(meta(c, status.Bytes(it.Size)))
 					}
+					// One muted icon per row, the label in its tooltip: a
+					// column of accent links would outshout the actions
+					// below (kubai R-24, unslop R-10).
 					if it.Path != "" && !strings.HasSuffix(it.Path, ".sock") {
 						p := it.Path
-						if actionLink(c.Key("finder"), T.ShowInFinder).Clicked() {
+						if toolIcon(c.Key("finder"), iconReveal, T.ShowInFinder, false).Clicked() {
 							mygo.Shell.ShowItemInFolder(p)
 						}
+					} else {
+						ui.Box(c).Size(24, 24).Shrink(0) // keeps the sizes' column
 					}
 				})
 			})
@@ -398,7 +403,7 @@ func (a *app) askUndo() {
 		var dry rpc.TakeoverUndoResult
 		err := hc.Call(ctx, rpc.MethodTakeoverUndo, rpc.TakeoverUndoParams{DryRun: true}, &dry)
 		if err != nil {
-			mygo.RunOnMain(func() { v.undoBusy, v.undoErr = false, T.ErrorPrefix+helperError(err); a.invalidate() })
+			mygo.RunOnMain(func() { v.undoBusy, v.undoErr = false, helperError(err); a.invalidate() })
 			return
 		}
 		var lines []string
@@ -466,14 +471,15 @@ func (a *app) undoResult(c *ui.Context, r *rpc.TakeoverUndoResult) {
 
 // --- 卸载后台助手 and 完全移除 ---
 
+// iconReveal is 在 Finder 中显示 on an inventory row.
+var iconReveal = svgIcon("folder-search")
+
 func (a *app) uninstallCard(c *ui.Context, s status.Snapshot) {
-	t := c.Theme()
 	T := i18n.T
 	hm := &a.hm
 	cardTip(c, T.LeaveUninstall, T.TipLeaveUninstall, nil, func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Success)
-			ui.Text(c, T.LeaveKeepsRunning).Grow(1).Shrink(1)
+			ui.Text(c, T.LeaveUninstallWhat).Grow(1).Shrink(1) // keeps running: in the ⓘ (R-unslop-29)
 			installed := s.Helper.State != status.HelperNotInstalled
 			if busyButton(c.Key("uninstall"), T.LeaveUninstallRun, false, hm.running == T.HelperUninstall, !installed || !a.helperOpsEnabled(s)).Clicked() {
 				a.askUninstall()
@@ -490,9 +496,10 @@ func (a *app) removeAllCard(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	hm := &a.hm
 	cardTip(c, T.LeaveRemoveAll, T.TipLeaveRemoveAll, nil, func() {
+		// "mihomo 和 Tailscale 继续运行" is said once, by 卸载后台助手
+		// above (unslop R-29).
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Success)
-			ui.Text(c, T.LeaveKeepsRunning).Grow(1).Shrink(1)
+			ui.Text(c, T.LeaveRemoveAllWhat).Grow(1).Shrink(1) // keeps running: in the ⓘ (R-unslop-29)
 			b := busyButton(c.Key("remove-all"), T.LeaveRemoveAllRun, false, hm.running == T.HelperRemoveAll, !a.helperOpsEnabled(s))
 			b.TextColor(t.Danger)
 			if b.Clicked() {

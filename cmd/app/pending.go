@@ -9,7 +9,6 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/status"
 )
 
 // Optimistic controls (kubai 017 e): a switch, segmented control or select
@@ -95,7 +94,7 @@ func (a *app) optimistic(key string, val any, failed string, fn func(ctx context
 				if a.pend.vals[key] == e && e.inflight == 0 {
 					delete(a.pend.vals, key)
 				}
-				a.pend.errs[key] = fmt.Sprintf(failed, status.ShortError(err))
+				a.pend.errs[key] = fmt.Sprintf(failed, controlReason(key, err))
 			} else {
 				e.until = time.Now().Add(pendingHold)
 				time.AfterFunc(pendingHold+50*time.Millisecond, func() { mygo.RunOnMain(a.invalidate) })

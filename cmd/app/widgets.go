@@ -215,22 +215,6 @@ func levelText(t *ui.Theme, l status.Level) ui.Color {
 	return t.Text
 }
 
-// levelIcon is the glyph of a status level, drawn in levelColor: one
-// mapping wherever a level shows as an icon (kubai R-6), ✓ for OK, ⚠ for
-// a warning, ⊗ for an error, the info glyph otherwise. Text beside it
-// takes levelText.
-func levelIcon(l status.Level) *ui.SVG {
-	switch l {
-	case status.LevelOK:
-		return iconOK
-	case status.LevelWarn:
-		return iconWarning
-	case status.LevelError:
-		return iconError
-	}
-	return iconAbout
-}
-
 // dot draws a status dot.
 func dot(c *ui.Context, col ui.Color, size float32) ui.Element {
 	return ui.Box(c).Size(size, size).Radius(size / 2).Background(col).Shrink(0)

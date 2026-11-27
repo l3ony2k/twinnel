@@ -184,7 +184,7 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		kvMono(c, T.ServiceDefinition, st.Definition)
 	}
 	if st.Error != "" {
-		errorNote(c, T.ErrorPrefix+st.Error)
+		errorNote(c, T.RPCErrorText(0, st.Error))
 	}
 }
 
@@ -371,7 +371,7 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 		kvMono(c, T.AccessoryRemote, remote)
 	}
 	if f.Error != "" {
-		errorNote(c, T.ErrorPrefix+f.Error)
+		errorNote(c, T.RPCErrorText(0, f.Error))
 	}
 }
 
@@ -401,7 +401,7 @@ func (a *app) accessoryResult(c *ui.Context, s status.Snapshot, r *rpc.Accessory
 			ui.Text(c, T.AccessoryRolledBack).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Wrap().LineHeight(lineText)
 		}
 		if r.Error != "" {
-			errorNote(c, T.ErrorPrefix+r.Error)
+			errorNote(c, T.RPCErrorText(0, r.Error))
 		}
 		if r.ReloadNeeded {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {

@@ -103,7 +103,7 @@ var enHelperMgmt = HelperMgmtStrings{
 	RemoveAllConfirm:   "Remove",
 	ItemHelper:         "the helper",
 	ItemData:           "data",
-	ItemDataCounts:     "data (%d subscriptions, %d overrides, history, logs)",
+	ItemDataCounts:     "data (%d subscription{s}, %d override{s}, history, logs)",
 	ItemSecrets:        "keychain items",
 	ItemDuetMihomo:     "duet's mihomo service (back to %s, offline for a few seconds)",
 	ItemOriginalMihomo: "mihomo's original service",
