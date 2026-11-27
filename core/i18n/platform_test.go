@@ -19,13 +19,31 @@ func windowsLangs(t *testing.T) []Lang {
 
 // The wording replaces the shared maps instead of changing them.
 func TestWindowsWordingCopiesMaps(t *testing.T) {
-	before := en.MsgTexts["refuses-exposed"]
+	before := written["en"].MsgTexts["refuses-exposed"]
+	beforeSetup := written["en"].HistReasons["setup"]
 	w := windowsLangs(t)
-	if en.MsgTexts["refuses-exposed"] != before || runtime.GOOS != "windows" && en.HistReasons["setup"] == w[1].S.HistReasons["setup"] {
-		t.Fatal("the Windows wording changed a shared map")
+	if written["en"].MsgTexts["refuses-exposed"] != before || written["en"].HistReasons["setup"] != beforeSetup {
+		t.Fatal("the Windows wording changed the tables as written")
 	}
 	if w[1].S.ShowInFinder != "Show in File Explorer" || !strings.Contains(w[1].S.MsgTexts["refuses-exposed"], "this PC") {
 		t.Fatal("the Windows table is not worded")
+	}
+}
+
+// The tables the running code reads are this system's wording of the
+// tables as written (applyDesktop), and WordedFor gives the same for
+// every system whatever system runs it.
+func TestLiveTablesAreThisSystems(t *testing.T) {
+	for _, l := range Langs() {
+		if !reflect.DeepEqual(*l.S, *WordedFor(l.Tag, runtime.GOOS)) {
+			t.Errorf("%s: the live table is not WordedFor(%s)", l.Tag, runtime.GOOS)
+		}
+		if !reflect.DeepEqual(*WordedFor(l.Tag, Darwin), written[l.Tag]) {
+			t.Errorf("%s: the macOS table is not the table as written", l.Tag)
+		}
+	}
+	if WordedFor("xx", Linux) != nil {
+		t.Error("unknown tag worded")
 	}
 }
 
