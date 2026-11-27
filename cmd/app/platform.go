@@ -54,7 +54,24 @@ type platformStyle struct {
 	pushFace        bool    // plain buttons drawn as NSButton (pushFace)
 	titleBarSize    float32 // the page title in the toolbar
 	titleBarWeight  int
+	navSel          navSelection // how the sidebar shows its selected row (nav.go)
 }
+
+// navSelection is how a platform's sidebar marks the selected row.
+type navSelection int
+
+const (
+	// navAccentFill: the row filled with the accent, icon and label in
+	// AccentText, while the window is key (macOS 15 and earlier).
+	navAccentFill navSelection = iota
+	// navNeutral: a neutral translucent fill, the label in the text color
+	// and the icon in the accent as on every row, no hover (macOS 26+
+	// Finder; GNOME's navigation sidebar).
+	navNeutral
+	// navNeutralPill: navNeutral with a short accent pill at the row's
+	// leading edge and a hover fill (Windows 11 NavigationView).
+	navNeutralPill
+)
 
 var plat = platformFor(runtime.GOOS)
 
@@ -68,6 +85,7 @@ func platformFor(goos string) platformStyle {
 			bodySize: 14, smallSize: 12, calloutSize: 13, leadSize: 16, figureSize: 20, panelTextSize: 13, titleSize: 28, headingSize: 14,
 			titleWeight: 600, headingWeight: 600, panelPad: 16,
 			titleBarSize: 28, titleBarWeight: 600, // Windows 11 Settings: the page title stays large
+			navSel: navNeutralPill,
 		}
 	case "linux":
 		return platformStyle{
@@ -76,8 +94,12 @@ func platformFor(goos string) platformStyle {
 			groupRadius: 12, controlRadius: 6, innerRadius: 8, rowMinHeight: 46,
 			bodySize: 14, smallSize: 12, calloutSize: 13, leadSize: 16, figureSize: 20, panelTextSize: 13, titleSize: 20, headingSize: 14,
 			titleWeight: 700, headingWeight: 700, panelPad: 16, trayMenuOnly: true,
-			titleBarSize: 15, titleBarWeight: 700,
+			titleBarSize: 15, titleBarWeight: 700, navSel: navNeutral,
 		}
+	}
+	navSel := navAccentFill // macOS 15 and earlier
+	if liquidGlass {
+		navSel = navNeutral // macOS 26+: Finder's neutral selection
 	}
 	return platformStyle{ // darwin
 		titleBar: mygo.TitleBarHiddenInset, sidebarMat: mygo.VibrancySidebar,
@@ -89,6 +111,7 @@ func platformFor(goos string) platformStyle {
 		// A unified toolbar's window title (System Settings, Finder): about
 		// 15 pt bold, not the 20 pt of an in-content heading.
 		titleBarSize: 15, titleBarWeight: 700,
+		navSel: navSel,
 	}
 }
 

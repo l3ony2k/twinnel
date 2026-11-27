@@ -84,11 +84,12 @@ const (
 
 // Icon sizes: one per role.
 const (
-	iconNav    = 16 // sidebar
-	iconInline = 14 // in buttons, headings, notices, rows
-	iconSmall  = 12 // disclosure chevrons, tiny keys
-	iconLarge  = 22 // the verdict and empty states
-	iconHero   = 28 // the app mark on the welcome page
+	iconNav     = 16 // sidebar before macOS 26, row status marks
+	iconSidebar = 18 // sidebar on macOS 26+ (Finder's medium symbols, 17–19 pt)
+	iconInline  = 14 // in buttons, headings, notices, rows
+	iconSmall   = 12 // disclosure chevrons, tiny keys
+	iconLarge   = 22 // the verdict and empty states
+	iconHero    = 28 // the app mark on the welcome page
 )
 
 // Motion tokens (vibedesign 011). One curve per role; no call site picks
