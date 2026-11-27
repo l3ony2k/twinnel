@@ -58,6 +58,11 @@ type configView struct {
 	ed        *editor.State
 	lint      []status.LintNote
 	lintKey   lintKey // what lint was computed for
+	// saveErr is the helper's refusal of the last save, shown in the
+	// editor (at its line when it has one), not at the top of the page.
+	saveErr    *rpc.Msg
+	saveErrBuf uint64 // the buffer version it was for
+	baseIDs    []string // the stored base layers, in order (reorder sends them first)
 
 	// Preview and apply.
 	reason  string
@@ -86,6 +91,7 @@ func (a *app) configPage(c *ui.Context, s status.Snapshot) {
 		return
 	}
 	a.opNotes(c, s)
+	a.driftRow(c, s)
 	a.subscriptionsCard(c, s)
 	a.layersCard(c, s)
 	a.previewCard(c, s)
@@ -120,7 +126,6 @@ func (a *app) subscriptionsCard(c *ui.Context, s status.Snapshot) {
 }
 
 func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snapshot, w bool) {
-	t := c.Theme()
 	T := i18n.T
 	id := sub.ID
 	refresh := func() {
@@ -153,6 +158,9 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 		if m.Item(T.CopyID).Chosen() {
 			copyText(c, id)
 		}
+		if sub.Hash != "" && m.Item(T.SubCopyHash).Chosen() {
+			copyText(c, sub.Hash)
+		}
 		m.Separator()
 		if m.Item(T.Remove + "…").Danger().Disabled(!w).Chosen() {
 			remove()
@@ -160,13 +168,14 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 	})
 	row.Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Height(28).Children(func() {
+			// The ID is an identifier: in the context menu, not the row (U32).
 			ui.Text(c, sub.Name).FontWeight(600).SingleLine().Shrink(1).Tooltip(sub.Name)
-			ui.Text(c, sub.ID).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine()
 			if sub.Active {
 				tag(c, T.SubActive)
 			}
 			ui.Spacer(c)
-			if sub.HasURL && a.opButton(c.Key("refresh"), iconRefresh, T.SubRefresh, false, T.SubRefresh+" "+id).Disabled(!w).Clicked() {
+			never := sub.LastFetch.IsZero()
+			if sub.HasURL && a.opButton(c.Key("refresh"), iconRefresh, T.SubRefresh, never, T.SubRefresh+" "+id).Disabled(!w).Clicked() {
 				refresh()
 			}
 			if !sub.Active && pushButton(c.Key("activate"), T.SubActivate).Disabled(!w).Clicked() {
@@ -184,19 +193,29 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 		if sub.IntervalMinutes > 0 {
 			interval = fmt.Sprintf(T.SubEvery, sub.IntervalMinutes)
 		}
-		parts := []string{src, interval, status.Bytes(int64(sub.Size))}
-		if sub.Hash != "" {
-			parts = append(parts, shortHash(sub.Hash))
-		}
-		num(small(c, strings.Join(parts, " · ")).SingleLine())
-		fetched := T.SubNeverFetched
-		if !sub.LastFetch.IsZero() {
-			fetched = fmt.Sprintf(T.SubFetched, status.Ago(s.Time, sub.LastFetch))
+		// Where the content comes from, and when it last did (U32): an
+		// adopted subscription runs on the file takeover used until its
+		// first download, which is not "never downloaded".
+		num(small(c, src+" · "+interval).SingleLine())
+		var fetched string
+		switch {
+		case !sub.LastFetch.IsZero():
+			fetched = fmt.Sprintf(T.SubUpdated, status.Ago(s.Time, sub.LastFetch), status.Bytes(int64(sub.Size)))
 			if !sub.LastChange.IsZero() {
 				fetched += " · " + fmt.Sprintf(T.SubChanged, status.Ago(s.Time, sub.LastChange))
 			}
+		case sub.ID == adoptedSubID:
+			fetched = T.SubSourceAdoptedBare
+			if base := a.adoptedBase(); base != "" {
+				fetched = fmt.Sprintf(T.SubSourceAdopted, base)
+			}
+			fetched += " · " + status.Bytes(int64(sub.Size))
+		case sub.Size > 0:
+			fetched = status.Bytes(int64(sub.Size))
+		default:
+			fetched = T.SubNeverFetched
 		}
-		num(small(c, fetched).SingleLine())
+		num(small(c, fetched).SingleLine().Shrink(1).Tooltip(fetched))
 		if sub.LastError != "" {
 			errorNote(c, T.ErrorPrefix+sub.LastError)
 		}
@@ -317,11 +336,18 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 	d := &a.hd
 	v := &d.cfg
 	w := a.helperWrites(s)
-	var user, managed []rpc.Layer
+	// The list is in compose order, grouped by stage (U33): the
+	// subscription, base, the user's overrides (the only ones that move),
+	// then the managed ones. Compose sorts by stage, so a user layer never
+	// goes above the base ones.
+	var base, user, managed []rpc.Layer
 	for _, l := range d.layers {
-		if l.Managed {
+		switch {
+		case l.Managed:
 			managed = append(managed, l)
-		} else {
+		case l.Stage == stageBase:
+			base = append(base, l)
+		default:
 			user = append(user, l)
 		}
 	}
@@ -329,6 +355,11 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 	for i, l := range user {
 		ids[i] = l.ID
 	}
+	baseIDs := make([]string, len(base))
+	for i, l := range base {
+		baseIDs[i] = l.ID
+	}
+	v.baseIDs = baseIDs
 	listCard(c, func() {
 		ui.Text(c, T.Layers).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Shrink(0)
 		ui.Spacer(c)
@@ -339,17 +370,34 @@ func (a *app) layersCard(c *ui.Context, s status.Snapshot) {
 		if a.helperListsLoading(c, 2) {
 			return
 		}
+		groupLabel(c.Key("g-sub"), T.GroupSubscription)
+		ui.Row(c.Key("sub-chain")).Gap(10).AlignItems(ui.Center).Padding(8).MarginX(-8).Children(func() {
+			ui.Icon(c, iconConfig).FontSize(iconInline).TextColor(t.TextMuted).Width(14)
+			name := a.activeSubscriptionName()
+			if name == "" {
+				name = T.SubNone
+			}
+			ui.Text(c, name).FontWeight(600).SingleLine().Shrink(1)
+		})
+		if len(base) > 0 {
+			groupLabel(c.Key("g-base"), T.GroupBase)
+			for _, l := range base {
+				a.layerRow(c.Key("layer:"+l.ID), l, nil, s, w, -1)
+			}
+		}
+		groupLabel(c.Key("g-user"), T.GroupUser)
 		if len(user) == 0 && !v.isNew {
 			listRow(c).Children(func() { ui.Text(c, T.LayersNone).TextColor(t.TextMuted) })
 		}
 		for i, l := range user {
 			a.layerRow(c.Key("layer:"+l.ID), l, ids, s, w, i)
 		}
-		for _, l := range managed {
-			a.layerRow(c.Key("layer:"+l.ID), l, nil, s, w, -1)
-		}
 		if v.isNew {
 			a.newLayerRow(c.Key("layer-new-row"), s, w)
+		}
+		groupLabel(c.Key("g-managed"), T.GroupManaged)
+		for _, l := range managed {
+			a.layerRow(c.Key("layer:"+l.ID), l, nil, s, w, -1)
 		}
 	})
 	if i := slices.Index(ids, v.sel); i >= 0 && w && !v.isNew {
@@ -463,11 +511,9 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 				// the rest is sans meta with even digits (review-a 007-8).
 				ui.Row(c).Gap(0).AlignItems(ui.Baseline).Children(func() {
 					ui.Text(c, l.ID).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1)
-					info := " · " + l.Format
 					if !l.Managed {
-						info += " · " + status.Bytes(int64(l.Size))
+						num(meta(c, " · "+status.Bytes(int64(l.Size))))
 					}
-					num(meta(c, info))
 				})
 			})
 		})
@@ -509,6 +555,12 @@ func (a *app) layerMenu(c *ui.Context, m *ui.Menu, l rpc.Layer, ids []string, w 
 		}
 		if m.Item(T.MoveDown).Shortcut(ui.Alt|ui.Cmd, ui.KeyDown).Disabled(!w || i == len(ids)-1).Chosen() {
 			a.moveLayer(ids, i, 1)
+		}
+	}
+	if _, ok := a.revertable(l); ok {
+		m.Separator()
+		if m.Item(T.LayerRevert + "…").Disabled(!w).Chosen() {
+			a.revertLayer(l)
 		}
 	}
 	m.Separator()
@@ -597,8 +649,9 @@ func dropLayer(ids []string, dragged string, at int) ([]string, bool) {
 // reorderLayers sends the stored layers' new order. The helper's list
 // comes back in it.
 func (a *app) reorderLayers(ids []string) {
+	all := append(slices.Clone(a.hd.cfg.baseIDs), ids...) // the helper wants every stored layer
 	a.helperOp(i18n.T.LayerReorder, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
-		return hc.Call(ctx, rpc.MethodLayerReorder, rpc.ReorderParams{IDs: ids}, nil)
+		return hc.Call(ctx, rpc.MethodLayerReorder, rpc.ReorderParams{IDs: all}, nil)
 	}, nil)
 }
 
@@ -606,7 +659,7 @@ func (a *app) reorderLayers(ids []string) {
 func (a *app) moveLayerByID(id string, delta int) {
 	var ids []string
 	for _, l := range a.hd.layers {
-		if !l.Managed {
+		if !l.Managed && l.Stage != stageBase {
 			ids = append(ids, l.ID)
 		}
 	}
@@ -705,10 +758,17 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 					ui.Text(c, T.LayerName).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 					ui.TextInput(c.Key("ed-name"), &v.edName).Label(T.LayerName)
 				})
-				ui.Column(c).Gap(4).Children(func() {
-					ui.Text(c, T.LayerStage).FontSize(plat.calloutSize).TextColor(t.TextMuted)
-					ui.Segmented(c.Key("ed-stage"), &v.edStage, T.StageName(stageUser), T.StageName(stageBase))
-				})
+			})
+			// The options say what they change (U36). A new override is a
+			// user one: 基础 is for what takeover made, and only shows on a
+			// layer that already has it.
+			ui.Row(c).Gap(12).AlignItems(ui.End).Wrap().Children(func() {
+				if !v.isNew && layerStages[v.edStage] == stageBase {
+					ui.Column(c).Gap(4).Children(func() {
+						ui.Text(c, T.LayerStage).FontSize(plat.calloutSize).TextColor(t.TextMuted)
+						ui.Segmented(c.Key("ed-stage"), &v.edStage, T.StageUserLong, T.StageBaseLong)
+					})
+				}
 				ui.Column(c).Gap(4).Children(func() {
 					ui.Text(c, T.LayerFormat).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 					ui.Segmented(c.Key("ed-format"), &v.edFormat, T.FormatMerge, T.FormatVerge)
@@ -725,16 +785,29 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 		if v.managed {
 			return
 		}
-		a.lintNotes(c)
+		blocked := a.lintNotes(c)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			id := strings.TrimSpace(v.edID)
-			if ui.PrimaryButton(c.Key("ed-save"), T.Save).Disabled(!w || id == "").Clicked() {
+			// An error-level note means the helper would refuse the save:
+			// the button waits, the note says why (U35).
+			save := ui.PrimaryButton(c.Key("ed-save"), T.Save).Disabled(!w || id == "" || blocked)
+			if blocked {
+				save.Tooltip(T.LayerSaveBlocked)
+			}
+			if save.Clicked() {
 				a.saveLayer()
 			}
 			if v.ed.Buffer.Modified() {
 				ui.Text(c, T.Unsaved).FontSize(plat.calloutSize).TextColor(pal(t).warnText)
 			}
 			ui.Spacer(c)
+			if !v.isNew {
+				if i := indexLayer(a.hd.layers, v.sel); i >= 0 {
+					if _, ok := a.revertable(a.hd.layers[i]); ok && pushButton(c.Key("ed-revert"), T.LayerRevert+"…").Disabled(!w).Clicked() {
+						a.revertLayer(a.hd.layers[i])
+					}
+				}
+			}
 			if !v.isNew && pushButton(c.Key("ed-delete"), T.Remove).Disabled(!w).Clicked() {
 				a.removeLayer(id, v.edName)
 			}
@@ -758,8 +831,10 @@ func (a *app) removeLayer(id, name string) {
 	})
 }
 
-// lintNotes shows the merge-directive warnings of the edited layer.
-func (a *app) lintNotes(c *ui.Context) {
+// lintNotes shows the merge-directive notes of the edited layer, and the
+// helper's refusal of the last save at its line; it reports whether one
+// of them is an error (the save is then held back).
+func (a *app) lintNotes(c *ui.Context) (blocked bool) {
 	t := c.Theme()
 	v := &a.hd.cfg
 	key := lintKey{v.ed.Buffer, v.ed.Buffer.Version(), v.edFormat}
@@ -769,9 +844,23 @@ func (a *app) lintNotes(c *ui.Context) {
 			v.lint = status.LintOverride(v.ed.Buffer.String())
 		}
 	}
-	for i, n := range v.lint {
+	notes := v.lint
+	if m := v.saveErr; m != nil && v.saveErrBuf == v.ed.Buffer.Version() {
+		text, raw := i18n.T.MsgText(*m, false)
+		if raw {
+			text = m.Text // a refusal duet has no words for: the helper's own, here at the editor
+		}
+		_, line := layerErrorLine(*m)
+		notes = append([]status.LintNote{{Level: status.LevelError, Line: line, Text: text}}, notes...)
+	}
+	for _, n := range notes {
+		if n.Level == status.LevelError {
+			blocked = true
+		}
+	}
+	for i, n := range notes {
 		if i == 8 {
-			ui.Textf(c, "… +%d", len(v.lint)-8).FontSize(plat.calloutSize).TextColor(t.TextMuted)
+			ui.Textf(c, "… +%d", len(notes)-8).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 			break
 		}
 		col, icon := t.TextMuted, iconSkip
@@ -790,6 +879,7 @@ func (a *app) lintNotes(c *ui.Context) {
 			ui.Text(c, text).FontSize(plat.calloutSize).TextColor(col).Grow(1).Wrap().LineHeight(lineText).Selectable()
 		})
 	}
+	return blocked
 }
 
 func (a *app) saveLayer() {
@@ -807,10 +897,19 @@ func (a *app) saveLayer() {
 		p.Enabled = &on
 	}
 	buf := v.ed.Buffer
+	ver := buf.Version()
+	v.saveErr = nil
+	if v.isNew { // a new layer is a user one (U36)
+		p.Stage = stageUser
+	}
 	a.helperOp(T.Save+" "+p.ID, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
 		return hc.Call(ctx, rpc.MethodLayerPut, p, nil)
 	}, func(err error) {
 		if err != nil {
+			// The refusal belongs to the editor, at its line (U35).
+			m := errorMsg(helperError(err), nil)
+			v.saveErr, v.saveErrBuf = &m, ver
+			a.hd.msg, a.hd.msgErr = "", false
 			return
 		}
 		buf.MarkSaved()
@@ -829,14 +928,15 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 	w := a.helperWrites(s)
 	headedCard(c, func() {
 		ui.Text(c, T.PreviewApply).FontSize(plat.headingSize).FontWeight(plat.headingWeight)
-		a.unappliedNote(c)
 		ui.Spacer(c)
 		if a.opButton(c.Key("preview"), iconPreview, T.Preview, false, T.Preview).Disabled(!s.Helper.Connected() || a.hd.busy != "").Clicked() {
 			a.runPreview(s)
 		}
 	}, func() {
+		// What is pending, by name, with 放弃改动 (U39).
+		a.pendingRow(c, s, w)
 		if p := v.preview; p != nil {
-			composeSummary(c, *p)
+			a.composeSummary(c, *p)
 		}
 		if v.diffErr != "" {
 			ui.Text(c, v.diffErr).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
@@ -852,26 +952,54 @@ func (a *app) previewCard(c *ui.Context, s status.Snapshot) {
 			ui.Divider(c) // only between a preview and the apply row
 		}
 		ui.Row(c).Gap(8).AlignItems(ui.End).Children(func() {
-			ui.Column(c).Gap(4).Grow(1).Children(func() {
-				ui.Text(c, T.ApplyReason).FontSize(plat.calloutSize).TextColor(t.TextMuted)
-				ui.TextInput(c.Key("reason"), &v.reason).Label(T.ApplyReason).Placeholder(T.ApplyReasonPlaceholder)
-			})
+			// 说明 belongs to a previewed change (H6): optional, filled
+			// from what changed, and only there once there is a preview.
+			if v.preview != nil {
+				ui.Column(c).Gap(4).Grow(1).Children(func() {
+					ui.Text(c, T.ApplyReason).FontSize(plat.calloutSize).TextColor(t.TextMuted)
+					ui.TextInput(c.Key("reason"), &v.reason).Label(T.ApplyReason).Placeholder(T.ReasonOptional)
+				})
+			} else {
+				ui.Spacer(c)
+			}
 			if a.opButton(c.Key("apply"), iconOK, T.Apply, a.hd.unapplied, T.Apply).Disabled(!w).Clicked() {
 				a.runApply()
 			}
 		})
 		if r := v.applied; r != nil {
-			applySummary(c, *r)
+			a.applySummary(c, *r)
 		}
 	})
 }
 
+// composeChain is the compose order in names (U33): the subscription,
+// then each applied layer by its display name.
+func (a *app) composeChain(applied []string) string {
+	names := []string{}
+	if n := a.activeSubscriptionName(); n != "" {
+		names = append(names, n)
+	}
+	for _, id := range applied {
+		name := id
+		if i := indexLayer(a.hd.layers, id); i >= 0 {
+			name = layerTitle(a.hd.layers[i])
+		} else if hid, ok := strings.CutPrefix(id, "history:"); ok {
+			if e := historyByID(a.hd.history, hid); e != nil {
+				name = e.Time.Local().Format("01-02 15:04:05")
+			}
+		}
+		names = append(names, name)
+	}
+	return strings.Join(names, " → ")
+}
+
 // composeSummary shows a compose.preview result.
-func composeSummary(c *ui.Context, r rpc.ComposeResult) {
+func (a *app) composeSummary(c *ui.Context, r rpc.ComposeResult) {
 	t := c.Theme()
 	T := i18n.T
-	kv(c, T.ComposeLayers, strings.Join(r.Applied, " → "))
-	kv(c, T.ComposeHash, fmt.Sprintf("%s · %s", shortHash(r.Hash), status.Bytes(int64(r.Size))))
+	kvWith(c, T.ComposeOrder, func() {
+		ui.Text(c, a.composeChain(r.Applied)).Grow(1).Wrap().LineHeight(lineText)
+	})
 	valid, col := T.ValidOK, t.Success
 	if !r.Valid {
 		valid, col = T.ValidFail, t.Danger
@@ -882,56 +1010,74 @@ func composeSummary(c *ui.Context, r rpc.ComposeResult) {
 		changed = T.Yes
 	}
 	kv(c, T.ComposeChanged, changed)
-	for _, e := range r.ValidateErrors {
-		ui.Text(c, e).Font("monospace").FontSize(plat.smallSize).TextColor(pal(t).badText).Wrap().LineHeight(lineText).Selectable()
-	}
-	for _, wn := range r.Warnings {
-		warningNote(c, wn)
+	validateErrors(c, r.ValidateErrors)
+	for i, m := range resultMessages(r, nil) {
+		msgNote(c.Key(fmt.Sprint("cw", i)), m, true)
 	}
 }
 
-// applySummary shows a compose.apply or history.rollback result.
-func applySummary(c *ui.Context, r rpc.ApplyResult) {
+// validateErrors are mihomo -t's own lines: its output, as a log is.
+func validateErrors(c *ui.Context, errs []string) {
+	t := c.Theme()
+	for _, e := range errs {
+		ui.Text(c, e).Font("monospace").FontSize(plat.smallSize).TextColor(pal(t).badText).Wrap().LineHeight(lineText).Selectable()
+	}
+}
+
+// applySummary shows a compose.apply or history.rollback result (U38):
+// the outcome, when, what it did to the network, and the way to its
+// history entry. Write/reload flags and the record ID are internals.
+func (a *app) applySummary(c *ui.Context, r rpc.ApplyResult) {
 	t := c.Theme()
 	T := i18n.T
-	col, head := t.Success, T.ApplyDone
+	col, head := t.Success, i18n.F(T.AppliedAt, r.Time.Local().Format("15:04"))
 	switch {
 	case r.Error != "":
 		col, head = t.Danger, T.ApplyFailed
-	case !r.Changed:
+	case !r.Changed && !r.Written:
 		col, head = t.TextMuted, T.ApplyUnchanged
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		dot(c, col, 8)
 		ui.Text(c, head).FontWeight(600)
-		ui.Text(c, r.Time.Local().Format("15:04:05")+" · "+r.Duration).FontSize(plat.calloutSize).TextColor(t.TextMuted)
-	})
-	flags := []string{
-		fmt.Sprintf("%s %s", T.ApplyWritten, yesNo(r.Written)),
-		fmt.Sprintf("%s %s", T.ApplyReloaded, yesNo(r.Reloaded)),
-	}
-	if r.RolledBack {
-		flags = append(flags, T.ApplyRolledBack)
-	}
-	if r.HistoryID != "" {
-		flags = append(flags, T.HistoryEntry+" "+r.HistoryID)
-	}
-	ui.Text(c, strings.Join(flags, " · ")).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
-	impactRow(c, r.Impact)
-	for _, w := range r.Warnings {
-		if k := i18n.WarningKind(w); r.Impact != nil && (k == "reload-disrupts" || k == "restart-needed") {
-			continue // the impact row says it
+		if r.Error == "" && r.Impact != nil {
+			text := T.ImpactGentle
+			if r.Impact.Disruptive {
+				text = T.ImpactDisruptive
+			}
+			small(c, "· "+text)
 		}
-		warningNote(c, w)
+		ui.Spacer(c)
+		if r.HistoryID != "" && a.page != pageHistory && pushButton(c.Key("in-history"), T.ViewInHistory).Clicked() {
+			a.showHistoryEntry(r.HistoryID)
+		}
+	})
+	if r.Error == "" {
+		impactLines(c, r.Impact)
+	}
+	for i, m := range resultMessages(r.ComposeResult, r.Impact) {
+		msgNote(c.Key(fmt.Sprint("aw", i)), m, true)
 	}
 	if r.Error != "" {
-		errorNote(c, r.Error)
+		// What failed, in words (U53); mihomo -t's own lines under it.
+		if r.RolledBack {
+			small(c, T.ApplyFailedRestore)
+		}
+		msgNote(c.Key("aerr"), errorMsg(r.Error, r.ErrorMsg), false)
+		validateErrors(c, r.ValidateErrors)
 	}
 }
 
-// impactRow says what a mihomo hot reload does (or did) to the network:
-// a few milliseconds of pause, or a short interruption, plus what only a
-// restart applies. Nothing when the helper did not judge it.
+// showHistoryEntry opens 历史 with an entry chosen.
+func (a *app) showHistoryEntry(id string) {
+	v := &a.hd.hist
+	v.sel, v.reveal = id, true
+	a.openPage(pageHistory)
+}
+
+// impactRow says what a mihomo hot reload does (or will do) to the
+// network, for a plan or confirm: a few milliseconds of pause, or a short
+// interruption and why. Nothing when the helper did not judge it.
 func impactRow(c *ui.Context, im *rpc.ReloadImpact) {
 	if im == nil {
 		return
@@ -948,16 +1094,26 @@ func impactRow(c *ui.Context, im *rpc.ReloadImpact) {
 				ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
 				ui.Text(c, text).TextColor(map[bool]ui.Color{true: col, false: t.Text}[im.Disruptive]).Wrap().LineHeight(lineText)
 			})
-			if len(im.RestartNeeded) > 0 {
-				small(c, T.ImpactRestart+T.LabelSep+strings.Join(im.RestartNeeded, T.ListSep)).Wrap().LineHeight(lineText)
-			}
-			if im.Disruptive {
-				for _, n := range im.Notes {
-					small(c, n).Wrap().Selectable()
-				}
-			}
+			impactLines(c, im)
 		})
 	})
+}
+
+// impactLines are the reasons a reload interrupts the network, and what
+// only a restart applies, from the impact's fields (U57: no English notes).
+func impactLines(c *ui.Context, im *rpc.ReloadImpact) {
+	if im == nil {
+		return
+	}
+	T := i18n.T
+	if im.Disruptive || im.Unknown {
+		for _, l := range T.ImpactLines(im) {
+			small(c, l).Wrap()
+		}
+	}
+	if len(im.RestartNeeded) > 0 {
+		small(c, T.ImpactRestart+T.LabelSep+strings.Join(im.RestartNeeded, T.ListSep)).Wrap()
+	}
 }
 
 func yesNo(b bool) string {
@@ -995,6 +1151,12 @@ func (a *app) runPreview(s status.Snapshot) {
 			return
 		}
 		v.preview = &res
+		if strings.TrimSpace(v.reason) == "" { // H6: the change says what it is
+			if last := lastApplied(a.hd.history); last != nil {
+				ch, _ := pendingChanges(last.Layers, a.hd.layers, a.hd.settings, a.activeSubscription())
+				v.reason = changeReason(ch)
+			}
+		}
 		if diffErr != nil {
 			v.diffErr = fmt.Sprintf(T.DiffUnavailable, helperError(diffErr))
 			return
@@ -1006,10 +1168,8 @@ func (a *app) runPreview(s status.Snapshot) {
 func (a *app) runApply() {
 	T := i18n.T
 	v := &a.hd.cfg
+	// No words from the user: the helper records the code "apply".
 	p := rpc.ApplyParams{Reason: strings.TrimSpace(v.reason)}
-	if p.Reason == "" {
-		p.Reason = T.ApplyReasonDefault
-	}
 	var res rpc.ApplyResult
 	a.helperOp(T.Apply, 2*time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
 		return hc.Call(ctx, rpc.MethodComposeApply, p, &res)

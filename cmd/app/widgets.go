@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/duet/core/i18n"
+	"github.com/l3ony2k/duet/core/msg"
 	"github.com/l3ony2k/duet/core/status"
 )
 
@@ -435,12 +436,10 @@ func errorNote(c *ui.Context, text string) ui.Element {
 
 // warningNote shows a warning from the helper (compose, apply, takeover),
 // in the UI language when duet knows it (i18n.Warning).
+// One duet has no words for shows a generic line with the text behind
+// 复制原文 (msgNote, U57).
 func warningNote(c *ui.Context, w string) ui.Element {
-	t := c.Theme()
-	return ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-		ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText).MarginY(1)
-		ui.Text(c, i18n.T.Warning(w)).FontSize(plat.calloutSize).Grow(1).Wrap().LineHeight(lineText).Selectable()
-	})
+	return msgNote(c, msg.Parse(w), true)
 }
 
 // emptyState says why a list is empty and what to do about it.
