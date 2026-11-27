@@ -99,6 +99,10 @@ const (
 	// did not start). Another proxy does not help; the error is a coded
 	// message (core/msg) a client words.
 	CodeInstallFailed = "install-failed"
+	// CodeDamaged: an installed program's files are damaged (zeroed by an
+	// interrupted installer, a bad signature). The client offers a repair:
+	// Options.RepairTailscale, then the step again.
+	CodeDamaged = "damaged"
 )
 
 // StepState is a step's progress.
@@ -150,6 +154,12 @@ type Options struct {
 	KernelChannel string
 	NoDNS         bool // leave the system DNS alone (mihomo's TUN still hijacks DNS)
 	NoTailscale   bool // no Tailscale install or login
+	// TailscaleInstallOnly installs Tailscale and leaves its service
+	// stopped (the Windows installer starts it); the login is left out.
+	TailscaleInstallOnly bool
+	// RepairTailscale reinstalls a Tailscale install whose files are
+	// damaged (CodeDamaged).
+	RepairTailscale bool
 	// LoginTimeout bounds the wait for the browser login (default 10 min).
 	LoginTimeout time.Duration
 }
@@ -584,7 +594,11 @@ var installCodes = map[string]bool{
 // after the download is CodeInstallFailed, anything else a download
 // failure (the client offers another proxy).
 func installErr(err error) error {
-	if installCodes[msg.Parse(cleanErr(err)).Code] {
+	code := msg.Parse(cleanErr(err)).Code
+	if code == "ts-damaged" {
+		return &StepError{Code: CodeDamaged, Err: err}
+	}
+	if installCodes[code] {
 		return &StepError{Code: CodeInstallFailed, Err: err}
 	}
 	return downloadErr(err)
@@ -726,12 +740,18 @@ func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("skipped (--no-tailscale)")}
 	}
 	var r rpc.TailscaleInstallResult
-	if err := hc.Call(ctx, rpc.MethodTailscaleInstall, rpc.TailscaleInstallParams{Proxy: f.Opts.Proxy}, &r); err != nil {
+	p := rpc.TailscaleInstallParams{Proxy: f.Opts.Proxy, NoStart: f.Opts.TailscaleInstallOnly, Repair: f.Opts.RepairTailscale}
+	if err := hc.Call(ctx, rpc.MethodTailscaleInstall, p, &r); err != nil {
 		var re *rpc.Error
 		if errors.As(err, &re) && (re.Code == rpc.CodeFailed) {
 			return "", installErr(err)
 		}
 		return "", err
+	}
+	if r.Repaired {
+		f.mu.Lock()
+		f.Opts.RepairTailscale = false
+		f.mu.Unlock()
 	}
 	if r.RestartNeeded {
 		f.warn(StepTailscale, WarnRestart, "restart the computer to finish installing Tailscale")
@@ -758,6 +778,9 @@ func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 func (f *Flow) runLogin(ctx context.Context, hc Caller) (string, error) {
 	if f.Opts.NoTailscale {
 		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("skipped (--no-tailscale)")}
+	}
+	if f.Opts.TailscaleInstallOnly {
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("Tailscale was left stopped (install only)")}
 	}
 	state := func(start bool) (rpc.TailscaleLoginResult, error) {
 		var ls rpc.TailscaleLoginResult

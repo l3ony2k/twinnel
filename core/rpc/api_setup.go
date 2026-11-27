@@ -65,6 +65,23 @@ type DNSStatus struct {
 type TailscaleInstallParams struct {
 	// Proxy for the download (Proxy* or a URL).
 	Proxy string `json:"proxy,omitempty"`
+	// NoStart: install only. The Windows installer starts its service
+	// right away; it is stopped again (TailscaleInstallResult.Stopped).
+	NoStart bool `json:"no_start,omitempty"`
+	// Repair reinstalls an install whose files are damaged (Windows: the
+	// official MSI over the old one; the build Twinnel unpacked:
+	// unpacked again). An install from elsewhere (Homebrew, the app) is
+	// repaired with its own installer.
+	Repair bool `json:"repair,omitempty"`
+}
+
+// BinaryProblem is an installed program that is not sane (core/binsane):
+// Problem is "zeroed", "empty", "bad-header", "bad-signature" (damaged),
+// "missing" or "denied".
+type BinaryProblem struct {
+	Path    string `json:"path"`
+	Problem string `json:"problem"`
+	Detail  string `json:"detail,omitempty"`
 }
 
 // TailscaleInstallResult says what tailscale.install did.
@@ -87,6 +104,13 @@ type TailscaleInstallResult struct {
 	// Service is the tailscaled service install (dry run when the helper
 	// is not root).
 	Service *ServiceOpResult `json:"service,omitempty"`
+	// Stopped: the service was stopped after the install (NoStart).
+	Stopped bool `json:"stopped,omitempty"`
+	// Repaired: the install was damaged and was reinstalled (Repair).
+	Repaired bool `json:"repaired,omitempty"`
+	// Damaged are the installed files that are not sane; with an error
+	// coded "ts-damaged" unless Repair fixed them.
+	Damaged []BinaryProblem `json:"damaged,omitempty"`
 }
 
 // MethodTailscaleLogin reads tailscaled's login state and, with Start,

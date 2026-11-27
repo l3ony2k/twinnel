@@ -808,6 +808,14 @@ func (a *app) wizTS(c *ui.Context, s status.Snapshot) {
 			b := busyButton(c.Key("ts-install"), T.WizTSInstalling, true, true, true)
 			disabledPrimaryFace(c, b)
 			return
+		case inst.State == setup.Failed && inst.Code == setup.CodeDamaged:
+			// An install left broken (a zeroed tailscale.exe): reinstall it.
+			failedRowWhy(c.Key("failed"), T.WizTSFailed, setupReason(inst), inst.Error, nil, false)
+			if b := primaryButton(c.Key("ts-repair"), T.WizTSRepair, a.setupV.running); b.Clicked() {
+				a.setupFlow().Opts.RepairTailscale = true
+				a.wizRun(nil, setup.StepTailscale)
+			}
+			return
 		case inst.State == setup.Failed:
 			failedRowWhy(c.Key("failed"), T.WizTSFailed, setupReason(inst), inst.Error, func() { a.wizRun(nil, setup.StepTailscale) }, a.setupV.running)
 			return

@@ -73,6 +73,7 @@ var patterns = []pattern{
 	{code: "msi-other-version", re: regexp.MustCompile(`a different version of Tailscale is already installed`)},
 	{code: "msi-failed", re: regexp.MustCompile(`the Tailscale installer failed \(msiexec exit code (-?\d+)\); its log is (.+)$`)},
 	{code: "ts-service-down", re: regexp.MustCompile(`Tailscale was installed but its service did not start`)},
+	{code: "ts-damaged", re: regexp.MustCompile(`Tailscale is installed but its files are damaged: (.+); repair it`)},
 	{code: "ts-cli-no-run", re: regexp.MustCompile(`Tailscale was installed but (.+) does not run`)},
 	{code: "ts-no-installer", re: regexp.MustCompile(`pkgs\.tailscale\.com has no Windows installer for (\S+)$`)},
 	{code: "mihomo-no-run", re: regexp.MustCompile(`the downloaded mihomo does not run on this computer`)},

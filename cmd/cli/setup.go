@@ -118,6 +118,8 @@ func runSetupFlow(args []string, statusOnly bool) error {
 	fs.StringVar(&f.o.KernelChannel, "channel", "", "mihomo `CHANNEL`: stable or alpha")
 	fs.BoolVar(&f.o.NoDNS, "no-dns", false, "leave the system DNS alone")
 	fs.BoolVar(&f.o.NoTailscale, "no-tailscale", false, "no Tailscale install or login")
+	fs.BoolVar(&f.o.TailscaleInstallOnly, "tailscale-install-only", false, "install Tailscale but leave it stopped (no login)")
+	fs.BoolVar(&f.o.RepairTailscale, "repair-tailscale", false, "reinstall a Tailscale install whose files are damaged")
 	fs.BoolVar(&f.yes, "yes", false, "never ask (fail where input is needed)")
 	fs.StringVar(&f.stepOnly, "step", "", "run only `STEP` again (a retry)")
 	fs.DurationVar(&f.o.LoginTimeout, "login-timeout", 10*time.Minute, "how long to wait for the Tailscale login")
@@ -231,6 +233,13 @@ func askForStep(flow *setup.Flow, se *setup.StepError) bool {
 		default:
 			return false
 		}
+		return true
+	case setup.CodeDamaged:
+		fmt.Fprintln(stdout, "Tailscale's files are damaged:", se.Err)
+		if !strings.HasPrefix(strings.ToLower(ask("Repair (reinstall Tailscale)? [y/N] ")), "y") {
+			return false
+		}
+		flow.Opts.RepairTailscale = true
 		return true
 	}
 	return strings.HasPrefix(strings.ToLower(ask("Retry "+string(se.Step)+"? [y/N] ")), "y")

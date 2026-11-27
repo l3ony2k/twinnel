@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/l3ony2k/twinnel/core/binsane"
 	"github.com/l3ony2k/twinnel/core/kernel"
 )
 
@@ -24,6 +25,7 @@ func TestInstallErrors(t *testing.T) {
 		{"Tailscale was installed but its service did not start; restart the computer and try again", "ts-service-down", nil},
 		{`Tailscale was installed but C:\Program Files\Tailscale\tailscale.exe does not run: exit status 1`, "ts-cli-no-run", []string{`C:\Program Files\Tailscale\tailscale.exe`}},
 		{"pkgs.tailscale.com has no Windows installer for arm64", "ts-no-installer", []string{"arm64"}},
+		{kernel.DamagedError([]binsane.Result{{Path: `C:\Program Files\Tailscale\tailscale.exe`, Problem: binsane.Zeroed}}).Error(), "ts-damaged", []string{`C:\Program Files\Tailscale\tailscale.exe (zeroed)`}},
 		{"release v1.19.34 has no asset for windows/arm", "mihomo-no-build", []string{"v1.19.34", "windows/arm"}},
 		{"checksum mismatch: got sha256:00, want sha256:11", "download-damaged", nil},
 	} {

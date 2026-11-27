@@ -69,19 +69,21 @@ func leftOf(s StepState) Left {
 	default:
 		l.Why = LeftPending
 	}
-	l.Do = whatToDo(s.ID, l.Why)
+	l.Do = whatToDo(s.ID, l.Why, s.Code)
 	return l
 }
 
 // whatToDo is the next step for a step left as why, for a terminal.
-func whatToDo(id Step, why string) string {
+func whatToDo(id Step, why, code string) string {
 	retry := "run `twinnel setup --step " + string(id) + "` to try again"
 	switch why {
 	case LeftUserSkipped:
 		switch id {
 		case StepDNS:
 			return "the system DNS was left alone; mihomo's TUN still answers DNS. Run `twinnel setup --step dns` to point it at mihomo"
-		case StepTailscale, StepLogin:
+		case StepLogin:
+			return "Tailscale is left out or stopped; run `twinnel setup --step tailscale`, start it (`twinnel service start tailscaled`), then `twinnel setup --step login`"
+		case StepTailscale:
 			return "Tailscale was left out; run `twinnel setup --step tailscale` to add it"
 		}
 		return "run `twinnel setup --step " + string(id) + "` to do it"
@@ -106,6 +108,9 @@ func whatToDo(id Step, why string) string {
 		}
 		return "run `twinnel setup` again"
 	case LeftFailed:
+		if id == StepTailscale && code == CodeDamaged {
+			return "run `twinnel setup --step tailscale --repair-tailscale` to reinstall it"
+		}
 		return retry
 	}
 	return "run `twinnel setup` to continue"

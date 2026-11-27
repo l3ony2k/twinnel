@@ -25,6 +25,7 @@ package kernel
 
 import (
 	"archive/tar"
+
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -32,6 +33,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/binsane"
 	"io"
 	"net/http"
 	"net/url"
@@ -94,6 +96,15 @@ type TailscaleInstaller struct {
 	// WindowsDir is where the MSI puts tailscale.exe and tailscaled.exe
 	// (default %ProgramFiles%\Tailscale).
 	WindowsDir string
+	// Repair reinstalls over an install whose files are damaged (Windows:
+	// msiexec /fa, then a plain install; elsewhere the managed build is
+	// unpacked again).
+	Repair bool
+	// RepairMSI runs the Windows repair (default RunMSIRepair).
+	RepairMSI func(ctx context.Context, msi, log string) (int, error)
+	// Sane checks one installed binary (default binsane.Check for this
+	// platform, signature included on Windows).
+	Sane func(path string) binsane.Result
 }
 
 func (t *TailscaleInstaller) goos() string {
@@ -392,6 +403,9 @@ func (t *TailscaleInstaller) Install(ctx context.Context, a TailscaleAsset) (Tai
 		return TailscaleInstalled{}, err
 	}
 	os.Remove(archive)
+	if bad := t.Damaged(filepath.Join(tmp, "tailscale"), filepath.Join(tmp, "tailscaled")); len(bad) > 0 {
+		return TailscaleInstalled{}, fmt.Errorf("the downloaded Tailscale is not a %s program: %s", t.goos(), bad[0].Detail)
+	}
 	probe := t.Probe
 	if probe == nil {
 		probe = ProbeTailscale
@@ -407,7 +421,7 @@ func (t *TailscaleInstaller) Install(ctx context.Context, a TailscaleAsset) (Tai
 		return TailscaleInstalled{}, err
 	}
 	dst := filepath.Join(t.Dir, a.Version)
-	if cur, _ := os.Readlink(filepath.Join(t.Dir, "current")); filepath.Base(cur) == a.Version {
+	if cur, _ := os.Readlink(filepath.Join(t.Dir, "current")); filepath.Base(cur) == a.Version && !t.Repair {
 		cli, daemon := t.Binaries()
 		return TailscaleInstalled{Version: a.Version, CLI: cli, Daemon: daemon}, nil
 	}

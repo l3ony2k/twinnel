@@ -145,6 +145,9 @@ func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 		{name: "ts-failed", step: wizTS, helper: true, ts: "none", steps: with(ver(st(plus(proxyOK, setup.StepTailscale, F))), setup.StepTailscale, func(s *setup.StepState) {
 			s.Code, s.Error = setup.CodeDownload, `Get "https://pkgs.tailscale.com/stable/": dial tcp 192.0.2.20:443: i/o timeout`
 		})},
+		{name: "ts-damaged", step: wizTS, helper: true, ts: "none", steps: with(ver(st(plus(proxyOK, setup.StepTailscale, F))), setup.StepTailscale, func(s *setup.StepState) {
+			s.Code, s.Error = setup.CodeDamaged, `Tailscale is installed but its files are damaged: `+map[bool]string{true: `C:\Program Files\Tailscale\tailscale.exe`, false: `/usr/local/bin/tailscale`}[goos == "windows"]+` (zeroed); repair it to reinstall`
+		})},
 		{name: "ts-login", step: wizTS, helper: true, ts: "login", steps: ver(st(plus(proxyOK, setup.StepTailscale, D)))},
 		{name: "ts-done", step: wizTS, helper: true, ts: "running", steps: ver(st(plus(plus(proxyOK, setup.StepTailscale, D), setup.StepLogin, D)))},
 		{name: "done", step: wizDone, helper: true, steps: ver(st(plus(plus(proxyOK, setup.StepTailscale, D), setup.StepLogin, D))),
