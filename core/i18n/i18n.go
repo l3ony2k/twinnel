@@ -87,6 +87,8 @@ type Strings struct {
 	PanelHealthOK, PanelHealthWarn      string // %d
 	PanelHealthFail, PanelHealthPending string // %d
 	PanelPeers                          string // %d online, %d in all
+	// ⓘ of the flyout (infoTip): one to three short sentences each.
+	InfoTun, InfoExitNode, InfoRecovery string
 	Seconds                             string // %.1f
 
 	// Controls (v0.2).
@@ -400,6 +402,9 @@ var zh = Strings{
 	PanelHealthFail:    "健康检查：%d 项失败",
 	PanelHealthPending: "健康检查：正在检查",
 	PanelPeers:         "%d / %d 台在线",
+	InfoTun:            "TUN 让 mihomo 接管本机所有流量，包括不认系统代理的程序。关闭后只有走系统代理的程序经过 mihomo。",
+	InfoExitNode:       "让这台 Mac 的流量从 Tailscale 里的另一台设备出去。mihomo 的 TUN 开着时，两者都要接管默认路由，会互相冲突。",
+	InfoRecovery:       "网络出问题时的几个快捷操作：重启 mihomo、停用出口节点、重新测试连通性。",
 	Seconds:            "%.1f 秒",
 
 	Actions:               "操作",

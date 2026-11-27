@@ -35,6 +35,7 @@ func (a *app) flyoutShots(save func(*mygo.Window, string)) {
 	}{
 		{"flyout-ok", func(s *status.Snapshot) {
 			s.Helper = connected
+			s.AcceptedExitNode = "exit-sg" // accepted: a state, not a problem
 			s.Health = status.Health{Report: report(0, 0), Updated: time.Now().Add(-2 * time.Minute)}
 		}},
 		{"flyout-attention", func(s *status.Snapshot) {
@@ -67,7 +68,16 @@ func (a *app) flyoutShots(save func(*mygo.Window, string)) {
 				a.panel.Invalidate()
 			}
 		})
-		time.Sleep(900 * time.Millisecond)
+		// A hidden window lays out only when captured, and the stand-in
+		// fits its height from the last layout (fitShotPanel): capture once
+		// to lay out and fit, then for the shot.
+		time.Sleep(600 * time.Millisecond)
+		mygo.RunOnMain(func() {
+			if a.panel != nil {
+				a.panel.CapturePage()
+			}
+		})
+		time.Sleep(600 * time.Millisecond)
 		var panel *mygo.Window
 		mygo.RunOnMain(func() { panel = a.panel })
 		if panel != nil {

@@ -40,7 +40,7 @@ func (a *app) panelView(c *ui.Context) {
 	c.Root().Background(ui.Transparent)
 	// As wide as the flyout, as tall as its content: the flyout fits it
 	// (FitContent); a height of its own would keep the flyout at that.
-	box := ui.Column(c).FillWidth()
+	box := ui.Column(c).FillWidth().Shrink(0)
 	switch {
 	case c.Vibrancy(): // over the popover's material on macOS
 	case runtime.GOOS == "windows":
@@ -65,7 +65,10 @@ func (a *app) panelView(c *ui.Context) {
 				r := panelRow(c.Key("recovery"), T.Recovery).MarginX(0)
 				r.Menu(func(m *ui.Menu) { a.recoveryItems(m, s) })
 				r.Children(func() {
-					ui.Text(c, T.Recovery).Grow(1).SingleLine()
+					ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Children(func() {
+						ui.Text(c, T.Recovery).SingleLine()
+						infoTip(c, "", T.InfoRecovery, nil)
+					})
 					ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
 				})
 			}
@@ -95,7 +98,7 @@ func panelModule(c *ui.Context, body func()) {
 	if t.Dark {
 		fill = ui.RGBA(255, 255, 255, 0.06)
 	}
-	ui.Column(c).Padding(moduleInset).Radius(moduleRad).Background(fill).Children(body)
+	ui.Column(c).Padding(moduleInset).Radius(moduleRad).Background(fill).Shrink(0).Children(body)
 }
 
 // panelRow is a row of the flyout on its grid: the leading column, the
@@ -337,7 +340,10 @@ func (a *app) tunRow(c *ui.Context, s status.Snapshot) {
 		}
 		ui.Row(c).Size(leadCol, leadCol).Radius(leadCol / 2).Background(disc).AlignItems(ui.Center).Justify(ui.Center).Shrink(0).
 			Children(func() { ui.Icon(c, iconTun).FontSize(iconInline).TextColor(glyph) })
-		ui.Text(c, T.Tun).Grow(1).SingleLine()
+		ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Children(func() {
+			ui.Text(c, T.Tun).SingleLine()
+			infoTip(c, "", T.InfoTun, nil)
+		})
 		ui.Text(c, dev).TextColor(t.TextMuted).SingleLine().Shrink(1)
 	})
 	if row.Clicked() && can {
@@ -458,6 +464,7 @@ func (a *app) exitNodeRow(c *ui.Context, s status.Snapshot) {
 		}
 		leading(c, iconExitNode, col)
 		ui.Text(c, T.ExitNode).SingleLine().Shrink(0)
+		infoTip(c, "", T.InfoExitNode, nil)
 		ui.Text(c, sel).TextColor(t.TextMuted).Grow(1).Shrink(1).TextAlign(ui.End).SingleLine()
 		if can {
 			ui.Icon(c, iconUpDown).FontSize(iconSmall).TextColor(t.TextMuted)
