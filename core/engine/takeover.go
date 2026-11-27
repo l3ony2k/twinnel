@@ -123,8 +123,12 @@ func (e *Engine) TakeoverPlan(ctx context.Context, p rpc.TakeoverPlanParams) (rp
 				ok = true
 			}
 		}
+		// A file the person picked (换一个文件…): only next to or under
+		// the live config, a regular file of its owner (AllowedBase).
 		if !ok {
-			return rpc.TakeoverPlan{}, rpc.ErrInvalid("base %q is not one of the candidates next to the live config", p.Base)
+			if err := takeover.AllowedBase(disc.Mihomo.Config, want); err != nil {
+				return rpc.TakeoverPlan{}, rpc.ErrInvalid("base %q is not allowed: %v", p.Base, err)
+			}
 		}
 		opt.BasePath = want
 	}
