@@ -76,9 +76,12 @@ type TailscaleInstallResult struct {
 	// that takes the system VPN slot, which conflicts with mihomo's TUN).
 	UsesSystemVPN bool   `json:"uses_system_vpn,omitempty"`
 	Version       string `json:"version,omitempty"`
-	Source        string `json:"source,omitempty"` // pkgs.tailscale.com or homebrew
+	Source        string `json:"source,omitempty"` // pkgs.tailscale.com, homebrew or the Windows MSI
 	Via           string `json:"via,omitempty"`    // the download's route: direct, proxy, subscription, url
 	Daemon        string `json:"daemon,omitempty"`
+	// RestartNeeded: the Windows installer asked for a restart to finish
+	// (msiexec exit code 3010); Tailscale may not work fully until then.
+	RestartNeeded bool `json:"restart_needed,omitempty"`
 	// Service is the tailscaled service install (dry run when the helper
 	// is not root).
 	Service *ServiceOpResult `json:"service,omitempty"`

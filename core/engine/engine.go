@@ -114,6 +114,10 @@ type Engine struct {
 	// proxy and returns its stop function (default: the real binary).
 	TempProxy func(ctx context.Context, bin string, cfg []byte, port int) (stop func(), err error)
 
+	// Sleep waits between polls (tailscale.install's service wait);
+	// replaceable in tests.
+	Sleep func(ctx context.Context, d time.Duration) error
+
 	// EgressProbe runs the egress test (health.LeakEgress with the test
 	// on) once, for health.egress; nil where there is none.
 	EgressProbe func(ctx context.Context) health.CheckReport
@@ -154,6 +158,20 @@ func (e *Engine) now() time.Time {
 		return e.Now()
 	}
 	return time.Now()
+}
+
+func (e *Engine) sleep(ctx context.Context, d time.Duration) error {
+	if e.Sleep != nil {
+		return e.Sleep(ctx, d)
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 func (e *Engine) log() *slog.Logger {
