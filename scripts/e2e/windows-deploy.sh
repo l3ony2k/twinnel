@@ -11,8 +11,10 @@
 # OpenSSH gets one without a UAC prompt). The helper upgrade needs it;
 # without it Windows would show a UAC prompt on the PC's screen.
 #
-# Deploy only a merged main: the script refuses another branch or a dirty
-# tree unless TWINNEL_DEPLOY_ANY_BRANCH=1.
+# Deploy only a merged main: when it builds, the script refuses another
+# branch or a dirty tree unless TWINNEL_DEPLOY_ANY_BRANCH=1. To deploy main
+# exactly from a work branch, build in a clean worktree of main and pass
+# --zip.
 #
 # On the PC it uses %ProgramData%\TwinnelQA\deploy\<version> (kept, so a
 # round can be redeployed) and installs to the default per-user folder
@@ -37,7 +39,9 @@ while [ $# -gt 0 ]; do
 done
 host="${1:?usage: $0 [--no-build] [--zip PATH] HOST}"
 
-if [ "${TWINNEL_DEPLOY_ANY_BRANCH:-0}" != 1 ]; then
+# The guard is about what this checkout builds; a --zip was built elsewhere
+# (e.g. a clean worktree of main) and is deployed as given.
+if [ -z "$zip" ] && [ "${TWINNEL_DEPLOY_ANY_BRANCH:-0}" != 1 ]; then
 	branch="$(git rev-parse --abbrev-ref HEAD)"
 	main="$(git rev-parse main)"
 	if [ "$(git rev-parse HEAD)" != "$main" ] && ! git merge-base --is-ancestor HEAD main; then

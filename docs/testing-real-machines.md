@@ -336,7 +336,7 @@ the remote-access path (Tailscale, when that is how you reach the PC).
 | `windows-snapshot.ps1 snapshot` / `verify -Dir` | the PC (elevated) | saves the state before a test (config.export zip, settings, layers, status, doctor, DNS of every adapter, service states) into `%ProgramData%\TwinnelQA\snap-<ts>`; `verify` compares and checks HTTPS to a DIRECT and a PROXY target through the TUN |
 | `windows-timebox.ps1 arm -Name N -Restore FILE -Seconds S` | the PC (elevated) | a one-shot SYSTEM scheduled task that runs the restore script after S seconds even when the SSH session dies; `run` restores early, `disarm` removes it |
 | `windows-usersession.ps1 -Script FILE -Arguments 'a;b'` | the PC (elevated) | runs a script in the signed-in user's desktop session (one-shot Interactive task, hidden console) and prints its output |
-| `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `windows`, `shot:NAME`, `winshot:NAME`, `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
+| `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `open:VALUE` (`Twinnel.exe --open=page:<id>`: a running copy turns to that page), `windows`, `shot:NAME`, `winshot:NAME`, `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
 
 Rules that came out of round 1:
 
@@ -365,3 +365,18 @@ Rules that came out of round 1:
   `Get-Content` printed through the SSH console's code page shows Chinese as
   `?` and full-width punctuation as ASCII (`（`→`(`), which looks like a
   broken file but is the console (round 1, `health-egress.json`).
+- Deploy main exactly from a work branch: build in a clean worktree of main
+  (`git worktree add --detach <dir> main`, then `scripts/build-release.sh
+  --no-app --targets "" --windows-app windows/amd64` there) and pass the zip
+  with `windows-deploy.sh --zip`. Building in a branch with uncommitted
+  changes gives a `-dirty` version.
+- Step through pages with `open:page:<id>` (ids in `cmd/app/window.go`
+  allPages) instead of clicking by coordinates. A dev launch against a scratch
+  `TWINNEL_SOCKET` opens no window by itself; add `TWINNEL_OPEN=1` to see the
+  first-run wizard.
+- A process started from the SSH session (`Start-Process`) dies when that
+  session ends. Something that must outlive the call (a throwaway mihomo, an
+  MCP client holding `twinnel.exe`) runs as a scheduled task.
+- The upgrade from a helper whose service host reports revision 0 restarts
+  mihomo once (a second or two offline): arm a time box that starts the
+  Twinnel services before deploying.

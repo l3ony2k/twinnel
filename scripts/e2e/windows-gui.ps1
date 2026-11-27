@@ -7,6 +7,8 @@
 .DESCRIPTION
   Each argument is one step, or several separated by ';', run in order:
     launch[:K=V,K=V]   start Twinnel.exe (per-user install) with extra env vars
+    open:VALUE         Twinnel.exe --open=VALUE (page:<id>, panel, 1): a running
+                       copy turns to that page, else it starts there
     wait:MS            sleep
     windows            print Twinnel's top-level windows: handle, title, rect
     shot:NAME          full virtual screen to <Out>\NAME.png
@@ -95,6 +97,10 @@ foreach ($s in ($Steps -split ';' | Where-Object { $_ })) {
             $psi.UseShellExecute = $false; $psi.WorkingDirectory = Split-Path $Exe
             if ($arg) { foreach ($kv in $arg -split ',') { $k, $v = $kv -split '=', 2; $psi.EnvironmentVariables[$k] = $v } }
             $p = [Diagnostics.Process]::Start($psi); "launched pid $($p.Id)"
+        }
+        'open' {
+            $p = Start-Process -FilePath $Exe -ArgumentList "--open=$arg" -WorkingDirectory (Split-Path $Exe) -PassThru
+            "open $arg (pid $($p.Id))"
         }
         'wait' { Start-Sleep -Milliseconds ([int]$arg) }
         'windows' { Get-TwinnelWindows | ForEach-Object { "window '{0}' at {1},{2} {3}x{4}" -f $_.Title, $_.L, $_.T, $_.W, $_.H } }
