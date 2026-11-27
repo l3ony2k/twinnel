@@ -280,6 +280,8 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 			fetched += " · " + status.Bytes(int64(sub.Size))
 		case sub.Size > 0:
 			fetched = status.Bytes(int64(sub.Size))
+		case !sub.HasURL: // a local file is never downloaded (R-unslop-29)
+			fetched = T.SubNoContent
 		default:
 			fetched = T.SubNeverFetched
 		}

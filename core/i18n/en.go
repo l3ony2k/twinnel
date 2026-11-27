@@ -231,6 +231,7 @@ var en = Strings{
 	SubManual:          "Updated by hand",
 	SubEvery:           "Updates every %d min",
 	SubNeverFetched:    "Never downloaded",
+	SubNoContent:       "No content yet",
 	SubFetched:         "Downloaded %s",
 	SubChanged:         "changed %s",
 	SubID:              "ID",

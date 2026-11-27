@@ -969,6 +969,9 @@ func (a *app) tailscalePage(c *ui.Context, s status.Snapshot) {
 		}
 	}
 	title := fmt.Sprintf("%s · %d / %d", T.Devices, online, len(peers))
+	if len(peers) == 0 { // the empty state says it (R-unslop-29)
+		title = T.Devices
+	}
 	cardTip(c, title, T.TipPeerPath, nil, func() {
 		if len(peers) == 0 {
 			// In a card under the account's: the card size of an empty

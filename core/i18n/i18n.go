@@ -129,6 +129,7 @@ type Strings struct {
 	SubRemoveBody, SubFromURL, SubFromFile, SubManual                  string
 	SubEvery                                                           string // %d: minutes
 	SubNeverFetched, SubFetched, SubChanged                            string // %s: ago
+	SubNoContent                                                       string // a local-file subscription with nothing in it
 	SubID, SubName, SubNamePlaceholder, SubInterval, SubURL            string
 	SubImportFile, SubURLHint, SubSave                                 string
 	SubFileChosen                                                      string // %s: file, %s: size
@@ -493,6 +494,7 @@ var zh = Strings{
 	SubManual:          "手动更新",
 	SubEvery:           "每 %d 分钟更新",
 	SubNeverFetched:    "还没有下载过",
+	SubNoContent:       "还没有内容",
 	SubFetched:         "%s下载",
 	SubChanged:         "%s有变化",
 	SubID:              "ID",
