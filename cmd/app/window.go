@@ -337,6 +337,10 @@ func (a *app) pageChanged(old string) {
 	if a.page == pageAbout {
 		a.aboutOpened()
 	}
+	switch a.page {
+	case pageTakeover, pageAbout, pageKernel:
+		a.detectLiveSetup() // again on each visit: the service may have changed
+	}
 	if a.page == pageHealth && old != pageHealth {
 		a.runHealth()
 	}

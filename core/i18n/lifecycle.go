@@ -9,7 +9,6 @@ package i18n
 // LifecycleStrings holds them.
 type LifecycleStrings struct {
 	// --- Takeover: what exists now and what happens to it. ---
-	TkReadOnly                                       string // meta badge on 生成接管计划
 	TkNow, TkAfter                                   string // column heads
 	TkSecretItem                                     string
 	TkEffKeepService                                 string
@@ -126,7 +125,6 @@ type LifecycleStrings struct {
 }
 
 var zhLifecycle = LifecycleStrings{
-	TkReadOnly:          "只读",
 	TkNow:               "现在",
 	TkAfter:             "接管后",
 	TkSecretItem:        "控制接口密钥",
@@ -293,7 +291,6 @@ var zhLifecycle = LifecycleStrings{
 }
 
 var enLifecycle = LifecycleStrings{
-	TkReadOnly:          "Read-only",
 	TkNow:               "Now",
 	TkAfter:             "After takeover",
 	TkSecretItem:        "Controller secret",
