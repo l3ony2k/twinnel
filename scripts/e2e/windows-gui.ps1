@@ -17,6 +17,8 @@
     rclick:X,Y         right click
     wclick:X,Y         left click at X,Y relative to the largest Twinnel window
     key:KEYS           System.Windows.Forms.SendKeys syntax (e.g. ^1, {ESC})
+    wheel:N            scroll N notches over the middle of the largest Twinnel
+                       window (negative: down)
     front              bring the largest Twinnel window to the front
     close              stop the Twinnel.exe processes of this install
     cursor             print the mouse position (to put it back later)
@@ -109,6 +111,15 @@ foreach ($s in ($Steps -split ';' | Where-Object { $_ })) {
         'click' { $x, $y = $arg -split ','; Click $x $y }
         'rclick' { $x, $y = $arg -split ','; Click $x $y $true }
         'wclick' { $w = Get-MainWindow; $x, $y = $arg -split ','; if ($w) { Click ($w.L + [int]$x) ($w.T + [int]$y) } else { 'no window' } }
+        'wheel' {
+            $w = Get-MainWindow
+            if ($w) {
+                [void][QA.Win]::SetCursorPos($w.L + [int]($w.W / 2), $w.T + [int]($w.H / 2)); Start-Sleep -Milliseconds 80
+                $n = [int]$arg; $step = if ($n -lt 0) { -120 } else { 120 }
+                for ($i = 0; $i -lt [Math]::Abs($n); $i++) { [QA.Win]::mouse_event(0x800, 0, 0, [uint32][BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$step), 0), [UIntPtr]::Zero); Start-Sleep -Milliseconds 40 }
+                "wheel $n"
+            } else { 'no window' }
+        }
         'key' { [System.Windows.Forms.SendKeys]::SendWait($arg); "keys $arg" }
         'front' { $w = Get-MainWindow; if ($w) { "front $([QA.Win]::SetForegroundWindow($w.Handle))" } }
         'close' { Get-Process -Name Twinnel -ErrorAction SilentlyContinue | Where-Object { $_.Path -ieq $Exe } | ForEach-Object { Stop-Process -Id $_.Id -Force; "closed pid $($_.Id)" } }

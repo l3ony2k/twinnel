@@ -336,7 +336,7 @@ the remote-access path (Tailscale, when that is how you reach the PC).
 | `windows-snapshot.ps1 snapshot` / `verify -Dir` | the PC (elevated) | saves the state before a test (config.export zip, settings, layers, status, doctor, DNS of every adapter, service states) into `%ProgramData%\TwinnelQA\snap-<ts>`; `verify` compares and checks HTTPS to a DIRECT and a PROXY target through the TUN |
 | `windows-timebox.ps1 arm -Name N -Restore FILE -Seconds S` | the PC (elevated) | a one-shot SYSTEM scheduled task that runs the restore script after S seconds even when the SSH session dies; `run` restores early, `disarm` removes it |
 | `windows-usersession.ps1 -Script FILE -Arguments 'a;b'` | the PC (elevated) | runs a script in the signed-in user's desktop session (one-shot Interactive task, hidden console) and prints its output |
-| `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `open:VALUE` (`Twinnel.exe --open=page:<id>`: a running copy turns to that page), `windows`, `shot:NAME`, `winshot:NAME`, `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
+| `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `open:VALUE` (`Twinnel.exe --open=page:<id>`: a running copy turns to that page), `wheel:N` (scroll the window), `windows`, `shot:NAME`, `winshot:NAME`, `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
 
 Rules that came out of round 1:
 
@@ -387,3 +387,8 @@ Rules that came out of round 1:
 - The upgrade from a helper whose service host reports revision 0 restarts
   mihomo once (a second or two offline): arm a time box that starts the
   Twinnel services before deploying.
+- Verify the installer as users run it: `windows-deploy.sh` runs the zip's
+  `install.ps1` under `powershell.exe` (5.1); run the same unpacked script
+  under `pwsh` once more, each time with an MCP client holding
+  `bin\twinnel.exe` (a user-session scheduled task that runs `twinnel mcp`
+  and keeps stdin open), and check one "was in use" line per file.
