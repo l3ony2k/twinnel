@@ -16,7 +16,7 @@ func DefaultRegistry() *Registry {
 	for _, c := range []Check{
 		TailnetRoute{}, TUNExclude{}, TailscaleRules{}, MagicDNS{}, PeerNames{},
 		ResolverBinding{}, FakeIPMode{},
-		SystemDNS{}, VPNConflict{}, DirectPeers{}, LeakGuard{}, LeakEgress{}, Controller{},
+		SystemDNS{}, VPNConflict{}, LeakGuard{}, LeakEgress{}, Controller{},
 	} {
 		r.Register(c)
 	}
@@ -671,7 +671,8 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 		res.Summary = fmt.Sprintf(L.msgDNSHijack, strings.Join(viaHijack, ", "))
 		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: FixSystemDNS}
 	case nActive == 0:
-		res.Status = StatusWarn
+		// Offline: nothing to check, nothing to fix here.
+		res.Status = StatusSkip
 		res.Summary = L.msgDNSNoActive
 	}
 	return res
@@ -823,100 +824,6 @@ func linuxDefaultRoute(L *texts, iface string, tun TUNConfig, haveTUN bool) (Sta
 		return StatusWarn, fmt.Sprintf(L.msgTUNNotDefault, mihomoDev, iface)
 	}
 	return StatusOK, ""
-}
-
-// ---------------------------------------------------------------------------
-
-// DirectPeers: preferred peers are connected directly, not through DERP.
-type DirectPeers struct{}
-
-func (DirectPeers) ID() string            { return "peer-direct" }
-func (c DirectPeers) Title() string       { return c.title(&zhTexts) }
-func (DirectPeers) title(L *texts) string { return L.titleDirectPeers }
-func (DirectPeers) Platforms() []string   { return AllPlatforms }
-
-func (DirectPeers) Run(ctx context.Context, env Env) Result {
-	L := tx(ctx)
-	ts, r := runningTailscale(ctx, env)
-	if r != nil {
-		return *r
-	}
-	pref := env.Settings().PreferredPeers
-	explicit := len(pref) > 0
-	want := func(p TailscalePeer) bool {
-		if !explicit {
-			return p.Online
-		}
-		for _, x := range pref {
-			x = strings.ToLower(x)
-			if x == strings.ToLower(p.HostName) || x == strings.ToLower(p.ShortName()) ||
-				x == strings.ToLower(strings.TrimSuffix(p.DNSName, ".")) {
-				return true
-			}
-			for _, a := range p.TailscaleIPs {
-				if a.String() == x {
-					return true
-				}
-			}
-		}
-		return false
-	}
-
-	res := Result{}
-	var direct, relayed, idle, offline []string
-	for _, p := range ts.Peers {
-		if !want(p) {
-			continue
-		}
-		name := p.ShortName()
-		if name == "" {
-			name = p.HostName
-		}
-		switch {
-		case !p.Online:
-			offline = append(offline, name)
-			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evPeerOffline, name))
-		case p.CurAddr != "":
-			direct = append(direct, name)
-			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evPeerDirect, name, p.CurAddr))
-		case p.Active:
-			relayed = append(relayed, name)
-			via := "DERP " + p.Relay
-			if p.PeerRelay != "" {
-				via = "peer relay " + p.PeerRelay
-			}
-			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evPeerRelayed, name, via))
-		default:
-			idle = append(idle, name)
-			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evPeerIdle, name, p.Relay))
-		}
-	}
-	// tailscaled advertising mihomo's TUN address as one of its endpoints is
-	// a sign that it binds through the proxy's interface.
-	if tun, _, err := tunConfig(ctx, env); err == nil && tun.Enable {
-		for _, ep := range ts.Self.Addrs {
-			if ap, err := netip.ParseAddrPort(ep); err == nil && inAny(tun.Inet4Address, ap.Addr()) {
-				res.Evidence = append(res.Evidence, fmt.Sprintf(L.evSelfEndpointTUN, ep))
-			}
-		}
-	}
-
-	switch {
-	case len(relayed) > 0:
-		res.Status = StatusWarn
-		res.Summary = fmt.Sprintf(L.msgPeersRelayed, strings.Join(relayed, ", "))
-		res.Fix = &FixHint{Text: L.fixPeers, Command: "tailscale netcheck\ntailscale ping " + relayed[0]}
-	case explicit && len(offline) > 0:
-		res.Status = StatusWarn
-		res.Summary = fmt.Sprintf(L.msgPeersOffline, strings.Join(offline, ", "))
-	case len(direct)+len(idle) == 0:
-		res.Status = StatusSkip
-		res.Summary = L.msgPeersNone
-	default:
-		res.Status = StatusOK
-		res.Summary = fmt.Sprintf(L.msgPeersOK, len(direct), len(idle))
-	}
-	return res
 }
 
 // ---------------------------------------------------------------------------

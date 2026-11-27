@@ -116,6 +116,11 @@ func (a *app) shots(dir string) {
 			mygo.App.Quit()
 			return
 		}
+		if os.Getenv("DUET_SHOTS_FLOW") == "derpinfo" { // shots_derpinfo.go
+			a.derpInfoShots(save)
+			mygo.App.Quit()
+			return
+		}
 		if os.Getenv("DUET_SHOTS_FLOW") == "flyout" { // shots_flyout.go
 			a.flyoutShots(save)
 			mygo.App.Quit()

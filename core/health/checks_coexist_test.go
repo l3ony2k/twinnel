@@ -123,7 +123,7 @@ func TestLeakEgress(t *testing.T) {
 	env = healthyEnv()
 	env.ts.Self.Addrs = nil
 	env.egressErr = errors.New("no network")
-	want(t, c, env, StatusWarn, "no network")
+	want(t, c, env, StatusSkip, "no network") // network-only: not a warning
 }
 
 func TestParseEgressBody(t *testing.T) {

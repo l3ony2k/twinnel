@@ -36,7 +36,6 @@ type texts struct {
 	titlePeerNames      string
 	titleSystemDNS      string
 	titleVPNConflict    string
-	titleDirectPeers    string
 	titleLeakGuard      string
 	titleController     string
 	titleResolverBind   string
@@ -186,18 +185,6 @@ type texts struct {
 	evNotMihomoTUN    string
 	fixVPN            string
 
-	// peer-direct
-	msgPeersOK        string
-	msgPeersRelayed   string
-	msgPeersOffline   string
-	msgPeersNone      string
-	evPeerDirect      string
-	evPeerRelayed     string
-	evPeerIdle        string
-	evPeerOffline     string
-	evSelfEndpointTUN string
-	fixPeers          string
-
 	// leak-guard
 	msgNoSensitive  string
 	msgLeakOK       string
@@ -247,7 +234,6 @@ var zhTexts = texts{
 	titlePeerNames:      "设备短名同步",
 	titleSystemDNS:      "系统 DNS",
 	titleVPNConflict:    "没有冲突的 VPN",
-	titleDirectPeers:    "打洞质量",
 	titleLeakGuard:      "防泄漏",
 	titleController:     "控制接口安全",
 	titleResolverBind:   "tailnet DNS 出口绑定",
@@ -396,18 +382,6 @@ var zhTexts = texts{
 	evDefaultRoute:    "1.1.1.1 的路由：%s",
 	evNotMihomoTUN:    "不是 mihomo TUN",
 	fixVPN:            "断开其他 VPN；需要 exit node 时先确认它和 mihomo TUN 的冲突。",
-
-	// peer-direct
-	msgPeersOK:        "%d 台直连，%d 台空闲（还没建立连接，无法判断）",
-	msgPeersRelayed:   "这些设备正在经 DERP 中转：%s",
-	msgPeersOffline:   "常用设备不在线：%s",
-	msgPeersNone:      "没有在线的设备",
-	evPeerDirect:      "%s：直连 %s",
-	evPeerRelayed:     "%s：中转（%s）",
-	evPeerIdle:        "%s：空闲（home DERP %s）",
-	evPeerOffline:     "%s：离线",
-	evSelfEndpointTUN: "本机 endpoint %s 是 mihomo TUN 地址（无害，但说明 tailscaled 看到了 TUN 接口）",
-	fixPeers:          "常见原因：tailscaled 的 UDP 被 mihomo 接管（检查 PROCESS-NAME,tailscaled,DIRECT 规则）、路由器不支持 UPnP/NAT-PMP、对端是对称 NAT。可以先看 netcheck 结果。",
 
 	// leak-guard
 	msgNoSensitive:  "没有配置敏感策略组",

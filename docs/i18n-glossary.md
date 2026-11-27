@@ -99,7 +99,6 @@ terms. Keep them when adding strings, and add new terms here.
 | 本机 | this Mac (app), this computer (health checks) |
 | 设备短名 | device short names |
 | 解析器 | resolver |
-| 打洞质量 | Direct connections |
 | 更新 / 重启 / 卸载 / 查看日志（后台助手） | Update / Restart / Uninstall / View Log |
 | 完全移除 duet | Remove duet Completely |
 | 同时删除数据 | Also delete data |

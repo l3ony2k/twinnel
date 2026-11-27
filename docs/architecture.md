@@ -129,10 +129,11 @@ A check implements `ID`, `Title`, `Platforms`, `Run(ctx, Env) Result`. `Env` is 
 | `fake-ip-filter-mode` | `'*'` in `fake-ip-filter` is only used with the blacklist mode. |
 | `system-dns` | Every active network service / link resolves through mihomo, or its queries are caught by the TUN's DNS hijack (warn). |
 | `vpn-conflict` | No other VPN is connected, no exit node (unless allowed), and mihomo's TUN holds the default route. |
-| `peer-direct` | Active (or chosen) peers are connected directly, not through DERP. |
 | `leak-guard` | Sensitive proxy groups (default `Google`, `Meta`) cannot resolve to `DIRECT`. |
 | `leak-guard-egress` | Opt-in. One HTTPS request direct and one through mihomo; the proxied exit IP must differ. Public IPs are masked. |
 | `controller-security` | The mihomo controller listens on loopback only and has a secret. |
+
+There is no check for direct vs DERP-relayed peers: relaying usually comes from the network or NAT and cannot be fixed from duet, so it would be a warning nobody can clear. The Tailscale devices page shows the connection path per device instead. Likewise, outcomes that only depend on the network (no active network service, the egress echo unreachable on the direct path) are `skip`, not `warn`.
 
 All checks are marked for every platform; what differs is the `Env`:
 

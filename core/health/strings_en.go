@@ -27,7 +27,6 @@ var enTexts = texts{
 	titlePeerNames:      "Device short names",
 	titleSystemDNS:      "System DNS",
 	titleVPNConflict:    "No conflicting VPN",
-	titleDirectPeers:    "Direct connections",
 	titleLeakGuard:      "Leak guard",
 	titleController:     "Controller security",
 	titleResolverBind:   "Tailnet DNS interface",
@@ -176,18 +175,6 @@ var enTexts = texts{
 	evDefaultRoute:    "Route to 1.1.1.1: %s",
 	evNotMihomoTUN:    "not mihomo TUN",
 	fixVPN:            "Disconnect other VPNs. If you need an exit node, check its conflict with mihomo TUN first.",
-
-	// peer-direct
-	msgPeersOK:        "%d direct, %d idle (no connection yet, so unknown)",
-	msgPeersRelayed:   "These devices go through a DERP relay: %s",
-	msgPeersOffline:   "Usual devices are offline: %s",
-	msgPeersNone:      "No devices online",
-	evPeerDirect:      "%s: direct %s",
-	evPeerRelayed:     "%s: relayed (%s)",
-	evPeerIdle:        "%s: idle (home DERP %s)",
-	evPeerOffline:     "%s: offline",
-	evSelfEndpointTUN: "This computer's endpoint %s is a mihomo TUN address (harmless, but tailscaled sees the TUN interface)",
-	fixPeers:          "Common causes: mihomo takes over tailscaled's UDP (check the PROCESS-NAME,tailscaled,DIRECT rule), the router has no UPnP/NAT-PMP, or the other side is behind symmetric NAT. Start with the netcheck result.",
 
 	// leak-guard
 	msgNoSensitive:  "No sensitive groups set",

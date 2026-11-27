@@ -82,9 +82,10 @@ App 第一版要能**原样接管这套现有安装**，不要求用户重装。
 | 设备短名同步 | 覆写里的设备名列表和当前 tailnet peers 一致 |
 | 系统 DNS | 所有活动网络接口的 DNS 指向 mihomo（或确认由 dns-hijack 兜底） |
 | 没有冲突的 VPN | 没有其他 NetworkExtension / VPN 抢默认路由；Tailscale 没开 exit node（或用户明确接受） |
-| 打洞质量 | 用户标记的常用 peer 为直连；走 DERP 时给出可能的原因 |
 | 防泄露 | 用户标记的敏感域名（如 Google / Meta 广告相关）出口不是本机真实 IP；敏感策略组没有可用节点时不回退 DIRECT |
 | 控制接口安全 | mihomo external-controller 只监听本机并设置了 secret |
+
+连接方式（直连 / DERP 中继）不做健康检查：走中继多半是网络 / NAT 决定的，用户修不了，只在 Tailscale 设备页按设备显示。只取决于网络本身、duet 和配置都修不了的情况（比如断网、出口测试连不上回显服务）记为跳过，不算警告。
 
 结果可以一键导出为纯文本，方便贴给别人或 AI 排查。
 

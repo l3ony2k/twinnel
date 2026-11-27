@@ -17,7 +17,7 @@ duet 在桌面上同时跑**官方的** [mihomo](https://github.com/MetaCubeX/mi
 
 | 功能 | 状态 |
 |---|---|
-| `duet doctor`：13 项共存健康检查，输出纯文本 / Markdown / JSON | macOS、Linux |
+| `duet doctor`：12 项共存健康检查，输出纯文本 / Markdown / JSON | macOS、Linux |
 | `duet takeover plan`：读取手工搭好的 mihomo + Tailscale，推导出能还原现有配置的覆写层，并用 `mihomo -t` 和语义 diff 证明等价 | macOS、Linux（只读） |
 | 经 helper 接管（`duet takeover plan --via-helper`、`duet helper adopt`）：精确备份、导入、应用、前后健康检查对比、变差自动还原；`duet helper secure-controller`；`duet helper harden`：一次重启把接管的 mihomo 换到托管内核和 root 所有的配置目录。步骤见 [docs/runbook-adopt-macos.md](docs/runbook-adopt-macos.md)（英文） | macOS。已在真实配置的副本上用非 root helper 演练过（launchctl 只做 dry run），还没在真机上以 root 跑过 |
 | `duet compose`：订阅 + 覆写层 → 配置，用 `mihomo -t` 校验 | 全平台 |
@@ -112,7 +112,7 @@ duet helper harden apply         # mihomo 重启一次，断网几秒
 
 ## 健康检查
 
-`tailnet-route`、`tun-route-exclude`、`tailscale-direct-rules`、`magicdns`、`peer-short-names`、`tailnet-resolver-binding`、`fake-ip-filter-mode`、`system-dns`、`vpn-conflict`、`peer-direct`、`leak-guard`、`leak-guard-egress`（需手动开启）、`controller-security`。每一项都给出状态、读到的证据和修复建议。各项具体查什么，见 [docs/architecture.md](docs/architecture.md#health-checks)。
+`tailnet-route`、`tun-route-exclude`、`tailscale-direct-rules`、`magicdns`、`peer-short-names`、`tailnet-resolver-binding`、`fake-ip-filter-mode`、`system-dns`、`vpn-conflict`、`leak-guard`、`leak-guard-egress`（需手动开启）、`controller-security`。每一项都给出状态、读到的证据和修复建议。各项具体查什么，见 [docs/architecture.md](docs/architecture.md#health-checks)。
 
 ## 安全设计
 
