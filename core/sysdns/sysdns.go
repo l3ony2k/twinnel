@@ -5,8 +5,8 @@
 // in a backup file, then sets 127.0.0.1; Restore writes the recorded
 // values back and removes the backup. The backup is written once and only
 // grows (a service that appears later is added), so pointing twice never
-// loses the original values. The platform part (networksetup on macOS) is
-// behind Platform; tests use a fake.
+// loses the original values. The platform part (networksetup on macOS,
+// netsh and the registry on Windows) is behind Platform; tests use a fake.
 package sysdns
 
 import (

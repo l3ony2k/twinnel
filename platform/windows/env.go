@@ -260,7 +260,7 @@ func (e *Env) NetworkServices(ctx context.Context) ([]health.NetworkService, err
 	phys := physicalAdapters(ads)
 	out := make([]health.NetworkService, 0, len(phys))
 	for i, a := range phys {
-		s := health.NetworkService{Name: a.Name, Device: a.Name, Enabled: a.Up, Order: i + 1, DNS: addrStrings(a.DNS)}
+		s := health.NetworkService{Name: a.Name, Device: a.Name, Enabled: a.Up, Order: i + 1, DNS: addrStrings(withoutDefaultV6DNS(a.DNS))}
 		switch src := e.opt.Sys.DNSSource(a.GUID); {
 		case src == health.DNSSourceAuto && len(s.DNS) == 0:
 			s.DNSSource = health.DNSSourceGlobal

@@ -246,12 +246,13 @@ func itoa(n uint32) string {
 	return string(b[i:])
 }
 
-// physicalAdapters are the adapters the system-dns check looks at (not
-// loopback, not tunnels), ordered by interface metric, then name.
+// physicalAdapters are the adapters dns.point manages and the system-dns
+// check looks at (DNSManaged), up ones first, then by interface metric,
+// then name.
 func physicalAdapters(adapters []Adapter) []Adapter {
 	var out []Adapter
 	for _, a := range adapters {
-		if !a.Loopback() && !a.Tunnel() {
+		if DNSManaged(a) {
 			out = append(out, a)
 		}
 	}
