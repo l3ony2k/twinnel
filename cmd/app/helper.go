@@ -121,11 +121,12 @@ type helperData struct {
 	unappliedCheck bool // a check runs
 	unappliedAgain bool // something changed during it: check again
 
-	cfg  configView
-	hist historyView
-	kern kernelView
-	take takeoverView
-	onb  onboardingView
+	cfg   configView
+	hist  historyView
+	kern  kernelView
+	take  takeoverView
+	onb   onboardingView
+	leave leaveView
 }
 
 // loadHelperData reloads the cheap lists (all local reads in the helper).

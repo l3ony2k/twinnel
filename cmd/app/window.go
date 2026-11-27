@@ -201,6 +201,8 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 		a.aboutPage(c, s)
 	case pageInstall:
 		a.installPage(c, s)
+	case pageLeave:
+		a.leavePage(c, s)
 	}
 }
 

@@ -1061,7 +1061,7 @@ func healthCompare(c *ui.Context, r *rpc.AdoptResult) {
 		af, oka := after[id]
 		better := okb && oka && checkRank(af.Status) < checkRank(b.Status)
 		worse := okb && oka && checkRank(af.Status) > checkRank(b.Status)
-		row := ui.Row(c.Key("h-"+id)).Gap(10).AlignItems(ui.Center).PaddingY(2)
+		row := ui.Row(c.Key("h-" + id)).Gap(10).AlignItems(ui.Center).PaddingY(2)
 		if better {
 			row.Background(t.Success.Alpha(0.08)).Radius(plat.controlRadius).MarginX(-6).PaddingX(6)
 		}
