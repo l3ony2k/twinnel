@@ -168,9 +168,13 @@ func (a *app) helperCLIOp(label, doneText string, args []string, done func()) {
 func cliFailure(out string, err error) string {
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
-		if l, ok := strings.CutPrefix(strings.TrimSpace(lines[i]), "duet: "); ok {
-			return l
+		// The line may follow a prompt ("Proceed? [y/N] duet: …").
+		if j := strings.Index(lines[i], "duet: "); j >= 0 {
+			return strings.TrimSpace(lines[i][j+len("duet: "):])
 		}
+	}
+	if err == nil {
+		return strings.TrimSpace(out)
 	}
 	return status.ShortError(err)
 }

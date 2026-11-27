@@ -173,7 +173,10 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 		})
 		if v.out != "" {
 			if v.outErr {
-				errorNote(c, strings.TrimSpace(v.out))
+				// The CLI's output is the plan plus one "duet: …" line
+				// saying what went wrong: show that line, and the rest
+				// only as the copyable detail (never parse the plan).
+				errorNote(c, cliFailure(v.out, nil))
 			} else {
 				codeBlock(c, v.out)
 			}
@@ -291,7 +294,9 @@ func (a *app) installHelper() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		out, err := runCLI(ctx, installArgs()...)
+		// The click is the confirmation (macOS then asks for the
+		// administrator password), so the CLI must not prompt on stdin.
+		out, err := runCLI(ctx, installArgs("--yes")...)
 		mygo.RunOnMain(func() {
 			v.running = false
 			v.out, v.outErr = out, err != nil
