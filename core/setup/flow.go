@@ -627,7 +627,7 @@ func (f *Flow) runConfig(ctx context.Context, hc Caller) (string, error) {
 	if !pr.Valid {
 		return "", fail(CodeInvalidConfig, "mihomo rejected the composed config: %s", strings.Join(pr.ValidateErrors, "; "))
 	}
-	return fmt.Sprintf("%d", len(pr.Applied)), nil
+	return "", nil
 }
 
 func (f *Flow) runApply(ctx context.Context, hc Caller) (string, error) {

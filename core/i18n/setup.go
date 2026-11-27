@@ -6,6 +6,7 @@ package i18n
 // SetupStrings holds them.
 type SetupStrings struct {
 	SetupTitle     string // the page title and the button that opens it
+	SetupStepsHead string
 	StepSetUpMac   string // 开始使用's step on a machine with nothing to take over
 	SetupSteps     map[string]string
 	SetupStart     string
@@ -39,8 +40,9 @@ type SetupStrings struct {
 }
 
 var zhSetup = SetupStrings{
-	SetupTitle:   "设置这台 Mac",
-	StepSetUpMac: "设置这台 Mac",
+	SetupTitle:     "设置这台 Mac",
+	SetupStepsHead: "步骤",
+	StepSetUpMac:   "设置这台 Mac",
 	SetupSteps: map[string]string{
 		"helper":       "安装后台助手",
 		"subscription": "添加订阅",
@@ -88,8 +90,9 @@ var zhSetup = SetupStrings{
 }
 
 var enSetup = SetupStrings{
-	SetupTitle:   "Set Up This Mac",
-	StepSetUpMac: "Set up this Mac",
+	SetupTitle:     "Set Up This Mac",
+	SetupStepsHead: "Steps",
+	StepSetUpMac:   "Set up this Mac",
 	SetupSteps: map[string]string{
 		"helper":       "Install the helper",
 		"subscription": "Add a subscription",

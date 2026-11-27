@@ -235,6 +235,8 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 		a.installPage(c, s)
 	case pageLeave:
 		a.leavePage(c, s)
+	case pageSetup:
+		a.setupPage(c, s)
 	}
 }
 
@@ -371,6 +373,9 @@ func (a *app) pageChanged(old string) {
 	switch a.page {
 	case pageTakeover, pageAbout, pageKernel:
 		a.detectLiveSetup() // again on each visit: the service may have changed
+	}
+	if a.page == pageSetup && old != pageSetup {
+		a.setupV.detected = false // find what is done again on each visit
 	}
 	if a.page == pageHealth && old != pageHealth {
 		a.runHealth()
