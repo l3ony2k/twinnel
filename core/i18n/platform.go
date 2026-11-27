@@ -64,6 +64,7 @@ func windowsZh(s *Strings) {
 	s.SetupTitle = "设置这台电脑"
 	s.StepSetUpMac = "设置这台电脑"
 	s.SetupDone = "这台电脑已设置好"
+	s.AsLoginItems = "打开启动应用设置"
 	s.TipLeaveRemoveAll = "卸载后台助手，退出后删除 Twinnel 程序文件夹。mihomo 和 Tailscale 继续运行。不会撤销接管：要换回原来的配置，先撤销接管。"
 }
 
@@ -102,6 +103,7 @@ func windowsEn(s *Strings) {
 	s.ItemApp = "the Twinnel app"
 	s.ItemAppTrash = "the Twinnel program folder (deleted after it quits)"
 	s.OpenAtLoginApprove = "Allow Twinnel in Settings › Apps › Startup"
+	s.AsLoginItems = "Open Startup Apps"
 	s.TipLeaveRemoveAll = "Uninstalls the helper and deletes the Twinnel program folder after it quits. mihomo and Tailscale keep running. It doesn't undo the takeover: to get your original config back, undo the takeover first."
 }
 

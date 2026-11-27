@@ -25,14 +25,14 @@ func TestWizardOSComplete(t *testing.T) {
 	}
 }
 
-// Windows and Linux never meet a Mac word; Chinese has no stray English;
+// No system meets another's words (glossary.go); Chinese has no stray English;
 // English has no Chinese.
 func TestWizardOSWording(t *testing.T) {
 	for _, l := range Langs() {
 		for goos, w := range wizardOS[l.Tag] {
 			walkStrings(reflect.ValueOf(w), l.Tag+"."+goos, func(path, s string) {
-				if goos != "darwin" && macWords.MatchString(s) {
-					t.Errorf("%s: Mac words in %q", path, s)
+				if f := ForeignTerms(goos, s); len(f) > 0 {
+					t.Errorf("%s: %v in %q", path, f, s)
 				}
 				if l.Tag == "zh-Hans" {
 					if e := EnglishWords(s); len(e) > 0 {

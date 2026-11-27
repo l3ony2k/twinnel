@@ -35,6 +35,9 @@ var linuxWording = map[string]func(s *Strings){
 		s.MenuBar = "系统托盘"
 		s.TraySpeedSwitch = "在系统托盘显示网速"
 		s.HelperDeniedHint = "只有后台助手所用组（sudo 或 wheel）里的用户可以管理网络配置"
+		s.SetupTitle = "设置这台电脑"
+		s.StepSetUpMac = "设置这台电脑"
+		s.SetupDone = "这台电脑已设置好"
 	},
 	"en": func(s *Strings) {
 		s.ShowInFinder = "Show in File Manager"
@@ -64,13 +67,13 @@ var linuxWording = map[string]func(s *Strings){
 		s.MenuBar = "System tray"
 		s.TraySpeedSwitch = "Show network speed in the system tray"
 		s.HelperDeniedHint = "Only users in the helper's group (sudo or wheel) can manage the network setup"
+		s.SetupTitle = "Set Up This Computer"
+		s.StepSetUpMac = "Set up this computer"
+		s.SetupDone = "This computer is set up"
+		cloneMaps(s)
+		s.HistReasons["setup"] = "Set up this computer"
 		if t, ok := s.MsgTexts["refuses-exposed"]; ok {
-			m := make(map[string]string, len(s.MsgTexts))
-			for k, v := range s.MsgTexts {
-				m[k] = v
-			}
-			m["refuses-exposed"] = strings.ReplaceAll(t, "this Mac", "this computer")
-			s.MsgTexts = m
+			s.MsgTexts["refuses-exposed"] = strings.ReplaceAll(t, "this Mac", "this computer")
 		}
 	},
 }
