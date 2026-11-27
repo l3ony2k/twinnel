@@ -260,7 +260,7 @@ type HistoryEntry struct {
 	ReasonCode string   `json:"reason_code,omitempty"`
 	ReasonArgs []string `json:"reason_args,omitempty"`
 	// BeforeTwinnel: the config as it was before Twinnel first wrote it.
-	BeforeTwinnel bool `json:"before_duet,omitempty"`
+	BeforeTwinnel bool `json:"before_duet,omitempty"` // stored name, kept from before the rename
 	// Layers: the overrides the config was composed from; nil for a
 	// backup or an entry older than the manifest.
 	Layers *LayerManifest `json:"layers,omitempty"`

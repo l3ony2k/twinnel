@@ -54,7 +54,7 @@ type HistoryEntry struct {
 	ReasonArgs []string `json:"reason_args,omitempty"`
 	// BeforeTwinnel marks the copy of the config as it was before Twinnel first
 	// wrote it: the first backup ever, or the one taken by takeover.
-	BeforeTwinnel bool `json:"before_duet,omitempty"`
+	BeforeTwinnel bool `json:"before_duet,omitempty"` // stored name, kept from before the rename
 	// Layers: the overrides this config was composed from (applied and
 	// rollback entries made since the manifest exists). nil for a backup
 	// or an older entry.
