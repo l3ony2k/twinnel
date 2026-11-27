@@ -79,16 +79,8 @@ if (Test-Path -LiteralPath \$x) { Remove-Item -LiteralPath \$x -Recurse -Force }
 Expand-Archive -LiteralPath \$z -DestinationPath \$d -Force
 Unblock-File -LiteralPath \$z
 Get-ChildItem -LiteralPath \$x -Recurse -File | Unblock-File
-# Processes such as an agent's twinnel mcp server keep bin\twinnel.exe open, and
-# install.ps1 cannot overwrite it. Windows lets a running image be renamed:
-# move the locked ones aside (they keep running the old build) instead of
-# killing someone's agent session.
-\$ib=Join-Path \$env:LOCALAPPDATA 'Programs\\Twinnel\\bin'
-Get-ChildItem -LiteralPath \$ib -Filter '*.old-*' -EA SilentlyContinue | Remove-Item -Force -EA SilentlyContinue
-foreach (\$f in Get-ChildItem -LiteralPath \$ib -Filter '*.exe' -EA SilentlyContinue) {
-  try { [IO.File]::Open(\$f.FullName,'Open','ReadWrite','None').Dispose() }
-  catch { \$n=\$f.FullName+'.old-'+(Get-Date -Format yyyyMMddHHmmss); Write-Output \"move aside (in use): \$(\$f.Name)\"; Move-Item -LiteralPath \$f.FullName -Destination \$n }
-}
+# install.ps1 renames files that are in use (an agent's twinnel mcp) aside
+# itself and swaps all or none, so nothing is moved here.
 Write-Output '==> install.ps1 -NoLaunch'
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path \$x 'install.ps1') -NoLaunch
 if (\$LASTEXITCODE -ne 0) { throw \"install.ps1 failed (\$LASTEXITCODE)\" }
