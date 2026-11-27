@@ -1,7 +1,8 @@
 package healthfix
 
-// The fixes of competitor-autostart (disable-autostart) and
-// binary-integrity (repair-tailscale, repair-mihomo).
+// The fixes of competitor-autostart (disable-autostart),
+// binary-integrity (repair-tailscale, repair-mihomo) and system-dns's
+// no-backup (dns-backup).
 
 import (
 	"context"
@@ -15,18 +16,23 @@ import (
 
 type extraTexts struct {
 	stepAutostart, stepRepairTS, stepRepairMihomo string
+	stepDNSBackup, stepDNSBackupKeep              string
 }
 
 var zhExtra = extraTexts{
-	stepAutostart:    "由后台助手停用这些自启动项（不删除）：%s",
-	stepRepairTS:     "重新安装 Tailscale，覆盖损坏的文件（tailnet 会断几秒）",
-	stepRepairMihomo: "重新下载当前版本的 mihomo（校验 sha256）替换损坏的文件，再重启 mihomo（网络会断几秒）",
+	stepDNSBackup:     "%s：备份记为 自动（DHCP）",
+	stepDNSBackupKeep: "现在的 DNS 不变；mihomo 停了时看门狗临时恢复成自动获取",
+	stepAutostart:     "由后台助手停用这些自启动项（不删除）：%s",
+	stepRepairTS:      "重新安装 Tailscale，覆盖损坏的文件（tailnet 会断几秒）",
+	stepRepairMihomo:  "重新下载当前版本的 mihomo（校验 sha256）替换损坏的文件，再重启 mihomo（网络会断几秒）",
 }
 
 var enExtra = extraTexts{
-	stepAutostart:    "The helper disables these autostart entries (nothing is deleted): %s",
-	stepRepairTS:     "Reinstall Tailscale over the damaged files (the tailnet drops for a few seconds)",
-	stepRepairMihomo: "Download the current mihomo version again (sha256-checked), replace the damaged files and restart mihomo (the network drops for a few seconds)",
+	stepDNSBackup:     "%s: backup recorded as Automatic (DHCP)",
+	stepDNSBackupKeep: "The DNS stays as it is; if mihomo stops, the watchdog switches it to automatic for the time being",
+	stepAutostart:     "The helper disables these autostart entries (nothing is deleted): %s",
+	stepRepairTS:      "Reinstall Tailscale over the damaged files (the tailnet drops for a few seconds)",
+	stepRepairMihomo:  "Download the current mihomo version again (sha256-checked), replace the damaged files and restart mihomo (the network drops for a few seconds)",
 }
 
 func txExtra(tag string) *extraTexts {
@@ -58,6 +64,18 @@ func (f *Fixer) planExtra(ctx context.Context, p *Plan) bool {
 			}
 		}
 		p.Undo = true
+	case health.FixDNSBackup:
+		need(f.Helper != nil, L.blockedHelper)
+		if f.Helper != nil {
+			var ds rpc.DNSStatus
+			if err := f.Helper.Call(ctx, rpc.MethodDNSStatus, rpc.Empty{}, &ds); err == nil {
+				need(ds.Supported, L.blockedDNS)
+				for _, n := range ds.Unprotected {
+					p.Steps = append(p.Steps, fmt.Sprintf(X.stepDNSBackup, n))
+				}
+			}
+		}
+		p.Steps = append(p.Steps, X.stepDNSBackupKeep)
 	case health.FixRepairTailscale:
 		need(f.Helper != nil, L.blockedHelper)
 		p.Steps = []string{X.stepRepairTS}
@@ -84,6 +102,11 @@ func (f *Fixer) applyExtra(ctx context.Context, p Plan) (*Undo, bool, error) {
 			u = &rpc.AutostartChangeParams{IDs: splitParam(p.Param), Op: "enable"}
 		}
 		return &Undo{Action: p.Action, Autostart: u}, true, nil
+	case health.FixDNSBackup:
+		// Nothing to undo: only a restore value is recorded; the DNS is
+		// as it was.
+		var ds rpc.DNSStatus
+		return nil, true, f.Helper.Call(ctx, rpc.MethodDNSBackup, rpc.Empty{}, &ds)
 	case health.FixRepairTailscale:
 		var r rpc.TailscaleInstallResult
 		return nil, true, f.Helper.Call(ctx, rpc.MethodTailscaleInstall, rpc.TailscaleInstallParams{Repair: true}, &r)

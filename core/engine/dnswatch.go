@@ -8,11 +8,13 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"net"
 	"slices"
 	"sync"
 
 	"github.com/l3ony2k/twinnel/core/dnswatch"
+	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
@@ -110,6 +112,24 @@ func (e *Engine) DNSWatch() *rpc.DNSWatch {
 		}
 	}
 	return toDNSWatch(st)
+}
+
+// HealthDNSGuard is what the system-dns check needs from the helper
+// (health.Settings.DNSGuard): the services that point at mihomo with
+// nothing to restore, and the ones the watchdog holds restored.
+func (e *Engine) HealthDNSGuard(ctx context.Context) (health.DNSGuard, error) {
+	if e.SystemDNS == nil {
+		return health.DNSGuard{}, errors.New("the system DNS is not managed on this platform")
+	}
+	st, err := e.dnsManager().Status(ctx)
+	if err != nil {
+		return health.DNSGuard{}, err
+	}
+	g := health.DNSGuard{Unprotected: st.Unprotected}
+	if w := e.DNSWatch(); w.Restored() {
+		g.Restored = slices.Clone(w.Services)
+	}
+	return g, nil
 }
 
 // dnsWatchLoop runs the watchdog until ctx ends.

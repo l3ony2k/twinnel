@@ -388,7 +388,9 @@ func (f *Flow) detect(ctx context.Context, hc Caller, id Step) (bool, string) {
 			if !d.Supported {
 				return false, ""
 			}
-			return d.Pointed, ""
+			// Pointed by hand before Twinnel (nothing recorded to restore)
+			// is not done: dns.point records automatic for it.
+			return d.Pointed && len(d.Unprotected) == 0, ""
 		}
 	case StepTailscale:
 		var ti rpc.TailscaleInfo
@@ -727,7 +729,7 @@ func (f *Flow) runDNS(ctx context.Context, hc Caller) (string, error) {
 	if !d.Supported {
 		return "", &StepError{Code: CodeUnsupported, Err: errors.New("setting the system DNS is not supported on this platform yet")}
 	}
-	if d.Pointed {
+	if d.Pointed && len(d.Unprotected) == 0 {
 		return strings.Join(d.Target, ", "), nil
 	}
 	if err := hc.Call(ctx, rpc.MethodDNSPoint, nil, &d); err != nil {

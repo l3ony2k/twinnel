@@ -78,6 +78,10 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 			break
 		}
 		h.fixed = true
+	case rpc.MethodDNSBackup:
+		h.dns.Recorded, h.dns.Unprotected = h.dns.Unprotected, nil
+		h.fixed = true
+		set(h.dns)
 	case rpc.MethodComposeApply, rpc.MethodControllerSecure, rpc.MethodDNSPoint, rpc.MethodServiceRestart, rpc.MethodHealthEgress:
 		h.fixed = true
 		if method == rpc.MethodHealthEgress {
@@ -277,5 +281,33 @@ func TestPlansDedupe(t *testing.T) {
 	ps := f.Plans(context.Background(), cr)
 	if len(ps) != 2 {
 		t.Fatalf("got %d plans, want 2 (leak guard, mode): %+v", len(ps), ps)
+	}
+}
+
+// dns-backup: the preview lists the unprotected services and says the DNS
+// stays; apply calls dns.backup (never dns.point, which would change the
+// DNS and is refused while mihomo is down) and has no undo.
+func TestDNSBackupFix(t *testing.T) {
+	h := newFakeHelper()
+	h.dns.Services = []rpc.DNSService{{Name: "Wi-Fi", Servers: []string{"127.0.0.1"}}}
+	h.dns.Unprotected = []string{"Wi-Fi"}
+	f := &Fixer{Helper: h, Lang: "zh-Hans", Platform: "windows"}
+	cr := health.CheckReport{ID: "the-check", Result: health.Result{Status: health.StatusWarn, Reasons: []string{health.ReasonDNSNoBackup}}}
+	p, err := f.Plan(context.Background(), cr, health.ReasonDNSNoBackup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Action != health.FixDNSBackup || p.Undo || p.Blocked != "" || len(p.Steps) != 2 || !strings.Contains(p.Steps[0], "Wi-Fi") {
+		t.Fatalf("plan %+v", p)
+	}
+	out, err := f.Apply(context.Background(), p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Undo != nil || out.Check == nil || out.Check.Status != health.StatusOK {
+		t.Fatalf("outcome %+v", out)
+	}
+	if slices.Contains(h.calls, rpc.MethodDNSPoint) || !slices.Contains(h.calls, rpc.MethodDNSBackup) {
+		t.Fatalf("calls %v", h.calls)
 	}
 }

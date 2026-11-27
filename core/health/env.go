@@ -65,6 +65,10 @@ type Settings struct {
 	// Autostarts reads the competing clients' autostart entries
 	// (competitor-autostart; nil: that check skips). The helper sets it.
 	Autostarts func(ctx context.Context) ([]autostart.Entry, error) `json:"-"`
+	// DNSGuard reads what the helper knows about the system DNS it
+	// manages (system-dns; nil: not known here, those parts are left out).
+	// The helper sets it where it can set the system DNS.
+	DNSGuard func(ctx context.Context) (DNSGuard, error) `json:"-"`
 }
 
 // DefaultEgressURL is Cloudflare's trace endpoint on an IP literal: it
