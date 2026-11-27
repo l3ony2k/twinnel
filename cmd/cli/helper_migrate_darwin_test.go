@@ -432,3 +432,46 @@ func TestCopyTreeRefusesNonEmpty(t *testing.T) {
 		t.Error("copied into a non-empty dir")
 	}
 }
+
+// Uninstalling while only the old helper is installed removes that one.
+func TestUninstallLegacyOnly(t *testing.T) {
+	m := newMigrateModel(t, 501)
+	if err := runHelperUninstall([]string{"--dry-run"}); err != nil {
+		t.Fatalf("%v\n%s", err, m.out.String())
+	}
+	out := m.out.String()
+	for _, want := range []string{"bootout system/" + m.old.Label, "/Library/PrivilegedHelperTools/" + m.old.Label, m.old.Socket} {
+		if !strings.Contains(out, want) {
+			t.Errorf("lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, store.DefaultHelperLabel) {
+		t.Errorf("names the new helper:\n%s", out)
+	}
+}
+
+// After a migration, --purge also deletes the kept old state dir and the
+// old keychain items.
+func TestPurgeRemovesMigrationLeftovers(t *testing.T) {
+	m := newMigrateModel(t, 501)
+	newBin, _ := helperPaths(m.newDir, store.DefaultHelperLabel)
+	m.exists[newBin] = true // migrated: the new helper is installed
+	kept := m.old.StateDir + ".migrated-20261127-100000"
+	if err := os.Rename(m.old.StateDir, kept); err != nil {
+		t.Fatal(err)
+	}
+	m.info = &rpc.HelperInfo{StateDir: m.newDir, SecretKeys: []string{testSecret}, Mihomo: rpc.HelperMihomoService{Label: "com.example.mihomo", Adopted: true}}
+	helperRPC = func(_ context.Context, _ string, method string, _, result any) error {
+		b, _ := json.Marshal(m.info)
+		return json.Unmarshal(b, result)
+	}
+	if err := runHelperUninstall([]string{"--purge", "--dry-run", "--state-dir", m.newDir}); err != nil {
+		t.Fatalf("%v\n%s", err, m.out.String())
+	}
+	out := m.out.String()
+	for _, want := range []string{"/bin/rm -rf -- " + kept, "-a duet -s duet." + testSecret, "-a twinnel -s twinnel." + testSecret} {
+		if !strings.Contains(out, want) {
+			t.Errorf("lacks %q:\n%s", want, out)
+		}
+	}
+}

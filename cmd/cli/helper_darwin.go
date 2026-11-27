@@ -87,15 +87,18 @@ func readServiceState(label string) (loaded bool, def []byte, err error) {
 // secretStore: the installed helper keeps secrets in the System keychain.
 const secretStore = "keychain"
 
-// planSecretsDelete deletes the helper's keychain items (a missing one is
-// not an error: `security` exits 44, ignored).
+// planSecretsDelete deletes the helper's keychain items, and the ones of
+// the same keys from before the rename (a missing one is not an error:
+// `security` exits 44, ignored).
 func planSecretsDelete(keys []string) []service.Step {
 	var steps []service.Step
-	for _, k := range keys {
-		steps = append(steps, service.Step{Kind: service.StepRun, IgnoreError: true, Argv: []string{
-			"/usr/bin/security", "delete-generic-password", "-a", keychain.DefaultAccount,
-			"-s", keychain.DefaultService + "." + k, keychain.SystemKeychain,
-		}})
+	for _, names := range [][2]string{{keychain.DefaultAccount, keychain.DefaultService}, {legacy.KeychainAccount, legacy.KeychainService}} {
+		for _, k := range keys {
+			steps = append(steps, service.Step{Kind: service.StepRun, IgnoreError: true, Argv: []string{
+				"/usr/bin/security", "delete-generic-password", "-a", names[0],
+				"-s", names[1] + "." + k, keychain.SystemKeychain,
+			}})
+		}
 	}
 	return steps
 }

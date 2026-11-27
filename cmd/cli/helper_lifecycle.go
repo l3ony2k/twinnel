@@ -105,6 +105,11 @@ func runHelperUninstall(args []string) error {
 	if _, done, err := parse(fs, args); done || err != nil {
 		return err
 	}
+	if migrationNeeded(f) {
+		// Only the helper from before the rename is installed: that is
+		// the one to remove.
+		f.label, f.stateDir, f.socket = legacyHelper.Label, legacyHelper.StateDir, legacyHelper.Socket
+	}
 	for _, x := range []struct {
 		on   bool
 		flag string
@@ -143,6 +148,7 @@ func runHelperUninstall(args []string) error {
 	if err != nil {
 		return err
 	}
+	addMigratedLeftovers(&plan, o.Purge)
 	purge, err := purgeSteps(plan, f.stateDir)
 	if err != nil {
 		return err
@@ -206,6 +212,24 @@ func infoFromSettings(stateDir string) *rpc.HelperInfo {
 	return info
 }
 
+// addMigratedLeftovers adds the state dirs a migration from before the
+// rename kept (<old dir>.migrated-<time>) to the plan: removed with
+// --purge, else listed as kept.
+func addMigratedLeftovers(p *uninstall.Plan, purge bool) {
+	if legacyHelper.StateDir == "" {
+		return
+	}
+	dirs, _ := filepath.Glob(legacyHelper.StateDir + ".migrated-*")
+	for _, d := range dirs {
+		it := uninstall.Item{Kind: uninstall.StateDir, Path: d}
+		if purge {
+			p.Remove = append(p.Remove, it)
+		} else {
+			p.Keep = append(p.Keep, it)
+		}
+	}
+}
+
 // purgeSteps delete the keychain items and the state dir. The state dir is
 // removed with rm -rf, so it must look like Twinnel's: absolute, not a
 // top-level dir, named Twinnel.
@@ -221,7 +245,8 @@ func purgeSteps(p uninstall.Plan, stateDir string) ([]service.Step, error) {
 			steps = append(steps, planSecretsDelete(keys)...)
 		case uninstall.StateDir:
 			dir := filepath.Clean(it.Path)
-			if !filepath.IsAbs(dir) || filepath.Dir(dir) == "/" || !strings.Contains(strings.ToLower(filepath.Base(dir)), "twinnel") {
+			base := strings.ToLower(filepath.Base(dir))
+			if !filepath.IsAbs(dir) || filepath.Dir(dir) == "/" || !strings.Contains(base, "twinnel") && !strings.HasPrefix(base, legacy.Name) {
 				return nil, fmt.Errorf("refusing to delete %q: not Twinnel's state dir", it.Path)
 			}
 			steps = append(steps, service.Step{Kind: service.StepRun, Argv: []string{"/bin/rm", "-rf", "--", dir}})
