@@ -41,7 +41,57 @@ func (s *Server) redactString(x string) string {
 	for _, sec := range s.knownSecrets() {
 		x = strings.ReplaceAll(x, sec, redacted)
 	}
-	return config.RedactText(x)
+	return redactURLTokens(config.RedactText(x))
+}
+
+var urlRE = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'<>]+`)
+
+// redactURLTokens hides URL path segments that look like tokens: a
+// subscription URL often carries its key in the path, and the helper's
+// texts or mihomo's log may quote one. A segment is token-like when it is
+// long (16+ characters of letters, digits, - and _) or mixes upper case,
+// lower case and digits in 8+ characters.
+func redactURLTokens(x string) string {
+	return urlRE.ReplaceAllStringFunc(x, func(u string) string {
+		i := strings.Index(u, "://")
+		rest := u[i+3:]
+		j := strings.IndexByte(rest, '/')
+		if j < 0 {
+			return u
+		}
+		segs := strings.Split(rest[j:], "/")
+		for k, seg := range segs {
+			tail := ""
+			if q := strings.IndexAny(seg, "?#"); q >= 0 {
+				seg, tail = seg[:q], seg[q:]
+			}
+			if tokenLike(seg) {
+				segs[k] = redacted + tail
+			}
+		}
+		return u[:i+3] + rest[:j] + strings.Join(segs, "/")
+	})
+}
+
+func tokenLike(seg string) bool {
+	var up, low, dig, other bool
+	for _, r := range seg {
+		switch {
+		case r >= 'A' && r <= 'Z':
+			up = true
+		case r >= 'a' && r <= 'z':
+			low = true
+		case r >= '0' && r <= '9':
+			dig = true
+		case r == '-' || r == '_':
+		default:
+			other = true
+		}
+	}
+	if other {
+		return false
+	}
+	return len(seg) >= 16 && dig || len(seg) >= 8 && up && low && dig
 }
 
 // redactJSON marshals v and redacts it value by value.

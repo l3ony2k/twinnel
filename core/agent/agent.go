@@ -271,7 +271,9 @@ func (s *Server) run(ctx context.Context, req *mcp.CallToolRequest, tier, name s
 			return s.errorResult(fmt.Errorf("reading the agent switches from the helper: %w", err))
 		}
 		c.agent = st.Agent
-		if !st.Agent.Allows(tier) && !(o.noHelper && tier == rpc.TierRead) {
+		// noHelper only matters when the switches cannot be read: with the
+		// helper up, MCP off means every tool is off.
+		if !st.Agent.Allows(tier) {
 			return s.errorResult(refusal(tier, name, st.Agent))
 		}
 	}
