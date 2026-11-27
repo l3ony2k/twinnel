@@ -70,30 +70,39 @@ func env(m map[string]string) func(string) string { return func(k string) string
 
 // The first launch of a machine not set up opens the wizard; finished,
 // put off, set up, or a development run against a scratch helper does
-// not. TWINNEL_WIZARD overrides.
+// not. TWINNEL_WIZARD overrides; TWINNEL_OPEN=1 asks for windows (a real
+// launch's), TWINNEL_OPEN=page:<id> for that page only.
 func TestLaunchOpensWizard(t *testing.T) {
 	fresh := snapHelper(status.HelperNotInstalled, nil)
 	set := snapHelper(status.HelperConnected, &rpc.Status{ActiveSubscription: "main"})
 	none := env(nil)
+	// Windows QA round 1: a missing scratch pipe, no TWINNEL_OPEN.
+	scratch := env(map[string]string{"TWINNEL_SOCKET": `\\.\pipe\twinnel-qa-none`})
+	main := launchOpen{main: true}
 	cases := []struct {
 		name          string
 		st            wizardState
 		s             status.Snapshot
 		getenv        func(string) string
+		req           launchOpen
 		open, decided bool
 	}{
-		{"fresh machine", wizardState{}, fresh, none, true, true},
-		{"resumes mid-way", wizardState{Step: wizSub}, fresh, none, true, true},
-		{"put off", wizardState{Later: true}, fresh, none, false, true},
-		{"finished", wizardState{Done: true}, fresh, none, false, true},
-		{"already set up", wizardState{}, set, none, false, true},
-		{"helper unknown yet", wizardState{}, snapHelper(status.HelperUnknown, nil), none, false, false},
-		{"scratch helper", wizardState{}, fresh, env(map[string]string{"TWINNEL_SOCKET": "/tmp/x.sock"}), false, true},
-		{"scratch helper, forced", wizardState{}, fresh, env(map[string]string{"TWINNEL_SOCKET": "/tmp/x.sock", "TWINNEL_WIZARD": "1"}), true, true},
-		{"turned off", wizardState{}, fresh, env(map[string]string{"TWINNEL_WIZARD": "0"}), false, true},
+		{"fresh machine", wizardState{}, fresh, none, launchOpen{}, true, true},
+		{"fresh machine, window asked for", wizardState{}, fresh, none, main, true, true},
+		{"resumes mid-way", wizardState{Step: wizSub}, fresh, none, launchOpen{}, true, true},
+		{"put off", wizardState{Later: true}, fresh, none, launchOpen{}, false, true},
+		{"finished", wizardState{Done: true}, fresh, none, launchOpen{}, false, true},
+		{"already set up", wizardState{}, set, none, launchOpen{}, false, true},
+		{"already set up, window asked for", wizardState{}, set, none, main, false, true},
+		{"helper unknown yet", wizardState{}, snapHelper(status.HelperUnknown, nil), none, launchOpen{}, false, false},
+		{"scratch helper", wizardState{}, fresh, scratch, launchOpen{}, false, true},
+		{"scratch helper, window asked for", wizardState{}, fresh, scratch, main, true, true},
+		{"scratch helper, a page asked for", wizardState{}, fresh, scratch, launchOpen{main: true, page: pageKernel}, false, true},
+		{"scratch helper, forced", wizardState{}, fresh, env(map[string]string{"TWINNEL_SOCKET": "/tmp/x.sock", "TWINNEL_WIZARD": "1"}), launchOpen{}, true, true},
+		{"turned off", wizardState{}, fresh, env(map[string]string{"TWINNEL_WIZARD": "0"}), main, false, true},
 	}
 	for _, c := range cases {
-		open, decided := launchOpensWizard(c.st, c.s, c.getenv)
+		open, decided := launchOpensWizard(c.st, c.s, c.getenv, c.req)
 		if open != c.open || decided != c.decided {
 			t.Errorf("%s: open %v decided %v, want %v %v", c.name, open, decided, c.open, c.decided)
 		}

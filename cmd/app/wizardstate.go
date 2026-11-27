@@ -93,15 +93,24 @@ func needsSetup(s status.Snapshot) (need, known bool) {
 }
 
 // wizardAutoOpen reports whether a launch may open the wizard by itself.
-// TWINNEL_WIZARD=1 or 0 decides; otherwise a run against a scratch helper
-// (TWINNEL_SOCKET: a development or agent run) never opens a window on its
-// own, so it never takes the focus of the person at the machine.
-func wizardAutoOpen(getenv func(string) string) bool {
+// TWINNEL_WIZARD=1 or 0 decides. A launch asked to open a page
+// (TWINNEL_OPEN=page:<id>, --open) shows that page only; one asked for
+// the main window (TWINNEL_OPEN=1) behaves as a real launch with windows
+// allowed. Otherwise a run against a scratch helper (TWINNEL_SOCKET: a
+// development or agent run) never opens a window on its own, so it never
+// takes the focus of the person at the machine (launch.go).
+func wizardAutoOpen(getenv func(string) string, req launchOpen) bool {
 	switch getenv("TWINNEL_WIZARD") {
 	case "1":
 		return true
 	case "0":
 		return false
+	}
+	switch {
+	case req.page != "":
+		return false
+	case req.main:
+		return true
 	}
 	return getenv("TWINNEL_SOCKET") == ""
 }
@@ -114,7 +123,7 @@ func (a *app) wizardLaunchCheck(s status.Snapshot) {
 	if w.checked || a.shotMode {
 		return
 	}
-	open, decided := launchOpensWizard(w.state, s, os.Getenv)
+	open, decided := launchOpensWizard(w.state, s, os.Getenv, a.launch)
 	if !decided {
 		return
 	}
@@ -125,13 +134,14 @@ func (a *app) wizardLaunchCheck(s status.Snapshot) {
 }
 
 // launchOpensWizard decides whether this launch opens the wizard; decided
-// is false until the helper's state is known.
-func launchOpensWizard(st wizardState, s status.Snapshot, getenv func(string) string) (open, decided bool) {
+// is false until the helper's state is known. req is what the launch was
+// asked to open (launchRequest).
+func launchOpensWizard(st wizardState, s status.Snapshot, getenv func(string) string, req launchOpen) (open, decided bool) {
 	need, known := needsSetup(s)
 	if !known {
 		return false, false
 	}
-	return need && !st.Done && !st.Later && wizardAutoOpen(getenv), true
+	return need && !st.Done && !st.Later && wizardAutoOpen(getenv, req), true
 }
 
 // wizardPending: the 继续设置 entry shows. The machine still needs setting

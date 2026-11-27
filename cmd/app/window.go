@@ -37,6 +37,14 @@ const (
 	pageInstall = "install"
 )
 
+// allPages are the main window's pages: every id pageBody and the wizard
+// draw. TWINNEL_OPEN=page:<id> accepts these (launch.go); a page added
+// without its id here fails TestAllPagesListed.
+var allPages = []string{
+	pageOverview, pageProxies, pageTailscale, pageHealth, pageLogs, pageConfig, pageHistory,
+	pageKernel, pageTakeover, pageSettings, pageAbout, pageInstall, pageLeave, pageWizard,
+}
+
 func (a *app) mainView(c *ui.Context) {
 	a.applyTheme(c)
 	t := c.Theme()
