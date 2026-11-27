@@ -53,7 +53,7 @@ Twinnel 在桌面上同时跑**官方的** [mihomo](https://github.com/MetaCubeX
 需要 Go（版本见 `go.mod`），不需要 cgo，也不需要其他工具链。
 
 ```sh
-git clone https://github.com/l3ony2k/twinnel && cd Twinnel
+git clone https://github.com/l3ony2k/twinnel && cd twinnel
 go build -o bin/twinnel ./cmd/cli            # 命令行
 go build -o bin/twinnel-helper ./cmd/helper  # root helper 守护进程
 TWINNEL_READ_ONLY=1 go run ./cmd/app         # 菜单栏 App（macOS），开发模式只读运行
@@ -70,6 +70,7 @@ scripts/build-release.sh --no-app   # 只构建 CLI 和 helper（任何系统都
 
 ### 日常使用与开发并存
 
+- **从 duet 升级**（2026-11-27 之前的名字）：`scripts/install-local.sh` 或 设置 → 后台助手 → 更新 会把旧安装连同数据一起迁过来，见 [docs/runbook-adopt-macos.md](docs/runbook-adopt-macos.md#migrating-from-duet)。`DUET_*` 环境变量在下一个版本前仍然有效。
 - **日常：** `scripts/install-local.sh` 构建发布版，退出正在运行的 `/Applications/Twinnel.app`，把旧版备份到 `~/Library/Application Support/twinnel/backups`（保留最新 3 个），装上新版；只有内置的 helper 和已安装的不同时才运行 `twinnel helper upgrade`（输一次密码）。只有这份 app 和已安装的 helper 能改动真实系统。App 的 设置 → 后台助手 显示 helper 版本，可以更新、重启、卸载；设置 → 通用 → 登录时打开 让 app 随登录启动（仅打包版）。
 - **开发：** `go run ./cmd/app` 连临时 socket 上的开发 helper 和假的控制接口（`TWINNEL_SOCKET`、`TWINNEL_CONTROLLER`，见 CONTRIBUTING），或只读地连真实环境（`TWINNEL_READ_ONLY=1`；截图运行默认如此）。开发构建不会提示更新 helper。
 

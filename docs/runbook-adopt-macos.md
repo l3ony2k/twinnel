@@ -217,7 +217,33 @@ After the adopt, the helper reloads mihomo again only when the composed config c
 - `twinnel helper upgrade` installs the bundled helper when it differs: the install plan (copy the binary, reload `com.l3ony2k.twinnel.helper`), one password prompt, then it waits until the helper answers with the new version. It never touches `com.mihomo.proxy`, `com.l3ony2k.twinnel.mihomo` or tailscaled. An older bundled helper is refused unless `--force`.
 - `twinnel helper restart` asks the running helper to restart itself (`helper.restart`: it exits and launchd starts it again; no password). If it does not answer, it runs `launchctl kickstart -k system/com.l3ony2k.twinnel.helper` as root.
 - `twinnel helper uninstall [--purge]` lists what goes and what stays first. `--purge` also deletes `/Library/Application Support/twinnel` (settings, subscriptions, layers, history, logs, takeover and harden backups, kernels) and the keychain items `twinnel.controller-secret` and `twinnel.subscription-url/*`. It refuses when a mihomo that Twinnel installed itself (not adopted, not hardened) still runs from the state dir: purging would cut the network. Remove that service first (`twinnel service uninstall mihomo`).
-- `scripts/install-local.sh` does the daily-use update in one go: build, quit the app, back up `/Applications/Twinnel.app`, install, `twinnel helper upgrade` only if the helper changed.
+- `scripts/install-local.sh` does the daily-use update in one go: build, quit the app, back up `/Applications/Twinnel.app`, install, `twinnel helper upgrade` only if the helper changed (or migrate a helper of the old name, see below).
+
+## Migrating from duet
+
+Twinnel was called duet until 2026-11-27. An install of that name (`/Applications/duet.app`, the LaunchDaemon `com.l3ony2k.duet.helper` with its binary in `/Library/PrivilegedHelperTools`, the socket `/var/run/duet/helper.sock`, the state `/Library/Application Support/duet`, the keychain items `duet.*`) is moved over by `twinnel helper upgrade` (or `install`), in one run as root:
+
+1. It reads the old `settings.json` and stops, changing nothing, when mihomo itself runs from files in the old state dir: after `duet helper harden`, or when mihomo's plist or config names that dir. Moving those files would need a mihomo restart. An adopted `com.mihomo.proxy` with its files in `~/mihomo-migration` is fine.
+2. It notes what the old helper holds (`helper.info`: subscriptions, layers, history entries, the mihomo service and whether it is adopted, the secrets).
+3. It stops the old helper (`launchctl bootout system/com.l3ony2k.duet.helper`) and waits until its socket is quiet.
+4. It copies `/Library/Application Support/duet` to `/Library/Application Support/twinnel` (modes and owners kept) and points the paths and the label in the copy's JSON files at the new names.
+5. It installs and starts `com.l3ony2k.twinnel.helper` and waits until it answers with the same subscriptions, layers, history, mihomo service, takeover state and secrets. The new helper reads the `duet.*` keychain items and copies them to `twinnel.*`.
+6. Only then it removes the old plist, binary and `/var/run/duet`, renames the old state dir to `/Library/Application Support/duet.migrated-<time>` and deletes the `duet.*` keychain items whose value it copied.
+
+If step 3, 4 or 5 fails, it rolls back: the new helper is stopped and removed, the copy is deleted, and the old helper starts again from its old paths. mihomo and tailscaled are never stopped, started or reloaded by the migration.
+
+The app moves `~/Library/Application Support/duet/app.json` and `window-state.json` to `…/twinnel` on its first start, and shows 需要更新后台助手 while the old helper runs; its 更新 runs the migration. `scripts/install-local.sh` moves `/Applications/duet.app` to the backups folder (never deletes it) and runs the migration when it finds the old helper.
+
+Environment variables are `TWINNEL_*` now; `DUET_*` is still read for one release (a deprecation notice is printed). `twinnel helper uninstall` also knows the old names: it removes the old helper when that is the only one installed, and `--purge` also deletes `duet.migrated-*` and the `duet.*` keychain items.
+
+Check after the migration:
+
+```sh
+twinnel helper upgrade --check          # action: up to date
+twinnel status                          # helper connected, mihomo and Tailscale as before
+launchctl print system/com.l3ony2k.duet.helper 2>&1 | head -1    # "Could not find service"
+ls -d "/Library/Application Support/duet.migrated-"*            # the kept copy; sudo rm -rf it once all is well
+```
 
 ## Notes
 

@@ -62,6 +62,10 @@ TWINNEL_SHOTS=$S/out TWINNEL_SHOTS_FLOW=status TWINNEL_SOCKET=$S/twinnel.sock TW
 
 The README's images (`docs/images/`) come from `scripts/readme-shots.sh <scratch dir>` (`TWINNEL_SHOTS_FLOW=readme`, fixtures in `cmd/app/testdata/readme`): it builds the same hermetic stack, seeds the scratch helper with a synthetic subscription and layers, shoots English and Chinese in light and dark, and frames and compresses the PNGs. Look at every image before committing it.
 
+## Names from before the rename
+
+The project was called duet until 2026-11-27. `core/legacy` holds the old names; the only code that uses them finds and migrates an old install (`cmd/cli/helper_migrate.go`, the app's `legacyprefs.go`, the keychain's legacy read, `rpc.SocketFromEnv`'s fallback, uninstall). `DUET_*` environment variables are copied to their `TWINNEL_*` names at start (with a deprecation notice) for one release. Two stored formats keep the old spelling on purpose: the history index field `before_duet` and the keychain value marker `duet-b64:`. Drop the rest in the release after the first public one.
+
 ## Pull requests
 
 - One topic per pull request, with a clear description of what changed and how you tested it.

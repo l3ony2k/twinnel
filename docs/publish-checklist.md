@@ -11,19 +11,19 @@ from a worktree). Never print it, commit it, or paste its lines into an issue.
 
 | Decision | Today | Where it shows up |
 |---|---|---|
-| Project name | `twinnel` (placeholder) | everywhere; see the rename checklist in section 7 |
-| Owner / org on GitHub | none; `l3ony2k` appears in identifiers | module path, bundle id, launchd labels |
+| Project name | **decided: Twinnel** (twin + tunnel; was "duet" until 2026-11-27) | everywhere; section 7 lists the identifiers |
+| Owner / org on GitHub | **decided: personal account `l3ony2k`**, repo `github.com/l3ony2k/twinnel` (no remote added yet) | module path, bundle id, launchd labels |
 | Visibility | private, local only | — |
-| Bundle id | `io.github.l3ony2k.Twinnel` | `cmd/app/mygo.json` |
+| Bundle id | `io.github.l3ony2k.twinnel` (app `Twinnel.app`) | `cmd/app/mygo.json` |
 | launchd labels | `com.l3ony2k.twinnel.helper`, `com.l3ony2k.twinnel.mihomo` | helper, CLI, uninstall, docs |
 | Go module path | `github.com/l3ony2k/twinnel` | `go.mod`, every import |
 | Branches to publish | 79 local branches (`feat/*`, `fix/*`, `docs/*`) | publish `main` only (and tags), not the agent branches |
 | Author identity | one name and one email on every commit | decide whether to publish that email or rewrite it to a GitHub `noreply` address (`--mailmap`) |
 | Release channel | none | signing and notarization, section 5 |
 
-Changing the launchd labels after people have installed the helper needs a migration (the
-uninstaller and `helper upgrade` look for the old label). Decide them before the first public
-release.
+Changing the launchd labels after people have installed the helper needs a migration. The
+rename from duet did exactly that (`cmd/cli/helper_migrate.go`, names in `core/legacy`): drop
+that code, and `core/legacy`, in the release after the first public one.
 
 ## 2. Backup (before touching history)
 
@@ -132,7 +132,7 @@ Run on the full history of a mirror clone, with `--redact`:
 
 ## 5. Licence and third-party notices
 
-- Twinnel: MIT (`LICENSE`, "the Twinnel authors"). Decide whether the copyright line names a person.
+- Twinnel: MIT (`LICENSE`, "Copyright (c) 2026 Leon and Claude").
 - `THIRD_PARTY_NOTICES.md` covers the Kubai Icons (MIT). It does not yet cover the Go modules
   compiled into the binaries. All of them are permissive, but MIT, BSD and ISC require their
   notices in binary distributions:
@@ -170,18 +170,18 @@ Run on the full history of a mirror clone, with `--redact`:
   `docs/release.md` runs on `macos-26` with `TWINNEL_REQUIRE_LAYERED_ICON=1`; enable it as
   `.github/workflows/release.yml` once tags are pushed.
 
-## 7. Rename checklist (if the name or owner changes)
+## 7. Rename checklist (if the name or owner changes again)
 
 Counted on 2026-11-27 with `git grep -c`:
 
 | Identifier | Files |
 |---|---|
 | `github.com/l3ony2k/twinnel` (module path, imports) | 266 files: `go.mod`, almost every `.go` file, the `-X` ldflags in `scripts/build-release.sh` (`go mod edit -module`, then rewrite the imports) |
-| `io.github.l3ony2k.Twinnel` (bundle id) | `cmd/app/mygo.json` |
+| `io.github.l3ony2k.twinnel` (bundle id) | `cmd/app/mygo.json` |
 | `com.l3ony2k.twinnel.helper` / `.mihomo` (launchd labels, plist names; 14 and 10 files) | `core/store/settings.go`, `cmd/helper`, `cmd/app/helper.go`, `cmd/app/leavepage.go`, `core/uninstall`, `core/engine`, tests, `cmd/app/testdata/shots-install-plan.txt`, `docs/architecture.md`, `docs/runbook-adopt-macos.md`, `docs/security-review.md`, `CONTRIBUTING.md`, `AGENTS.md` |
 | `/var/run/twinnel/helper.sock`, `/Library/Application Support/twinnel`, `/Library/PrivilegedHelperTools/…`, `~/Library/Application Support/twinnel` | helper, CLI and app defaults, docs |
 | `twinnel` as a command, app and archive name (`twinnel`, `twinnel-helper`, `Twinnel.app`) | `scripts/build-release.sh`, `scripts/install-local.sh`, README, docs |
-| `TWINNEL_*` environment variables | code, CONTRIBUTING, AGENTS |
+| `TWINNEL_*` environment variables (`DUET_*` still read for one release, `core/legacy`) | code, CONTRIBUTING, AGENTS |
 | `git clone https://github.com/l3ony2k/twinnel` | `README.md`, `README.zh-CN.md` |
 
 Then: regenerate the README screenshots (`scripts/readme-shots.sh`), since the app shows its name.

@@ -53,7 +53,7 @@ All screenshots use synthetic data (`scripts/readme-shots.sh`).
 You need Go (the version in `go.mod`). No cgo, no other toolchain.
 
 ```sh
-git clone https://github.com/l3ony2k/twinnel && cd Twinnel
+git clone https://github.com/l3ony2k/twinnel && cd twinnel
 go build -o bin/twinnel ./cmd/cli          # CLI
 go build -o bin/twinnel-helper ./cmd/helper  # root helper daemon
 TWINNEL_READ_ONLY=1 go run ./cmd/app        # menu bar app (macOS), development run, read-only
@@ -70,6 +70,7 @@ The `.app` and the CLI and helper inside it are signed ad hoc (`SIGN_IDENTITY` a
 
 ### Daily use and development side by side
 
+- **Coming from duet** (the name until 2026-11-27): `scripts/install-local.sh` or 设置 → 后台助手 → 更新 moves the old install over, data included; see [docs/runbook-adopt-macos.md](docs/runbook-adopt-macos.md#migrating-from-duet). `DUET_*` environment variables still work for one release.
 - **Daily:** `scripts/install-local.sh` builds the release, quits the running `/Applications/Twinnel.app`, keeps a backup of it (`~/Library/Application Support/twinnel/backups`, newest 3), installs the new one, and runs `twinnel helper upgrade` only when the bundled helper differs from the installed one (one password prompt). This copy and the installed helper are the only ones with write access to the live system. 设置 → 后台助手 in the app shows the helper's version, updates, restarts or uninstalls it; 设置 → 通用 → 登录时打开 starts the app at login (packaged app only).
 - **Development:** `go run ./cmd/app` against a development helper on a temp socket and a fake controller (`TWINNEL_SOCKET`, `TWINNEL_CONTROLLER`, see CONTRIBUTING), or read-only against the live setup (`TWINNEL_READ_ONLY=1`; screenshot runs default to it). A development build never asks for a helper update.
 
