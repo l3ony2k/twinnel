@@ -21,7 +21,8 @@
 //	              and start the mihomo LaunchDaemon, wait until it answers
 //	dns           point every active network service's DNS at 127.0.0.1
 //	              (the old values are kept and restored on uninstall)
-//	tailscale     install the open-source tailscaled (kept when one exists)
+//	tailscale     install the open-source tailscaled (macOS, Linux) or the
+//	              official client from its MSI (Windows); kept when one exists
 //	login         interactive login: open the URL, wait until Running
 //	health        run the health checks
 package setup
@@ -37,6 +38,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/clilink"
 	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/msg"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/store"
 	"github.com/l3ony2k/twinnel/overrides"
@@ -90,6 +92,11 @@ const (
 	CodeHealthFail = "health-fail"
 	// CodeUnsupported: the platform lacks this step (marked Skipped).
 	CodeUnsupported = "unsupported"
+	// CodeInstallFailed: the download worked but installing did not (the
+	// Windows installer failed, the new binary does not run, the service
+	// did not start). Another proxy does not help; the error is a coded
+	// message (core/msg) a client words.
+	CodeInstallFailed = "install-failed"
 )
 
 // StepState is a step's progress.
@@ -121,6 +128,9 @@ const (
 	WarnTSOnPath = "tailscale-on-path"
 	// WarnTSLink: the tailscale command could not be linked (Text: why).
 	WarnTSLink = "tailscale-link"
+	// WarnRestart: the Windows installer needs a restart to finish
+	// installing Tailscale.
+	WarnRestart = "restart-needed"
 )
 
 // Options are the user's choices.
@@ -548,6 +558,22 @@ func downloadErr(err error) error {
 	return &StepError{Code: CodeDownload, Err: err}
 }
 
+// installCodes are the core/msg codes of failures after the download.
+var installCodes = map[string]bool{
+	"msi-busy": true, "msi-canceled": true, "msi-blocked": true, "msi-other-version": true, "msi-failed": true,
+	"ts-service-down": true, "ts-cli-no-run": true, "mihomo-no-run": true,
+}
+
+// installErr codes a failed kernel.install or tailscale.install: a failure
+// after the download is CodeInstallFailed, anything else a download
+// failure (the client offers another proxy).
+func installErr(err error) error {
+	if installCodes[msg.Parse(cleanErr(err)).Code] {
+		return &StepError{Code: CodeInstallFailed, Err: err}
+	}
+	return downloadErr(err)
+}
+
 func (f *Flow) runMihomo(ctx context.Context, hc Caller) (string, error) {
 	var k rpc.KernelList
 	if err := hc.Call(ctx, rpc.MethodKernelList, nil, &k); err == nil && (k.Current != "" || k.External) {
@@ -558,7 +584,7 @@ func (f *Flow) runMihomo(ctx context.Context, hc Caller) (string, error) {
 		if errors.As(err, &re) && re.Code == rpc.CodeInvalidParams {
 			return "", err
 		}
-		return "", downloadErr(err)
+		return "", installErr(err)
 	}
 	// The geo databases: mihomo -t and mihomo itself load them for
 	// GEOIP/GEOSITE rules, and would otherwise download them at start.
@@ -687,9 +713,12 @@ func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 	if err := hc.Call(ctx, rpc.MethodTailscaleInstall, rpc.TailscaleInstallParams{Proxy: f.Opts.Proxy}, &r); err != nil {
 		var re *rpc.Error
 		if errors.As(err, &re) && (re.Code == rpc.CodeFailed) {
-			return "", downloadErr(err)
+			return "", installErr(err)
 		}
 		return "", err
+	}
+	if r.RestartNeeded {
+		f.warn(StepTailscale, WarnRestart, "restart the computer to finish installing Tailscale")
 	}
 	if r.UsesSystemVPN {
 		f.warn(StepTailscale, WarnSystemVPN, "the Tailscale app uses the system VPN slot, which conflicts with mihomo's TUN; the open-source tailscaled avoids that")
