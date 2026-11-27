@@ -635,6 +635,7 @@ func removeAppExtras() {
 		bootoutAgent(p)
 		os.Remove(p)
 	}
+	removeCLILinks() // 设置 → 本地 Agent → 命令行工具
 }
 
 // appExtraItems words the app-side extras that exist, for the 完全移除
@@ -649,6 +650,12 @@ func appExtraItems() []string {
 	}
 	if len(launchAgents()) > 0 {
 		out = append(out, T.ItemLaunchAgent)
+	}
+	for _, d := range cliTargets() {
+		if isDuetLink(filepath.Join(d, "duet")) {
+			out = append(out, T.AgentCLI)
+			break
+		}
 	}
 	return out
 }

@@ -90,6 +90,7 @@ type app struct {
 	about       aboutView                  // the 关于 page (aboutpage.go)
 	live        liveSetup                  // the running mihomo before takeover (livesetup.go)
 	hm          helperMgmtView             // 设置 → 后台助手 (helpermgmt.go)
+	agent       agentView                  // 设置 → 本地 Agent (agentsection.go)
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
 	toastOp     bool                       // toast is an operation's outcome: it links to 日志 → duet (H7)

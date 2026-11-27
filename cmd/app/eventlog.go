@@ -165,6 +165,10 @@ func describeEvent(e rpc.Event, name nameOf) (eventRow, bool) {
 		var hs rpc.HealthSummary
 		json.Unmarshal(e.Data, &hs)
 		r.text, r.page = i18n.F(T.EvHealth, hs.Counts[string(health.StatusFail)], hs.Counts[string(health.StatusWarn)]), pageHealth
+	case rpc.EventAgentAction:
+		var act rpc.AgentAction
+		json.Unmarshal(e.Data, &act)
+		r.text, r.page, r.failed, r.raw = agentActionText(act), pageSettings, !act.OK, act.Error
 	case rpc.EventHelperStarted:
 		r.text = T.EvHelperStarted
 	case rpc.EventHelperStopping:
