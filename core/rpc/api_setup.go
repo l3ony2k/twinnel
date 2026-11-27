@@ -84,18 +84,3 @@ type TailscaleInstallResult struct {
 	Service *ServiceOpResult `json:"service,omitempty"`
 }
 
-// MethodSubExport returns the subscriptions with their URLs, for the
-// export zip (导出配置 with 包含订阅链接 on) that a fresh setup imports on
-// another machine. It is the one method that hands a subscription URL to
-// a client; the export's config.yaml already holds the node credentials,
-// so the zip is a secret either way. `twinnel mcp` never calls it.
-const MethodSubExport = "subscription.export"
-
-// SubExport is one subscription in an export.
-type SubExport struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	Active          bool   `json:"active,omitempty"`
-	IntervalMinutes int    `json:"interval_minutes"`
-	URL             string `json:"url,omitempty"`
-}

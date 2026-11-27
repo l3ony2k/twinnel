@@ -1,15 +1,13 @@
 package main
 
 // `twinnel setup`: the "set up this Mac" flow (core/setup) for a terminal,
-// and for Linux, which has no app. `twinnel setup export` writes the zip
-// that a setup on another machine imports.
+// and for Linux, which has no app.
 
 import (
 	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -24,12 +22,11 @@ import (
 )
 
 func init() {
-	register("setup", "set up this machine from nothing: helper, mihomo, subscription, DNS, Tailscale (| status | export FILE)", runSetup)
+	register("setup", "set up this machine from nothing: helper, mihomo, subscription, DNS, Tailscale (| status)", runSetup)
 }
 
 const setupUsage = `usage: twinnel setup [flags]          run (or continue) the setup
        twinnel setup status [--json]  show which steps are done, change nothing
-       twinnel setup export FILE.zip [--with-urls]
 
 Steps: helper, subscription, mihomo, config, apply, dns, tailscale, login,
 health. Each one is skipped when it is already done, so running setup again
@@ -72,6 +69,9 @@ var (
 		}
 		return nil
 	}
+	// setupImport restores an export zip. HOOK: the helper's config.import
+	// (feat/import-config); nil until it lands.
+	setupImport      func(ctx context.Context, hc setup.Caller, zip []byte) (setup.ImportResult, error)
 	setupInteractive = func() bool {
 		fi, err := os.Stdin.Stat()
 		return err == nil && fi.Mode()&os.ModeCharDevice != 0
@@ -89,8 +89,6 @@ type setupFlags struct {
 func runSetup(args []string) error {
 	if len(args) > 0 {
 		switch args[0] {
-		case "export":
-			return runSetupExport(args[1:])
 		case "status":
 			return runSetupFlow(args[1:], true)
 		}
@@ -118,15 +116,13 @@ func runSetupFlow(args []string, statusOnly bool) error {
 		f.o.SubscriptionURL = os.Getenv("TWINNEL_SUBSCRIPTION_URL")
 	}
 	if f.importF != "" {
-		im, err := readImport(f.importF)
+		b, err := readImport(f.importF)
 		if err != nil {
 			return err
 		}
-		f.o.Import = im
-		if im.HasURL() || len(im.Config) > 0 {
-			// The zip holds node credentials and maybe subscription URLs.
-			fmt.Fprintln(os.Stderr, "twinnel: the export holds secrets (node credentials, subscription URLs); delete it once the setup is done")
-		}
+		f.o.ImportZip = b
+		// The zip holds node credentials and maybe subscription URLs.
+		fmt.Fprintln(os.Stderr, "twinnel: the export holds secrets (node credentials, subscription URLs); delete it once the setup is done")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
@@ -135,6 +131,7 @@ func runSetupFlow(args []string, statusOnly bool) error {
 		InstallHelper: setupInstallHelper,
 		Tailnet:       setupTailnet(),
 		OpenURL:       setupOpenURL,
+		ImportConfig:  setupImport,
 	}, f.o)
 	flow.Detect(ctx)
 	if statusOnly {
@@ -166,17 +163,18 @@ func runSetupFlow(args []string, statusOnly bool) error {
 	return printSetup(flow, cf.json, err)
 }
 
-func readImport(path string) (*setup.Import, error) {
-	fh, err := os.Open(path)
+// maxImportZip bounds an export zip read into memory.
+const maxImportZip = 64 << 20
+
+func readImport(path string) ([]byte, error) {
+	fi, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
-	defer fh.Close()
-	fi, err := fh.Stat()
-	if err != nil {
-		return nil, err
+	if fi.Size() > maxImportZip {
+		return nil, fmt.Errorf("%s is too large for an export", path)
 	}
-	return setup.ReadExport(fh, fi.Size())
+	return os.ReadFile(path)
 }
 
 // askForStep asks the terminal for what a failed or waiting step needs
@@ -195,12 +193,12 @@ func askForStep(flow *setup.Flow, se *setup.StepError) bool {
 			return false
 		}
 		if strings.HasSuffix(strings.ToLower(u), ".zip") {
-			im, err := readImport(u)
+			b, err := readImport(u)
 			if err != nil {
 				fmt.Fprintln(stdout, "  ", err)
 				return true
 			}
-			flow.Opts.Import = im
+			flow.Opts.ImportZip = b
 		} else {
 			flow.Opts.SubscriptionURL = u
 		}
@@ -244,7 +242,7 @@ func progressPrinter(flow *setup.Flow) func() {
 				}
 				fmt.Fprintln(stdout, line)
 				for _, w := range s.Warnings {
-					fmt.Fprintln(stdout, "      note:", w)
+					fmt.Fprintln(stdout, "      note:", w.Text)
 				}
 			case setup.Failed:
 				fmt.Fprintf(stdout, "[%d/%d] %s ✗ %s\n", i+1, len(setup.Order), s.ID, s.Error)
@@ -283,43 +281,4 @@ func printSetup(flow *setup.Flow, asJSON bool, err error) error {
 		}
 	}
 	return err
-}
-
-func runSetupExport(args []string) error {
-	fs, cf := newFlagSet("setup export", "usage: twinnel setup export FILE.zip [--with-urls]\n\nWrites the live config (without the controller secret) and every override,\nwith their names and order; --with-urls adds the subscription URLs. The zip\nholds node credentials either way: keep it private.\n\n")
-	var urls bool
-	fs.BoolVar(&urls, "with-urls", false, "include the subscription URLs (secrets)")
-	pos, done, err := parse(fs, args)
-	if done || err != nil {
-		return err
-	}
-	if len(pos) != 1 {
-		fs.Usage()
-		return flag.ErrHelp
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), cf.timeout)
-	defer cancel()
-	c, err := rpc.Dial(ctx, nil, cf.socket)
-	if err != nil {
-		return fmt.Errorf("cannot reach the helper at %s: %w", cf.socket, err)
-	}
-	defer c.Close()
-	tmp := pos[0] + ".tmp"
-	fh, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-	err = setup.WriteExport(ctx, c, fh, setup.ExportOptions{SubscriptionURLs: urls})
-	if cerr := fh.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	if err := os.Rename(tmp, pos[0]); err != nil {
-		return err
-	}
-	fmt.Fprintf(stdout, "wrote %s (contains secrets: keep it private)\n", pos[0])
-	return nil
 }

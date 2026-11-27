@@ -1,8 +1,6 @@
 package setup
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -250,7 +248,7 @@ func TestFlowFromNothing(t *testing.T) {
 	if !h.dns.Pointed || !h.tsInst || len(*opened) != 1 {
 		t.Fatalf("dns %v ts %v opened %v", h.dns.Pointed, h.tsInst, *opened)
 	}
-	if ws := f.Step(StepMihomo).Warnings; len(ws) != 1 || !strings.Contains(ws[0], "geo") {
+	if ws := f.Step(StepMihomo).Warnings; len(ws) != 1 || ws[0].Code != WarnGeo {
 		t.Fatalf("geo warning %v", ws)
 	}
 	// The subscription is fetched before the kernel download.
@@ -334,130 +332,32 @@ func TestFlowSkipsUnsupportedDNSAndTailscale(t *testing.T) {
 	}
 }
 
-func exportZip(t *testing.T, manifest *Manifest, files map[string]string) *Import {
-	t.Helper()
-	var b bytes.Buffer
-	zw := zip.NewWriter(&b)
-	for n, c := range files {
-		w, _ := zw.Create(n)
-		w.Write([]byte(c))
-	}
-	if manifest != nil {
-		w, _ := zw.Create(ManifestName)
-		json.NewEncoder(w).Encode(manifest)
-	}
-	zw.Close()
-	im, err := ReadExport(bytes.NewReader(b.Bytes()), int64(b.Len()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return im
-}
-
-func TestFlowImport(t *testing.T) {
-	im := exportZip(t, &Manifest{Version: 1,
-		Layers: []ManifestLayer{
-			{ID: "my-base", Name: "My base", Stage: "base", Format: "merge", Enabled: true},
-			{ID: "cloudflared-direct", Name: "cloudflared direct", Stage: "user", Format: "merge", Enabled: true},
-			{ID: "old", Name: "Old", Stage: "user", Format: "merge", Enabled: false},
-		},
-		Subscriptions: []rpc.SubExport{{ID: "cloud", Name: "Example Cloud", Active: true, IntervalMinutes: 720, URL: "https://sub.example.com/synthetic"}},
-		Settings:      &ManifestSetting{LeakGuardGroups: []string{"AI"}, TailscaleCoexist: true},
-	}, map[string]string{
-		"config.yaml":                       "proxies: []\n",
-		"overrides/my-base.yaml":            "mixed-port: 7899\n",
-		"overrides/cloudflared-direct.yaml": "+rules:\n  - PROCESS-NAME,cloudflared,DIRECT\n",
-		"overrides/old.yaml":                "{}\n",
-		"../evil.yaml":                      "x",
-	})
-	if !im.Manifest || !im.HasURL() || !im.HasBase() || len(im.Layers) != 3 {
-		t.Fatalf("import %+v", im)
-	}
+func TestFlowImportHook(t *testing.T) {
 	h := newFakeHelper()
 	installed := true
-	f, _, _ := newTestFlow(h, &installed, Options{Import: im, NoTailscale: true})
+	f, _, _ := newTestFlow(h, &installed, Options{ImportZip: []byte("PK synthetic"), NoTailscale: true, NoDNS: true})
+	// No config.import in this build: a clear error, nothing imported.
+	err := f.Run(context.Background())
+	if !errors.Is(err, ErrNoImport) || f.Step(StepSubscription).State != Failed {
+		t.Fatalf("err = %v", err)
+	}
+	var got []byte
+	f.Env.ImportConfig = func(_ context.Context, hc Caller, zip []byte) (ImportResult, error) {
+		got = zip
+		hc.Call(context.Background(), rpc.MethodSubPut, rpc.SubPutParams{ID: "cloud", Name: "Example Cloud", Content: "proxies: []\n"}, nil)
+		return ImportResult{Subscription: true, LeakGuardGroups: []string{"AI"}}, nil
+	}
 	if err := f.Run(context.Background()); err != nil {
 		t.Fatalf("%v %+v", err, f.Steps())
 	}
-	if h.urls["cloud"] != "https://sub.example.com/synthetic" || h.layerText[BaseLayerID] != "" {
-		t.Fatalf("urls %v, built-in base added: %q", h.urls, h.layerText[BaseLayerID])
+	if string(got) != "PK synthetic" || h.layerText[BaseLayerID] == "" || !slices.Equal(h.settings.LeakGuardGroups, []string{"AI"}) {
+		t.Fatalf("zip %q, helper %+v", got, h.settings)
 	}
-	ids := []string{}
-	for _, l := range h.layers {
-		ids = append(ids, l.ID)
+	// A backup without a subscription asks for the URL.
+	g, _, _ := newTestFlow(newFakeHelper(), &installed, Options{ImportZip: []byte("x")})
+	g.Env.ImportConfig = func(context.Context, Caller, []byte) (ImportResult, error) { return ImportResult{}, nil }
+	var se *StepError
+	if err := g.Run(context.Background()); !errors.As(err, &se) || se.Code != CodeNeedsSubscription {
+		t.Fatalf("err = %v", err)
 	}
-	if !slices.Equal(ids, []string{"my-base", "cloudflared-direct", "old"}) || h.layers[2].Enabled {
-		t.Fatalf("layers %+v", h.layers)
-	}
-	if !slices.Equal(h.settings.LeakGuardGroups, []string{"AI"}) {
-		t.Fatalf("leak guard %v", h.settings.LeakGuardGroups)
-	}
-}
-
-func TestImportWithoutManifestOrURL(t *testing.T) {
-	im := exportZip(t, nil, map[string]string{
-		"config.yaml":         "proxies:\n  - {name: a, type: http, server: 192.0.2.1, port: 80}\n",
-		"overrides/mine.yaml": "+rules:\n  - DOMAIN,example.com,DIRECT\n",
-	})
-	if im.Manifest || im.HasURL() || len(im.Layers) != 1 || im.Layers[0].Stage != "user" {
-		t.Fatalf("%+v", im)
-	}
-	h := newFakeHelper()
-	installed := true
-	f, _, _ := newTestFlow(h, &installed, Options{Import: im, NoTailscale: true, NoDNS: true})
-	if err := f.Run(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if h.content[SubscriptionID] == "" || len(f.Step(StepSubscription).Warnings) != 1 {
-		t.Fatalf("offline import: %v %+v", h.content, f.Step(StepSubscription))
-	}
-	if _, err := ReadExport(bytes.NewReader([]byte("not a zip")), 9); err == nil {
-		t.Fatal("read garbage")
-	}
-}
-
-func TestWriteExportRoundTrip(t *testing.T) {
-	h := newFakeHelper()
-	h.layers = []rpc.Layer{{ID: "base", Name: "Base", Stage: "base", Format: "merge", Enabled: true}, {ID: "tailscale-coexist", Managed: true}}
-	h.layerText["base"] = "mixed-port: 7899\n"
-	ex := &exportHelper{fakeHelper: h}
-	var b bytes.Buffer
-	if err := WriteExport(context.Background(), ex, &b, ExportOptions{SubscriptionURLs: true}); err != nil {
-		t.Fatal(err)
-	}
-	im, err := ReadExport(bytes.NewReader(b.Bytes()), int64(b.Len()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(im.Layers) != 1 || im.Layers[0].Content != "mixed-port: 7899\n" || !im.HasURL() || string(im.Config) != "live: true\n" {
-		t.Fatalf("%+v", im)
-	}
-	// Without the URLs: names only.
-	b.Reset()
-	WriteExport(context.Background(), ex, &b, ExportOptions{})
-	im, _ = ReadExport(bytes.NewReader(b.Bytes()), int64(b.Len()))
-	if im.HasURL() {
-		t.Fatal("URL exported without the option")
-	}
-}
-
-type exportHelper struct{ *fakeHelper }
-
-func (e *exportHelper) Call(ctx context.Context, method string, params, result any) error {
-	switch method {
-	case rpc.MethodConfigGet:
-		*(result.(*rpc.ConfigText)) = rpc.ConfigText{Content: "live: true\n"}
-		return nil
-	case rpc.MethodLayerGet:
-		id := params.(rpc.IDParams).ID
-		*(result.(*rpc.LayerContent)) = rpc.LayerContent{Content: e.layerText[id]}
-		return nil
-	case rpc.MethodSubExport:
-		*(result.(*[]rpc.SubExport)) = []rpc.SubExport{{ID: "main", URL: "https://sub.example.com/x"}}
-		return nil
-	case rpc.MethodSubList:
-		*(result.(*[]rpc.Subscription)) = []rpc.Subscription{{ID: "main"}}
-		return nil
-	}
-	return e.fakeHelper.Call(ctx, method, params, result)
 }

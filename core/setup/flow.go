@@ -11,7 +11,7 @@
 //
 //	helper        install the root helper (one administrator prompt)
 //	subscription  paste a URL, or import an export zip (subscription +
-//	              overrides)
+//	              overrides; Env.ImportConfig, the config.import hook)
 //	mihomo        download the official kernel (sha256-verified, root-owned
 //	              <state>/kernels), then the geo databases
 //	config        the built-in base settings (TUN, fake-ip, DNS on
@@ -102,17 +102,30 @@ type StepState struct {
 	URL string `json:"url,omitempty"`
 	// Warnings are non-fatal notes (a geo download that failed, a kept
 	// Tailscale app that uses the system VPN slot).
-	Warnings []string `json:"warnings,omitempty"`
+	Warnings []Warning `json:"warnings,omitempty"`
 }
+
+// Warning is a non-fatal note: Code for a client to word, Text in English.
+type Warning struct {
+	Code string `json:"code"`
+	Text string `json:"text"`
+}
+
+// Warning codes.
+const (
+	WarnGeo       = "geo"        // the geo databases did not download
+	WarnSystemVPN = "system-vpn" // the kept Tailscale is the app (system VPN slot)
+)
 
 // Options are the user's choices.
 type Options struct {
 	// SubscriptionURL is a pasted subscription URL. Never logged.
 	SubscriptionURL  string
 	SubscriptionName string
-	// Import restores an export zip (subscription + overrides) instead of,
-	// or along with, SubscriptionURL.
-	Import *Import
+	// ImportZip is an export zip (停止使用 → 导出配置) to restore instead of,
+	// or along with, SubscriptionURL, through Env.ImportConfig. Never
+	// logged: it holds node credentials and may hold subscription URLs.
+	ImportZip []byte
 	// Proxy for the GitHub and Tailscale downloads: rpc.ProxyAuto,
 	// ProxyDirect, ProxySubscription or a proxy URL.
 	Proxy         string
@@ -153,7 +166,29 @@ type Env struct {
 	Sleep func(ctx context.Context, d time.Duration) error
 	// Lang words the health report.
 	Lang string
+	// ImportConfig restores Options.ImportZip. HOOK: the helper's
+	// config.import RPC is built on feat/import-config; until it lands
+	// this is nil and an import fails with ErrNoImport. It reports whether
+	// the zip brought a subscription that is now active and fetched.
+	ImportConfig func(ctx context.Context, hc Caller, zip []byte) (ImportResult, error)
 }
+
+// Caller is the part of a helper connection the flow uses.
+type Caller interface {
+	Call(ctx context.Context, method string, params, result any) error
+}
+
+// ImportResult is what Env.ImportConfig restored.
+type ImportResult struct {
+	// Subscription: an active subscription with content came with the
+	// zip, so no URL is needed.
+	Subscription bool
+	// LeakGuardGroups from the zip, if any (used by the config step).
+	LeakGuardGroups []string
+}
+
+// ErrNoImport: this build has no config.import yet.
+var ErrNoImport = errors.New("importing a backup is not available in this version yet")
 
 // Flow runs the steps. Use it from one goroutine at a time (Run, RunStep);
 // Steps may be read from any.
@@ -164,9 +199,10 @@ type Flow struct {
 	// goroutine).
 	OnChange func()
 
-	mu    sync.Mutex
-	steps []StepState
-	hc    Caller
+	mu       sync.Mutex
+	steps    []StepState
+	hc       Caller
+	imported *ImportResult
 }
 
 // New returns a flow with every step pending.
@@ -184,7 +220,7 @@ func (f *Flow) Steps() []StepState {
 	defer f.mu.Unlock()
 	out := make([]StepState, len(f.steps))
 	for i, s := range f.steps {
-		s.Warnings = append([]string(nil), s.Warnings...)
+		s.Warnings = append([]Warning(nil), s.Warnings...)
 		out[i] = s
 	}
 	return out
@@ -412,8 +448,8 @@ func fail(code string, format string, args ...any) error {
 	return &StepError{Code: code, Err: fmt.Errorf(format, args...)}
 }
 
-func (f *Flow) warn(id Step, w string) {
-	f.set(id, func(s *StepState) { s.Warnings = append(s.Warnings, w) })
+func (f *Flow) warn(id Step, code, text string) {
+	f.set(id, func(s *StepState) { s.Warnings = append(s.Warnings, Warning{Code: code, Text: text}) })
 }
 
 func (f *Flow) run(ctx context.Context, id Step) (string, error) {
@@ -472,96 +508,44 @@ func (f *Flow) runHelper(ctx context.Context) (string, error) {
 const SubscriptionID = "main"
 
 func (f *Flow) runSubscription(ctx context.Context, hc Caller) (string, error) {
-	im := f.Opts.Import
 	url := strings.TrimSpace(f.Opts.SubscriptionURL)
-	if url == "" && (im == nil || !im.HasURL() && len(im.Config) == 0) {
+	if url == "" && len(f.Opts.ImportZip) == 0 {
 		return "", fail(CodeNeedsSubscription, "paste a subscription URL or import an export")
 	}
-	if im != nil {
-		if err := f.importLayers(ctx, hc, im); err != nil {
+	if len(f.Opts.ImportZip) > 0 {
+		if f.Env.ImportConfig == nil {
+			return "", ErrNoImport
+		}
+		r, err := f.Env.ImportConfig(ctx, hc, f.Opts.ImportZip)
+		if err != nil {
 			return "", err
 		}
+		f.mu.Lock()
+		f.imported = &r
+		f.mu.Unlock()
+		if url == "" {
+			if !r.Subscription {
+				return "", fail(CodeNeedsSubscription, "the backup has no subscription: paste its URL")
+			}
+			return "", nil
+		}
+	}
+	name := f.Opts.SubscriptionName
+	if name == "" {
+		name = "Subscription"
 	}
 	day := 1440
-	switch {
-	case url != "":
-		name := f.Opts.SubscriptionName
-		if name == "" {
-			name = "Subscription"
-		}
-		if err := hc.Call(ctx, rpc.MethodSubPut, rpc.SubPutParams{ID: SubscriptionID, Name: name, URL: url, IntervalMinutes: &day}, nil); err != nil {
-			return "", err
-		}
-		return name, f.refresh(ctx, hc, SubscriptionID)
-	case im.HasURL():
-		var first string
-		for _, s := range im.Subscriptions {
-			if s.URL == "" || !store.ValidID(s.ID) {
-				continue
-			}
-			iv := s.IntervalMinutes
-			if err := hc.Call(ctx, rpc.MethodSubPut, rpc.SubPutParams{ID: s.ID, Name: s.Name, URL: s.URL, IntervalMinutes: &iv}, nil); err != nil {
-				return "", err
-			}
-			if first == "" || s.Active {
-				first = s.ID
-			}
-		}
-		if err := hc.Call(ctx, rpc.MethodSubActivate, rpc.IDParams{ID: first}, nil); err != nil {
-			return "", err
-		}
-		return first, f.refresh(ctx, hc, first)
-	default:
-		// No URL in the zip: its config's proxies, as a manual
-		// subscription (refresh is off; paste the URL later).
-		zero := 0
-		if err := hc.Call(ctx, rpc.MethodSubPut, rpc.SubPutParams{ID: SubscriptionID, Name: "Imported", Content: string(im.Config), IntervalMinutes: &zero}, nil); err != nil {
-			return "", err
-		}
-		f.warn(StepSubscription, "imported without a subscription URL: the nodes will not update until you add the URL")
-		return "Imported", hc.Call(ctx, rpc.MethodSubActivate, rpc.IDParams{ID: SubscriptionID}, nil)
+	if err := hc.Call(ctx, rpc.MethodSubPut, rpc.SubPutParams{ID: SubscriptionID, Name: name, URL: url, IntervalMinutes: &day}, nil); err != nil {
+		return "", err
 	}
-}
-
-func (f *Flow) refresh(ctx context.Context, hc Caller, id string) error {
+	if err := hc.Call(ctx, rpc.MethodSubActivate, rpc.IDParams{ID: SubscriptionID}, nil); err != nil {
+		return "", err
+	}
 	var r rpc.SubRefreshResult
-	if err := hc.Call(ctx, rpc.MethodSubRefresh, rpc.IDParams{ID: id}, &r); err != nil {
-		return err
+	if err := hc.Call(ctx, rpc.MethodSubRefresh, rpc.IDParams{ID: SubscriptionID}, &r); err != nil {
+		return "", err
 	}
-	return nil
-}
-
-func (f *Flow) importLayers(ctx context.Context, hc Caller, im *Import) error {
-	var ids []string
-	for _, l := range im.Layers {
-		on := l.Enabled
-		if err := hc.Call(ctx, rpc.MethodLayerPut, rpc.LayerPutParams{ID: l.ID, Name: l.Name, Stage: l.Stage, Format: l.Format, Enabled: &on, Content: l.Content}, nil); err != nil {
-			return fmt.Errorf("override %s: %w", l.ID, err)
-		}
-		ids = append(ids, l.ID)
-	}
-	if len(ids) > 1 {
-		var layers []rpc.Layer
-		if err := hc.Call(ctx, rpc.MethodLayerList, nil, &layers); err == nil {
-			// The imported ones in the zip's order, then any others.
-			for _, l := range layers {
-				if !l.Managed && !contains(ids, l.ID) {
-					ids = append(ids, l.ID)
-				}
-			}
-			return hc.Call(ctx, rpc.MethodLayerReorder, rpc.ReorderParams{IDs: ids}, nil)
-		}
-	}
-	return nil
-}
-
-func contains(list []string, s string) bool {
-	for _, x := range list {
-		if x == s {
-			return true
-		}
-	}
-	return false
+	return name, nil
 }
 
 // downloadErr marks a download failure so the client offers a proxy.
@@ -585,7 +569,7 @@ func (f *Flow) runMihomo(ctx context.Context, hc Caller) (string, error) {
 	// GEOIP/GEOSITE rules, and would otherwise download them at start.
 	var g rpc.AccessoryUpdateResult
 	if err := hc.Call(ctx, rpc.MethodGeoUpdate, rpc.AccessoryUpdateParams{}, &g); err != nil {
-		f.warn(StepMihomo, "geo databases: "+cleanErr(err))
+		f.warn(StepMihomo, WarnGeo, "geo databases: "+cleanErr(err))
 	}
 	return k.Current, nil
 }
@@ -624,9 +608,11 @@ func (f *Flow) runConfig(ctx context.Context, hc Caller) (string, error) {
 	}
 	if len(st.LeakGuardGroups) == 0 {
 		groups := health.DefaultSettings().SensitiveGroups
-		if im := f.Opts.Import; im != nil && im.Settings != nil && len(im.Settings.LeakGuardGroups) > 0 {
-			groups = im.Settings.LeakGuardGroups
+		f.mu.Lock()
+		if im := f.imported; im != nil && len(im.LeakGuardGroups) > 0 {
+			groups = im.LeakGuardGroups
 		}
+		f.mu.Unlock()
 		u.LeakGuardGroups = &groups
 	}
 	if u.TailscaleCoexist != nil || u.LeakGuardGroups != nil {
@@ -711,7 +697,7 @@ func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 		return "", err
 	}
 	if r.UsesSystemVPN {
-		f.warn(StepTailscale, "the Tailscale app uses the system VPN slot, which conflicts with mihomo's TUN; the open-source tailscaled avoids that")
+		f.warn(StepTailscale, WarnSystemVPN, "the Tailscale app uses the system VPN slot, which conflicts with mihomo's TUN; the open-source tailscaled avoids that")
 	}
 	if r.Service != nil && r.Service.DryRun {
 		return r.Version, fail(CodeNotRoot, "the helper is not running as root: the tailscaled service was only planned")

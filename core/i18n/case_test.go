@@ -17,7 +17,7 @@ var headingKeys = []string{
 	"AboutBasics", "AboutTakeover", "AbtTkChanges", "AbtTkEdit", "AbtTkUndo", "AbtTkWhenNot",
 	"Components", "General", "HelperSection", "Language", "Layers", "Links", "ManagedTitle",
 	"MenuBar", "Notifications", "Traffic", "GettingStarted", "GetStarted",
-	"StepHelper", "StepCheckCoexist", "StepTakeOver",
+	"StepHelper", "StepCheckCoexist", "StepTakeOver", "StepSetUpMac", "SetupSubHead", "SetupDone",
 	"TakeoverFound", "TakeoverPlans", "TakeoverResult",
 	"LeaveUndo", "LeaveUninstall", "LeaveRemoveAll", "LeaveExport",
 }
