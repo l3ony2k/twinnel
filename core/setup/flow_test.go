@@ -32,6 +32,7 @@ type fakeHelper struct {
 	tsInst    bool
 	tsErr     error
 	health    []health.CheckReport
+	login     *fakeTailnet // tailscaled behind the helper
 }
 
 func newFakeHelper() *fakeHelper {
@@ -168,6 +169,19 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 		}
 		h.tsInst = true
 		return out(rpc.TailscaleInstallResult{Version: "1.104.7"})
+	case rpc.MethodTailscaleLogin:
+		if h.login == nil {
+			return errors.New("no tailscaled")
+		}
+		ls, err := h.login.LoginState(context.Background())
+		if err != nil {
+			return err
+		}
+		if params.(rpc.TailscaleLoginParams).Start && ls.Backend != "Running" {
+			h.login.StartLogin(context.Background())
+			ls, _ = h.login.LoginState(context.Background())
+		}
+		return out(rpc.TailscaleLoginResult{BackendState: ls.Backend, AuthURL: ls.AuthURL, Tailnet: ls.Tailnet})
 	case rpc.MethodTailnetRefresh:
 		return nil
 	case rpc.MethodHealthRun:
@@ -177,18 +191,21 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 	return errors.New("unexpected method " + method)
 }
 
+// loginState is what the fake tailscaled reports.
+type loginState struct{ Backend, AuthURL, Tailnet string }
+
 type fakeTailnet struct {
 	backend string
 	polls   int
 	started bool
 }
 
-func (t *fakeTailnet) LoginState(context.Context) (LoginState, error) {
+func (t *fakeTailnet) LoginState(context.Context) (loginState, error) {
 	t.polls++
 	if t.started && t.polls > 3 {
 		t.backend = "Running"
 	}
-	ls := LoginState{Backend: t.backend, Tailnet: "example.ts.net"}
+	ls := loginState{Backend: t.backend, Tailnet: "example.ts.net"}
 	if t.started && t.backend != "Running" {
 		ls.AuthURL = "https://login.tailscale.com/a/synthetic"
 	}
@@ -199,6 +216,7 @@ func (t *fakeTailnet) StartLogin(context.Context) error { t.started = true; retu
 
 func newTestFlow(h *fakeHelper, installed *bool, o Options) (*Flow, *fakeTailnet, *[]string) {
 	tn := &fakeTailnet{backend: "NeedsLogin"}
+	h.login = tn
 	var opened []string
 	env := Env{
 		Connect: func(context.Context) (Caller, error) {
@@ -208,7 +226,6 @@ func newTestFlow(h *fakeHelper, installed *bool, o Options) (*Flow, *fakeTailnet
 			return h, nil
 		},
 		InstallHelper: func(context.Context) error { *installed = true; return nil },
-		Tailnet:       tn,
 		OpenURL:       func(u string) error { opened = append(opened, u); return nil },
 		Sleep:         func(context.Context, time.Duration) error { return nil },
 	}
@@ -259,7 +276,7 @@ func TestFlowFromNothing(t *testing.T) {
 
 	// A second flow on the same machine finds everything done but health.
 	g, _, _ := newTestFlow(h, &installed, Options{})
-	g.Env.Tailnet = &fakeTailnet{backend: "Running"}
+	h.login = &fakeTailnet{backend: "Running"}
 	g.Detect(context.Background())
 	for _, s := range g.Steps() {
 		if s.ID != StepHealth && s.State != Done {

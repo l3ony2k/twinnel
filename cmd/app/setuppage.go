@@ -84,7 +84,6 @@ func (a *app) setupFlow() *setup.Flow {
 			}
 			return nil
 		},
-		Tailnet:      setup.LocalTailnet(a.ts),
 		OpenURL:      func(u string) error { return mygo.Shell.OpenExternal(u) },
 		Lang:         i18n.Tag(),
 		ImportConfig: setupImport,

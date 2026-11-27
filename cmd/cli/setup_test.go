@@ -11,27 +11,19 @@ import (
 	"github.com/l3ony2k/twinnel/core/setup"
 )
 
-type noTailnet struct{}
-
-func (noTailnet) LoginState(context.Context) (setup.LoginState, error) {
-	return setup.LoginState{}, errors.New("no tailscaled")
-}
-func (noTailnet) StartLogin(context.Context) error { return errors.New("no tailscaled") }
-
 func setupFakes(t *testing.T) (*bytes.Buffer, *int) {
-	oc, oi, ot, oo, oin, out := setupConnect, setupInstallHelper, setupTailnet, setupOpenURL, setupInteractive, stdout
+	oc, oi, oo, oin, out := setupConnect, setupInstallHelper, setupOpenURL, setupInteractive, stdout
 	installs := 0
 	var buf bytes.Buffer
 	setupConnect = func(string) func(context.Context) (setup.Caller, error) {
 		return func(context.Context) (setup.Caller, error) { return nil, errors.New("no socket") }
 	}
 	setupInstallHelper = func(context.Context) error { installs++; return errors.New("cancelled by the user") }
-	setupTailnet = func() setup.Tailnet { return noTailnet{} }
 	setupOpenURL = func(string) error { return nil }
 	setupInteractive = func() bool { return false }
 	stdout = &buf
 	t.Cleanup(func() {
-		setupConnect, setupInstallHelper, setupTailnet, setupOpenURL, setupInteractive, stdout = oc, oi, ot, oo, oin, out
+		setupConnect, setupInstallHelper, setupOpenURL, setupInteractive, stdout = oc, oi, oo, oin, out
 	})
 	t.Setenv("TWINNEL_SUBSCRIPTION_URL", "")
 	return &buf, &installs

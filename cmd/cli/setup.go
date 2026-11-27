@@ -18,7 +18,6 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/setup"
-	"github.com/l3ony2k/twinnel/core/tailscale"
 )
 
 func init() {
@@ -54,9 +53,6 @@ var (
 	}
 	setupInstallHelper = func(ctx context.Context) error {
 		return runHelperInstall([]string{"--yes"})
-	}
-	setupTailnet = func() setup.Tailnet {
-		return setup.LocalTailnet(tailscale.New(tailscale.LocalAPI(nil), true))
 	}
 	setupOpenURL = func(u string) error {
 		fmt.Fprintf(stdout, "\nOpen this page to log in to Tailscale:\n  %s\n\n", u)
@@ -129,7 +125,6 @@ func runSetupFlow(args []string, statusOnly bool) error {
 	flow := setup.New(setup.Env{
 		Connect:       setupConnect(cf.socket),
 		InstallHelper: setupInstallHelper,
-		Tailnet:       setupTailnet(),
 		OpenURL:       setupOpenURL,
 		ImportConfig:  setupImport,
 	}, f.o)

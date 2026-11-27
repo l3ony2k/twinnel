@@ -136,20 +136,6 @@ type Options struct {
 	LoginTimeout time.Duration
 }
 
-// LoginState is what the tailnet login step reads.
-type LoginState struct {
-	Backend string // ipn backend state: Running, NeedsLogin, Stopped, NoState...
-	AuthURL string
-	Tailnet string
-}
-
-// Tailnet is the local Tailscale (LocalAPI) for the login step.
-type Tailnet interface {
-	LoginState(ctx context.Context) (LoginState, error)
-	// StartLogin starts an interactive login and connects (WantRunning).
-	StartLogin(ctx context.Context) error
-}
-
 // Env is how the flow reaches the machine.
 type Env struct {
 	// Connect dials the helper; an error means it is not installed or not
@@ -158,8 +144,8 @@ type Env struct {
 	// InstallHelper installs it (`twinnel helper install`; the app runs
 	// the CLI, which asks for the administrator password). nil: cannot.
 	InstallHelper func(ctx context.Context) error
-	Tailnet       Tailnet
-	// OpenURL opens the login page (the app: the browser; the CLI: prints
+	// OpenURL opens the login page (the login itself runs in the helper,
+	// as root: tailscale.login) (the app: the browser; the CLI: prints
 	// it and tries `open`).
 	OpenURL func(url string) error
 	// Sleep waits between polls; replaceable in tests.
@@ -364,10 +350,9 @@ func (f *Flow) detect(ctx context.Context, hc Caller, id Step) (bool, string) {
 			return true, ti.Version
 		}
 	case StepLogin:
-		if f.Env.Tailnet != nil {
-			if ls, err := f.Env.Tailnet.LoginState(ctx); err == nil && ls.Backend == "Running" {
-				return true, ls.Tailnet
-			}
+		var ls rpc.TailscaleLoginResult
+		if hc.Call(ctx, rpc.MethodTailscaleLogin, rpc.TailscaleLoginParams{}, &ls) == nil && ls.BackendState == "Running" {
+			return true, ls.Tailnet
 		}
 	}
 	return false, ""
@@ -474,7 +459,7 @@ func (f *Flow) run(ctx context.Context, id Step) (string, error) {
 	case StepTailscale:
 		return f.runTailscale(ctx, hc)
 	case StepLogin:
-		return f.runLogin(ctx)
+		return f.runLogin(ctx, hc)
 	case StepHealth:
 		return f.runHealth(ctx, hc)
 	}
@@ -705,19 +690,20 @@ func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 	return r.Version, nil
 }
 
-func (f *Flow) runLogin(ctx context.Context) (string, error) {
+func (f *Flow) runLogin(ctx context.Context, hc Caller) (string, error) {
 	if f.Opts.NoTailscale {
 		return "", &StepError{Code: CodeUnsupported, Err: errors.New("skipped (--no-tailscale)")}
 	}
-	tn := f.Env.Tailnet
-	if tn == nil {
-		return "", errors.New("no Tailscale connection")
+	state := func(start bool) (rpc.TailscaleLoginResult, error) {
+		var ls rpc.TailscaleLoginResult
+		err := hc.Call(ctx, rpc.MethodTailscaleLogin, rpc.TailscaleLoginParams{Start: start}, &ls)
+		return ls, err
 	}
 	// tailscaled may still be starting.
-	var ls LoginState
+	var ls rpc.TailscaleLoginResult
 	var err error
 	for range 30 {
-		if ls, err = tn.LoginState(ctx); err == nil {
+		if ls, err = state(false); err == nil {
 			break
 		}
 		if serr := f.sleep(ctx, time.Second); serr != nil {
@@ -727,10 +713,10 @@ func (f *Flow) runLogin(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("tailscaled does not answer: %w", err)
 	}
-	if ls.Backend == "Running" {
+	if ls.BackendState == "Running" {
 		return ls.Tailnet, nil
 	}
-	if err := tn.StartLogin(ctx); err != nil {
+	if ls, err = state(true); err != nil {
 		return "", err
 	}
 	timeout := f.Opts.LoginTimeout
@@ -739,22 +725,23 @@ func (f *Flow) runLogin(ctx context.Context) (string, error) {
 	}
 	opened := ""
 	for waited := time.Duration(0); waited < timeout; waited += time.Second {
-		ls, err = tn.LoginState(ctx)
 		if err == nil {
-			if ls.Backend == "Running" {
+			if ls.BackendState == "Running" {
 				return ls.Tailnet, nil
 			}
 			if ls.AuthURL != "" && ls.AuthURL != opened {
 				opened = ls.AuthURL
-				f.set(StepLogin, func(s *StepState) { s.State, s.URL = Waiting, ls.AuthURL })
+				u := ls.AuthURL
+				f.set(StepLogin, func(s *StepState) { s.State, s.URL = Waiting, u })
 				if f.Env.OpenURL != nil {
-					_ = f.Env.OpenURL(ls.AuthURL)
+					_ = f.Env.OpenURL(u)
 				}
 			}
 		}
 		if serr := f.sleep(ctx, time.Second); serr != nil {
 			return "", serr
 		}
+		ls, err = state(false)
 	}
 	return "", errors.New("the login did not finish in time; open the link again and retry")
 }

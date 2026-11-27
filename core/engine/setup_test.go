@@ -233,3 +233,43 @@ func TestTempProxyConfigNeedsAProxy(t *testing.T) {
 		t.Fatalf("%s %v", out, err)
 	}
 }
+
+type fakeTSControl struct {
+	backend, url string
+	ups, logins  int
+}
+
+func (f *fakeTSControl) LoginState(context.Context) (string, string, string, error) {
+	return f.backend, f.url, "example.ts.net", nil
+}
+func (f *fakeTSControl) Up(context.Context) error { f.ups++; return nil }
+func (f *fakeTSControl) StartLogin(context.Context) error {
+	f.logins++
+	f.url = "https://login.tailscale.com/a/synthetic"
+	return nil
+}
+
+func TestTailscaleLogin(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if _, err := h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true}); !isCode(err, rpc.CodeNotImplemented) {
+		t.Fatalf("no LocalAPI: %v", err)
+	}
+	f := &fakeTSControl{backend: "NeedsLogin"}
+	h.e.TSControl = f
+	// Reading starts nothing.
+	r, err := h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{})
+	if err != nil || r.Started || f.ups+f.logins != 0 || r.BackendState != "NeedsLogin" {
+		t.Fatalf("read: %+v %v %+v", r, err, f)
+	}
+	r, err = h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true})
+	if err != nil || !r.Started || f.ups != 1 || f.logins != 1 || r.AuthURL == "" {
+		t.Fatalf("start: %+v %v %+v", r, err, f)
+	}
+	// Already running: no new login.
+	f.backend, f.url = "Running", ""
+	r, err = h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true})
+	if err != nil || r.Started || f.logins != 1 || r.Tailnet != "example.ts.net" {
+		t.Fatalf("running: %+v %v", r, err)
+	}
+}

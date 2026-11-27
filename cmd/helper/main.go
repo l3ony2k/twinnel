@@ -138,8 +138,11 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 	probe := &kernel.TailscaleProbe{Binary: settings.Tailscale.Binary, Managed: st.Path("tailscale", "current", "tailscale")}
 	e.TSProbe = probe
 	if o.tailnetStatus != "" {
+		// Development: a synthetic tailnet, and never the real tailscaled
+		// (tailscale.login is then unsupported).
 		e.Tailnet = fileTailnet(o.tailnetStatus)
 	} else {
+		e.TSControl = newTSControl()
 		e.Tailnet = engine.CLITailnet{Probe: probe}
 	}
 	e.Services = platformServices()

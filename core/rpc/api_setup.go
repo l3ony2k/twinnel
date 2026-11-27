@@ -83,3 +83,21 @@ type TailscaleInstallResult struct {
 	// is not root).
 	Service *ServiceOpResult `json:"service,omitempty"`
 }
+
+// MethodTailscaleLogin reads tailscaled's login state and, with Start,
+// connects and starts an interactive login (as `tailscale up`). The helper
+// does it as root, so it never depends on tailscaled granting LocalAPI
+// writes to the user; clients only open AuthURL.
+const MethodTailscaleLogin = "tailscale.login"
+
+type TailscaleLoginParams struct {
+	Start bool `json:"start,omitempty"`
+}
+
+type TailscaleLoginResult struct {
+	BackendState string `json:"backend_state"` // Running, NeedsLogin, Stopped, NoState, ...
+	AuthURL      string `json:"auth_url,omitempty"`
+	Tailnet      string `json:"tailnet,omitempty"`
+	// Started: this call started a login (Start, and not Running yet).
+	Started bool `json:"started,omitempty"`
+}

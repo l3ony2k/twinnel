@@ -334,3 +334,42 @@ func freePort() (int, error) {
 // errNoProxy: the composed config has no proxy group or proxy to send
 // downloads through.
 var errNoProxy = errors.New("the subscription has no proxy group or proxy")
+
+// TailscaleControl is the part of tailscaled's LocalAPI tailscale.login
+// uses (cmd/helper adapts core/tailscale; tests fake it).
+type TailscaleControl interface {
+	// LoginState returns the backend state, the login URL while one is
+	// pending, and the tailnet's name.
+	LoginState(ctx context.Context) (backend, authURL, tailnet string, err error)
+	// Up sets WantRunning; StartLogin asks for an interactive login.
+	Up(ctx context.Context) error
+	StartLogin(ctx context.Context) error
+}
+
+// TailscaleLogin reads the login state and, with Start, connects and starts
+// an interactive login unless the node already runs.
+func (e *Engine) TailscaleLogin(ctx context.Context, p rpc.TailscaleLoginParams) (rpc.TailscaleLoginResult, error) {
+	var out rpc.TailscaleLoginResult
+	if e.TSControl == nil {
+		return out, rpc.Errorf(rpc.CodeNotImplemented, "no Tailscale LocalAPI on this helper")
+	}
+	backend, authURL, tailnet, err := e.TSControl.LoginState(ctx)
+	if err != nil {
+		return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", err)
+	}
+	if p.Start && backend != "Running" {
+		if err := e.TSControl.Up(ctx); err != nil {
+			return out, rpc.Errorf(rpc.CodeFailed, "tailscale up: %v", err)
+		}
+		if err := e.TSControl.StartLogin(ctx); err != nil {
+			return out, rpc.Errorf(rpc.CodeFailed, "tailscale login: %v", err)
+		}
+		out.Started = true
+		e.log().Info("tailscale login started")
+		if backend, authURL, tailnet, err = e.TSControl.LoginState(ctx); err != nil {
+			return out, rpc.Errorf(rpc.CodeFailed, "tailscaled: %v", err)
+		}
+	}
+	out.BackendState, out.AuthURL, out.Tailnet = backend, authURL, tailnet
+	return out, nil
+}

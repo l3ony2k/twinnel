@@ -104,6 +104,9 @@ type Engine struct {
 	// DNSProbe checks that a DNS server answers at addr before dns.point
 	// (default: one UDP query).
 	DNSProbe func(ctx context.Context, addr string) error
+	// TSControl is tailscaled's LocalAPI for tailscale.login (nil: not
+	// supported).
+	TSControl TailscaleControl
 	// TSInstaller is the template of tailscale.install's installer (nil:
 	// <state>/tailscale with the public sources).
 	TSInstaller *kernel.TailscaleInstaller
