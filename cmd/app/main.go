@@ -56,8 +56,8 @@ type app struct {
 
 	// main thread
 	tray      *mygo.Tray
-	trayTitle string
-	trayShape status.TrayIcon
+	trayLook  trayLook // what the status item shows (trayspeed.go)
+	trayShown bool     // trayLook has been set once
 	panel     *mygo.Window
 	win       *mygo.Window
 	page      string
@@ -279,23 +279,11 @@ func (a *app) syncHealthVisible() {
 // changed runs on a monitor goroutine after every change.
 func (a *app) changed(mon *status.Monitor) {
 	s := mon.Snapshot()
-	title := ""
-	if s.Mihomo.Reachable {
-		title = status.TrayTitle(s.Mihomo.Traffic)
-	}
 	mygo.RunOnMain(func() {
 		if mon != a.mon {
 			return // replaced by start
 		}
-		if a.tray == nil { // shot mode
-		} else if title != a.trayTitle {
-			a.trayTitle = title
-			a.tray.SetTitle(title)
-		}
-		if shape := status.TrayIconFor(s); a.tray != nil && shape != a.trayShape {
-			a.trayShape = shape
-			a.tray.SetIcon(trayIcon(shape), true)
-		}
+		a.syncTray(s)
 		if tip := status.TrayToolTip(s); a.tray != nil && tip != a.trayTip {
 			a.trayTip = tip
 			a.tray.SetToolTip(tip)

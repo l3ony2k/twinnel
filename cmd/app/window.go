@@ -1128,6 +1128,9 @@ func (a *app) settingsPage(c *ui.Context, s status.Snapshot) {
 			}
 		})
 	})
+	if plat.trayTitle {
+		a.menuBarCard(c)
+	}
 	a.languageCard(c)
 	a.refreshHelperMgmt(s)
 	a.helperSection(c, s)

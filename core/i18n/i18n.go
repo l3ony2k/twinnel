@@ -230,6 +230,9 @@ type Strings struct {
 	ImpactRestart, ImpactLabel         string
 	ReadOnlyShort, TSConnect, Devices  string
 	SecretFromEnv, NotificationsSwitch string
+	MenuBar, TraySpeedSwitch           string
+	TraySpeedLayout                    string
+	TraySpeedOneLine, TraySpeedTwo     string
 	AboutApp                           string
 	HealthProblems, HealthPassed       string
 
@@ -768,6 +771,11 @@ var zh = Strings{
 	Devices:             "设备",
 	SecretFromEnv:       "来自环境变量 DUET_MIHOMO_SECRET",
 	NotificationsSwitch: "出现故障时发通知",
+	MenuBar:             "菜单栏",
+	TraySpeedSwitch:     "在菜单栏显示网速",
+	TraySpeedLayout:     "网速显示方式",
+	TraySpeedOneLine:    "单行",
+	TraySpeedTwo:        "双行",
 	AboutApp:            "关于 duet",
 	HealthProblems:      "需要处理",
 	HealthPassed:        "其他检查",
