@@ -149,6 +149,10 @@ var en = Strings{
 	PanelHealthWarn:    "Health: %d warnings",
 	PanelHealthFail:    "Health: %d failed",
 	PanelHealthPending: "Health: checking",
+	PanelPeers:         "%d of %d online",
+	InfoTun:            "TUN lets mihomo carry all of this Mac's traffic, including apps that ignore the system proxy. Off, only apps that use the system proxy go through mihomo.",
+	InfoExitNode:       "Sends this Mac's traffic out through another device on your tailnet. While mihomo's TUN is on, both want the default route and get in each other's way.",
+	InfoRecovery:       "Quick fixes for when the network breaks: restart mihomo, stop using the exit node, test connectivity again.",
 	Seconds:            "%.1f s",
 
 	Actions:               "Actions",

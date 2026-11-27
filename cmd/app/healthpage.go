@@ -313,60 +313,6 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 	})
 }
 
-// healthLine is the panel's one line about the health checks; clicking it
-// opens the health page.
-func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
-	if a.healthSrc == nil {
-		return
-	}
-	t := c.Theme()
-	T := i18n.T
-	h := s.Health
-	var icon *ui.SVG
-	var col ui.Color
-	var text string
-	// The one number (status.Snapshot.HealthBadge): the badge, the
-	// overview and the health page show the same.
-	n, lvl := s.HealthBadge()
-	_, fail := h.Counts()
-	switch {
-	case h.Report == nil:
-		icon, col, text = iconHealth, t.TextMuted, T.PanelHealthPending
-	case n > 0 && fail > 0:
-		icon, col, text = iconError, levelColor(t, lvl), fmt.Sprintf(T.PanelHealthFail, n)
-	case n > 0:
-		icon, col, text = iconWarning, t.Warning, fmt.Sprintf(T.PanelHealthWarn, n)
-	default:
-		icon, col, text = iconOK, t.Success, T.PanelHealthOK
-	}
-	if lvl == status.LevelWarn && fail > 0 {
-		icon = iconWarning // before takeover: findings, not faults
-	}
-	age := healthAge(s)
-	row := ui.Row(c.Key("health-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).
-		Focusable().Role(ui.RoleButton).Label(text)
-	row.Children(func() {
-		ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
-		ui.Text(c, text).Grow(1).SingleLine()
-		switch {
-		case h.Running:
-			ui.Spinner(c).Size(12, 12) // the number is being updated
-		case age != "":
-			num(small(c, age)).SingleLine()
-		}
-		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
-	})
-	if row.Hovered() {
-		row.Background(t.Text.Alpha(0.08))
-	}
-	if row.Clicked() {
-		old := a.page
-		a.page = pageHealth
-		a.openMain()
-		a.pageChanged(old)
-	}
-}
-
 // evidenceShown is how many evidence lines a check shows until 显示全部.
 const evidenceShown = 3
 

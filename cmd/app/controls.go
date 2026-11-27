@@ -31,9 +31,13 @@ func (a *app) tunOn(s status.Snapshot) bool {
 func (a *app) tunSwitch(c *ui.Context, s status.Snapshot) {
 	on := a.tunOn(s)
 	if ui.Switch(c.Key("tun"), &on).Label(i18n.T.Tun).Disabled(!s.Can().Mihomo).Changed() {
-		v := on
-		a.optimistic(pendTun, v, i18n.T.TunFailed, func(ctx context.Context) error { return a.mh.SetTun(ctx, v) })
+		a.setTun(on)
 	}
+}
+
+// setTun turns TUN on or off, optimistically (pending.go).
+func (a *app) setTun(on bool) {
+	a.optimistic(pendTun, on, i18n.T.TunFailed, func(ctx context.Context) error { return a.mh.SetTun(ctx, on) })
 }
 
 // modeControl is mihomo's mode as a segmented control (规则 / 全局 /
@@ -97,15 +101,17 @@ func (a *app) reloadMihomo(s status.Snapshot) {
 }
 
 // tsPowerSwitch connects or disconnects Tailscale: on is "wants to run".
-func (a *app) tsPowerSwitch(c *ui.Context, s status.Snapshot) {
+func (a *app) tsPowerSwitch(c *ui.Context, s status.Snapshot) ui.Element {
 	on := pendingValue(a, pendTS, s.Tailscale.State.Prefs.WantRunning)
-	if ui.Switch(c.Key("ts-power"), &on).Label(i18n.T.TSConnect).Disabled(!s.Can().Tailscale).Changed() {
+	sw := ui.Switch(c.Key("ts-power"), &on).Label(i18n.T.TSConnect).Disabled(!s.Can().Tailscale)
+	if sw.Changed() {
 		fn := a.ts.Down
 		if on {
 			fn = a.ts.Up
 		}
 		a.optimistic(pendTS, on, i18n.T.TSPowerFailed, fn)
 	}
+	return sw
 }
 
 // exitNodeOptions returns the names offered as exit nodes: "none", then the
