@@ -22,7 +22,7 @@ side by side without either taking the other's routes or DNS.
 | Elevation for install | `osascript … with administrator privileges` | `ShellExecuteExW` verb `runas` (UAC), argv joined with `syscall.EscapeArg`, never through `cmd.exe` |
 | Secrets | System keychain | DPAPI (`CryptProtectData`, the helper's LocalSystem scope) in `<state>\secrets.dpapi` |
 | mihomo service | LaunchDaemon `com.l3ony2k.twinnel.mihomo` | service `TwinnelMihomo`: `twinnel-svchost.exe` (a copy of the helper binary) hosting `mihomo.exe` |
-| Tailscale | tailscaled (brew) or the app | the official client: service `Tailscale` (`tailscaled.exe`), wintun adapter `Tailscale`; detect and read only |
+| Tailscale | tailscaled (brew) or the app | the official client: service `Tailscale` (`tailscaled.exe`), wintun adapter `Tailscale`; detected and kept, installed from its MSI when missing (§7) |
 | App prefs | `~/Library/Application Support/twinnel/app.json` | `%AppData%\twinnel\app.json` (`os.UserConfigDir`, unchanged code) |
 | Network facts | `route`, `netstat`, `scutil`, `networksetup` | `GetIpForwardTable2`, `GetAdaptersAddresses`, NRPT from the registry |
 
