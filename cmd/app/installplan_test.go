@@ -69,3 +69,23 @@ func TestTileLayout(t *testing.T) {
 		}
 	}
 }
+
+// The Linux plan (systemd) reads in words too.
+func TestParsePlanSystemd(t *testing.T) {
+	var b strings.Builder
+	service.FormatPlan(&b, []service.Step{
+		{Kind: service.StepRun, Argv: []string{"systemctl", "daemon-reload"}},
+		{Kind: service.StepRun, Argv: []string{"systemctl", "enable", "twinnel-helper.service"}},
+		{Kind: service.StepRun, Argv: []string{"systemctl", "restart", "twinnel-helper.service"}},
+		{Kind: service.StepRun, Argv: []string{"systemctl", "disable", "--now", "twinnel-helper.service"}, IgnoreError: true},
+	})
+	steps, ok := parsePlan(b.String())
+	if !ok || len(steps) != 4 {
+		t.Fatalf("steps = %+v", steps)
+	}
+	for i, want := range []string{"让 systemd 重新读取服务定义", "设为开机自动启动", "加载服务：后台助手以 root 启动", "停掉旧的后台助手（如果有）"} {
+		if steps[i].what != want {
+			t.Errorf("step %d = %q, want %q", i, steps[i].what, want)
+		}
+	}
+}

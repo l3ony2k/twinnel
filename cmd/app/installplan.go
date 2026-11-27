@@ -86,7 +86,11 @@ func describeStep(cmd string) string {
 		case "daemon-reload":
 			return T.PlanDaemonReload
 		case "enable":
+			return T.PlanEnable
+		case "restart", "start":
 			return T.PlanBootstrap
+		case "disable":
+			return T.PlanBootout
 		}
 	}
 	return bare
