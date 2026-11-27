@@ -197,7 +197,7 @@ type Can struct {
 func (s Snapshot) Can() Can {
 	w := s.WritesAllowed
 	return Can{
-		Mihomo:    w && s.Mihomo.Reachable && !s.Mihomo.Unauthorized && s.ForeignController() == nil,
+		Mihomo:    w && s.MihomoLive(),
 		Tailscale: w && s.Tailscale.Reachable,
 		Helper:    w && s.Helper.Connected(),
 	}

@@ -36,6 +36,18 @@ func countsLine(L *texts, r *Report) string {
 	return fmt.Sprintf(L.msgCounts, c[StatusOK], c[StatusWarn], c[StatusFail], c[StatusSkip])
 }
 
+// sourceNote says that a report is not the helper's ("" when it is, or
+// does not say).
+func sourceNote(L *texts, source string) string {
+	switch source {
+	case SourceLocal:
+		return L.msgSourceLocal
+	case SourceLocalNoHelper:
+		return L.msgSourceNoHelper
+	}
+	return ""
+}
+
 // Markdown renders the report as Markdown, for pasting into an issue or a
 // chat with an AI.
 func (r *Report) Markdown() string {
@@ -45,7 +57,11 @@ func (r *Report) Markdown() string {
 	fmt.Fprintf(&b, "- %s: %s %s\n", L.labelOverall, statusIcon(r.Overall), statusLabel(L, r.Overall))
 	fmt.Fprintf(&b, "- %s: %s\n", L.labelTime, r.Started.Format(time.RFC3339))
 	fmt.Fprintf(&b, "- %s: %s\n", L.labelPlatform, r.Platform)
-	fmt.Fprintf(&b, "- %s\n\n", countsLine(L, r))
+	fmt.Fprintf(&b, "- %s\n", countsLine(L, r))
+	if note := sourceNote(L, r.Source); note != "" {
+		fmt.Fprintf(&b, "- %s\n", note)
+	}
+	b.WriteByte('\n')
 	for _, c := range r.Checks {
 		fmt.Fprintf(&b, "## %s %s (`%s`)\n\n", statusIcon(c.Status), c.Title, c.ID)
 		fmt.Fprintf(&b, "**%s**: %s\n\n", statusLabel(L, c.Status), c.Summary)
@@ -75,7 +91,11 @@ func (r *Report) Text() string {
 	L := textFor(r.Lang)
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s  %s: %s  (%s)\n", L.titleReport, L.labelOverall, statusLabel(L, r.Overall), countsLine(L, r))
-	fmt.Fprintf(&b, "%s: %s  %s: %s\n\n", L.labelTime, r.Started.Format("2006-01-02 15:04:05"), L.labelPlatform, r.Platform)
+	fmt.Fprintf(&b, "%s: %s  %s: %s\n", L.labelTime, r.Started.Format("2006-01-02 15:04:05"), L.labelPlatform, r.Platform)
+	if note := sourceNote(L, r.Source); note != "" {
+		fmt.Fprintf(&b, "%s\n", note)
+	}
+	b.WriteByte('\n')
 	for _, c := range r.Checks {
 		fmt.Fprintf(&b, "[%-4s] %s (%s)\n", strings.ToUpper(string(c.Status)), c.Title, c.ID)
 		fmt.Fprintf(&b, "       %s\n", c.Summary)

@@ -27,7 +27,8 @@ const (
 // the most important first:
 //
 //  1. unknown: nothing answered yet (still loading)
-//  2. error:   mihomo is unreachable or refuses the secret (traffic is at risk)
+//  2. error:   mihomo is unreachable, refuses the secret, or another
+//     program's mihomo holds its controller (traffic is at risk)
 //  3. tsdown:  mihomo is fine but Tailscale is unreachable or not running
 //  4. error:   any other red reason (a failing health check, ...)
 //  5. warn:    any yellow reason
@@ -36,18 +37,20 @@ const (
 //  8. ok
 func TrayIconFor(s Snapshot) TrayIcon {
 	m := s.Mihomo
+	mv := s.MihomoView()
+	live := mv.Live()
 	switch {
 	case !s.Loaded && s.Level == LevelUnknown:
 		return TrayUnknown
-	case m.Unauthorized || !m.Reachable && m.Err != "":
+	case mv.Phase == MihomoAuth, mv.Phase == MihomoForeign, mv.Phase == MihomoDown && m.Err != "":
 		return TrayError
-	case m.Reachable && tailscaleDown(s.Tailscale):
+	case live && tailscaleDown(s.Tailscale):
 		return TrayTSDown
 	case s.Level == LevelError:
 		return TrayError
 	case s.Level == LevelWarn:
 		return TrayWarn
-	case m.Reachable && m.Config.Mode != "" && !strings.EqualFold(string(m.Config.Mode), string(mihomo.ModeRule)):
+	case live && m.Config.Mode != "" && !strings.EqualFold(string(m.Config.Mode), string(mihomo.ModeRule)):
 		return TrayMode
 	case s.Helper.State != HelperUnknown && s.Helper.State != HelperConnected:
 		return TrayNoHelper

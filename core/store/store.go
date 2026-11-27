@@ -10,7 +10,8 @@
 //	<dir>/secrets.json             FileSecrets only (development / tests)
 //
 // The default dir is /Library/Application Support/twinnel on macOS. Files that
-// can hold node credentials are 0600 in 0700 directories.
+// can hold node credentials are 0600 in 0700 directories (written through
+// core/privfile: on Windows an owner-only DACL as well as the state dir's).
 package store
 
 import (
@@ -22,6 +23,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync"
+
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // Store gives typed access to the state dir. Safe for concurrent use.
@@ -140,7 +143,7 @@ func (s *Store) writeItem(kind, id string, data []byte) error {
 	if err := checkID(id); err != nil {
 		return err
 	}
-	return WriteFileAtomic(s.Path(kind, id+".yaml"), data, 0o600)
+	return privfile.WriteFile(s.Path(kind, id+".yaml"), data)
 }
 
 func (s *Store) deleteItem(kind, id string) error {
@@ -172,45 +175,5 @@ func (s *Store) WriteJSON(name string, v any) error {
 	if err != nil {
 		return err
 	}
-	return WriteFileAtomic(s.Path(name), append(b, '\n'), 0o600)
-}
-
-// WriteFileAtomic writes data to a temp file in the same dir, syncs it and
-// renames it over path, so readers see the old or the new file, never a
-// partial one.
-func WriteFileAtomic(path string, data []byte, perm fs.FileMode) error {
-	dir := filepath.Dir(path)
-	f, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	tmp := f.Name()
-	ok := false
-	defer func() {
-		if !ok {
-			f.Close()
-			os.Remove(tmp)
-		}
-	}()
-	if err := f.Chmod(perm); err != nil {
-		return err
-	}
-	if _, err := f.Write(data); err != nil {
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		return err
-	}
-	ok = true
-	if d, err := os.Open(dir); err == nil {
-		d.Sync()
-		d.Close()
-	}
-	return nil
+	return privfile.WriteFile(s.Path(name), append(b, '\n'))
 }

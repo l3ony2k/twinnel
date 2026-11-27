@@ -404,6 +404,12 @@ func (e *Engine) install(ctx context.Context, st *store.Settings, cfg []byte, ap
 		return e.fail(res, start, fmt.Errorf("mihomo -t rejected the config: %v", cr.ValidateErrors))
 	}
 	if !cr.Changed && !p.Force {
+		// Nothing to send, but not "ok" while another program's mihomo
+		// holds the controller.
+		if o := e.recentOwner(ctx); o.IsForeign() {
+			res.Foreign = &o
+			res.Warnings = append(res.Warnings, foreignIdleWarning(o))
+		}
 		return e.done(res, start), nil
 	}
 

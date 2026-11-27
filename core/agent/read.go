@@ -61,7 +61,9 @@ since mihomo started.`,
 health changes, agent actions), newest last. source "mihomo": mihomo's live log, listened to for about
 3 seconds (the stream has no backlog), at level (debug, info, warning, error; default info).
 source "mihomo-output": what mihomo's service wrote to its output file, startup errors included
-(a config mihomo refused at start shows up here, not in the live log); level filters it too.`,
+(a config mihomo refused at start shows up here, not in the live log); level filters it too.
+source "helper": the helper's own log (every change it made and who asked, warnings, errors);
+level filters it too.`,
 		toolOpts{}, s.logs)
 
 	addTool(s, rpc.TierRead, "subscriptions", "Subscriptions",
@@ -100,8 +102,9 @@ peer-relay, idle), whether it is or may be an exit node. online_only limits the 
 
 	if s.d.Doctor != nil {
 		addTool(s, rpc.TierRead, "doctor", "Doctor",
-			"Runs `twinnel doctor` here: the same coexistence checks as health, run by this process against the "+
-				"running mihomo and Tailscale (read-only). Use it when the helper is not reachable.",
+			"Runs `twinnel doctor`: the helper runs the coexistence checks now (the same report as health with run=true). "+
+				"When the helper does not answer, this process runs them itself against the running mihomo and Tailscale; "+
+				"the report's source then says local-no-helper, and checks that need the helper's knowledge skip (read-only).",
 			toolOpts{noHelper: true}, s.doctor)
 	}
 
@@ -221,7 +224,11 @@ func (s *Server) status(c *call, _ noArgs) (any, error) {
 			out.Health = summarizeHealth(hr)
 		}
 	}
-	if mc, err := c.mihomo(false); err != nil {
+	if o := out.Mihomo.Owner; o.IsForeign() {
+		// What the controller says is the other program's mihomo, not
+		// Twinnel's: its mode, TUN and groups are left out.
+		out.Mihomo.Error = foreignOwnerError(*o).Error()
+	} else if mc, err := c.mihomo(false); err != nil {
 		out.Mihomo.Error = err.Error()
 	} else if v, err := mc.Version(c.ctx); err != nil {
 		out.Mihomo.Error = err.Error()
@@ -310,6 +317,10 @@ func (s *Server) version(c *call, in versionIn) (any, error) {
 		if h.Call(c.ctx, rpc.MethodStatus, nil, &st) == nil {
 			out["helper"] = st.HelperVersion
 			out["mihomo_running"] = st.Mihomo.Version
+			if o := st.Mihomo.Owner; o.IsForeign() {
+				// The version that answered is the other program's mihomo.
+				out["mihomo_running_owner"] = o
+			}
 			if st.ServiceHost != nil {
 				// Windows: the helper's copy that runs mihomo.
 				out["service_host"] = st.ServiceHost
@@ -549,8 +560,8 @@ func (s *Server) traffic(c *call, _ noArgs) (any, error) {
 // ---- logs ----
 
 type logsIn struct {
-	Source string `json:"source,omitempty" jsonschema:"twinnel (default), mihomo or mihomo-output"`
-	Level  string `json:"level,omitempty" jsonschema:"mihomo and mihomo-output: debug, info (default), warning or error"`
+	Source string `json:"source,omitempty" jsonschema:"twinnel (default), mihomo, mihomo-output or helper"`
+	Level  string `json:"level,omitempty" jsonschema:"mihomo, mihomo-output and helper: debug, info (default), warning or error"`
 	Lines  int    `json:"lines,omitempty" jsonschema:"at most this many lines, newest (default 50, max 500)"`
 }
 
@@ -603,10 +614,16 @@ func (s *Server) logs(c *call, in logsIn) (any, error) {
 		if err != nil && ctx.Err() == nil {
 			return nil, err
 		}
-	case "mihomo-output":
+	case "mihomo-output", "helper":
+		// A log file the helper keeps (service.log): the same
+		// key=value lines, parsed alike.
+		name := rpc.ServiceLogMihomo
+		if in.Source == "helper" {
+			name = rpc.ServiceLogHelper
+		}
 		lvl := orDefault(in.Level, "info")
 		var r rpc.ServiceLog
-		if err := c.rpc(rpc.MethodServiceLog, rpc.ServiceLogParams{Name: "mihomo", Lines: n}, &r); err != nil {
+		if err := c.rpc(rpc.MethodServiceLog, rpc.ServiceLogParams{Name: name, Lines: n}, &r); err != nil {
 			return nil, err
 		}
 		for _, f := range r.Files {
@@ -618,7 +635,7 @@ func (s *Server) logs(c *call, in logsIn) (any, error) {
 		}
 		sort.SliceStable(out, func(i, j int) bool { return out[i].Time.Before(out[j].Time) })
 	default:
-		return nil, fmt.Errorf("source must be twinnel, mihomo or mihomo-output")
+		return nil, fmt.Errorf("source must be twinnel, mihomo, mihomo-output or helper")
 	}
 	if len(out) > n {
 		out = out[len(out)-n:]

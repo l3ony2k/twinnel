@@ -52,6 +52,13 @@ jobs:
           go test ./core/rpc/... ./core/priv ./core/service ./core/kernel
           ./core/health/... ./core/tailscale ./core/uninstall ./platform/common
           ./platform/windows/...
+      - name: install.ps1 end to end (Windows PowerShell 5.1 and PowerShell 7)
+        # The whole script under both shells in temp dirs: install, upgrade
+        # while programs run from the install, dry runs, uninstall. It
+        # changes the runner user's PATH and Start menu, then puts them back.
+        env:
+          TWINNEL_INSTALL_E2E: "1"
+        run: go test -v -count=1 ./packaging/windows
       - name: test (cli elevation)
         run: go test -run Windows ./cmd/cli
       - name: test (app, Windows parts)

@@ -4,9 +4,11 @@ import (
 	"context"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/sysdns"
 )
 
@@ -186,5 +188,83 @@ func TestWithoutDefaultV6DNS(t *testing.T) {
 	want := []string{"127.0.0.1", "::1", "fec0::4"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v", got)
+	}
+}
+
+// The round-2 machine, synthetic: Wi-Fi connected and pointed at
+// 127.0.0.1 by hand (IPv4 only), a disconnected Bluetooth PAN adapter on
+// DHCP. dns.status must count only Wi-Fi: pointed, unprotected until a
+// backup is recorded, then nothing left. The disconnected adapter is
+// still listed (dns.point covers it) but never decides the verdict.
+func TestSystemDNSStatusDisconnectedAdapter(t *testing.T) {
+	s := &fakeSys{adapters: []Adapter{
+		{Index: 11, GUID: "{00000000-0000-4000-8000-000000000011}", Name: "Wi-Fi", Description: "Example Wireless Adapter", IfType: IfTypeWiFi, Up: true,
+			Addrs: ips("192.168.1.20"), Gateways: ips("192.168.1.1")},
+		{Index: 15, GUID: "{00000000-0000-4000-8000-000000000015}", Name: "Bluetooth Network Connection", Description: "Bluetooth Device (Personal Area Network)", IfType: IfTypeEthernet,
+			Up: false, Addrs: ips("169.254.10.20")},
+	}}
+	n := &fakeNetsh{byIndex: map[uint32]string{11: s.adapters[0].GUID, 15: s.adapters[1].GUID},
+		v4: map[string][]string{s.adapters[0].GUID: {"127.0.0.1"}}, v6: map[string][]string{}}
+	p := SystemDNS{Sys: s, Static: n, Run: n.run}
+	m := &sysdns.Manager{P: p, Path: filepath.Join(t.TempDir(), "dns-backup.json"), Target: p.DNSTarget()}
+	ctx := context.Background()
+
+	svcs, err := p.Services(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(svcs) != 2 || !svcs[0].Connected || svcs[1].Connected || svcs[1].Name != "Bluetooth Network Connection" {
+		t.Fatalf("services: %+v", svcs)
+	}
+	st, err := m.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.Pointed || !reflect.DeepEqual(st.Unprotected, []string{"Wi-Fi"}) {
+		t.Fatalf("before the backup: %+v", st)
+	}
+	if st, err = m.Adopt(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !st.Pointed || len(st.Unprotected) != 0 || !reflect.DeepEqual(st.Recorded, []string{"Wi-Fi"}) || len(n.calls) != 0 {
+		t.Fatalf("after the backup: %+v calls %v", st, n.calls)
+	}
+	// dns.point still sets the disconnected adapter, so it resolves
+	// through mihomo once it connects.
+	if st, err = m.Point(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !st.Pointed || !slices.Contains(st.Changed, "Bluetooth Network Connection") {
+		t.Fatalf("point: %+v", st)
+	}
+}
+
+// Services and the health env (what the system-dns check reads) agree,
+// adapter by adapter, on which managed adapters are connected.
+func TestSystemDNSConnectedMatchesHealthEnv(t *testing.T) {
+	s, n := dnsSys()
+	s.adapters = append(s.adapters, Adapter{Index: 15, GUID: "{00000000-0000-4000-8000-000000000015}", Name: "Bluetooth Network Connection",
+		Description: "Bluetooth Device (Personal Area Network)", IfType: IfTypeEthernet, Up: false})
+	svcs, err := SystemDNS{Sys: s, Static: n}.Services(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := New(Options{Sys: s})
+	ns, err := e.NetworkServices(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn := health.ConnectedDevices(context.Background(), e)
+	if len(ns) != len(svcs) {
+		t.Fatalf("health lists %d services, sysdns %d", len(ns), len(svcs))
+	}
+	for _, sv := range svcs {
+		i := slices.IndexFunc(ns, func(x health.NetworkService) bool { return x.Name == sv.Name })
+		if i < 0 {
+			t.Fatalf("%s missing from the health env", sv.Name)
+		}
+		if got := ns[i].Enabled && conn[ns[i].Device]; got != sv.Connected {
+			t.Errorf("%s: health connected %v, sysdns %v", sv.Name, got, sv.Connected)
+		}
 	}
 }

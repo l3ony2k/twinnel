@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/privfile"
 	"github.com/l3ony2k/twinnel/core/takeover"
 	"github.com/l3ony2k/twinnel/platform/linux"
 )
@@ -70,7 +71,7 @@ func runTakeover(args []string) error {
 		return err
 	}
 	if out == "" {
-		if out, err = os.MkdirTemp("", "twinnel-takeover-"); err != nil {
+		if out, err = privfile.MkdirTemp("", "twinnel-takeover-"); err != nil {
 			return err
 		}
 	} else if entries, err := os.ReadDir(out); err == nil && len(entries) > 0 {

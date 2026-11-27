@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/bundle"
+	"github.com/l3ony2k/twinnel/core/privfile/privfiletest"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
@@ -57,9 +57,14 @@ func TestExportConfigFallback(t *testing.T) {
 	if err := SaveExport(p, x.Zip); err != nil {
 		t.Fatal(err)
 	}
-	if fi, err := os.Stat(p); err != nil || (runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600) {
-		t.Fatalf("%v %v", fi, err)
+	// Owner-only on every platform: 0600, or on Windows the owner-only
+	// DACL (it used to inherit the folder's, e.g. %TEMP%'s).
+	privfiletest.AssertPrivate(t, p, false)
+	// Saving again (--force) replaces the file and keeps it private.
+	if err := SaveExport(p, x.Zip); err != nil {
+		t.Fatal(err)
 	}
+	privfiletest.AssertPrivate(t, p, false)
 	if es, _ := os.ReadDir(filepath.Dir(p)); len(es) != 1 {
 		t.Fatalf("left behind: %v", es)
 	}

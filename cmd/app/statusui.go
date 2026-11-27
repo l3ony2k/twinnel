@@ -194,7 +194,7 @@ func (a *app) recoveryItems(m *ui.Menu, s status.Snapshot) {
 // nodes (reads only), then shows the health page.
 func (a *app) connectivityTest(s status.Snapshot) {
 	a.rerunHealth()
-	if p := s.Mihomo.Primary; p != nil && s.Mihomo.Reachable {
+	if p := s.Mihomo.Primary; p != nil && s.MihomoLive() {
 		a.testGroup(p.Name)
 	}
 	a.openPage(pageHealth)

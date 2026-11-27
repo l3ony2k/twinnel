@@ -13,6 +13,11 @@
 // that still hold exactly the values it restored. A service the user
 // changed by hand in between is left as the user set it.
 //
+// It acts on every service in the backup, connected or not (the action
+// side of sysdns's rule: a network that connects while mihomo is down
+// must resolve too); whether the system DNS counts as pointed is
+// sysdns.Counted's job, not the watchdog's.
+//
 // The platform parts (the resolver probe, the service manager, the system
 // DNS) are functions and interfaces, so tests drive it with fakes and a
 // fake clock through Tick.
@@ -30,6 +35,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/privfile"
 	"github.com/l3ony2k/twinnel/core/sysdns"
 )
 
@@ -240,13 +246,10 @@ func (w *Watchdog) save() {
 	}
 	b, err := json.MarshalIndent(w.state, "", "  ")
 	if err == nil {
-		err = os.MkdirAll(filepath.Dir(w.Path), 0o700)
+		err = privfile.MkdirAll(filepath.Dir(w.Path))
 	}
 	if err == nil {
-		tmp := w.Path + ".tmp"
-		if err = os.WriteFile(tmp, append(b, '\n'), 0o600); err == nil {
-			err = os.Rename(tmp, w.Path)
-		}
+		err = privfile.WriteFile(w.Path, append(b, '\n'))
 	}
 	if err != nil {
 		w.log().Warn("dns watchdog: write state", "err", err)

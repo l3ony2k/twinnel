@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/bundle"
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
@@ -98,10 +99,12 @@ type Helper struct {
 	Hash             string // compose.preview hash
 	Mode             string
 	Ctrl             string // controller address for controller.credentials
-	Imports          []rpc.ConfigImportParams
-	bus              *rpc.Bus
-	srv              *rpc.Server
-	listener         interface{ Close() error }
+	// Owner is status.get's controller owner (nil: not known).
+	Owner    *foreign.Owner
+	Imports  []rpc.ConfigImportParams
+	bus      *rpc.Bus
+	srv      *rpc.Server
+	listener interface{ Close() error }
 }
 
 // NewHelper starts a fake helper on a temp socket. ctrl is the controller
@@ -176,8 +179,9 @@ func (h *Helper) register() {
 		return rpc.Settings{Agent: h.Agent, HistoryKeep: 30}, nil
 	})
 	typed(h, rpc.MethodStatus, func(rpc.Empty) (rpc.Status, error) {
+		defer lock()()
 		return rpc.Status{HelperVersion: "0.9.0-test", ActiveSubscription: "main", Layers: 2,
-			Mihomo:    rpc.MihomoStatus{Controller: h.Ctrl, Reachable: true, Version: "v1.19.34"},
+			Mihomo:    rpc.MihomoStatus{Controller: h.Ctrl, Reachable: true, Version: "v1.19.34", Owner: h.Owner},
 			LastApply: &rpc.ApplyResult{Reason: "subscription " + SubURL, HistoryID: "h-1", Time: time.Unix(1_800_000_000, 0)}}, nil
 	})
 	typed(h, rpc.MethodControllerCredentials, func(rpc.Empty) (rpc.ControllerCredentials, error) {
@@ -190,7 +194,12 @@ func (h *Helper) register() {
 	typed(h, rpc.MethodHealthEgress, func(rpc.HealthEgressParams) (rpc.HealthReport, error) {
 		return rpc.HealthReport{Report: json.RawMessage(`{"overall":"ok","checks":[{"id":"leak-guard-egress","status":"ok","summary":"egress differs"}]}`), Reason: "egress"}, nil
 	})
-	typed(h, rpc.MethodServiceLog, func(rpc.ServiceLogParams) (rpc.ServiceLog, error) {
+	typed(h, rpc.MethodServiceLog, func(p rpc.ServiceLogParams) (rpc.ServiceLog, error) {
+		if p.Name == rpc.ServiceLogHelper {
+			return rpc.ServiceLog{Name: p.Name, Files: []rpc.ServiceLogFile{{File: "helper.log", Lines: []string{
+				`time=2026-01-02T03:04:05.000Z level=INFO msg=rpc method=compose.apply peer.uid=501 peer.user=alice`,
+				`time=2026-01-02T03:04:06.000Z level=WARN msg="subscription fetch" err="GET ` + SubURL + `: 502"`}}}}, nil
+		}
 		return rpc.ServiceLog{Name: "mihomo", Files: []rpc.ServiceLogFile{{File: "mihomo.out.log", Lines: []string{
 			`time="2026-01-02T03:04:05Z" level=fatal msg="Parse config error: pull ` + SubURL + `"`}}}}, nil
 	})

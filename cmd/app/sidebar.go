@@ -535,11 +535,8 @@ func (a *app) railPair(c *ui.Context, s status.Snapshot) {
 		})
 	}
 	ui.Column(c).Gap(4).PaddingY(8).AlignItems(ui.Center).Children(func() {
-		mstate, mtext := markDown, T.Unreachable
-		if s.Mihomo.Reachable {
-			mstate, mtext = markOK, T.Running
-		}
-		mark("m", i18n.F(T.StateLabel, T.Mihomo, mtext), mstate, stateMarkColor(t, mstate))
+		mstate, mcol, mtext := mihomoMark(t, s.MihomoView())
+		mark("m", i18n.F(T.StateLabel, T.Mihomo, mtext), mstate, mcol)
 		ttext := T.Unreachable
 		if s.Tailscale.Reachable {
 			ttext = T.TSState(s.Tailscale.State.BackendState)

@@ -116,10 +116,10 @@ func (a *app) takeoverManaged(c *ui.Context, s status.Snapshot) {
 		a.okLine(c, T.TakeoverManaged)
 		a.liveFileRow(c, "config", T.TakeoverLive, a.liveConfigPath(s))
 		mv := T.TkFoundNotRunning
-		if s.Mihomo.Reachable {
+		if s.MihomoLive() {
 			mv = T.TkFoundLive
 		}
-		if s.Mihomo.Version != "" {
+		if s.MihomoLive() && s.Mihomo.Version != "" {
 			mv += " · " + s.Mihomo.Version
 		}
 		kv(c, "mihomo", mv)
@@ -210,8 +210,8 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot, planErr string) {
 		if l := a.live; l.Binary != "" {
 			a.liveFileRow(c, "binary", T.TkFoundBinary, l.Binary)
 		}
-		mv := running(s.Mihomo.Reachable)
-		if s.Mihomo.Version != "" {
+		mv := running(s.MihomoLive())
+		if s.MihomoLive() && s.Mihomo.Version != "" {
 			mv += " · " + s.Mihomo.Version
 		}
 		kv(c, "mihomo", mv)

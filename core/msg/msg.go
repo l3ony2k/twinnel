@@ -42,6 +42,8 @@ var patterns = []pattern{
 	{code: "adopt-differs", re: regexp.MustCompile(`^the applied config differs from the plan's composed\.yaml`)},
 	{code: "binary-writable", re: regexp.MustCompile(`^the mihomo binary (.+) can be replaced without root \((.*)\), and the service runs it as root`)},
 	{code: "plain-http", re: regexp.MustCompile(`^the subscription URL uses plain http: `)},
+	{code: "controller-foreign-idle", re: regexp.MustCompile(`^the config did not change, but (\S+) is held by another program's mihomo; Twinnel's mihomo is not the one running$`)},
+	{code: "controller-foreign-idle-app", re: regexp.MustCompile(`^the config did not change, but (\S+) is held by (.+)'s mihomo; Twinnel's mihomo is not the one running$`)},
 	{code: "secret-clients", re: regexp.MustCompile(`^clients of the controller \(the web dashboard, the app, scripts\) need the new secret; .*?(sudo security find-generic-password .*?)\)?$`)},
 
 	// Apply errors (core/engine apply.go).

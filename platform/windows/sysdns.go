@@ -98,8 +98,15 @@ func DNSManaged(a Adapter) bool {
 	return true
 }
 
+// adapterConnected is sysdns.LinkConnected for an adapter: the one rule
+// dns.status and the system-dns check (Env.Interfaces) share.
+func adapterConnected(a Adapter) bool { return sysdns.LinkConnected(a.Up, a.Up, a.Addrs) }
+
 // Services lists the managed adapters with their hand-set servers, IPv4
-// first.
+// first, and whether each is connected (sysdns.LinkConnected: Windows'
+// operational state is both up and carrier). A disconnected adapter is
+// still listed, so dns.point covers it, but it does not count for
+// dns.status (sysdns.Counted).
 func (d SystemDNS) Services(ctx context.Context) ([]sysdns.Service, error) {
 	ads, err := d.Sys.Adapters(ctx)
 	if err != nil {
@@ -111,7 +118,7 @@ func (d SystemDNS) Services(ctx context.Context) ([]sysdns.Service, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read the DNS of %s: %w", a.Name, err)
 		}
-		out = append(out, sysdns.Service{Name: a.Name, Servers: append(append([]string{}, v4...), v6...)})
+		out = append(out, sysdns.Service{Name: a.Name, Servers: append(append([]string{}, v4...), v6...), Connected: adapterConnected(a)})
 	}
 	return out, nil
 }

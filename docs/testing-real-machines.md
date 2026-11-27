@@ -347,6 +347,13 @@ Rules that came out of round 1:
   `install.ps1` renames running files aside itself (`*.old-<digits>`, the same
   names as `core/binswap`, removed on the next run) and swaps all or none;
   `windows-deploy.sh`'s own rename-aside is now redundant but harmless.
+- `install.ps1` must run under Windows PowerShell 5.1 and PowerShell 7. CI's
+  Windows job runs the whole script under both (install, upgrade while
+  programs run from the install, dry runs, uninstall;
+  `packaging/windows/install_windows_test.go`), and the app's 完全移除 path
+  (`cmd/app/appremove_windows_test.go`), so the PC run is the last check of
+  the installer, not the first. Round 2's crash (`@()` around a `New-Object`
+  list) is now refused in every `.ps1` by `TestPowerShellTraps`.
 - `install.ps1` stops a Twinnel running in its own session and starts it
   again. Over SSH the app runs in another session: it is left running on its
   renamed-aside old image; restart it in the user session

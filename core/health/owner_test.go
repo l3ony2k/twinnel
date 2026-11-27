@@ -128,38 +128,49 @@ func (NetProbesEnv) DialViaProxy(context.Context, string, string, string) error 
 }
 func (NetProbesEnv) Ping(context.Context, string) error { return errDialMarker }
 
-// TestForeignUnknownClientWording: a foreign mihomo of no known client is
-// named once, with no stray spaces around the Chinese name, and no check
-// renders an empty evidence line (QA round 2, E).
+// TestForeignUnknownClientWording: an owner whose program is not known is
+// "another mihomo" once, never "（看起来是 另一个 mihomo）" nor "退出 另一个
+// mihomo", no stray space around a Chinese name, and no evidence line is
+// blank, in the result or the text report (Windows QA round 2, E).
 func TestForeignUnknownClientWording(t *testing.T) {
-	e := foreignEnv().(*fakeEnv)
-	e.owner.Client, e.owner.Exe, e.owner.WorkDir = "", "", ""
-	rep := runAll(t, e, "zh-Hans")
-	o := byID(rep)["controller-owner"]
-	if o.Summary != "127.0.0.1:9090 被另一个 mihomo 占用" {
-		t.Errorf("summary %q", o.Summary)
-	}
-	if o.Fix == nil || !strings.HasPrefix(o.Fix.Text, "退出另一个 mihomo（") {
-		t.Errorf("fix %+v", o.Fix)
-	}
-	for _, c := range rep.Checks {
-		if strings.Contains(c.Summary, "被 另") || strings.Contains(c.Controller, "（ ") {
-			t.Errorf("%s: stray space: %q / %q", c.ID, c.Summary, c.Controller)
-		}
-		for _, ev := range c.Evidence {
-			for _, l := range strings.Split(ev, "\n") {
-				if strings.TrimSpace(l) == "" {
-					t.Errorf("%s: empty evidence line in %q", c.ID, c.Evidence)
+	env := foreignEnv().(*fakeEnv)
+	env.owner = &foreign.Owner{Addr: "127.0.0.1:9090", Verdict: foreign.Foreign, PID: 5150, Exe: `C:\synthetic\foreign\mihomo.exe`}
+	for _, lang := range []string{"zh-Hans", "en"} {
+		rep := runAll(t, env, lang)
+		for _, c := range rep.Checks {
+			for _, bad := range []string{"看起来是", "it looks like", " 另一个", "Quit another", "被 另", "（ "} {
+				if strings.Contains(c.Summary, bad) || strings.Contains(c.Controller, bad) || (c.Fix != nil && strings.Contains(c.Fix.Text, bad)) {
+					t.Errorf("%s %s: %q / %q / %+v", lang, c.ID, c.Summary, c.Controller, c.Fix)
+				}
+			}
+			for _, e := range c.Evidence {
+				for _, l := range strings.Split(e, "\n") {
+					if strings.TrimSpace(l) == "" {
+						t.Errorf("%s %s: blank evidence line in %q", lang, c.ID, c.Evidence)
+					}
 				}
 			}
 		}
-	}
-	if txt := rep.Text(); strings.Contains(txt, "· \n") {
-		t.Errorf("empty evidence line in the text report:\n%s", txt)
+		o := byID(rep)["controller-owner"]
+		if o.Status != StatusFail || o.Fix == nil || o.Fix.Text == "" {
+			t.Fatalf("%s owner: %+v", lang, o)
+		}
+		if lang == "zh-Hans" && o.Summary != "127.0.0.1:9090 被另一个 mihomo 占用" {
+			t.Errorf("zh summary %q", o.Summary)
+		}
+		if txt := rep.Text(); strings.Contains(txt, "· \n") {
+			t.Errorf("%s: empty evidence line in the text report:\n%s", lang, txt)
+		}
 	}
 }
 
 func TestTidyEvidence(t *testing.T) {
+	if got := TidyEvidence([]string{"a", "", "  ", "b"}); fmt.Sprint(got) != "[a b]" {
+		t.Fatalf("%q", got)
+	}
+	if TidyEvidence([]string{" "}) != nil {
+		t.Fatal("all blank: want nil")
+	}
 	got := TidyEvidence([]string{"", "  ", "a\n\nb  \n", "\n", "c"})
 	if strings.Join(got, "|") != "a\nb|c" {
 		t.Errorf("TidyEvidence = %q", got)

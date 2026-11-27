@@ -9,6 +9,6 @@ import (
 
 const configDiscovery = "discovered from the mihomo LaunchDaemon"
 
-func newHealthEnv(o healthEnvOptions) (health.Env, error) {
+func platformHealthEnv(o healthEnvOptions) (health.Env, error) {
 	return darwin.New(darwin.Options{Controller: o.Controller, Secret: o.Secret, ConfigPath: o.ConfigPath, Settings: o.Settings, Dataplane: health.NetProbes{}}), nil
 }

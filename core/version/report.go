@@ -157,6 +157,11 @@ func Collect(ctx context.Context, timeout time.Duration, self Entry, src Sources
 		}
 		rep.Mihomo.Detail = joinDetail(rep.Mihomo.Detail, k)
 	}
+	// Another program's mihomo on the controller address: the version
+	// that answered is its, not Twinnel's.
+	if hasHelp && hst.Mihomo.Owner.IsForeign() && rep.Mihomo.Version != "" {
+		rep.Mihomo.Warning = "the controller is held by another mihomo (" + hst.Mihomo.Owner.Label() + "): this is its version, not Twinnel's"
+	}
 
 	switch {
 	case tserr == nil && tsv != "":

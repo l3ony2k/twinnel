@@ -128,11 +128,14 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	m := s.Mihomo
 	can := s.Can()
+	live := s.MihomoLive()
+	lock := mihomoLockTip(s) // why the mihomo actions are off, if another mihomo is on the port
 	ui.Row(c.Key("quick")).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 		// 全部测速: one batch (status.Monitor.TestAll), the icon a spinner
 		// while it runs, as on 策略组.
 		_, _, busy := a.mon.DelayProgress()
-		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy || !m.Reachable || len(m.Groups) == 0)
+		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy || !live || len(m.Groups) == 0)
+		lockTip(b, lock)
 		spin := showBusy(c, b, busy)
 		b.Children(func() {
 			if spin {
@@ -146,17 +149,18 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 			a.testAll()
 		}
 		env := proxyEnv(m.Config)
-		cp := iconButton(c.Key("copy-env"), iconCopy, T.OvCopyProxyEnv, false).Disabled(!m.Reachable || env == "")
-		if env != "" {
+		cp := iconButton(c.Key("copy-env"), iconCopy, T.OvCopyProxyEnv, false).Disabled(!live || env == "")
+		if env != "" && live {
 			cp.Tooltip(env)
 		}
+		lockTip(cp, lock)
 		if cp.Clicked() {
 			copyText(c, env)
 		}
-		if iconButton(c.Key("dashboard"), iconDashboard, T.OvDashboard, false).Disabled(!m.Reachable).Clicked() {
+		if lockTip(iconButton(c.Key("dashboard"), iconDashboard, T.OvDashboard, false).Disabled(!live), lock).Clicked() {
 			a.openDashboard("/ui/")
 		}
-		if iconButton(c.Key("reload"), iconRefresh, T.ReloadConfig, false).Disabled(!can.Mihomo).Clicked() {
+		if lockTip(iconButton(c.Key("reload"), iconRefresh, T.ReloadConfig, false).Disabled(!can.Mihomo), lock).Clicked() {
 			a.reloadMihomo(s)
 		}
 		ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
@@ -260,7 +264,7 @@ func (a *app) glanceTiles(c *ui.Context, s status.Snapshot, cols int) {
 	conns := ovTile{key: "tile-conns", label: T.Connections, figure: status.NoDelay}
 	mem := ovTile{key: "tile-mem", label: T.OvTileMemory, figure: status.NoDelay, page: pageKernel}
 	peers := ovTile{key: "tile-peers", label: T.OnlinePeers, figure: status.NoDelay, page: pageTailscale}
-	if m.Reachable {
+	if mv := s.MihomoView(); mv.Live() {
 		conns.figure = strconv.Itoa(m.Connections)
 		conns.sub = fmt.Sprintf(T.OvTileTotal, status.Bytes(m.Traffic.DownTotal), status.Bytes(m.Traffic.UpTotal))
 		conns.tip = T.Total + " " + conns.sub
@@ -274,7 +278,9 @@ func (a *app) glanceTiles(c *ui.Context, s status.Snapshot, cols int) {
 			mem.tip = fmt.Sprintf(T.OvMemoryTip, status.Bytes(m.Memory), status.Bytes(m.Process.RSS))
 		}
 	} else {
-		conns.sub, mem.sub = T.Unreachable, T.Unreachable
+		if !mv.Foreign() { // foreign: the exit tile and the card say it once
+			conns.sub, mem.sub = mv.Text(), mv.Text()
+		}
 	}
 	if ts.Reachable && ts.State.Running() {
 		peers.figure = fmt.Sprintf("%d / %d", ts.State.OnlinePeers(), len(ts.State.Peers))
@@ -364,7 +370,7 @@ func (a *app) tile(c *ui.Context, tl ovTile) {
 // trafficCaption is the traffic card's trailing text: how much time the
 // chart shows.
 func (a *app) trafficCaption(c *ui.Context, s status.Snapshot) {
-	if !s.Mihomo.Reachable {
+	if !s.MihomoLive() {
 		return
 	}
 	if hist := a.mon.TrafficHistory(); len(hist) > 1 {
@@ -386,7 +392,13 @@ func (a *app) mihomoRows(c *ui.Context, s status.Snapshot) ovRows {
 	T := i18n.T
 	m := s.Mihomo
 	rows := ovRows{}
-	if !m.Reachable {
+	if s.MihomoView().Foreign() {
+		// Another program's mihomo holds the controller: what holds it
+		// and the ways out; none of its values as Twinnel's.
+		rows[slotBody] = func() { a.foreignCardBody(c, s) }
+		return rows
+	}
+	if !s.MihomoLive() {
 		rows[slotBody] = func() {
 			a.cardDown(c, svcMihomo, m.Err)
 			kvMono(c, T.Controller, a.mh.BaseURL())

@@ -7,11 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/l3ony2k/twinnel/core/privfile"
 )
 
 // Config is the app's own settings. Until the Keychain lands, the
 // controller secret may come from the environment (preferred) or from this
-// file, which is written 0600.
+// file, which only its owner can read (core/privfile).
 type Config struct {
 	Controller   string `json:"controller"`
 	Secret       string `json:"secret,omitempty"`
@@ -115,8 +117,10 @@ func LoadConfig(path string, getenv func(string) string) (Config, error) {
 	return c, nil
 }
 
-// SaveConfig writes c to path with mode 0600. A secret that came from the
-// environment is not written.
+// SaveConfig writes c to path atomically, readable by its owner only
+// (core/privfile: 0600, an owner-only DACL on Windows); it may hold the
+// controller secret. A secret that came from the environment is not
+// written.
 func SaveConfig(path string, c Config) error {
 	if c.SecretFromEnv {
 		old, _ := LoadConfig(path, func(string) string { return "" })
@@ -126,14 +130,10 @@ func SaveConfig(path string, c Config) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	if err := privfile.MkdirAll(filepath.Dir(path)); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return privfile.WriteFile(path, append(b, '\n'))
 }
 
 // AppConfigPath is the app's settings file (app.json) under the user's

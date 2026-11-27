@@ -7,11 +7,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/foreign"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/status"
@@ -68,6 +70,36 @@ type controllerTarget struct {
 	status.Config // Controller and Secret; the rest of app.json too
 	// Source is controllerFrom*. --controller changes the address only.
 	Source string
+	// Helper is the helper's status.get, asked with its credentials (nil
+	// when it did not answer).
+	Helper *rpc.Status
+	// Owner is who listens on Controller as the helper's preflight found
+	// it (Helper.Mihomo.Owner): nil when the helper did not say, or when
+	// the address is not the helper's (TWINNEL_CONTROLLER, --controller).
+	Owner *foreign.Owner
+}
+
+// errForeignController wraps the refusal of writableController.
+var errForeignController = errors.New("the controller belongs to another mihomo")
+
+// writable returns an error when the controller is another program's
+// mihomo (Clash Party, Clash Verge Rev…): Twinnel reads it at most and
+// never changes it. The helper refuses its own writes the same way.
+func (t controllerTarget) writable() error {
+	if !t.Owner.IsForeign() {
+		return nil
+	}
+	return fmt.Errorf("%w: %s; Twinnel does not change it (twinnel doctor --fix controller-owner)", errForeignController, ownerText(*t.Owner))
+}
+
+// ownerText names a foreign owner for the CLI: address, program, pid and
+// executable.
+func ownerText(o foreign.Owner) string {
+	s := o.Label()
+	if o.Exe != "" {
+		s += " " + o.Exe
+	}
+	return s
 }
 
 // controllerFor resolves the controller for a command, the same rule as
@@ -80,6 +112,10 @@ type controllerTarget struct {
 //     after controller.secure) — unless TWINNEL_CONTROLLER pins it;
 //  3. flagAddr (--controller) over the address. Its secret stays the
 //     resolved one unless TWINNEL_MIHOMO_SECRET is set.
+//
+// It keeps the helper's status.get (Helper) and, with the helper's
+// address, who holds it (Owner); a command that changes mihomo checks
+// writable first.
 func controllerFor(ctx context.Context, socket, flagAddr string) controllerTarget {
 	cfg, err := status.LoadConfig(appConfigPath(), os.Getenv)
 	if err != nil {
@@ -95,7 +131,21 @@ func controllerFor(ctx context.Context, socket, flagAddr string) controllerTarge
 			t.Source = controllerFromHelper
 		}
 	}
-	if flagAddr = strings.TrimSpace(flagAddr); flagAddr != "" {
+	flagAddr = strings.TrimSpace(flagAddr)
+	// The helper's status (not when it just did not answer, nor while
+	// TWINNEL_CONTROLLER pins a development controller): the owner of its
+	// controller address, when that is the one used.
+	if t.Source == controllerFromHelper {
+		sctx, cancel := context.WithTimeout(ctx, helperAskTimeout)
+		if st, err := helperStatus(sctx, socket); err == nil {
+			t.Helper = &st
+			if flagAddr == "" {
+				t.Owner = st.Mihomo.Owner
+			}
+		}
+		cancel()
+	}
+	if flagAddr != "" {
 		t.Controller = flagAddr
 		if s := os.Getenv(status.EnvSecret); s != "" {
 			t.Secret = s

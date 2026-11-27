@@ -34,6 +34,7 @@ type fakeHelper struct {
 	tsErr     error
 	tsRes     *rpc.TailscaleInstallResult // nil: the open-source tailscaled installed by Twinnel
 	health    []health.CheckReport
+	lastRun   bool         // health.last has a report (the helper ran the checks)
 	login     *fakeTailnet // tailscaled behind the helper
 	inSession bool         // Windows: tailscale.login refuses Start
 }
@@ -195,6 +196,13 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 	case rpc.MethodTailnetRefresh:
 		return nil
 	case rpc.MethodHealthRun:
+		h.lastRun = true
+		b, _ := json.Marshal(health.Report{Checks: h.health})
+		return out(rpc.HealthReport{Report: b})
+	case rpc.MethodHealthLast:
+		if !h.lastRun {
+			return out(rpc.HealthReport{})
+		}
 		b, _ := json.Marshal(health.Report{Checks: h.health})
 		return out(rpc.HealthReport{Report: b})
 	}
@@ -284,14 +292,45 @@ func TestFlowFromNothing(t *testing.T) {
 		t.Fatalf("order %v", h.calls)
 	}
 
-	// A second flow on the same machine finds everything done but health.
+	// A second flow on the same machine finds everything done, health too
+	// (the helper's last report has no failure): `setup status` on a set
+	// up, working machine says complete.
 	g, _, _ := newTestFlow(h, &installed, Options{})
 	h.login = &fakeTailnet{backend: "Running"}
 	g.Detect(context.Background())
 	for _, s := range g.Steps() {
-		if s.ID != StepHealth && s.State != Done {
+		if s.State != Done {
 			t.Errorf("re-run: %s is %s", s.ID, s.State)
 		}
+	}
+	if !g.AllDone() {
+		t.Fatalf("not complete: %+v", g.Remaining())
+	}
+
+	// The last report has a failed check: the health step says so (not
+	// "pending"), naming it.
+	h.health = append(h.health, health.CheckReport{ID: "system-dns", Title: "System DNS", Result: health.Result{Status: health.StatusFail}})
+	k, _, _ := newTestFlow(h, &installed, Options{})
+	h.login = &fakeTailnet{backend: "Running"}
+	k.Detect(context.Background())
+	if s := k.Step(StepHealth); s.State != Failed || s.Code != CodeHealthFail || !strings.Contains(s.Error, "System DNS") {
+		t.Fatalf("health after a failed report: %+v", s)
+	}
+}
+
+// Health is judged from the last report only once every other step is
+// done: while one is still to do, the flow runs the checks at its end.
+func TestDetectHealthWaitsForTheOtherSteps(t *testing.T) {
+	h := newFakeHelper()
+	h.lastRun = true
+	installed := true
+	f, _, _ := newTestFlow(h, &installed, Options{})
+	f.Detect(context.Background())
+	if s := f.Step(StepHealth); s.State != Pending {
+		t.Fatalf("health detected with steps left: %+v", s)
+	}
+	if slices.Contains(h.calls, rpc.MethodHealthLast) {
+		t.Fatal("asked for the last report with steps left")
 	}
 }
 

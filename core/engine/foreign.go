@@ -30,6 +30,18 @@ func foreignError(o foreign.Owner) error {
 	return fmt.Errorf("%w: %s is held by %s; Twinnel did not reload it", ErrForeignController, o.Addr, who)
 }
 
+// foreignIdleWarning is the warning of an apply that had nothing to send
+// while another program's mihomo holds the controller: "ok" would hide
+// that Twinnel's mihomo is not the one running (core/msg
+// "controller-foreign-idle").
+func foreignIdleWarning(o foreign.Owner) string {
+	who := "another program"
+	if n := o.Client.Name(); n != "" {
+		who = n
+	}
+	return fmt.Sprintf("the config did not change, but %s is held by %s's mihomo; Twinnel's mihomo is not the one running", o.Addr, who)
+}
+
 // ownerTTL is how long a port-owner answer is reused by the auto-apply
 // gate and status.get (an apply always asks again).
 const ownerTTL = 20 * time.Second

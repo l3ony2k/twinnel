@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 
 	winio "github.com/tailscale/go-winio"
 	"golang.org/x/sys/windows"
@@ -83,6 +84,7 @@ func processPeer(pid uint32) (Peer, error) {
 		return p, err
 	}
 	p.SID = u.User.Sid.String()
+	p.User = accountName(u.User.Sid)
 	p.Elevated = tok.IsElevated()
 	admins, err := windows.CreateWellKnownSid(windows.WinBuiltinAdministratorsSid)
 	if err != nil {
@@ -98,10 +100,39 @@ func processPeer(pid uint32) (Peer, error) {
 	return p, nil
 }
 
+// accountName is DOMAIN\name of a SID ("" when it has none: a deleted
+// account, or a domain account while the domain is unreachable).
+func accountName(sid *windows.SID) string {
+	return cachedName(sid.String(), func() string { return lookupAccount(sid) })
+}
+
+func lookupAccount(sid *windows.SID) string {
+	name, domain, _, err := sid.LookupAccount("")
+	switch {
+	case err != nil || name == "":
+		return ""
+	case domain == "":
+		return name
+	}
+	return domain + `\` + name
+}
+
 func currentSID() (string, error) {
 	u, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil {
 		return "", err
 	}
 	return u.User.Sid.String(), nil
+}
+
+// Self is this process's identity in Peer form (logs, status): its
+// token's SID and account name, and its pid; never uid -1 in what it
+// prints.
+func Self() Peer {
+	p := Peer{UID: -1, PID: os.Getpid()}
+	if u, err := windows.GetCurrentProcessToken().GetTokenUser(); err == nil {
+		p.SID = u.User.Sid.String()
+		p.User = accountName(u.User.Sid)
+	}
+	return p
 }

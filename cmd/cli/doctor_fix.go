@@ -200,7 +200,8 @@ func dialFixer(ctx context.Context, socket, lang string) (*healthfix.Fixer, func
 	f := &healthfix.Fixer{Helper: c, Lang: lang, Platform: runtime.GOOS}
 	// Without the helper's credentials (an older helper) no fix writes to
 	// mihomo: app.json's controller may not be the one the helper manages.
-	if t := controllerFor(ctx, socket, ""); t.Source != controllerFromApp {
+	// Nor when another program's mihomo holds it (writable).
+	if t := controllerFor(ctx, socket, ""); t.Source != controllerFromApp && t.writable() == nil {
 		if mc, err := mihomo.New(mihomo.Options{Address: t.Controller, Secret: t.Secret, AllowWrites: true, Timeout: 10 * time.Second}); err == nil {
 			f.Mihomo = healthfix.MihomoClient(mc)
 		}

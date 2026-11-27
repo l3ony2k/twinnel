@@ -122,11 +122,14 @@ type Empty struct{}
 // ---- status ----
 
 type Status struct {
-	HelperVersion string    `json:"helper_version"`
-	PID           int       `json:"pid"`
-	UID           int       `json:"uid"`
-	StateDir      string    `json:"state_dir"`
-	StartedAt     time.Time `json:"started_at"`
+	HelperVersion string `json:"helper_version"`
+	PID           int    `json:"pid"`
+	UID           int    `json:"uid"`
+	// RunsAs names the helper's account (Self().Caller()): "root (uid 0)",
+	// `NT AUTHORITY\SYSTEM (S-1-5-18)`. Empty from an older helper.
+	RunsAs    string    `json:"runs_as,omitempty"`
+	StateDir  string    `json:"state_dir"`
+	StartedAt time.Time `json:"started_at"`
 
 	Mihomo             MihomoStatus   `json:"mihomo"`
 	ActiveSubscription string         `json:"active_subscription,omitempty"`
@@ -274,9 +277,10 @@ type ApplyResult struct {
 	// Impact: what the hot reload did to the running mihomo (set when a
 	// previous config file existed to compare with).
 	Impact *ReloadImpact `json:"impact,omitempty"`
-	// Foreign: the apply stopped before writing and reloading because the
-	// controller belongs to another program's mihomo (ErrorMsg
-	// "controller-foreign").
+	// Foreign: the controller belongs to another program's mihomo. With
+	// Error, the apply stopped before writing and reloading (ErrorMsg
+	// "controller-foreign"); without, nothing had changed and a warning
+	// says so ("controller-foreign-idle").
 	Foreign *foreign.Owner `json:"foreign,omitempty"`
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/status"
@@ -155,7 +156,8 @@ func (a *app) panelHeader(c *ui.Context, s status.Snapshot) {
 	// state leaves them no room. Without rates (mihomo down) the state is
 	// the whole row, with no room kept for a second line (kubai R-19).
 	row := ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset + moduleInset).MinHeight(panelHeadH)
-	if s.Mihomo.Reachable {
+	live := s.MihomoLive() // another program's rates are not Twinnel's
+	if live {
 		row.Wrap()
 	}
 	row.Children(func() {
@@ -165,7 +167,7 @@ func (a *app) panelHeader(c *ui.Context, s status.Snapshot) {
 			})
 			ui.Text(c, s.Level.Text()).FontWeight(600).NoWrap()
 		})
-		if s.Mihomo.Reachable {
+		if live {
 			m := s.Mihomo.Traffic
 			num(small(c, "↓ "+status.Rate(m.Down)+"  ↑ "+status.Rate(m.Up))).NoWrap()
 		}
@@ -181,7 +183,7 @@ func (a *app) panelAttention(c *ui.Context, s status.Snapshot) {
 	for _, r := range s.Reasons {
 		switch {
 		case r.Health && a.healthSrc != nil: // the health row says it
-		case r.Code == status.ReasonMihomoDown, r.Code == status.ReasonTSDown,
+		case r.Code == status.ReasonMihomoDown, r.Code == status.ReasonCtlForeign, r.Code == status.ReasonTSDown,
 			r.Code == status.ReasonTSNeedsLogin, r.Code == status.ReasonTSStopped:
 		default:
 			reasons = append(reasons, r)
@@ -271,8 +273,8 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 // page on that fix's preview.
 func (a *app) healthFixLine(c *ui.Context, s status.Snapshot) {
 	cr, rf, ok := a.firstAutoFix(s)
-	if !ok {
-		return
+	if !ok || (cr.ID == (health.ControllerOwnerCheck{}).ID() && s.MihomoView().Foreign()) {
+		return // the mihomo module offers the controller-owner fixes
 	}
 	t := c.Theme()
 	T := i18n.T
@@ -334,13 +336,30 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	m := s.Mihomo
-	if !m.Reachable {
+	v := s.MihomoView()
+	if v.Foreign() {
+		// Another program's mihomo holds the controller: its state, the
+		// process on hover, and the two ways out; none of its values.
+		// The state wraps under the name: it is the module's message,
+		// too long to sit cut beside it.
+		mk, col, text := mihomoMark(t, v)
+		moduleHeader(c, mk, col, T.Mihomo, "", "", nil)
+		ui.Column(c).Gap(6).PaddingX(rowInset).PaddingY(2).Children(func() {
+			e := ui.Text(c, text).Wrap().LineHeight(lineText)
+			if d := v.Detail(); d != "" {
+				e.Tooltip(d)
+			}
+			a.foreignActions(c, s, 22)
+		})
+		return
+	}
+	if !v.Live() {
 		// Down: no stale values, the plain state (the error on hover), and
 		// 启动 when the helper can start it (else the lock says why not).
 		// Never a dead end (kubai R-19): 启动 when the helper can start
 		// it, else 重试 (ask again; its icon turns).
 		moduleHeader(c, markDown, t.Danger, T.Mihomo, T.Unreachable, m.Err, func() {
-			if !s.WritesAllowed || m.Unauthorized || !s.Helper.Connected() {
+			if !s.WritesAllowed || v.Phase == status.MihomoAuth || !s.Helper.Connected() {
 				a.panelRetry(c)
 				return
 			}
@@ -529,7 +548,7 @@ func (a *app) exitNodeRow(c *ui.Context, s status.Snapshot) {
 				m.Separator()
 			}
 			if m.Item(name).Checked(name == sel).Chosen() && name != sel {
-				a.chooseExitNode(st, name, s.Mihomo.Reachable && s.Mihomo.Config.Tun.Enable)
+				a.chooseExitNode(st, name, s.MihomoLive() && s.Mihomo.Config.Tun.Enable)
 			}
 		}
 	})

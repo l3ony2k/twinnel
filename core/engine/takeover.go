@@ -16,6 +16,7 @@ import (
 	"github.com/l3ony2k/twinnel/core/config"
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/kernel"
+	"github.com/l3ony2k/twinnel/core/privfile"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/store"
 	"github.com/l3ony2k/twinnel/core/takeover"
@@ -75,7 +76,7 @@ func writePlanState(dir string, ps *planState) error {
 	if err != nil {
 		return err
 	}
-	return store.WriteFileAtomic(filepath.Join(dir, planStateFile), append(b, '\n'), 0o600)
+	return privfile.WriteFile(filepath.Join(dir, planStateFile), append(b, '\n'))
 }
 
 // confirmHash ties an adopt to the exact plan.json the client was shown.
@@ -504,7 +505,7 @@ func (e *Engine) Adopt(ctx context.Context, p rpc.AdoptParams) (rpc.AdoptResult,
 
 	// ---- 2. exact backup ----
 	backup := filepath.Join(dir, planBackupFile)
-	if err := store.WriteFileAtomic(backup, live, 0o600); err != nil {
+	if err := privfile.WriteFile(backup, live); err != nil {
 		step("backup", "failed", err.Error())
 		res.Error = "backup: " + err.Error()
 		return finish(rpc.PlanFailed)
