@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -564,8 +566,20 @@ func TestEventsPublished(t *testing.T) {
 	_, next := h.e.Bus.Since(0)
 	h.apply("events")
 	evs, _ := h.e.Bus.Since(next)
-	if len(evs) != 1 || evs[0].Type != rpc.EventComposeApplied {
-		t.Errorf("events: %+v", evs)
+	// The stages, in order, then the outcome.
+	var got []string
+	for _, ev := range evs {
+		if ev.Type == rpc.EventComposeStage {
+			var cs rpc.ComposeStage
+			json.Unmarshal(ev.Data, &cs)
+			got = append(got, cs.Stage)
+			continue
+		}
+		got = append(got, ev.Type)
+	}
+	want := []string{rpc.StageValidate, rpc.StageWrite, rpc.StageReload, rpc.StageVerify, rpc.EventComposeApplied}
+	if !slices.Equal(got, want) {
+		t.Errorf("events = %v, want %v", got, want)
 	}
 }
 

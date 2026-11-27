@@ -12,6 +12,10 @@ const (
 
 	MethodComposePreview = "compose.preview"
 	MethodComposeApply   = "compose.apply"
+	// MethodComposeStatus answers whether 应用 has work (the composed
+	// config differs from the file on disk) without mihomo -t: cheap
+	// enough to ask after every edit.
+	MethodComposeStatus = "compose.status"
 
 	MethodHistoryList     = "history.list"
 	MethodHistoryRollback = "history.rollback"
@@ -93,6 +97,9 @@ const (
 	EventHelperStarted    = "helper.started"
 	EventHelperStopping   = "helper.stopping"
 	EventEventsTruncated  = "events.truncated" // the client asked for events older than the buffer
+	// EventComposeStage: an apply or rollback moved to the next stage
+	// (data: ComposeStage), so a client can say what it waits for.
+	EventComposeStage = "compose.stage"
 )
 
 // Empty is the params/result of methods without any.
@@ -137,6 +144,26 @@ type TailnetStatus struct {
 }
 
 // ---- compose ----
+
+// Stages of an apply or rollback, in order (EventComposeStage).
+const (
+	StageValidate = "validate" // compose and mihomo -t
+	StageWrite    = "write"    // back up and write the file
+	StageReload   = "reload"   // ask mihomo to load it
+	StageVerify   = "verify"   // wait for mihomo to answer again
+)
+
+// ComposeStage is EventComposeStage's data.
+type ComposeStage struct {
+	Stage string `json:"stage"`
+}
+
+// ComposeStatus is compose.status: the composed config's hash and
+// whether it differs from the config file on disk.
+type ComposeStatus struct {
+	Hash    string `json:"hash"`
+	Changed bool   `json:"changed"`
+}
 
 type ApplyParams struct {
 	Reason string `json:"reason,omitempty"`
