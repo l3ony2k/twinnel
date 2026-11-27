@@ -231,6 +231,11 @@ func (a *app) historyRollbackNow(e rpc.HistoryEntry) {
 		}, func(err error) {
 			v := &a.hd.hist
 			v.result = nil
+			if err != nil {
+				if v.result = failedResult(err); v.result != nil {
+					a.hd.msg, a.hd.msgErr = "", false
+				}
+			}
 			if err == nil {
 				v.result = &res
 				v.diff, v.diffID = nil, ""

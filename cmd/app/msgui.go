@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"slices"
 	"strings"
 
@@ -78,4 +80,22 @@ func resultMessages(r rpc.ComposeResult, impact *rpc.ReloadImpact) []rpc.Msg {
 	return slices.DeleteFunc(slices.Clone(ms), func(m rpc.Msg) bool {
 		return m.Code == "reload-disrupts" || m.Code == "restart-needed"
 	})
+}
+
+// failedResult is the result a failed compose.apply or history.rollback
+// sends with its error (rpc.Error.Data), nil when there is none (an older
+// helper, or a failure before the apply began).
+func failedResult(err error) *rpc.ApplyResult {
+	var re *rpc.Error
+	if !errors.As(err, &re) || len(re.Data) == 0 {
+		return nil
+	}
+	var r rpc.ApplyResult
+	if json.Unmarshal(re.Data, &r) != nil {
+		return nil
+	}
+	if r.Error == "" {
+		r.Error = re.Message
+	}
+	return &r
 }

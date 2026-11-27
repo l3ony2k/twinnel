@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/l3ony2k/duet/core/rpc"
@@ -19,12 +21,12 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodComposePreview, func(ctx context.Context, _ rpc.Empty) (rpc.ComposeResult, error) { return e.Preview(ctx) })
 	rpc.Typed(s, rpc.MethodComposeApply, func(ctx context.Context, p rpc.ApplyParams) (*rpc.ApplyResult, error) {
 		// No reason: Apply records the code "apply" (a client words it).
-		return e.Apply(ctx, p)
+		return withResult(e.Apply(ctx, p))
 	})
 
 	rpc.Typed(s, rpc.MethodHistoryList, func(ctx context.Context, _ rpc.Empty) ([]rpc.HistoryEntry, error) { return e.History() })
 	rpc.Typed(s, rpc.MethodHistoryRollback, func(ctx context.Context, p rpc.IDParams) (*rpc.ApplyResult, error) {
-		return e.Rollback(ctx, p.ID)
+		return withResult(e.Rollback(ctx, p.ID))
 	})
 
 	rpc.Typed(s, rpc.MethodLayerList, func(ctx context.Context, _ rpc.Empty) ([]rpc.Layer, error) { return e.Layers() })
@@ -156,4 +158,24 @@ func (e *Engine) Register(s *rpc.Server) {
 		}
 		return rpc.EventsWaitResult{Events: evs, Next: next}, nil
 	})
+}
+
+// withResult keeps a failed apply's result with its error: the RPC error
+// carries it as data, so a client can show what failed and where (the
+// validator's lines, a restored config) and not only the message.
+func withResult(r *rpc.ApplyResult, err error) (*rpc.ApplyResult, error) {
+	if err == nil || r == nil {
+		return r, err
+	}
+	b, merr := json.Marshal(r)
+	if merr != nil {
+		return nil, err
+	}
+	re := &rpc.Error{Code: rpc.CodeFailed, Message: err.Error()}
+	var orig *rpc.Error
+	if errors.As(err, &orig) {
+		re.Code = orig.Code
+	}
+	re.Data = b
+	return nil, re
 }

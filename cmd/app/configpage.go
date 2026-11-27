@@ -1060,10 +1060,11 @@ func (a *app) applySummary(c *ui.Context, r rpc.ApplyResult) {
 	}
 	if r.Error != "" {
 		// What failed, in words (U53); mihomo -t's own lines under it.
-		if r.RolledBack {
+		m := errorMsg(r.Error, r.ErrorMsg)
+		if r.RolledBack && m.Code != "reload-failed" && m.Code != "verify-failed" { // those say it themselves
 			small(c, T.ApplyFailedRestore)
 		}
-		msgNote(c.Key("aerr"), errorMsg(r.Error, r.ErrorMsg), false)
+		msgNote(c.Key("aerr"), m, false)
 		validateErrors(c, r.ValidateErrors)
 	}
 }
@@ -1175,7 +1176,12 @@ func (a *app) runApply() {
 		return hc.Call(ctx, rpc.MethodComposeApply, p, &res)
 	}, func(err error) {
 		if err != nil {
-			v.applied = nil
+			// The failed result travels with the error (U53): show it in
+			// the card, in words, instead of the raw line at the top.
+			v.applied = failedResult(err)
+			if v.applied != nil {
+				a.hd.msg, a.hd.msgErr = "", false
+			}
 			return
 		}
 		v.applied, v.reason = &res, ""
