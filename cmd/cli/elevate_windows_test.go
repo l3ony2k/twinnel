@@ -80,7 +80,7 @@ func TestElevateWindows(t *testing.T) {
 
 // The elevated copy's end waits for a pipe that is not there yet or busy,
 // up to its deadline, and gives up after it.
-func TestOpenOutputPipeRetries(t *testing.T) {
+func TestOpenOutputPipeRetriesWindows(t *testing.T) {
 	name := fmt.Sprintf("%stest-%d-%d", outputPipePrefix, os.Getpid(), time.Now().UnixNano())
 	self, err := priv.CurrentUserSID()
 	if err != nil {
