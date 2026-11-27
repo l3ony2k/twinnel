@@ -49,7 +49,14 @@ type Member struct {
 	Alive   bool
 	Delay   int  // ms of the last test, 0 = failed
 	Tested  bool // there was a test
+	// Builtin: the member (or, for a nested group, the node it resolves
+	// to) is DIRECT, REJECT or another built-in. It is never tested and
+	// shows no delay.
+	Builtin bool
 }
+
+// DelayText is the member's delay label: "—" for a built-in.
+func (m Member) DelayText() string { return delayLabel(m.Delay, m.Tested, m.Builtin) }
 
 // Group is a proxy group with its members resolved.
 type Group struct {
@@ -60,10 +67,24 @@ type Group struct {
 	Node    string   // last of Chain: the node carrying the traffic
 	Delay   int      // delay of Node
 	Tested  bool
+	Builtin bool // Node is DIRECT, REJECT or another built-in (no delay)
 	Members []Member
 	Hidden  bool
 	TestURL string
 }
+
+// DelayText is the group's delay label (its node's): "—" for a built-in.
+func (g Group) DelayText() string { return delayLabel(g.Delay, g.Tested, g.Builtin) }
+
+func delayLabel(ms int, tested, builtin bool) string {
+	if builtin {
+		return NoDelay
+	}
+	return DelayText(ms, tested)
+}
+
+// NoDelay is the delay label of a built-in (DIRECT, REJECT, ...).
+const NoDelay = "—"
 
 // Selectable reports whether a user may choose a member (Selector groups).
 func (g Group) Selectable() bool { return g.Type == "Selector" }
@@ -112,14 +133,18 @@ type Reason struct {
 }
 
 // BuildGroups turns a /proxies answer into groups in configuration order.
-func BuildGroups(all map[string]mihomo.Proxy) []Group {
+func BuildGroups(all map[string]mihomo.Proxy) []Group { return buildGroups(all, nil) }
+
+// buildGroups is BuildGroups with the monitor's own delay results, which
+// win over mihomo's history when newer.
+func buildGroups(all map[string]mihomo.Proxy, cache map[string]delayResult) []Group {
 	var out []Group
 	for _, p := range mihomo.Groups(all) {
 		g := Group{Name: p.Name, Type: p.Type, Now: p.Now, Hidden: p.Hidden, TestURL: p.TestURL}
 		g.Chain = mihomo.Resolve(all, p.Name)
 		if len(g.Chain) > 0 {
 			g.Node = g.Chain[len(g.Chain)-1]
-			g.Delay, g.Tested = all[g.Node].LastDelay()
+			g.Delay, g.Tested, g.Builtin = delayOf(all, cache, g.Node)
 		}
 		for _, name := range p.All {
 			m := Member{Name: name}
@@ -131,13 +156,33 @@ func BuildGroups(all map[string]mihomo.Proxy) []Group {
 						target = ch[len(ch)-1]
 					}
 				}
-				m.Delay, m.Tested = all[target].LastDelay()
+				m.Delay, m.Tested, m.Builtin = delayOf(all, cache, target)
+			} else {
+				m.Builtin = mihomo.IsBuiltin(name, "")
 			}
 			g.Members = append(g.Members, m)
 		}
 		out = append(out, g)
 	}
 	return out
+}
+
+// delayOf is the delay of the node name: the newer of mihomo's last test
+// and the monitor's own result. Built-ins have none.
+func delayOf(all map[string]mihomo.Proxy, cache map[string]delayResult, name string) (ms int, tested, builtin bool) {
+	p := all[name]
+	if mihomo.IsBuiltin(name, p.Type) {
+		return 0, false, true
+	}
+	ms, tested = p.LastDelay()
+	var at time.Time
+	if n := len(p.History); n > 0 {
+		at = p.History[n-1].Time
+	}
+	if r, ok := cache[name]; ok && (!tested || !r.at.Before(at)) {
+		ms, tested = r.ms, true
+	}
+	return ms, tested, false
 }
 
 // PickPrimary returns the group named name, else the first Selector that
@@ -174,7 +219,7 @@ func Evaluate(s *Snapshot) {
 		if !m.Config.Tun.Enable {
 			add(LevelWarn, t.ReasonTunOff)
 		}
-		if p := m.Primary; p != nil && p.Tested && p.Delay <= 0 && p.Node != "DIRECT" && p.Node != "REJECT" {
+		if p := m.Primary; p != nil && p.Tested && p.Delay <= 0 && !p.Builtin {
 			add(LevelWarn, fmt.Sprintf(t.ReasonPrimaryDead, p.Name))
 		}
 	}

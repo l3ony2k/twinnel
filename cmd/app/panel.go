@@ -166,7 +166,7 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 			kvWith(c, T.Exit, func() {
 				ui.Text(c, p.Node).SingleLine().Shrink(1)
 				ui.Spacer(c)
-				num(ui.Text(c, status.DelayText(p.Delay, p.Tested)).FontSize(plat.calloutSize).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
+				num(ui.Text(c, p.DelayText()).FontSize(plat.calloutSize).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0))
 			})
 		}
 	}

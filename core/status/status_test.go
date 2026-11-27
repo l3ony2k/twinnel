@@ -346,12 +346,12 @@ func TestMonitor(t *testing.T) {
 		t.Error("clear")
 	}
 
-	// Delay tests refresh the snapshot.
+	// Delay tests show at once: the group's delay is its node's.
 	if err := m.TestGroup(ctx, "Auto"); err != nil {
 		t.Fatal(err)
 	}
 	s = m.Snapshot()
-	if s.Mihomo.Primary.Delay != 77 {
+	if s.Mihomo.Primary.Delay != 50 {
 		t.Errorf("delay after test %d", s.Mihomo.Primary.Delay)
 	}
 	if d, err := m.TestNode(ctx, "node-a"); err != nil || d != 50 {
