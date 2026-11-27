@@ -218,18 +218,14 @@ func (s *Server) call(ctx context.Context, h HandlerFunc, peer Peer, req Request
 			s.Log.Error("rpc: handler panic", "method", req.Method, "peer", peer, "panic", r)
 		}
 		if level, ok := ClassOf(req.Method).LogLevel(); ok {
-			s.Log.Log(context.Background(), level, "rpc", "method", req.Method, "peer", peer,
-				"dur", time.Since(start).Round(time.Millisecond), "err", errString(err))
+			args := []any{"method", req.Method, "peer", peer, "dur", time.Since(start).Round(time.Millisecond)}
+			if err != nil {
+				args = append(args, "err", err.Error())
+			}
+			s.Log.Log(context.Background(), level, "rpc", args...)
 		}
 	}()
 	return h(WithPeer(ctx, peer), peer, req.Params)
-}
-
-func errString(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
 }
 
 func toRPCError(err error) *Error {

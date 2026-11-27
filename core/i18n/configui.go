@@ -130,8 +130,10 @@ type ConfigUIStrings struct {
 	CulpritLayer, CulpritSub, CulpritOpen string
 	ApplyFailedRestore                    string // the new config failed after writing; the old one runs
 
-	// Logs: the Twinnel tab (U29, H7).
+	// Logs: the Twinnel tab (U29, H7) and the helper's own log.
 	LogsSourceMihomo, LogsSourceTwinnel string
+	LogsSourceHelper                    string
+	LogHelperUnavailable                string // service.log {helper} failed (an older helper)
 	LogSearch                           string
 	LogNoMatch                          string
 	EventsEmpty                         string
@@ -334,11 +336,13 @@ var zhConfigUI = ConfigUIStrings{
 	CulpritOpen:        "打开",
 	ApplyFailedRestore: "新配置出错，已恢复旧配置",
 
-	LogsSourceMihomo:  "mihomo",
-	LogsSourceTwinnel: "Twinnel",
-	LogSearch:         "搜索",
-	LogNoMatch:        "没有匹配的条目",
-	EventsEmpty:       "还没有事件",
+	LogsSourceMihomo:     "mihomo",
+	LogsSourceTwinnel:    "Twinnel",
+	LogsSourceHelper:     "后台助手",
+	LogHelperUnavailable: "读不到后台助手的日志",
+	LogSearch:            "搜索",
+	LogNoMatch:           "没有匹配的条目",
+	EventsEmpty:          "还没有事件",
 	EventKinds: map[string]string{
 		"compose.applied":      "应用",
 		"compose.failed":       "应用",
@@ -571,11 +575,13 @@ var enConfigUI = ConfigUIStrings{
 	CulpritOpen:        "Open",
 	ApplyFailedRestore: "The new config failed; the old one was restored",
 
-	LogsSourceMihomo:  "mihomo",
-	LogsSourceTwinnel: "Twinnel",
-	LogSearch:         "Search",
-	LogNoMatch:        "No matching entries",
-	EventsEmpty:       "No events yet",
+	LogsSourceMihomo:     "mihomo",
+	LogsSourceTwinnel:    "Twinnel",
+	LogsSourceHelper:     "Helper",
+	LogHelperUnavailable: "Couldn't read the helper's log",
+	LogSearch:            "Search",
+	LogNoMatch:           "No matching entries",
+	EventsEmpty:          "No events yet",
 	EventKinds: map[string]string{
 		"compose.applied":      "Apply",
 		"compose.failed":       "Apply",
