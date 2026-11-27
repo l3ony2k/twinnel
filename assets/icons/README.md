@@ -104,7 +104,7 @@ picks one, highest priority first):
 
 ## Re-rendering
 
-Needs: a copy of the kubai-line kit outside the repo (`../../icons-kit` here; the kit's licence
+Needs: a copy of the kubai-line kit outside the repo (any path, passed to the script; the kit's licence
 keeps its files and rules out of this repo) with `./twinnel.mjs` registered in `set/index.mjs`,
 the draw-icons skill, Node 18+, Chrome (the kit's checks), Go.
 

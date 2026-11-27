@@ -48,7 +48,7 @@ A shot run is hermetic by construction: `shotGuard` (`cmd/app/shotguard.go`) sto
 Recipe (from the repo root; `S` is a scratch dir outside the repo):
 
 ```sh
-S=../../scratch/shots; TS=$PWD/cmd/app/testdata/shots-tailscale-status.json
+S=${TWINNEL_SCRATCH:-$HOME/.cache/twinnel-dev}/shots; TS=$PWD/cmd/app/testdata/shots-tailscale-status.json
 mkdir -p $S/home $S/state $S/empty $S/out
 go build -o $S/devfake ./cmd/helper/internal/devfake && go build -o $S/twinnel-helper ./cmd/helper && go build -o $S/twinnel-app ./cmd/app
 $S/devfake -listen 127.0.0.1:19894 &                      # fake mihomo controller, invented groups and nodes

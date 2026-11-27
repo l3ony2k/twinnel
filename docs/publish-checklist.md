@@ -4,8 +4,8 @@ Everything here is still to do: no remote exists, nothing has been pushed, and t
 not been rewritten. The numbers come from read-only scans of a mirror clone made on 2026-11-27
 (408 commits, 79 branches). Run them again right before publishing.
 
-`P` below is the private pattern file kept outside the repo (`../../scratch/private-patterns.txt`
-from a worktree). Never print it, commit it, or paste its lines into an issue.
+`P` below is the private pattern file kept outside the repo (`.git/info/private-patterns.txt`,
+or `$TWINNEL_PRIVATE_PATTERNS`). Never print it, commit it, or paste its lines into an issue.
 
 ## 1. Decisions for the owner
 

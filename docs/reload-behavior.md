@@ -55,7 +55,7 @@ The external controller is **not** part of this: `hub.applyRoute` (address, secr
 
 ## Measurements (TUN off, synthetic config, same binary)
 
-Setup (`../../scratch/gentle/`): a second mihomo v1.19.34 run as the user, from `~/mihomo-migration/bin/mihomo`, with `-d scratch/gentle/run`. It has its own ports (mixed 17899, DNS 127.0.0.1:10053, controller 19490), TUN off, fake-ip DNS, DIRECT/REJECT only, and 9 000 or 69 000 synthetic rules. A local echo server is the target. During each reload:
+Setup (a scratch directory outside the repo): a second mihomo v1.19.34 run as the user, from `~/mihomo-migration/bin/mihomo`, with `-d <scratch>/run`. It has its own ports (mixed 17899, DNS 127.0.0.1:10053, controller 19490), TUN off, fake-ip DNS, DIRECT/REJECT only, and 9 000 or 69 000 synthetic rules. A local echo server is the target. During each reload:
 
 - one long-lived TCP connection through the mixed port sent an echo every 20 ms;
 - a DNS query loop hit :10053 every 50 ms;
