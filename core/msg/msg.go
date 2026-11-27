@@ -48,7 +48,7 @@ var patterns = []pattern{
 	{code: "no-active-subscription", re: regexp.MustCompile(`^no active subscription`)},
 	{code: "subscription-empty", re: regexp.MustCompile(`^subscription (\S+) has no content yet`)},
 	{code: "validate-failed", re: regexp.MustCompile(`^mihomo -t rejected the config`)},
-	{code: "refuses-exposed", re: regexp.MustCompile(`^Twinnel refuses (\S+): (\S+) listens beyond this Mac and the controller has no secret`)},
+	{code: "refuses-exposed", re: regexp.MustCompile(`^Twinnel refuses (\S+): (\S+) listens beyond this (?:Mac|machine) and the controller has no secret`)},
 	{code: "refuses-socket", re: regexp.MustCompile(`^Twinnel refuses (\S+): (.+) is outside the config dir (.+) \(mihomo, as root`)},
 	{code: "backup-failed", re: regexp.MustCompile(`^backup: (.*)$`)},
 	{code: "write-failed", re: regexp.MustCompile(`^write (\S+): (.*)$`)},

@@ -41,8 +41,8 @@ the previous order in the result.`,
 		toolOpts{idempotent: true}, s.layerOrder)
 
 	addTool(s, rpc.TierConfigure, "sub_put", "Save subscription",
-		`Creates or changes a subscription: name, URL (http/https; kept in the system keychain and never
-shown again) and update interval in minutes (0: manual). An empty url keeps the stored one. Stored only:
+		`Creates or changes a subscription: name, URL (http/https; kept in the helper's secret store and
+never shown again) and update interval in minutes (0: manual). An empty url keeps the stored one. Stored only:
 refresh_subscription downloads it; apply uses it when it is active.`,
 		toolOpts{idempotent: true, openWorld: true}, s.subPut)
 

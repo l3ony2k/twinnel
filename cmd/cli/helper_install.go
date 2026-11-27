@@ -76,8 +76,8 @@ type installFlags struct {
 func newInstallFlags(name string, withBin bool) (*flag.FlagSet, *installFlags) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	f := &installFlags{}
-	fs.BoolVar(&f.dryRun, "dry-run", false, "print the plan (plist and commands); change nothing")
-	fs.BoolVar(&f.yes, "yes", false, "do not ask for confirmation (the administrator password dialog still appears)")
+	fs.BoolVar(&f.dryRun, "dry-run", false, "print the plan (service definition and commands); change nothing")
+	fs.BoolVar(&f.yes, "yes", false, "do not ask for confirmation (the system's administrator prompt still appears)")
 	fs.BoolVar(&f.asRoot, "as-root", false, "internal: run the plan; only valid as root")
 	fs.Var(&allowSIDs, "allow-sid", "Windows: a user `SID` the helper's pipe allows (repeatable; default: whoever runs this)")
 	fs.StringVar(&f.output, "output", "", "internal (Windows): write the elevated run's output to this `PIPE`")

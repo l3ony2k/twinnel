@@ -199,5 +199,5 @@ var enTexts = texts{
 	evSecretSet:    "set",
 	evSecretEmpty:  "empty",
 	evCtlNoAuth:    "a request without the secret was accepted",
-	fixCtl:         "Bind external-controller to 127.0.0.1 only and set a random secret (the helper makes one and keeps it in the keychain)",
+	fixCtl:         "Bind external-controller to 127.0.0.1 only and set a random secret (the helper makes one and keeps it)",
 }
