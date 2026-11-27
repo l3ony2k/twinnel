@@ -250,7 +250,10 @@ func planSummary(p *takeover.Plan, ps *planState, full bool) rpc.TakeoverPlan {
 	if full {
 		out.Summary = p.Text()
 		if p.SemDiff != nil {
-			out.SemDiff = p.SemDiff.Text(80)
+			out.SemDiff = p.SemDiff.Render(config.TextOptions{Limit: 80})
+			if full := p.SemDiff.Text(200); full != out.SemDiff {
+				out.SemDiffFull = full
+			}
 		}
 	}
 	return out

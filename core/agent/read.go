@@ -79,7 +79,9 @@ groups, rules; node contents are never shown.`,
 	addTool(s, rpc.TierRead, "preview", "Preview compose",
 		`What apply would do now, without doing it: composes the subscription and overrides, validates the
 result with mihomo -t, and returns the semantic diff against the running config, the validation
-errors (and which override causes them) and the reload's impact (e.g. TUN rebuilt).`,
+errors (and which override causes them) and the reload's impact (e.g. TUN rebuilt). The diff starts with
+a one-line summary and the setting changes; shadowed rules that are the same on both sides are folded
+into a count (verbose=true lists them all).`,
 		toolOpts{}, s.preview)
 
 	addTool(s, rpc.TierRead, "takeover_plans", "Takeover plans",
@@ -630,6 +632,7 @@ type historyIn struct {
 	Diff    string `json:"diff,omitempty" jsonschema:"a history id: return its semantic diff against the running config"`
 	Against string `json:"against,omitempty" jsonschema:"with diff: compare against this history id instead of the running config"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"at most this many entries (default 20)"`
+	Verbose bool   `json:"verbose,omitempty" jsonschema:"with diff: list every shadowed or redundant rule, also those the same on both sides"`
 }
 
 func (s *Server) history(c *call, in historyIn) (any, error) {
@@ -638,7 +641,7 @@ func (s *Server) history(c *call, in historyIn) (any, error) {
 		if in.Against != "" {
 			from = rpc.ConfigGetParams{Source: rpc.ConfigHistory, ID: in.Against}
 		}
-		text, err := c.semDiff(from, rpc.ConfigGetParams{Source: rpc.ConfigHistory, ID: in.Diff})
+		text, err := c.semDiff(from, rpc.ConfigGetParams{Source: rpc.ConfigHistory, ID: in.Diff}, in.Verbose)
 		if err != nil {
 			return nil, err
 		}
@@ -660,7 +663,9 @@ func (s *Server) history(c *call, in historyIn) (any, error) {
 
 // semDiff is the semantic diff of two config texts the helper returns.
 // SemanticDiff never renders node contents and redacts settings.
-func (c *call) semDiff(a, b rpc.ConfigGetParams) (string, error) {
+// verbose lists every dead rule; otherwise those both sides share are
+// folded into a count and a few examples.
+func (c *call) semDiff(a, b rpc.ConfigGetParams, verbose bool) (string, error) {
 	var ta, tb rpc.ConfigText
 	if err := c.rpc(rpc.MethodConfigGet, a, &ta); err != nil {
 		return "", fmt.Errorf("%s config: %w", a.Source, err)
@@ -675,7 +680,7 @@ func (c *call) semDiff(a, b rpc.ConfigGetParams) (string, error) {
 	if d.Equivalent() {
 		return "(no difference in behavior)", nil
 	}
-	return d.Text(200), nil
+	return d.Render(config.TextOptions{Limit: 200, Verbose: verbose, More: "verbose=true lists them all"}), nil
 }
 
 // previewOut is compose.preview with the diff against the running config.
@@ -690,14 +695,14 @@ type previewOut struct {
 	Diff           string        `json:"diff"`
 }
 
-func (c *call) previewNow() (*previewOut, error) {
+func (c *call) previewNow(verbose bool) (*previewOut, error) {
 	var r rpc.ComposeResult
 	if err := c.rpc(rpc.MethodComposePreview, nil, &r); err != nil {
 		return nil, err
 	}
 	out := &previewOut{Valid: r.Valid, ValidateErrors: r.ValidateErrors, Culprits: r.Culprits, Changed: r.Changed,
 		Warnings: r.Warnings, Applied: r.Applied, Hash: r.Hash}
-	diff, err := c.semDiff(rpc.ConfigGetParams{Source: rpc.ConfigLive}, rpc.ConfigGetParams{Source: rpc.ConfigPreview})
+	diff, err := c.semDiff(rpc.ConfigGetParams{Source: rpc.ConfigLive}, rpc.ConfigGetParams{Source: rpc.ConfigPreview}, verbose)
 	if err != nil {
 		out.Diff = "(diff unavailable: " + err.Error() + ")"
 	} else {
@@ -706,7 +711,11 @@ func (c *call) previewNow() (*previewOut, error) {
 	return out, nil
 }
 
-func (s *Server) preview(c *call, _ noArgs) (any, error) { return c.previewNow() }
+type previewIn struct {
+	Verbose bool `json:"verbose,omitempty" jsonschema:"list every shadowed or redundant rule, also those the same on both sides"`
+}
+
+func (s *Server) preview(c *call, in previewIn) (any, error) { return c.previewNow(in.Verbose) }
 
 func (s *Server) takeoverPlans(c *call, _ noArgs) (any, error) {
 	var ps []rpc.TakeoverPlan

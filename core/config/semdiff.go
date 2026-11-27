@@ -452,14 +452,114 @@ func diffSubRules(a, b any) []string {
 	return out
 }
 
-// Text renders the diff for people. Proxy and provider contents are never
-// shown; at most limit rule edits and dead rules are listed (0 = 40).
+// Text renders the diff for people, in full. Proxy and provider contents
+// are never shown; at most limit rule edits and dead rules are listed
+// (0 = 40).
 func (d *SemDiff) Text(limit int) string {
+	return d.Render(TextOptions{Limit: limit, Verbose: true})
+}
+
+// TextOptions shape Render.
+type TextOptions struct {
+	// Limit is how many rule edits, settings and dead rules are listed at
+	// most per list (0 = 40).
+	Limit int
+	// Verbose lists the shadowed and redundant rules of both sides in
+	// full. Without it, those that are the same in A and B (a
+	// subscription's own dead rules, which the change does not touch) are
+	// folded into a count and the first Examples of them.
+	Verbose bool
+	// Examples is how many folded dead rules are shown (0 = 5).
+	Examples int
+	// More says how to see everything, e.g. "--verbose lists them all"
+	// (shown after a folded list; "" = nothing).
+	More string
+}
+
+// Headline is the diff in one line: the counts that changed.
+func (d *SemDiff) Headline() string {
+	var parts []string
+	if n := len(d.EffectiveSettings()); n > 0 {
+		parts = append(parts, plural(n, "setting change", "setting changes"))
+	}
+	for _, x := range []struct {
+		name string
+		n    NamedDiff
+	}{{"proxies", d.Proxies}, {"proxy-providers", d.ProxyProviders}, {"proxy-groups", d.ProxyGroups}, {"rule-providers", d.RuleProviders}} {
+		if !x.n.Same() {
+			parts = append(parts, fmt.Sprintf("%s: +%d -%d ~%d", x.name, len(x.n.OnlyB), len(x.n.OnlyA), len(x.n.Changed)))
+		}
+	}
+	switch r := d.Rules; {
+	case !r.Equivalent:
+		parts = append(parts, plural(len(r.Edits), "rule edit", "rule edits"))
+	case r.Reordered:
+		parts = append(parts, "rules reordered within same-target blocks")
+	}
+	if len(d.SubRules) > 0 {
+		parts = append(parts, plural(len(d.SubRules), "sub-rule set differs", "sub-rule sets differ"))
+	}
+	if len(parts) == 0 {
+		return "no change in behavior"
+	}
+	return strings.Join(parts, "; ")
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return fmt.Sprintf("%d %s", n, many)
+}
+
+// splitDead separates the dead rules of A and B into those that are the
+// same on both sides (by line and kind, in A's order) and those only in A
+// or only in B.
+func splitDead(a, b []DeadRule) (common, onlyA, onlyB []DeadRule) {
+	key := func(x DeadRule) string {
+		if x.Redundant {
+			return "r\x00" + x.Rule
+		}
+		return "s\x00" + x.Rule
+	}
+	inB := map[string]int{}
+	for _, x := range b {
+		inB[key(x)]++
+	}
+	inA := map[string]int{}
+	for _, x := range a {
+		if k := key(x); inB[k] > 0 {
+			inB[k]--
+			inA[k]++
+			common = append(common, x)
+		} else {
+			onlyA = append(onlyA, x)
+		}
+	}
+	for _, x := range b {
+		if k := key(x); inA[k] > 0 {
+			inA[k]--
+		} else {
+			onlyB = append(onlyB, x)
+		}
+	}
+	return common, onlyA, onlyB
+}
+
+// Render renders the diff for people (see TextOptions). It starts with
+// the headline and the setting changes; long lists come last.
+func (d *SemDiff) Render(o TextOptions) string {
+	limit := o.Limit
 	if limit <= 0 {
 		limit = 40
 	}
+	examples := o.Examples
+	if examples <= 0 {
+		examples = 5
+	}
 	var w strings.Builder
 	p := func(f string, a ...any) { fmt.Fprintf(&w, f, a...) }
+	p("summary: %s\n", d.Headline())
 	if d.Equivalent() {
 		p("equivalent: yes\n")
 	} else {
@@ -467,7 +567,11 @@ func (d *SemDiff) Text(limit int) string {
 	}
 	eff := d.EffectiveSettings()
 	p("settings: %d effective change(s)\n", len(eff))
-	for _, c := range d.Settings {
+	for i, c := range d.Settings {
+		if i == limit && !o.Verbose {
+			p("  … %d more setting change(s)\n", len(d.Settings)-limit)
+			break
+		}
 		p("  %s\n", c)
 	}
 	named := func(title string, n NamedDiff, showDetails bool) {
@@ -519,10 +623,10 @@ func (d *SemDiff) Text(limit int) string {
 	p("rules: A=%d B=%d, %s\n", r.CountA, r.CountB, state)
 	p("  live rules: A=%d B=%d; exact duplicates: A=%d B=%d; shadowed or redundant: A=%d B=%d\n",
 		r.LiveA, r.LiveB, r.DupA, r.DupB, len(r.DeadA), len(r.DeadB))
-	dead := func(side string, l []DeadRule) {
+	dead := func(side string, l []DeadRule, n int) {
 		for i, x := range l {
-			if i == limit {
-				p("  … %d more shadowed in %s\n", len(l)-limit, side)
+			if i == n {
+				p("  … %d more shadowed or redundant in %s\n", len(l)-n, side)
 				break
 			}
 			how := "shadowed"
@@ -532,8 +636,30 @@ func (d *SemDiff) Text(limit int) string {
 			p("  %s in %s: #%d %s (covered by #%d)\n", how, side, x.Index+1, x.Rule, x.CoveredBy+1)
 		}
 	}
-	dead("A", r.DeadA)
-	dead("B", r.DeadB)
+	if o.Verbose {
+		dead("A", r.DeadA, limit)
+		dead("B", r.DeadB, limit)
+	} else {
+		common, onlyA, onlyB := splitDead(r.DeadA, r.DeadB)
+		dead("A only", onlyA, limit)
+		dead("B only", onlyB, limit)
+		if len(common) > 0 {
+			p("  shadowed or redundant in both A and B: %d (unchanged)", len(common))
+			if len(common) > examples {
+				p(", the first %d", examples)
+			}
+			p(":\n")
+			for i, x := range common {
+				if i == examples {
+					break
+				}
+				p("    #%d %s (covered by #%d)\n", x.Index+1, x.Rule, x.CoveredBy+1)
+			}
+			if len(common) > examples && o.More != "" {
+				p("    (%s)\n", o.More)
+			}
+		}
+	}
 	for i, e := range r.Edits {
 		if i == limit {
 			p("  … %d more edits\n", len(r.Edits)-limit)

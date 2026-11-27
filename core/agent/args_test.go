@@ -43,3 +43,16 @@ func TestFriendlyArgErrors(t *testing.T) {
 	// A correct call still works, with the omitted optional arguments.
 	e.ok("set_mode", map[string]any{"mode": "global"})
 }
+
+// preview's diff starts with the summary; verbose is accepted.
+func TestPreviewDiffSummary(t *testing.T) {
+	e := newEnv(t, nil)
+	e.setAgent(rpc.AgentSettings{MCP: true})
+	for _, args := range []map[string]any{nil, {"verbose": true}} {
+		m := e.ok("preview", args)
+		diff, _ := m["diff"].(string)
+		if !strings.HasPrefix(diff, "summary: ") || !strings.Contains(diff, "example.org") {
+			t.Fatalf("preview(%v) diff = %q", args, diff)
+		}
+	}
+}

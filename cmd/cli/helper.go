@@ -16,6 +16,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/config"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/store"
 )
@@ -211,16 +212,19 @@ func orNone(s string) string {
 
 func runComposeHelper(args []string) error {
 	fs, cf := newFlagSet("compose", `usage: twinnel compose --apply [--reason TEXT] [--force]
-       twinnel compose --preview
+       twinnel compose --preview [--verbose]
 
 --apply asks the helper to compose its subscription and layers, check the
 result with mihomo -t, back up the current config, write it and reload
 mihomo; any failure keeps the running config. --preview only composes and
-checks.
+checks, and prints what would change against the running config: a summary
+and the setting changes first; shadowed rules that are the same in both are
+folded into a count (--verbose lists them all).
 
 `)
-	var apply, preview, force bool
+	var apply, preview, force, verbose bool
 	var reason string
+	fs.BoolVar(&verbose, "verbose", false, "with --preview: list every shadowed or redundant rule in the diff")
 	fs.BoolVar(&apply, "apply", false, "compose, check, write and reload through the helper")
 	fs.BoolVar(&preview, "preview", false, "compose and check through the helper; write nothing")
 	fs.BoolVar(&force, "force", false, "reload even if the config did not change")
@@ -234,7 +238,10 @@ checks.
 	}
 	if preview {
 		var r rpc.ComposeResult
-		return cf.callPrint(rpc.MethodComposePreview, nil, &r, func() { printCompose(os.Stdout, r) })
+		return cf.callPrint(rpc.MethodComposePreview, nil, &r, func() {
+			printCompose(stdout, r)
+			printPreviewDiff(stdout, cf, verbose)
+		})
 	}
 	var r rpc.ApplyResult
 	p := rpc.ApplyParams{Reason: reason, Force: force}
@@ -252,6 +259,25 @@ checks.
 	}
 	printApply(os.Stdout, r)
 	return nil
+}
+
+// printPreviewDiff prints the semantic diff of the running config and the
+// preview (config.get of both; nothing is written).
+func printPreviewDiff(w io.Writer, cf *clientFlags, verbose bool) {
+	var live, next rpc.ConfigText
+	err := cf.call(rpc.MethodConfigGet, rpc.ConfigGetParams{Source: rpc.ConfigLive}, &live)
+	if err == nil {
+		err = cf.call(rpc.MethodConfigGet, rpc.ConfigGetParams{Source: rpc.ConfigPreview}, &next)
+	}
+	var d *config.SemDiff
+	if err == nil {
+		d, err = config.SemanticDiff([]byte(live.Content), []byte(next.Content))
+	}
+	if err != nil {
+		fmt.Fprintf(w, "\ndiff unavailable: %v\n", err)
+		return
+	}
+	fmt.Fprint(w, "\n"+d.Render(config.TextOptions{Limit: 200, Verbose: verbose, More: "--verbose lists them all"}))
 }
 
 func printCompose(w io.Writer, r rpc.ComposeResult) {
