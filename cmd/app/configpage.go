@@ -82,6 +82,17 @@ type configView struct {
 	applied *rpc.ApplyResult
 	diff    *editor.DiffState
 	diffErr string
+	prevErr string // the last preview's failure, shown in the apply card
+
+	// What each layer row marks, made once a frame (rowMarks): changed
+	// since the running config, or named by the last failed apply.
+	pendingIDs, failedIDs map[string]bool
+
+	// undo puts back what the last reversible action changed, while its
+	// toast shows (undo.go); toastUndo is that toast, waiting for the
+	// page's next frame.
+	undo      *undoState
+	toastUndo *undoToast
 }
 
 type lintKey struct {
@@ -94,6 +105,48 @@ func yamlBuffer(text string) *editor.Buffer {
 	b := editor.NewBuffer(text)
 	b.SetLanguage(editor.LanguageFor("config.yaml"))
 	return b
+}
+
+// codeThemes caches codeTheme by the muted color it was made with.
+var codeThemes = map[ui.Color]*editor.Theme{}
+
+// codeTheme is the theme of every editor and diff view: MyGo's, with
+// YAML's punctuation (a list's "-", a key's ":", "|", ">") in the muted
+// text color instead of red. In a diff red and green mean removed and
+// added, nothing else (kubai R-3). Set it on each frame: the appearance
+// can change while a view is open.
+func codeTheme(t *ui.Theme) *editor.Theme {
+	if ct, ok := codeThemes[t.TextMuted]; ok {
+		return ct
+	}
+	ct := &editor.Theme{}
+	ct.Tokens[editor.TokenOperator].Color = t.TextMuted
+	ct.Tokens[editor.TokenPunctuation].Color = t.TextMuted
+	codeThemes[t.TextMuted] = ct
+	return ct
+}
+
+// codeView is an editor in duet's code theme.
+func codeView(c *ui.Context, st *editor.State) ui.Element {
+	st.Theme = codeTheme(c.Theme())
+	return editor.View(c, st)
+}
+
+// diffView is a diff in duet's code theme.
+func diffView(c *ui.Context, d *editor.DiffState) ui.Element {
+	d.Theme = codeTheme(c.Theme())
+	return editor.DiffView(c, d)
+}
+
+// codeLineH is the editor's line height: 13 pt at 1.5.
+const codeLineH = 19.5
+
+// editorHeight is a layer editor's height for its lines: as tall as the
+// text plus a line to type into, between 120 and 320, so a short
+// override does not sit in an empty box (kubai R-22, unslop R-4). It
+// grows while the person types.
+func editorHeight(lines int) float32 {
+	return min(max(float32(lines+1)*codeLineH+16, 120), 320)
 }
 
 func (a *app) configPage(c *ui.Context, s status.Snapshot) {
@@ -110,6 +163,8 @@ func (a *app) configPage(c *ui.Context, s status.Snapshot) {
 		a.configEmpty(c, s)
 		return
 	}
+	a.rowMarks()
+	a.flushUndoToast(c)
 	// The page reads as the compose stack: where it stands against what
 	// mihomo runs, then the subscription, your overrides, and duet's.
 	a.applyCard(c, s)
@@ -280,12 +335,14 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 			fetched += " · " + status.Bytes(int64(sub.Size))
 		case sub.Size > 0:
 			fetched = status.Bytes(int64(sub.Size))
+		case !sub.HasURL: // a local file is never downloaded (R-unslop-29)
+			fetched = T.SubNoContent
 		default:
 			fetched = T.SubNeverFetched
 		}
 		num(small(c, fetched).SingleLine().Shrink(1).Tooltip(fetched))
 		if sub.LastError != "" {
-			errorNote(c, T.ErrorPrefix+sub.LastError)
+			errorNote(c, T.ErrorText(sub.LastError))
 		}
 	})
 }
@@ -529,16 +586,15 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 	// Edge to edge in the list (it clips to animate its height), so the
 	// head's fill spans the row (rowFill); head and body pad back in.
 	col := ui.Column(c).Transition(rowMotion).Clip().MarginX(-groupPadX)
+	dropAt := 0 // 1: the drop line above the row, 2: under it
 	if at >= 0 && w {
 		// A drop on this row puts the dragged layer at its place: the line
 		// shows above when it comes from below, under when from above.
 		if d, over := ui.DragOver[layerDrag](col); over && string(d) != l.ID {
-			from := slices.Index(ids, string(d))
-			edge := []float32{2, 0, 0, 0}
-			if from >= 0 && from < at {
-				edge = []float32{0, 0, 2, 0}
+			dropAt = 1
+			if from := slices.Index(ids, string(d)); from >= 0 && from < at {
+				dropAt = 2
 			}
-			col.BorderWidth(edge[0], edge[1], edge[2], edge[3]).BorderColor(t.Accent)
 		}
 		if d, ok := ui.Drop[layerDrag](col); ok && string(d) != l.ID {
 			if next, ok := dropLayer(ids, string(d), at); ok {
@@ -548,6 +604,9 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 	}
 	title := layerTitle(l)
 	col.Children(func() {
+		if dropAt != 0 {
+			dropLine(c, t, dropAt == 2)
+		}
 		// Open is not selected: the chevron turns and the body shows; the
 		// row takes no fill (never the accent, AGENTS.md).
 		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(layerRowH).
@@ -578,6 +637,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 					m.Tooltip(status.Bytes(int64(l.Size)))
 				}
 			})
+			a.layerMark(c, l.ID)
 			a.layerSwitch(c, l, w)
 		})
 		if head.Clicked() {
@@ -594,6 +654,78 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 				a.layerEditor(c.Key("editor"), s, w)
 			}
 		}
+	})
+}
+
+// rowMarks finds the layers a row marks: those that differ from what
+// mihomo runs while the composed config does (the names the apply card
+// lists), and those the last failed apply names.
+func (a *app) rowMarks() {
+	d := &a.hd
+	v := &d.cfg
+	v.pendingIDs, v.failedIDs = nil, nil
+	if d.unapplied && driftOf(d) == nil {
+		if last := lastApplied(d.history); last != nil {
+			ch, _ := pendingChanges(last.Layers, d.layers, d.settings, a.activeSubscription())
+			for _, c := range ch {
+				if !c.removed {
+					if v.pendingIDs == nil {
+						v.pendingIDs = map[string]bool{}
+					}
+					v.pendingIDs[c.id] = true
+				}
+			}
+		}
+	}
+	if r := v.applied; r != nil && r.Error != "" {
+		for _, cu := range r.Culprits {
+			if cu.Layer != "" {
+				if v.failedIDs == nil {
+					v.failedIDs = map[string]bool{}
+				}
+				v.failedIDs[cu.Layer] = true
+			}
+		}
+	}
+}
+
+// layerMark is a row's mark before its switch: the switch changes the
+// composed config at once, but mihomo runs it only after 应用, so a
+// changed row says 未应用 with the accent dot the apply card uses; a row
+// the last apply failed on says so in the error color (kubai R-9). The
+// mark fades out when the change is applied.
+func (a *app) layerMark(c *ui.Context, id string) {
+	t := c.Theme()
+	T := i18n.T
+	v := &a.hd.cfg
+	switch {
+	case v.failedIDs[id]:
+		ui.Row(c.Key("mark-failed")).Gap(4).AlignItems(ui.Center).Shrink(0).Transition(fadeMotion).Children(func() {
+			ui.Icon(c, iconError).FontSize(iconSmall).TextColor(t.Danger)
+			ui.Text(c, T.RowApplyFailed).FontSize(plat.smallSize).TextColor(pal(t).badText).SingleLine()
+		})
+	case v.pendingIDs[id]:
+		ui.Row(c.Key("mark-pending")).Gap(6).AlignItems(ui.Center).Shrink(0).Transition(fadeMotion).Children(func() {
+			dot(c, t.Accent, 6)
+			ui.Text(c, T.RowUnapplied).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine()
+		})
+	}
+}
+
+// dropLine is where a dragged override will land, as NSTableView draws
+// it: a 2 pt accent line with a ring at its leading end, over the row's
+// edge, so nothing moves while it shows (kubai R-21).
+func dropLine(c *ui.Context, t *ui.Theme, below bool) {
+	line := ui.Row(c.Key("drop")).Absolute().Left(groupPadX - 4).Right(groupPadX).Height(6).
+		AlignItems(ui.Center).PassThrough().AccessHidden(true).Transition(fadeMotion)
+	if below {
+		line.Bottom(0)
+	} else {
+		line.Top(0)
+	}
+	line.Children(func() {
+		ui.Box(c).Size(6, 6).Radius(3).Border(1.5, t.Accent).Shrink(0)
+		ui.Box(c).Height(2).Radius(1).Background(t.Accent).Grow(1)
 	})
 }
 
@@ -706,7 +838,7 @@ func (a *app) layerMenu(c *ui.Context, m *ui.Menu, l rpc.Layer, ids []string, w 
 	}
 	if _, ok := a.revertable(l); ok {
 		m.Separator()
-		if m.Item(T.LayerRevert + "…").Disabled(!w).Chosen() {
+		if m.Item(T.LayerRevert).Disabled(!w).Chosen() {
 			a.revertLayer(l)
 		}
 	}
@@ -716,7 +848,7 @@ func (a *app) layerMenu(c *ui.Context, m *ui.Menu, l rpc.Layer, ids []string, w 
 	}
 	if !l.Managed {
 		m.Separator()
-		if m.Item(T.Remove + "…").Danger().Disabled(!w).Chosen() {
+		if m.Item(T.Remove).Danger().Disabled(!w).Chosen() {
 			a.removeLayer(l.ID, layerTitle(l))
 		}
 	}
@@ -836,7 +968,7 @@ func (a *app) loadLayerContent(id string) {
 			}
 			v.loading = false
 			if err != nil {
-				a.hd.msg, a.hd.msgErr = i18n.Cur().ErrorPrefix+helperError(err), true
+				a.hd.msg, a.hd.msgErr = helperError(err), true
 				a.invalidate()
 				return
 			}
@@ -930,19 +1062,28 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 					})
 				}
 				ui.Column(c).Gap(4).Children(func() {
-					ui.Text(c, T.LayerFormat).FontSize(plat.calloutSize).TextColor(t.TextMuted)
-					ui.Segmented(c.Key("ed-format"), &v.edFormat, T.FormatMerge, T.FormatVerge)
+					// The labels name the apps; the syntax each means is
+					// in the ⓘ (kubai R-22).
+					ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, T.LayerFormat).FontSize(plat.calloutSize).TextColor(t.TextMuted)
+						infoTip(c, T.LayerFormat, T.LayerFormatInfo, nil)
+					})
+					ui.Segmented(c.Key("ed-format"), &v.edFormat, T.FormatPartyName, T.FormatVergeName)
 				})
 			})
 		}
 		if v.ed == nil {
 			// Hold the editor's height while it loads, so the page does
 			// not jump when the text comes (review-b 017 #6).
-			a.loadingBox(c, "layer-editor", 320)
+			a.loadingBox(c, "layer-editor", 120)
 			return
 		}
-		codeFrame(c, 320, func() { editor.View(c.Key("ed:"+v.sel), v.ed).Grow(1) })
-		blocked := a.lintNotes(c)
+		// The notes' lines are marked in the editor itself: a dot in the
+		// gutter and a tinted row (kubai R-14).
+		notes, blocked := a.layerNotes()
+		markNoteLines(t, v.ed, notes)
+		codeFrame(c, editorHeight(v.ed.Buffer.LineCount()), func() { codeView(c.Key("ed:"+v.sel), v.ed).Grow(1) })
+		a.drawLintNotes(c, notes)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			id := strings.TrimSpace(v.edID)
 			// An error-level note means the helper would refuse the save:
@@ -955,12 +1096,17 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 				a.saveLayer()
 			}
 			if v.ed.Buffer.Modified() {
-				ui.Text(c, T.Unsaved).FontSize(plat.calloutSize).TextColor(pal(t).warnText)
+				// A state, not a problem: the accent dot of every change
+				// not yet in effect (kubai R-14, R-9).
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Transition(fadeMotion).Children(func() {
+					dot(c, t.Accent, 6)
+					ui.Text(c, T.Unsaved).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine()
+				})
 			}
 			ui.Spacer(c)
 			if !v.isNew {
 				if i := indexLayer(a.hd.layers, v.sel); i >= 0 {
-					if _, ok := a.revertable(a.hd.layers[i]); ok && pushButton(c.Key("ed-revert"), T.LayerRevert+"…").Disabled(!w).Clicked() {
+					if _, ok := a.revertable(a.hd.layers[i]); ok && pushButton(c.Key("ed-revert"), T.LayerRevert).Disabled(!w).Clicked() {
 						a.revertLayer(a.hd.layers[i])
 					}
 				}
@@ -1023,7 +1169,7 @@ func (a *app) managedBody(c *ui.Context, l rpc.Layer, s status.Snapshot, w bool)
 			a.loadingBox(c, "managed-gen", 120)
 			return
 		}
-		codeFrame(c, generatedHeight(v.ed.Buffer.String()), func() { editor.View(c.Key("gen:"+v.sel), v.ed).Grow(1) })
+		codeFrame(c, generatedHeight(v.ed.Buffer.String()), func() { codeView(c.Key("gen:"+v.sel), v.ed).Grow(1) })
 	})
 }
 
@@ -1108,7 +1254,7 @@ func (a *app) setGuardGroups(groups []string) {
 // at the editor's 13 × 1.5, plus its insets, at most 360.
 func generatedHeight(text string) float32 {
 	lines := strings.Count(strings.TrimRight(text, "\n"), "\n") + 1
-	return min(float32(lines)*19.5+16, 360)
+	return min(float32(lines)*codeLineH+16, 360)
 }
 
 // generatedText is a managed layer's YAML as shown: duet's header
@@ -1122,27 +1268,24 @@ func generatedText(content string) string {
 	return strings.Join(lines[i:], "\n")
 }
 
-// removeLayer asks, then deletes a stored layer; its content is gone for
-// good, which the question says.
+// removeLayer deletes a stored layer at once; its toast offers 撤销,
+// which writes it back with its text (kubai R-8).
 func (a *app) removeLayer(id, name string) {
 	T := i18n.T
 	v := &a.hd.cfg
-	a.confirm(fmt.Sprintf(T.LayerRemoveTitle, name), T.LayerRemoveDetail, T.Remove, func() {
-		a.helperOp(T.Remove+" "+id, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
-			return hc.Call(ctx, rpc.MethodLayerDelete, rpc.IDParams{ID: id}, nil)
-		}, func(err error) {
-			if err == nil && v.sel == id {
-				v.sel, v.ed = "", nil
-			}
-		})
+	a.reversibleOp(T.Remove+" "+id, i18n.F(T.DoneLayerDeleted, name), func(ctx context.Context, hc *status.HelperConn) error {
+		return hc.Call(ctx, rpc.MethodLayerDelete, rpc.IDParams{ID: id}, nil)
+	}, func(err error) {
+		if err == nil && v.sel == id {
+			v.sel, v.ed = "", nil
+		}
 	})
 }
 
-// lintNotes shows the merge-directive notes of the edited layer, and the
-// helper's refusal of the last save at its line; it reports whether one
-// of them is an error (the save is then held back).
-func (a *app) lintNotes(c *ui.Context) (blocked bool) {
-	t := c.Theme()
+// layerNotes are the edited layer's notes: the helper's refusal of the
+// last save first (at its line when it has one), then the merge-directive
+// notes; blocked reports an error among them (the save then waits).
+func (a *app) layerNotes() (notes []status.LintNote, blocked bool) {
 	v := &a.hd.cfg
 	key := lintKey{v.ed.Buffer, v.ed.Buffer.Version(), v.edFormat}
 	if key != v.lintKey {
@@ -1151,7 +1294,7 @@ func (a *app) lintNotes(c *ui.Context) (blocked bool) {
 			v.lint = status.LintOverride(v.ed.Buffer.String())
 		}
 	}
-	notes := v.lint
+	notes = v.lint
 	if m := v.saveErr; m != nil && v.saveErrBuf == v.ed.Buffer.Version() {
 		text, raw := i18n.T.MsgText(*m, false)
 		if raw {
@@ -1165,28 +1308,69 @@ func (a *app) lintNotes(c *ui.Context) (blocked bool) {
 			blocked = true
 		}
 	}
+	return notes, blocked
+}
+
+// noteLook is a note's glyph and color: an error in the danger color, a
+// likely mistake in the warning one, a reminder of what a key does as
+// information, muted (not the minus that means "skipped" elsewhere,
+// unslop R-19).
+func noteLook(t *ui.Theme, l status.Level) (*ui.SVG, ui.Color, ui.Color) {
+	switch l {
+	case status.LevelError:
+		return iconError, t.Danger, pal(t).badText
+	case status.LevelWarn:
+		return iconWarning, t.Warning, pal(t).warnText
+	}
+	return iconAbout, t.TextMuted, t.TextMuted
+}
+
+// markNoteLines marks the lines the warnings and errors name in the
+// editor: a dot of the note's color in the gutter and a light tint on
+// the row, so the note under the editor and its line read as one (kubai
+// R-14). Reminders stay unmarked.
+func markNoteLines(t *ui.Theme, st *editor.State, notes []status.LintNote) {
+	st.GutterMarks, st.LineBackgrounds = nil, nil
+	n := st.Buffer.LineCount()
+	for _, note := range notes {
+		if note.Line < 1 || note.Line > n || note.Level < status.LevelWarn {
+			continue
+		}
+		_, col, _ := noteLook(t, note.Level)
+		st.GutterMarks = append(st.GutterMarks, editor.GutterMark{Line: note.Line - 1, Color: col})
+		st.LineBackgrounds = append(st.LineBackgrounds, editor.LineBackground{First: note.Line - 1, Last: note.Line - 1, Color: col.Alpha(0.1)})
+	}
+}
+
+// drawLintNotes draws the notes under the editor. A note with a line is
+// a button that puts the caret on it.
+func (a *app) drawLintNotes(c *ui.Context, notes []status.LintNote) {
+	t := c.Theme()
+	T := i18n.T
+	v := &a.hd.cfg
 	for i, n := range notes {
 		if i == 8 {
 			ui.Textf(c, "… +%d", len(notes)-8).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 			break
 		}
-		col, icon := t.TextMuted, iconSkip
-		switch n.Level {
-		case status.LevelWarn:
-			col, icon = t.Warning, iconWarning
-		case status.LevelError:
-			col, icon = t.Danger, iconError
+		icon, icol, tcol := noteLook(t, n.Level)
+		text := n.Text
+		if n.Line > 0 {
+			text = fmt.Sprintf(T.LintLine, n.Line) + text
 		}
-		ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-			ui.Icon(c, icon).FontSize(iconInline).TextColor(col).MarginY(1)
-			text := n.Text
-			if n.Line > 0 {
-				text = fmt.Sprintf(i18n.T.LintLine, n.Line) + text
+		row := ui.Row(c.Key(fmt.Sprint("note", i))).Gap(8).AlignItems(ui.Start)
+		if n.Line > 0 && v.ed != nil {
+			label := fmt.Sprintf(T.LintGoTo, n.Line)
+			row.Focusable().Role(ui.RoleButton).Label(label + T.LabelSep + n.Text).Tooltip(label)
+			if row.Clicked() {
+				v.ed.GoTo(editor.Pos{Line: n.Line - 1})
 			}
-			ui.Text(c, text).FontSize(plat.calloutSize).TextColor(col).Grow(1).Wrap().LineHeight(lineText).Selectable()
+		}
+		row.Children(func() {
+			ui.Icon(c, icon).FontSize(iconInline).TextColor(icol).MarginY(1)
+			ui.Text(c, text).FontSize(plat.calloutSize).TextColor(tcol).Grow(1).Wrap().LineHeight(lineText)
 		})
 	}
-	return blocked
 }
 
 // layerIDFor derives a new override's ID from its name: lower-case ASCII
@@ -1247,7 +1431,7 @@ func (a *app) saveLayer() {
 	}, func(err error) {
 		if err != nil {
 			// The refusal belongs to the editor, at its line (U35).
-			m := errorMsg(helperError(err), nil)
+			m := helperMsg(err)
 			v.saveErr, v.saveErrBuf = &m, ver
 			a.hd.msg, a.hd.msgErr = "", false
 			return
@@ -1271,7 +1455,7 @@ func (a *app) applyCard(c *ui.Context, s status.Snapshot) {
 	d := &a.hd
 	v := &d.cfg
 	dr := driftOf(d)
-	if dr == nil && a.activeSubscription() == "" && v.preview == nil && v.applied == nil {
+	if dr == nil && a.activeSubscription() == "" && v.preview == nil && v.applied == nil && v.prevErr == "" {
 		return // nothing composes yet: the subscription card says what is missing
 	}
 	t := c.Theme()
@@ -1293,8 +1477,8 @@ func (a *app) applyCard(c *ui.Context, s status.Snapshot) {
 				dot(c, t.Accent, 8).Shrink(0)
 				ui.Text(c, text).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
 				if last != nil && last.Layers != nil && (len(ch) > 0 || sub) &&
-					pushButton(c.Key("discard"), T.Discard+"…").Disabled(!w || busy).Clicked() {
-					a.discardChanges(*last, ch)
+					pushButton(c.Key("discard"), T.Discard).Disabled(!w || busy).Clicked() {
+					a.discardChanges(*last)
 				}
 			case d.unappliedErr:
 				ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText).Shrink(0)
@@ -1304,17 +1488,26 @@ func (a *app) applyCard(c *ui.Context, s status.Snapshot) {
 				ui.Text(c, T.StateInSync).TextColor(t.TextMuted).Grow(1).Shrink(1).SingleLine()
 			}
 			work := d.unapplied || d.unappliedErr
-			if work || v.preview != nil {
-				label := T.Preview
-				if v.preview != nil {
-					label = T.PreviewHide
-				}
-				if a.opButton(c.Key("preview"), iconPreview, label, false, T.Preview).Disabled(!s.Helper.Connected() || busy).Clicked() {
-					if v.preview != nil {
-						v.preview, v.diff, v.diffErr = nil, nil, ""
-					} else {
-						a.runPreview(s)
-					}
+			if !work && v.preview != nil && v.diff != nil {
+				// The last change went away: nothing left to preview.
+				v.preview, v.diff, v.diffErr = nil, nil, ""
+			}
+			// With nothing to apply there is nothing to preview: 预览 waits
+			// as 应用 does, the state says why (kubai R-13).
+			open := v.preview != nil || v.prevErr != ""
+			label := T.Preview
+			if open {
+				label = T.PreviewHide
+			}
+			pv := a.opButton(c.Key("preview"), iconPreview, label, false, T.Preview).Disabled(!s.Helper.Connected() || busy || (!work && !open))
+			if !work && !open {
+				pv.Tooltip(T.StateInSync)
+			}
+			if pv.Clicked() {
+				if open {
+					v.preview, v.diff, v.diffErr, v.prevErr = nil, nil, "", ""
+				} else {
+					a.runPreview(s)
 				}
 			}
 			ap := a.opButton(c.Key("apply"), iconOK, T.Apply, work, T.Apply).Disabled(!w || !work)
@@ -1325,7 +1518,7 @@ func (a *app) applyCard(c *ui.Context, s status.Snapshot) {
 				a.runApply()
 			}
 		})
-		if v.preview != nil || v.diffErr != "" || v.diff != nil {
+		if v.preview != nil || v.diffErr != "" || v.diff != nil || v.prevErr != "" {
 			ui.Divider(c)
 			a.previewBody(c)
 		}
@@ -1343,6 +1536,11 @@ func (a *app) previewBody(c *ui.Context) {
 	t := c.Theme()
 	T := i18n.T
 	v := &a.hd.cfg
+	if v.prevErr != "" {
+		// A preview that could not run says so here, under the button
+		// that ran it, not at the top of the page (unslop R-22).
+		errorNote(c, v.prevErr)
+	}
 	if p := v.preview; p != nil {
 		if !p.Valid {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -1359,14 +1557,22 @@ func (a *app) previewBody(c *ui.Context) {
 	if v.diffErr != "" {
 		ui.Text(c, v.diffErr).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 	}
+	same := false
 	if v.diff != nil {
 		add, del := v.diff.Stats()
-		num(ui.Text(c, fmt.Sprintf(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted))
-		if add+del > 0 {
-			codeFrame(c, 380, func() { editor.DiffView(c.Key("preview-diff"), v.diff).Grow(1) })
+		if same = add+del == 0; same {
+			// Nothing would change: say so, without an empty diff or a
+			// 说明 to fill (kubai R-13).
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.TextMuted)
+				ui.Text(c, T.StateInSync).TextColor(t.TextMuted)
+			})
+		} else {
+			num(ui.Text(c, i18n.F(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted))
+			codeFrame(c, 380, func() { diffView(c.Key("preview-diff"), v.diff).Grow(1) })
 		}
 	}
-	if v.preview != nil {
+	if v.preview != nil && !same {
 		ui.Column(c).Gap(4).Children(func() {
 			ui.Text(c, T.ApplyReason).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 			ui.TextInput(c.Key("reason"), &v.reason).Label(T.ApplyReason).Placeholder(T.ReasonOptional)
@@ -1428,8 +1634,15 @@ func (a *app) applySummary(c *ui.Context, r rpc.ApplyResult) {
 		col, head = t.TextMuted, T.ApplyUnchanged
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		dot(c, col, 8)
-		ui.Text(c, head).FontWeight(600)
+		// One mark for the outcome (unslop R-23): a dot when it went
+		// through, a hollow ring when it failed; the reason under it
+		// says why, in the normal text color.
+		if r.Error != "" {
+			ui.Box(c).Size(8, 8).Radius(4).Border(1.5, col).Shrink(0)
+		} else {
+			dot(c, col, 8)
+		}
+		ui.Text(c, head).FontWeight(500)
 		if r.Error == "" && r.Impact != nil {
 			text := T.ImpactGentle
 			if r.Impact.Disruptive {
@@ -1451,13 +1664,33 @@ func (a *app) applySummary(c *ui.Context, r rpc.ApplyResult) {
 	if r.Error != "" {
 		// What failed, in words (U53); mihomo -t's own lines under it.
 		m := errorMsg(r.Error, r.ErrorMsg)
+		reasonLine(c.Key("aerr"), m)
 		if r.RolledBack && m.Code != "reload-failed" && m.Code != "verify-failed" { // those say it themselves
-			small(c, T.ApplyFailedRestore)
+			small(c, T.ApplyFailedRestore).Margin(0, 0, 0, 16)
 		}
-		msgNote(c.Key("aerr"), m, false)
 		a.culpritNotes(c, r.Culprits)
 		validateErrors(c, r.ValidateErrors)
 	}
+}
+
+// reasonLine is a failure's reason under its mark: the message in the
+// UI language, in the normal text color (the mark already says it
+// failed), indented to the head's text; the helper's own words stay in
+// the tooltip and 复制原文.
+func reasonLine(c *ui.Context, m rpc.Msg) ui.Element {
+	text, raw := i18n.T.MsgText(m, false)
+	el := ui.Text(c, text).FontSize(plat.calloutSize).Wrap().LineHeight(lineText).Selectable().Margin(0, 0, 0, 16)
+	if raw && m.Text != "" {
+		el.Tooltip(m.Text)
+	}
+	if m.Text != "" {
+		el.ContextMenu(func(menu *ui.Menu) {
+			if menu.Item(i18n.T.MsgCopyRaw).Chosen() {
+				copyText(c, m.Text)
+			}
+		})
+	}
+	return el
 }
 
 // showHistoryEntry opens 历史 with an entry chosen.
@@ -1537,9 +1770,10 @@ func (a *app) runPreview(s status.Snapshot) {
 		return nil
 	}, func(err error) {
 		v := &a.hd.cfg
-		v.diff, v.diffErr = nil, ""
+		v.diff, v.diffErr, v.prevErr = nil, "", ""
 		if err != nil {
 			v.preview = nil
+			v.prevErr, a.hd.msg, a.hd.msgErr = a.hd.msg, "", false // shown in the apply card
 			return
 		}
 		v.preview = &res

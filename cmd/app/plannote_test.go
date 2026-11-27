@@ -11,7 +11,7 @@ import (
 func TestPlanNote(t *testing.T) {
 	T := i18n.T
 	a := &app{}
-	if got := a.planNote(); got != T.TkPlanNote {
+	if got := a.planNote(); got != "" {
 		t.Fatalf("idle: %q", got)
 	}
 	a.hd.planTick = true // no redraw timer in a test
@@ -25,7 +25,7 @@ func TestPlanNote(t *testing.T) {
 		t.Fatalf("after 5 s: %q", got)
 	}
 	a.hd.busy = T.TakeoverOpen // another operation: the plain note
-	if got := a.planNote(); got != T.TkPlanNote {
+	if got := a.planNote(); got != "" {
 		t.Fatalf("other op: %q", got)
 	}
 }

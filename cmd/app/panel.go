@@ -218,7 +218,7 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 	// overview and the health page show the same.
 	n, lvl := s.HealthBadge()
 	_, fail := s.Health.Counts()
-	icon, col, text := iconWarning, t.Warning, fmt.Sprintf(T.PanelHealthWarn, n)
+	icon, col, text := iconWarning, t.Warning, i18n.F(T.PanelHealthWarn, n)
 	if fail > 0 {
 		icon, col, text = iconError, levelColor(t, lvl), fmt.Sprintf(T.PanelHealthFail, n)
 		if lvl == status.LevelWarn {

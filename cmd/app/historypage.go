@@ -165,9 +165,12 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		}
 		if v.diff != nil && v.diffID == entry.ID {
 			add, del := v.diff.Stats()
-			ui.Text(c, T.HistoryDiffHint+" · "+fmt.Sprintf(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted)
-			if add+del > 0 {
-				codeFrame(c, 380, func() { editor.DiffView(c.Key("hist-diff-view"), v.diff).Grow(1) })
+			if add+del == 0 {
+				// The same config as mihomo runs: no empty diff (kubai R-13).
+				ui.Text(c, T.StateInSync).FontSize(plat.calloutSize).TextColor(t.TextMuted)
+			} else {
+				ui.Text(c, T.HistoryDiffHint+" · "+i18n.F(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted)
+				codeFrame(c, 380, func() { diffView(c.Key("hist-diff-view"), v.diff).Grow(1) })
 			}
 		}
 		if r := v.result; r != nil {
@@ -217,7 +220,9 @@ func (a *app) historyRollback(e rpc.HistoryEntry) {
 	if lines := rollbackEffects(e.Layers, a.hd.layers); len(lines) > 0 {
 		body += "\n\n" + strings.Join(lines, "\n")
 	}
-	a.confirm(fmt.Sprintf(T.HistoryRollbackTitle, when), body, T.HistoryRollback, func() {
+	// A rollback is itself a history entry (it can be rolled forward
+	// again), but it changes what mihomo runs: asked, not destructive.
+	a.ask(fmt.Sprintf(T.HistoryRollbackTitle, when), body, T.HistoryRollback, func() {
 		a.historyRollbackNow(e)
 	})
 }

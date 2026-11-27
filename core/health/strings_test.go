@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 	"unicode"
@@ -81,6 +82,38 @@ func TestTextsForEveryUILanguage(t *testing.T) {
 	for _, l := range i18n.Langs() {
 		if textTables[l.Tag] == nil {
 			t.Errorf("no health texts for %s", l.Tag)
+		}
+	}
+}
+
+// The Chinese checks use the UI's terms (docs/i18n-glossary.md): 出口节点,
+// 密钥, 后台助手, never the English words (R-unslop-24).
+func TestChineseUsesGlossaryTerms(t *testing.T) {
+	v := reflect.ValueOf(zhTexts)
+	for i := range v.NumField() {
+		s := v.Field(i).String()
+		for _, w := range []string{"exit node", "secret", "helper", "panic"} {
+			if strings.Contains(strings.ToLower(s), w) {
+				t.Errorf("%s: %q has %q", v.Type().Field(i).Name, s, w)
+			}
+		}
+	}
+}
+
+// Titles name the subject, not the passing condition (a failing "No
+// conflicting VPN" reads as a pass).
+func TestTitlesNameTheSubject(t *testing.T) {
+	for tag, tab := range textTables {
+		v := reflect.ValueOf(*tab)
+		for i := range v.NumField() {
+			name := v.Type().Field(i).Name
+			if !strings.HasPrefix(name, "title") || name == "titleReport" {
+				continue
+			}
+			s := v.Field(i).String()
+			if strings.HasPrefix(s, "No ") || strings.HasPrefix(s, "没有") {
+				t.Errorf("%s: %s = %q", tag, name, s)
+			}
 		}
 	}
 }

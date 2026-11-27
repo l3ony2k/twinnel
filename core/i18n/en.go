@@ -5,6 +5,7 @@ package i18n
 // sentence case, as macOS does.
 var en = Strings{
 	ControlStrings: enControls,
+	ErrorStrings:   enErrors,
 
 	AppName: "duet",
 
@@ -25,7 +26,7 @@ var en = Strings{
 	ReasonTSKeyExpiry:    "Tailscale key expires in %s",
 	ReasonTSHealth:       "Tailscale: %s",
 	ReasonTSSystemVPN:    "Tailscale uses the system VPN slot; tailscaled is recommended",
-	ReasonHealthWarn:     "Health: %d warnings",
+	ReasonHealthWarn:     "Health: %d warning{s}",
 	ReasonHealthFail:     "Health: %d failed",
 
 	AlertMihomoDown:      "Can't reach mihomo",
@@ -57,8 +58,8 @@ var en = Strings{
 	Upload:             "Upload",
 	Download:           "Download",
 	Total:              "Total",
-	TrafficLastSec:     "Last %d seconds",
-	TrafficLastMin:     "Last %d minutes",
+	TrafficLastSec:     "Last %d second{s}",
+	TrafficLastMin:     "Last %d minute{s}",
 	Connections:        "Connections",
 	State:              "Status",
 	SelfIP:             "This Mac's IP",
@@ -122,14 +123,17 @@ var en = Strings{
 	PathDirect:    "Direct",
 	PathDERP:      "DERP relay",
 	PathPeerRelay: "Peer relay",
-	PathIdle:      "Not connected",
+	PathIdle:      "Idle",
 	Online:        "Online",
 	Offline:       "Offline",
 	NoPeers:       "No other devices",
 	CopyIP:        "Copy IP",
 
-	HealthSummary:      "%d passed · %d warnings · %d failed · %d skipped",
+	HealthSummary:      "%d passed · %d warning{s} · %d failed · %d skipped",
 	HealthLastRun:      "Checked %s · took %s",
+	HealthLastRunAt:    "Checked %s",
+	HealthFailN:        "%d failed",
+	HealthWarnN:        "%d warning{s}",
 	HealthRunning:      "Checking…",
 	HealthRerun:        "Check Again",
 	HealthCopyReport:   "Copy Report",
@@ -146,7 +150,7 @@ var en = Strings{
 	HealthFail:         "Failed",
 	HealthSkip:         "Skipped",
 	PanelHealthOK:      "Health: all passed",
-	PanelHealthWarn:    "Health: %d warnings",
+	PanelHealthWarn:    "Health: %d warning{s}",
 	PanelHealthFail:    "Health: %d failed",
 	PanelHealthPending: "Health: checking",
 	PanelPeers:         "%d of %d online",
@@ -227,6 +231,7 @@ var en = Strings{
 	SubManual:          "Updated by hand",
 	SubEvery:           "Updates every %d min",
 	SubNeverFetched:    "Never downloaded",
+	SubNoContent:       "No content yet",
 	SubFetched:         "Downloaded %s",
 	SubChanged:         "changed %s",
 	SubID:              "ID",
@@ -276,7 +281,7 @@ var en = Strings{
 
 	PreviewApply:           "Preview & Apply",
 	Preview:                "Preview",
-	DiffStats:              "%d lines added · %d removed",
+	DiffStats:              "%d line{s} added · %d removed",
 	DiffUnavailable:        "Can't show the changes: %s",
 	ConfigTextUnsupported:  "The helper is too old to show the full config",
 	ComposeLayers:          "Order",
@@ -431,7 +436,7 @@ var en = Strings{
 	TakeoverFixture:        "Sample data; nothing is sent",
 	TakeoverTooOld:         "The helper is too old for takeover",
 	TakeoverPlan:           "Create Takeover Plan",
-	TakeoverPlans:          "Takeover Plans",
+	TakeoverPlans:          "Takeover plans",
 	TakeoverOpen:           "View",
 	TakeoverDiscardTitle:   "Delete takeover plan “%s”?",
 	TakeoverDiscardBody:    "Your current config is not affected.",
@@ -445,7 +450,7 @@ var en = Strings{
 	TakeoverUseBase:        "Use This",
 	TakeoverCandScore:      "Nodes %d/%d · Groups %d/%d · Rule tail %d/%d (%d more before)",
 	TakeoverNoLayers:       "No overrides",
-	TakeoverRules:          "%d rules",
+	TakeoverRules:          "%d rule{s}",
 	TakeoverVerdict:        "Comparison",
 	TakeoverEquivalent:     "The composed config behaves like your current one (apart from the deliberate changes below)",
 	TakeoverNotEquivalent:  "The composed config differs from your current one; see the changes below",
@@ -461,7 +466,7 @@ var en = Strings{
 	TakeoverCheckChanges:   "Some differences are unexplained; check them before taking over",
 	TakeoverAdoptTitle:     "Take over your setup?",
 	TakeoverAdoptBody:      "%s is backed up and rewritten, and the network may drop briefly during the reload. If health gets worse, the old config comes back on its own.",
-	TakeoverResult:         "Takeover Result",
+	TakeoverResult:         "Takeover result",
 	TakeoverDone:           "Takeover complete",
 	TakeoverRolledBack:     "Health got worse; the old config is back",
 	TakeoverFailed:         "Takeover failed",
@@ -481,7 +486,7 @@ var en = Strings{
 	SecureDone:     "New controller secret set",
 	SecureReplaced: "Controller secret replaced",
 
-	OnboardTitle: "Install the Helper",
+	OnboardTitle: "Install Helper",
 	OnboardIntro: "Changing the network setup needs a helper that runs as root:",
 	OnboardPoints: []string{
 		"Applies subscriptions and overrides, and recovers on errors",
@@ -515,8 +520,11 @@ var en = Strings{
 	MinutesAgo: "%d min ago",
 	HoursAgo:   "%d h ago",
 	DaysAgo:    "%d d ago",
-	InDays:     "in %d days",
-	InHours:    "in %d hours",
+	InDays:     "in %d day{s}",
+	DurDays:    "%dd %dh",
+	DurHours:   "%dh %dm",
+	DurMinutes: "%d min",
+	InHours:    "in %d hour{s}",
 
 	SidebarHelper:       "Configuration",
 	SidebarApp:          "App",
@@ -531,7 +539,7 @@ var en = Strings{
 	Devices:             "Devices",
 	SecretFromEnv:       "From DUET_MIHOMO_SECRET",
 	NotificationsSwitch: "Notify me when something's wrong",
-	MenuBar:             "Menu Bar",
+	MenuBar:             "Menu bar",
 	TraySpeedSwitch:     "Show network speed in the menu bar",
 	TraySpeedLayout:     "Speed layout",
 	TraySpeedOneLine:    "One line",
@@ -551,6 +559,7 @@ var en = Strings{
 	InfoTipStrings:         enInfoTips,
 	StatusStrings:          enStatus,
 	SidebarStrings:         enSidebar,
+	OverviewStrings:        enOverview,
 }
 
 var enControls = ControlStrings{
@@ -592,7 +601,7 @@ var enControls = ControlStrings{
 	OpFinishedTitle:  "%s: done",
 	OpFailedTitle:    "%s: failed",
 	OpFinishedBody:   "Click to see the result in duet",
-	OpWarnings:       "%d notes",
+	OpWarnings:       "%d note{s}",
 
 	PanelOpen: "Open duet…",
 	PanelQuit: "Quit duet",
@@ -631,7 +640,7 @@ var enWindow = WindowStrings{
 	DiffExpandUp:   "Expand Up",
 	DiffExpandDown: "Expand Down",
 	DiffExpandAll:  "Expand All",
-	DiffUnchanged:  "%d unchanged lines",
+	DiffUnchanged:  "%d unchanged line{s}",
 
 	Language:       "Language",
 	LanguageLabel:  "App language",
@@ -664,7 +673,7 @@ var enAbout = AboutStrings{
 	CompCLI:    "Command line tool",
 	CompHelper: "Helper",
 
-	GettingStarted:       "Getting Started",
+	GettingStarted:       "Getting started",
 	StepHelper:           "Install the helper",
 	StepSetup:            "Take over your setup, or add a subscription",
 	StepHealth:           "Check health",

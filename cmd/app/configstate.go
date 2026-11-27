@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -163,34 +162,17 @@ func (a *app) pendingText() (text string, last *rpc.HistoryEntry, ch []layerChan
 	return text, last, ch, sub
 }
 
-// discardChanges asks, then sets the overrides back to the applied
-// entry's (layer.restore).
-func (a *app) discardChanges(last rpc.HistoryEntry, ch []layerChange) {
+// discardChanges sets the overrides back to the applied entry's
+// (layer.restore) at once; its toast offers 撤销 (kubai R-8).
+func (a *app) discardChanges(last rpc.HistoryEntry) {
 	T := i18n.T
-	var restore, remove []string
-	for _, c := range ch {
-		if c.added {
-			remove = append(remove, c.name)
-		} else {
-			restore = append(restore, c.name)
-		}
-	}
-	var lines []string
-	if len(restore) > 0 {
-		lines = append(lines, i18n.F(T.DiscardRestores, strings.Join(restore, T.ListSep)))
-	}
-	if len(remove) > 0 {
-		lines = append(lines, i18n.F(T.DiscardRemoves, strings.Join(remove, T.ListSep)))
-	}
-	a.confirm(T.DiscardTitle, strings.Join(lines, "\n"), T.Discard, func() {
-		a.restoreLayers(T.Discard, last.ID, nil)
-	})
+	a.restoreLayers(T.Discard, T.DoneDiscarded, last.ID, nil)
 }
 
-// restoreLayers runs layer.restore; the editor drops what it held for
-// the layers set back.
-func (a *app) restoreLayers(label, historyID string, ids []string) {
-	a.helperOp(label, 30*time.Second, func(ctx context.Context, hc *status.HelperConn) error {
+// restoreLayers runs layer.restore as a reversible action; the editor
+// drops what it held for the layers set back.
+func (a *app) restoreLayers(label, doneText, historyID string, ids []string) {
+	a.reversibleOp(label, doneText, func(ctx context.Context, hc *status.HelperConn) error {
 		var r rpc.LayerRestoreResult
 		return hc.Call(ctx, rpc.MethodLayerRestore, rpc.LayerRestoreParams{HistoryID: historyID, IDs: ids}, &r)
 	}, func(err error) {
@@ -234,9 +216,7 @@ func (a *app) revertLayer(l rpc.Layer) {
 	if !ok {
 		return
 	}
-	a.confirm(i18n.F(T.LayerRevertTitle, layerTitle(l)), "", T.LayerRevert, func() {
-		a.restoreLayers(T.LayerRevert, last.ID, []string{l.ID})
-	})
+	a.restoreLayers(T.LayerRevert, i18n.F(T.DoneLayerReverted, layerTitle(l)), last.ID, []string{l.ID})
 }
 
 // driftOf returns the drift mark the helper keeps after a rollback.
@@ -277,18 +257,10 @@ func (a *app) driftState(c *ui.Context, s status.Snapshot, dr rpc.Drift, w bool)
 		small(c, T.DriftRowSub).SingleLine().Shrink(1)
 	})
 	busy := d.busy != ""
-	if dr.Manifest && pushButton(c.Key("drift-restore"), T.DriftRestore+"…").Disabled(!w || busy).Clicked() {
-		id := dr.HistoryID
-		var lines []string
-		if e != nil {
-			// Restoring the entry's overrides is the rollback's
-			// effect on them, said the same way.
-			lines = rollbackEffects(e.Layers, d.layers)
-		}
-		body := strings.Join(append(lines, T.DriftRestoreBody), "\n")
-		a.confirm(i18n.F(T.AskF, T.DriftRestore), body, T.DriftRestore, func() {
-			a.restoreLayers(T.DriftRestore, id, nil)
-		})
+	// What 恢复 does to each override is in the ⓘ; it happens at once and
+	// its toast offers 撤销 (kubai R-8).
+	if dr.Manifest && pushButton(c.Key("drift-restore"), T.DriftRestore).Disabled(!w || busy).Clicked() {
+		a.restoreLayers(T.DriftRestore, T.DoneRestored, dr.HistoryID, nil)
 	}
 	if a.opButton(c.Key("drift-reapply"), iconOK, T.DriftReapply, true, T.Apply).Disabled(!w || busy).Clicked() {
 		a.runApply()

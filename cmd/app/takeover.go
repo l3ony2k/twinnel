@@ -156,7 +156,7 @@ func (a *app) takeoverAdopt(p rpc.TakeoverPlan) {
 		if err == nil {
 			v.adopt = &r
 			if !r.OK {
-				a.hd.msg, a.hd.msgErr = T.ErrorPrefix+orDash(r.Error), true
+				a.hd.msg, a.hd.msgErr = T.RPCErrorText(0, r.Error), true
 			}
 		}
 		a.loadTakeover()

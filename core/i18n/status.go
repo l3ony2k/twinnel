@@ -102,13 +102,13 @@ var zhStatus = StatusStrings{
 var enStatus = StatusStrings{
 	NeedsHelper: "Needs the helper",
 
-	ReasonHealthFound: "%d coexistence issues found",
+	ReasonHealthFound: "%d coexistence issue{s} found",
 	FindingsView:      "View",
 	FindingsTakeover:  "Fix by Taking Over",
 
-	GetStarted:       "Get Started",
-	StepCheckCoexist: "Check Coexistence",
-	StepTakeOver:     "Take Over Your Setup",
+	GetStarted:       "Get started",
+	StepCheckCoexist: "Check coexistence",
+	StepTakeOver:     "Take over your setup",
 
 	ExitNodeAcceptedRow: "Exit node %s · proxy conflict accepted",
 	ExitNodeAccept:      "Accept",
@@ -118,7 +118,7 @@ var enStatus = StatusStrings{
 
 	HealthAge:     "Updated %s",
 	EvidenceTimes: "×%d",
-	EvidenceAll:   "Show All (%d lines)",
+	EvidenceAll:   "Show All (%d line{s})",
 
 	FixRegenCoexist:  "Regenerate Tailscale Coexistence",
 	FixOpenOverrides: "Open Subscriptions & Overrides",

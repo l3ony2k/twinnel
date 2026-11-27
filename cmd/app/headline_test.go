@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/l3ony2k/duet/core/health"
@@ -13,9 +13,12 @@ import (
 func TestHealthHeadlineMatchesOverview(t *testing.T) {
 	cnt := map[health.Status]int{health.StatusOK: 7, health.StatusFail: 2}
 	page := healthHeadline("失败", cnt)
-	s := status.Snapshot{Level: status.LevelError, Reasons: []status.Reason{{Level: status.LevelError, Text: page, Health: true}}}
+	over := i18n.F(i18n.T.ReasonHealthFail, 2)
+	s := status.Snapshot{Level: status.LevelError, Reasons: []status.Reason{{Level: status.LevelError, Text: over, Health: true}}}
 	head, rest := levelHeadline(s)
-	if head != page || len(rest) != 0 || page != "健康检查：2 项失败" {
+	// The page's title already says 健康检查 (R-unslop-29): its headline is
+	// the overview's without the subject, the same count.
+	if head != over || len(rest) != 0 || page != "2 项失败" || !strings.HasSuffix(over, page) {
 		t.Fatalf("overview %q %v, page %q", head, rest, page)
 	}
 	s.Reasons = append(s.Reasons, status.Reason{Level: status.LevelError, Text: "x"})
@@ -39,7 +42,7 @@ func TestHealthBadgeEqualsHeadline(t *testing.T) {
 	status.Evaluate(&s)
 	n, _ := s.HealthBadge()
 	page := healthHeadline("", rep.Counts())
-	if n != 3 || page != fmt.Sprintf(i18n.T.ReasonHealthFail, n) {
+	if n != 3 || page != i18n.F(i18n.T.HealthFailN, n) {
 		t.Fatalf("badge %d, page %q", n, page)
 	}
 	sections := navSections(0, n, toneAlert)

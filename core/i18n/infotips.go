@@ -49,8 +49,8 @@ var zhInfoTips = InfoTipStrings{
 	TipInstallPlan:   "这些步骤只在安装时以管理员权限运行一次。之后随时可以在 设置 → 停止使用 duet 卸载。",
 
 	TipLeaveUndo:      "写回接管前的 config.yaml，移除导入的订阅和覆写。mihomo 的服务和程序不变，后台助手保留。",
-	TipLeaveUninstall: "移除后台助手。mihomo 继续用现在的配置运行，但订阅不再自动更新，duet 也不能再改配置。",
-	TipLeaveRemoveAll: "卸载后台助手，删除 duet 的数据和钥匙串项目，把 duet.app 移到废纸篓。不会撤销接管：要换回原来的配置，先撤销接管。",
+	TipLeaveUninstall: "移除后台助手。mihomo 和 Tailscale 继续运行，mihomo 用现在的配置。",
+	TipLeaveRemoveAll: "卸载后台助手，把 duet.app 移到废纸篓。mihomo 和 Tailscale 继续运行。不会撤销接管：要换回原来的配置，先撤销接管。",
 	TipLeaveExport:    "把当前运行的 config.yaml 和你写的覆写打包成 zip，停用 duet 后也能直接给 mihomo 用。里面有节点信息，注意保管。",
 }
 
@@ -77,7 +77,7 @@ var enInfoTips = InfoTipStrings{
 	TipInstallPlan:   "These steps run once, with administrator rights, at install. You can uninstall at any time in Settings → Stop Using duet.",
 
 	TipLeaveUndo:      "Writes back the config.yaml from before the takeover and removes the imported subscription and overrides. mihomo's service and binary stay, and so does the helper.",
-	TipLeaveUninstall: "Removes the helper. mihomo keeps running with the current config, but subscriptions no longer update and duet can't change the config.",
-	TipLeaveRemoveAll: "Uninstalls the helper, deletes duet's data and keychain items, and moves duet.app to the Trash. It doesn't undo the takeover: to get your original config back, undo the takeover first.",
+	TipLeaveUninstall: "Removes the helper. mihomo and Tailscale keep running, mihomo with the current config.",
+	TipLeaveRemoveAll: "Uninstalls the helper and moves duet.app to the Trash. mihomo and Tailscale keep running. It doesn't undo the takeover: to get your original config back, undo the takeover first.",
 	TipLeaveExport:    "Saves the running config.yaml and the overrides you wrote as a zip, which mihomo can use without duet. It contains your nodes, so keep it private.",
 }

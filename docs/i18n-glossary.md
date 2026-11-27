@@ -5,11 +5,25 @@ terms. Keep them when adding strings, and add new terms here.
 
 ## Style
 
-- **Title case** for page names, sidebar rows, card and section headings,
+- **Title case** (as macOS) for page and window titles, sidebar rows,
   buttons, menu items and toolbar actions: "Test All", "Check for Updates",
-  "Roll Back to This", "Open Main Window".
-- **Sentence case** for field labels, status values, messages, hints and
-  health check titles: "Controller address", "Not running", "Health: 2 failed".
+  "Roll Back to This", "Open Main Window", "Install Helper".
+- **Sentence case** for section and card headings, steps, field labels,
+  status values, messages, hints, toasts and health check titles:
+  "Menu bar", "What takeover changes", "Controller address", "Not running",
+  "Health: 2 failed". `TestHeadingsSentenceCase` (core/i18n) checks the
+  heading keys.
+- One name per action: the button and the page it opens say the same
+  ("Install Helper"); prose says "the helper".
+- **Counts** use a plural group that `i18n.F` resolves by the `%d` before
+  it: "%d issue{s} found", "%d prox{y|ies}". Chinese writes none.
+  `TestEnglishPluralForms` fails on a fixed plural after `%d`.
+- **Errors** never show the system's text: `i18n.PlainError` /
+  `Strings.ErrorText` word it (coded helper messages, network and file
+  reasons, the generic line); the raw text is for 复制详情 only. Messages
+  name a subscription or an override by its display name, never its ID.
+- Health check titles name the subject ("VPN conflicts"), not the passing
+  condition.
 - An ellipsis (…) only where a dialog or picker follows the action
   ("Import from File…", "Delete…"), and on in-progress states ("Testing…").
 - Curly quotes around names in messages: Delete subscription “Home”?

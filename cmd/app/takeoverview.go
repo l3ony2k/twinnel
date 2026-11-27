@@ -31,13 +31,13 @@ func (a *app) takeoverPage(c *ui.Context, s status.Snapshot) {
 	if !v.fixture && !a.helperGate(c, s) {
 		return
 	}
-	a.opNotes(c, s)
+	planErr := a.takeoverNotes(c, s)
 	if v.fixture {
 		notice(c, iconWarning, T.TakeoverFixture)
 	}
 	if a.section("plan") {
 		if v.plan == nil {
-			a.takeoverEmpty(c, s)
+			a.takeoverEmpty(c, s, planErr)
 		}
 		a.takeoverPlanList(c, s)
 	}
@@ -58,6 +58,19 @@ func (a *app) takeoverPage(c *ui.Context, s status.Snapshot) {
 	if a.takeoverAdopted() && a.section("result") {
 		a.secureCard(c, s)
 	}
+}
+
+// takeoverNotes draws the page's operation notes, except a failed
+// 生成接管计划 while there is no plan: that one goes inside 现有安装, next
+// to the button that failed (kubai R-4), and is returned.
+func (a *app) takeoverNotes(c *ui.Context, s status.Snapshot) (planErr string) {
+	d := &a.hd
+	if d.msgErr && d.msg != "" && d.spanOp == i18n.T.TakeoverPlan && d.take.plan == nil {
+		planErr, d.msg = d.msg, ""
+		defer func() { d.msg = planErr }()
+	}
+	a.opNotes(c, s)
+	return planErr
 }
 
 // takeoverAdopted: duet took over this setup (a plan is adopted).
@@ -91,7 +104,8 @@ func (a *app) takeoverIntro(c *ui.Context) {
 				{iconRollback, T.TkIntroUndo},
 			} {
 				ui.Row(c.Key(fmt.Sprint("intro", i))).Gap(8).AlignItems(ui.Start).Children(func() {
-					ui.Icon(c, p.icon).FontSize(iconInline).TextColor(t.Accent).MarginY(1).Shrink(0)
+					// Bullets, not actions: muted (the accent is for what acts, unslop R-10).
+					ui.Icon(c, p.icon).FontSize(iconInline).TextColor(t.TextMuted).MarginY(1).Shrink(0)
 					ui.Text(c, p.text).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Shrink(1)
 				})
 			}
@@ -128,12 +142,14 @@ func (a *app) tipHead(c *ui.Context, title, tip string, more func(), trailing ..
 // service, binary and config, detected as a plan would; the helper's own
 // settings are duet's defaults until the takeover), then 生成接管计划
 // with its note: making a plan changes nothing.
-func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
+func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot, planErr string) {
 	t := c.Theme()
 	T := i18n.T
 	d := &a.hd
 	v := &d.take
-	headedCard(c, a.tipHead(c, T.TakeoverFound, T.TipFound, nil), func() {
+	// That a plan changes nothing is in the ⓘ, not a line by the button
+	// (unslop R-29).
+	headedCard(c, a.tipHead(c, T.TakeoverFound, T.TkFoundTip, nil), func() {
 		if v.unsupported {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(pal(t).warnText)
@@ -165,12 +181,20 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 			ts += " · " + s.Tailscale.State.Version
 		}
 		kv(c, "Tailscale", ts)
+		if v.listErr != "" {
+			errorNote(c, T.ErrorPrefix+v.listErr)
+		}
+		if planErr != "" {
+			errorNote(c, planErr)
+		}
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
 			ui.Spacer(c)
 			if v.loading {
 				ui.Spinner(c)
 			}
-			small(c, a.planNote()).SingleLine().Shrink(1)
+			if note := a.planNote(); note != "" {
+				small(c, note).SingleLine().Shrink(1) // what it is doing, while it runs
+			}
 			// Planning is read-only for the system (the helper writes the
 			// plan into its own state dir), so it needs no write permission.
 			can := s.Helper.Connected() && d.busy == "" && !v.unsupported && !v.fixture
@@ -178,9 +202,6 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 				a.takeoverMakePlan("")
 			}
 		})
-		if v.listErr != "" {
-			errorNote(c, T.ErrorPrefix+v.listErr)
-		}
 	})
 }
 
@@ -336,7 +357,33 @@ func effectRows(p *rpc.TakeoverPlan) []effectRow {
 	return out
 }
 
-// effectChip is the 接管后 cell: a plain chip, or a warning one.
+// effectText is the 接管后 cell: what happens to the piece, as text that
+// wraps (never cut short): in the text color when duet rewrites it, muted
+// when it stays as it is, in the warning color with ⚠ when it needs a
+// decision (kubai R-17, unslop R-11). Tags are for one-word states.
+func effectText(c *ui.Context, text, tip string, warn, rewrite bool) ui.Element {
+	t := c.Theme()
+	col := t.TextMuted
+	switch {
+	case warn:
+		col = pal(t).warnText
+	case rewrite:
+		col = t.Text
+	}
+	e := ui.Row(c).Gap(4).AlignItems(ui.Start).Shrink(1).Children(func() {
+		if warn {
+			ui.Icon(c, iconWarning).FontSize(iconSmall).TextColor(col).MarginY(2).Shrink(0)
+		}
+		ui.Text(c, text).FontSize(plat.calloutSize).TextColor(col).Wrap().LineHeight(lineText).Shrink(1)
+	})
+	if tip != "" {
+		e.Tooltip(tip)
+	}
+	return e
+}
+
+// effectChip is a short state as a chip (不完整, 需重启): a plain one,
+// or a warning one. Sentences go in effectText.
 func effectChip(c *ui.Context, text, tip string, warn, rewrite bool) ui.Element {
 	t := c.Theme()
 	col, border := t.TextMuted, t.Border
@@ -378,14 +425,14 @@ func (a *app) takeoverEffectsCard(c *ui.Context, p *rpc.TakeoverPlan) {
 		})
 		for i, r := range rows {
 			listRow(c.Key(fmt.Sprint("eff", i))).Children(func() {
-				ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight - 8).Children(func() {
+				ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight - 8).PaddingY(4).Children(func() {
 					ui.Text(c, r.item).TextColor(t.TextMuted).Width(effectItemWidth).Shrink(0).SingleLine().Tooltip(r.item)
 					now := ui.Text(c, r.now).SingleLine().Grow(1).Basis(0).Shrink(1).Selectable()
 					if r.nowTip != "" {
 						now.Tooltip(r.nowTip)
 					}
 					ui.Row(c).Grow(1).Basis(0).Shrink(1).Children(func() {
-						effectChip(c, r.after, r.afterTip, r.warn, r.rewrite)
+						effectText(c, r.after, r.afterTip, r.warn, r.rewrite)
 					})
 				})
 			})
@@ -563,7 +610,7 @@ func (a *app) takeoverLayersCard(c *ui.Context, p *rpc.TakeoverPlan) {
 					if what != "" {
 						what += " · "
 					}
-					what += fmt.Sprintf(T.TakeoverRules, l.Rules)
+					what += i18n.F(T.TakeoverRules, l.Rules)
 				}
 				ui.Text(c, what).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(what)
 			})
@@ -880,19 +927,27 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 			case !p.Equivalent:
 				ui.Text(c, T.TakeoverCheckChanges).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Grow(1).Wrap().LineHeight(lineText)
 			default:
-				ui.Row(c).Gap(6).AlignItems(ui.Center).Grow(1).Shrink(1).Wrap().Children(func() {
-					if len(rw) > 0 {
-						effectChip(c, i18n.F(T.TkRewriteCount, len(rw)), "", false, true)
+				// The consequence as one quiet line next to the button
+				// (unslop R-11): what is rewritten · what the reload does.
+				var parts []string
+				if len(rw) > 0 {
+					parts = append(parts, i18n.F(T.TkRewriteCount, len(rw)))
+				}
+				var tip string
+				if im := p.Impact; im != nil {
+					// A one-second blip is information, not a risk (H13).
+					text := T.ImpactGentle
+					if im.Disruptive {
+						text = T.ImpactDisruptive
 					}
-					if im := p.Impact; im != nil {
-						text := T.ImpactGentle
-						if im.Disruptive {
-							text = T.ImpactDisruptive
-						}
-						// A one-second blip is information, not a risk (H13).
-						effectChip(c, text, strings.Join(impactLines(im), "\n"), false, false)
-					}
-				})
+					parts = append(parts, text)
+					tip = strings.Join(impactLines(im), "\n")
+				}
+				line := ui.Text(c, strings.Join(parts, " · ")).FontSize(plat.calloutSize).TextColor(t.TextMuted).
+					Grow(1).Shrink(1).Wrap().LineHeight(lineText)
+				if tip != "" {
+					line.Tooltip(tip)
+				}
 			}
 			if a.opButton(c.Key("adopt"), iconTakeover, T.TakeoverAdopt, true, T.TakeoverAdopt).Disabled(!ok).Clicked() {
 				plan := *p
@@ -1234,36 +1289,54 @@ func healthCompare(c *ui.Context, r *rpc.AdoptResult) {
 	}
 }
 
-// adoptNext is the result's 下一步: the checks still failing, hardening
-// the controller, the managed core when the binary is replaceable, and
-// 撤销接管.
+// adoptNext is the result's 下一步: where to go next (the checks still
+// failing, hardening the controller, the managed core when the binary is
+// replaceable), each an accent row with a trailing chevron, as
+// navigation reads. 撤销接管 is an action, not a place: a push button at
+// the end of the card (kubai R-18).
 func (a *app) adoptNext(c *ui.Context, s status.Snapshot, r *rpc.AdoptResult, failing []string) {
+	t := c.Theme()
 	T := i18n.T
-	ui.Divider(c)
-	ui.Text(c, T.TkNext).FontWeight(600)
-	row := func(key, label string, do func()) {
-		ui.Row(c.Key(key)).Gap(8).AlignItems(ui.Center).MinHeight(plat.rowMinHeight - 8).Children(func() {
-			ui.Icon(c, iconCollapsed).FontSize(iconInline).TextColor(c.Theme().TextMuted)
-			if actionLink(c.Key("go"), label).Clicked() {
-				do()
-			}
-		})
+	type step struct {
+		key, label string
+		do         func()
 	}
+	var steps []step
 	if len(failing) > 0 {
-		row("checks", i18n.F(T.TkNextChecks, len(failing)), func() { a.showPage(pageHealth) })
+		steps = append(steps, step{"checks", i18n.F(T.TkNextChecks, len(failing)), func() { a.showPage(pageHealth) }})
 	}
 	if a.creds.cur == nil || a.creds.cur.Secret == "" {
-		row("secure", T.TkNextSecure, func() {
+		steps = append(steps, step{"secure", T.TkNextSecure, func() {
 			a.confirm(i18n.F(T.AskF, T.SecureTitle), T.SecureBody, T.SecureRun, a.controllerSecure)
-		})
+		}})
 	}
 	for _, w := range r.Warnings {
 		if i18n.WarningKind(w) == "binary-writable" {
-			row("kernel", T.TkNextKernel, func() { a.showPage(pageKernel) })
+			steps = append(steps, step{"kernel", T.TkNextKernel, func() { a.showPage(pageKernel) }})
 			break
 		}
 	}
-	row("undo", T.TkNextUndo, func() { a.showPage(pageLeave) })
+	if len(steps) > 0 {
+		ui.Divider(c)
+		ui.Text(c, T.TkNext).FontWeight(500)
+		for _, st := range steps {
+			row := ui.Row(c.Key(st.key)).Gap(8).AlignItems(ui.Center).MinHeight(plat.rowMinHeight - 8).
+				Focusable().Role(ui.RoleButton).Label(st.label)
+			row.Children(func() {
+				ui.Text(c, st.label).TextColor(t.Accent).Grow(1).Shrink(1).SingleLine()
+				ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
+			})
+			if row.Clicked() {
+				st.do()
+			}
+		}
+	}
+	ui.Row(c).Margin(4, 0, 0, 0).Children(func() {
+		ui.Spacer(c)
+		if pushButton(c.Key("undo"), strings.TrimSuffix(T.TkNextUndo, "…")).Clicked() {
+			a.showPage(pageLeave) // 撤销接管 asks there, with what it writes back
+		}
+	})
 }
 
 // secureCard: 加固控制接口 as a state row (当前密钥：已设 / 未设) and its
@@ -1296,7 +1369,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 			}
 			ui.Text(c, msg).FontSize(plat.calloutSize).TextColor(pal(t).okText).Wrap().LineHeight(lineText)
 			if r.Apply != nil && r.Apply.Error != "" {
-				errorNote(c, T.ErrorPrefix+r.Apply.Error)
+				errorNote(c, T.RPCErrorText(0, r.Apply.Error))
 			}
 			for _, w := range r.Warnings {
 				warningNote(c, w)
@@ -1324,7 +1397,7 @@ func (a *app) planNote() string {
 	T := i18n.T
 	d := &a.hd
 	if d.busy != T.TakeoverPlan || d.spanOp != T.TakeoverPlan || d.span.start.IsZero() {
-		return T.TkPlanNote
+		return "" // what planning does is in the ⓘ (copy rule: no reassurance line)
 	}
 	if !d.planTick {
 		d.planTick = true

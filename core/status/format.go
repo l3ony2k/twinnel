@@ -90,9 +90,9 @@ func Ago(now, t time.Time) string {
 func Until(now, t time.Time) string {
 	d := t.Sub(now)
 	if d < 48*time.Hour {
-		return fmt.Sprintf(i18n.Cur().InHours, max(0, int(d/time.Hour)))
+		return i18n.F(i18n.Cur().InHours, max(0, int(d/time.Hour)))
 	}
-	return fmt.Sprintf(i18n.Cur().InDays, int(d/(24*time.Hour)))
+	return i18n.F(i18n.Cur().InDays, int(d/(24*time.Hour)))
 }
 
 // DelayText formats a delay in ms: "88 ms", "超时" for 0, "未测" when unknown.

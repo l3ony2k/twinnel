@@ -20,7 +20,9 @@ var (
 // PlainNetError returns a sentence for a network error in the UI
 // language, or "" when raw is not one duet knows (the caller then shows
 // raw as it is).
-func PlainNetError(raw string) string {
+func PlainNetError(raw string) string { return plainNetError(Cur(), raw) }
+
+func plainNetError(T *Strings, raw string) string {
 	m := reURL.FindStringSubmatch(raw)
 	if m == nil {
 		return ""
@@ -34,12 +36,11 @@ func PlainNetError(raw string) string {
 	case host == "github.com" || strings.HasSuffix(host, ".github.com") || strings.HasSuffix(host, ".githubusercontent.com"):
 		host = "GitHub"
 	}
-	T := Cur()
 	s := T.NetUnreachable(host)
 	if p := reProxyConnect.FindStringSubmatch(raw); p != nil {
 		s += T.NetViaProxy(p[1])
 	}
-	if why := netReason(raw); why != "" {
+	if why := netReason(T, raw); why != "" {
 		s += T.NetReasonSep + why
 	}
 	return s
@@ -47,10 +48,9 @@ func PlainNetError(raw string) string {
 
 // NetReason is why a connection failed, in the UI language ("" when duet
 // does not know the error).
-func NetReason(raw string) string { return netReason(raw) }
+func NetReason(raw string) string { return netReason(Cur(), raw) }
 
-func netReason(raw string) string {
-	T := Cur()
+func netReason(T *Strings, raw string) string {
 	r := strings.ToLower(raw)
 	switch {
 	case strings.Contains(r, "proxyconnect") && strings.Contains(r, "connection refused"):
