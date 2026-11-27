@@ -18,7 +18,7 @@ proxies:
   - {name: "London 01", type: vless, server: 198.51.100.21, port: 443, uuid: 00000000-0000-4000-8000-000000000000, tls: true, servername: example.com}
   - {name: "Frankfurt 01", type: vless, server: 198.51.100.22, port: 443, uuid: 00000000-0000-4000-8000-000000000000, tls: true, servername: example.com}
 proxy-groups:
-  - {name: PROXY, type: select, proxies: ["Auto", "Hong Kong", "DIRECT", "Hong Kong 01", "Hong Kong 02", "Hong Kong 03 IPLC", "Tokyo 01", "Osaka 02", "Singapore 01", "Singapore 02", "US West 01", "US West 02", "Taipei 01", "London 01", "Frankfurt 01"]}
+  - {name: PROXY, type: select, proxies: ["Auto", "Hong Kong", "Hong Kong 01", "Hong Kong 02", "Hong Kong 03 IPLC", "Tokyo 01", "Osaka 02", "Singapore 01", "Singapore 02", "US West 01", "US West 02", "Taipei 01", "London 01", "Frankfurt 01"]}
   - {name: "Auto", type: url-test, url: "https://www.gstatic.com/generate_204", interval: 300, proxies: ["Hong Kong 01", "Hong Kong 02", "Hong Kong 03 IPLC", "Tokyo 01", "Osaka 02", "Singapore 01", "Singapore 02", "US West 01", "US West 02", "Taipei 01", "London 01", "Frankfurt 01"]}
   - {name: "Hong Kong", type: url-test, url: "https://www.gstatic.com/generate_204", interval: 300, proxies: ["Hong Kong 01", "Hong Kong 02", "Hong Kong 03 IPLC"]}
   - {name: OpenAI, type: select, proxies: ["US West 01", "US West 02", "Tokyo 01", "PROXY"]}
