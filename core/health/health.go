@@ -59,6 +59,9 @@ type FixHint struct {
 	Text    string `json:"text"`
 	Command string `json:"command,omitempty"`
 	AutoFix string `json:"autoFix,omitempty"`
+	// Param is what the fix acts on, when it needs one: the proxy group
+	// (leak guard, the egress test's node) or the controller's port.
+	Param string `json:"param,omitempty"`
 }
 
 // Result is what a check reports.
@@ -70,6 +73,9 @@ type Result struct {
 	// Causes name what a warn or fail comes from (Cause* codes), so a
 	// cause the user accepted can be told apart (Accept). Empty: unknown.
 	Causes []string `json:"causes,omitempty"`
+	// Reasons name why a warn or fail happened (Reason* codes), each with
+	// a fix in the catalog (FixFor). Empty in reports from older helpers.
+	Reasons []string `json:"reasons,omitempty"`
 	// Egress is what the egress test (LeakEgress) saw, unmasked. It is
 	// never marshalled with the result: reports, logs, the CLI and MCP
 	// keep MaskIP'd evidence. The helper hands it to the app only when

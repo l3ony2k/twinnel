@@ -138,6 +138,10 @@ func (a *app) flushToast(c *ui.Context) {
 		c.AddToast(ts)
 		a.toast, a.toastOp = "", false
 	}
+	if a.toastHint != "" {
+		c.AddToast(ui.Toast{ID: a.toastHint, Title: a.toastHint, Timeout: 10 * time.Second})
+		a.toastHint = ""
+	}
 	if a.toastErr != "" {
 		c.AddToast(ui.Toast{ID: "op-failed", Title: a.toastErr, Type: toastError, Timeout: -1, Action: i18n.T.EvShow, OnAction: a.showTwinnelLog})
 		a.toastErr = ""

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"sort"
 	"strings"
@@ -81,7 +82,7 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 	}
 	ifs, err := env.Interfaces(ctx)
 	if err != nil {
-		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "interfaces", err)}
+		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "interfaces", err), Reasons: []string{ReasonReadFailed}}
 	}
 	tsIf := ""
 	for _, a := range ts.TailscaleIPs {
@@ -93,7 +94,7 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 		if !ts.TUN {
 			return skipText(L.msgTSUserspace)
 		}
-		return Result{Status: StatusFail, Summary: L.msgTSNoIface}
+		return Result{Status: StatusFail, Summary: L.msgTSNoIface, Reasons: []string{ReasonRouteNoIface}}
 	}
 	mihomoIf := ""
 	if t, _, err := tunConfig(ctx, env); err == nil && t.Enable {
@@ -128,6 +129,7 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 		if err != nil {
 			res.Evidence = append(res.Evidence, fmt.Sprintf("%s → %v", d, err))
 			res.Status = Worse(res.Status, StatusWarn)
+			res.because(ReasonRouteLookup)
 			continue
 		}
 		line := fmt.Sprintf("%s → %s", d, rl.Interface)
@@ -139,9 +141,11 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 		case mihomoIf != "" && rl.Interface == mihomoIf:
 			line += "  ← " + L.evIntoMihomo
 			bad = append(bad, d.String())
+			res.because(ReasonRouteIntoMihomo)
 		default:
 			line += "  ← " + L.evNotTS
 			bad = append(bad, d.String())
+			res.because(ReasonRouteElsewhere)
 		}
 		res.Evidence = append(res.Evidence, line)
 	}
@@ -156,6 +160,7 @@ func (TailnetRoute) Run(ctx context.Context, env Env) Result {
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgRouteBad, strings.Join(bad, ", "))
 		res.Fix = &FixHint{Text: L.fixRouteBad, AutoFix: FixCoexist}
+		res.Reasons = removeReason(res.Reasons, ReasonRouteLookup)
 	}
 	return res
 }
@@ -200,6 +205,7 @@ func (TUNExclude) Run(ctx context.Context, env Env) Result {
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgExcludeMissing, strings.Join(missing, ", "))
 		res.Fix = &FixHint{Text: L.fixExclude, AutoFix: FixCoexist}
+		res.because(ReasonExcludeMissing)
 	}
 	return res
 }
@@ -232,7 +238,8 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 			final := ch[len(ch)-1]
 			if final != "DIRECT" {
 				return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgRulesGlobal, final),
-					Evidence: []string{strings.Join(ch, " → ")}, Fix: &FixHint{Text: L.fixRulesGlobal}}
+					Evidence: []string{strings.Join(ch, " → ")}, Fix: &FixHint{Text: L.fixRulesGlobal, AutoFix: FixModeRule},
+					Reasons: []string{ReasonRulesGlobal}}
 			}
 			return Result{Status: StatusOK, Summary: L.msgRulesDirect, Evidence: []string{strings.Join(ch, " → ")}}
 		}
@@ -276,10 +283,12 @@ func (TailscaleRules) Run(ctx context.Context, env Env) Result {
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgRulesBad, strings.Join(bad, ", "))
 		res.Fix = &FixHint{Text: L.fixRules, AutoFix: FixCoexist}
+		res.because(ReasonRulesNotDirect)
 	case len(risky) > 0:
 		res.Status = StatusWarn
 		res.Summary = fmt.Sprintf(L.msgRulesRisky, strings.Join(risky, ", "))
 		res.Fix = &FixHint{Text: L.fixRules, AutoFix: FixCoexist}
+		res.because(ReasonRulesShadowed)
 	}
 	return res
 }
@@ -343,6 +352,7 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 
 	res := Result{Status: StatusOK, Summary: L.msgMagicOK}
 	var sysFail, mihomoFake, mihomoNoAnswer []string
+	noResolver := false
 	for i, nm := range names {
 		sys, err := found[i].sys, found[i].sysErr
 		switch {
@@ -401,6 +411,7 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evResolverCfg, ts.MagicDNSSuffix, yesNo(L, suffixOK), reverse))
 		if !suffixOK {
 			sysFail = append(sysFail, ts.MagicDNSSuffix+" resolver")
+			noResolver = true
 		}
 	}
 	if cfg != nil {
@@ -415,7 +426,14 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 	case len(sysFail) > 0:
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgMagicSysFail, strings.Join(uniq(sysFail), ", "))
-		res.Fix = &FixHint{Text: L.fixMagicSys}
+		res.Fix = &FixHint{Text: L.fixMagicSys, AutoFix: FixCoexist}
+		if noResolver {
+			res.because(ReasonMagicNoResolver)
+			res.Fix.AutoFix = ""
+		}
+		if len(sysFail) > 1 || !noResolver {
+			res.because(ReasonMagicSystem)
+		}
 	case len(mihomoFake) > 0 || len(mihomoNoAnswer) > 0:
 		res.Status = StatusWarn
 		var parts []string
@@ -437,6 +455,7 @@ func (MagicDNS) Run(ctx context.Context, env Env) Result {
 			}
 		}
 		res.Fix = &FixHint{Text: fix, AutoFix: FixCoexist}
+		res.because(ReasonMagicMihomo)
 	}
 	return res
 }
@@ -533,6 +552,7 @@ func (PeerNames) Run(ctx context.Context, env Env) Result {
 		res.Status = StatusWarn
 		res.Summary = L.msgNamesNone
 		res.Fix = &FixHint{Text: L.fixNames, AutoFix: FixCoexist}
+		res.because(ReasonNamesNone)
 		return res
 	}
 	if len(missing) > 0 || len(stale) > 0 {
@@ -546,6 +566,7 @@ func (PeerNames) Run(ctx context.Context, env Env) Result {
 		}
 		res.Summary = strings.Join(parts, "；")
 		res.Fix = &FixHint{Text: L.fixNames, AutoFix: FixCoexist}
+		res.because(ReasonNamesOutdated)
 	}
 	return res
 }
@@ -594,7 +615,7 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 
 	svcs, err := env.NetworkServices(ctx)
 	if err != nil {
-		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "network services", err)}
+		return Result{Status: StatusFail, Summary: fmt.Sprintf(L.msgReadFailed, "network services", err), Reasons: []string{ReasonReadFailed}}
 	}
 	ifs, _ := env.Interfaces(ctx)
 	active := map[string]bool{}
@@ -676,10 +697,12 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 		res.Status = StatusFail
 		res.Summary = fmt.Sprintf(L.msgDNSBad, strings.Join(bad, ", "))
 		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: FixSystemDNS}
+		res.because(ReasonDNSNotMihomo)
 	case len(viaHijack) > 0:
 		res.Status = StatusWarn
 		res.Summary = fmt.Sprintf(L.msgDNSHijack, strings.Join(viaHijack, ", "))
 		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: FixSystemDNS}
+		res.because(ReasonDNSViaHijack)
 	case nActive == 0:
 		// Offline: nothing to check, nothing to fix here.
 		res.Status = StatusSkip
@@ -738,11 +761,13 @@ func (VPNConflict) Run(ctx context.Context, env Env) Result {
 		res.Status = Worse(res.Status, s)
 		problems = append(problems, msg)
 		res.Causes = append(res.Causes, cause)
+		res.because(causeReason[cause])
 	}
 
 	if vpns, err := env.VPNs(ctx); err != nil {
 		res.Evidence = append(res.Evidence, fmt.Sprintf(L.msgReadFailed, "VPN list", err))
 		res.Status = Worse(res.Status, StatusWarn)
+		res.because(ReasonReadFailed)
 	} else {
 		for _, v := range vpns {
 			line := fmt.Sprintf("%s [%s] %s", v.Name, v.BundleID, v.Status)
@@ -908,12 +933,15 @@ func (LeakGuard) Run(ctx context.Context, env Env) Result {
 	var fails, warns []string
 	if rt.Configs.Mode == "global" || rt.Configs.Mode == "direct" {
 		fails = append(fails, fmt.Sprintf(L.msgLeakMode, rt.Configs.Mode))
+		res.because(ReasonLeakMode)
 	}
+	var leaky []string // the groups leak guard's override should cover
 	for _, g := range groups {
 		p, ok := rt.Proxies[g]
 		if !ok || !p.IsGroup() {
 			warns = append(warns, fmt.Sprintf(L.msgLeakNoGroup, g))
 			res.Evidence = append(res.Evidence, fmt.Sprintf(L.msgLeakNoGroup, g))
+			res.because(ReasonLeakNoGroup)
 			continue
 		}
 		// Follow the current selection down to a real proxy.
@@ -924,11 +952,17 @@ func (LeakGuard) Run(ctx context.Context, env Env) Result {
 		if final == "DIRECT" || cur.Type == "Direct" {
 			line += "  ← " + L.evLeakDirect
 			fails = append(fails, fmt.Sprintf(L.msgLeakSelected, g))
+			res.because(ReasonLeakSelected)
+			leaky = append(leaky, g)
 		}
 		res.Evidence = append(res.Evidence, line)
 
 		// Can the group reach DIRECT, automatically or by selection?
 		auto, manual := directPaths(rt.Proxies, g, map[string]bool{})
+		if len(auto)+len(manual) > 0 {
+			res.because(ReasonLeakMayGo)
+			leaky = append(leaky, g)
+		}
 		for _, a := range auto {
 			fails = append(fails, fmt.Sprintf(L.msgLeakAuto, g, a))
 			res.Evidence = append(res.Evidence, fmt.Sprintf(L.evLeakAuto, a))
@@ -942,11 +976,11 @@ func (LeakGuard) Run(ctx context.Context, env Env) Result {
 	case len(fails) > 0:
 		res.Status = StatusFail
 		res.Summary = strings.Join(append(fails, warns...), "；")
-		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: FixLeakGuard}
+		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: FixLeakGuard, Param: strings.Join(uniq(leaky), ",")}
 	case len(warns) > 0:
 		res.Status = StatusWarn
 		res.Summary = strings.Join(warns, "；")
-		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: FixLeakGuard}
+		res.Fix = &FixHint{Text: L.fixLeak, AutoFix: FixLeakGuard, Param: strings.Join(uniq(leaky), ",")}
 	}
 	return res
 }
@@ -1015,10 +1049,12 @@ func (Controller) Run(ctx context.Context, env Env) Result {
 	if !isLoopbackHost(host) {
 		res.Status = StatusFail
 		problems = append(problems, fmt.Sprintf(L.msgCtlExposed, host))
+		res.because(ReasonCtlExposed)
 	}
 	if !cfg.SecretSet {
 		res.Status = Worse(res.Status, StatusWarn)
 		problems = append(problems, L.msgCtlNoSecret)
+		res.because(ReasonCtlNoSecret)
 	}
 	if rt, err := env.MihomoRuntime(ctx); err == nil && !rt.AuthUsed {
 		res.Evidence = append(res.Evidence, L.evCtlNoAuth)
@@ -1026,6 +1062,9 @@ func (Controller) Run(ctx context.Context, env Env) Result {
 	if len(problems) > 0 {
 		res.Summary = strings.Join(problems, "；")
 		res.Fix = &FixHint{Text: L.fixCtl, AutoFix: FixController}
+		if _, port, err := net.SplitHostPort(cfg.ExternalController); err == nil {
+			res.Fix.Param = port
+		}
 	}
 	return res
 }

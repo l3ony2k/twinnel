@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,8 +38,9 @@ func TestEvaluateFindingsBeforeTakeover(t *testing.T) {
 	}
 }
 
-// The badge counts failures only when there are some: 3 fail + 2 warn
-// reads 3, as the headline does.
+// The badge counts everything that needs attention: 3 fail + 2 warn
+// reads 5, as the page's list and the headline do, and the words split
+// it.
 func TestHealthBadgeMatchesHeadline(t *testing.T) {
 	now := time.Now()
 	s := base(now)
@@ -50,8 +52,13 @@ func TestHealthBadgeMatchesHeadline(t *testing.T) {
 	}
 	s.Health.Report = rep
 	Evaluate(&s)
-	if n, _ := s.HealthBadge(); n != 3 {
-		t.Errorf("badge %d, want 3", n)
+	if n, _ := s.HealthBadge(); n != 5 {
+		t.Errorf("badge %d, want 5", n)
+	}
+	for _, r := range s.Reasons {
+		if r.Code == ReasonHealth && (r.Fail != 3 || r.Warn != 2 || !strings.Contains(r.Text, "3") || !strings.Contains(r.Text, "2")) {
+			t.Errorf("reason %+v does not split 5 into 3 failed and 2 warnings", r)
+		}
 	}
 }
 

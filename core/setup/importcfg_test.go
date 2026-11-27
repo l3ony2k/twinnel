@@ -108,3 +108,29 @@ func TestImportConfigHook(t *testing.T) {
 		t.Fatalf("%v %+v", err, r)
 	}
 }
+
+// A Clash Verge Rev / Clash Party file picked in the wizard goes through
+// config.import under its own name: a whole config becomes the active
+// subscription; an override alone brings none (the wizard then asks for
+// the URL).
+func TestImportConfigNamed(t *testing.T) {
+	c, e := serve(t)
+	r, err := setup.ImportConfigNamed("profile.yaml")(context.Background(), c, []byte(subYAML))
+	if err != nil {
+		t.Fatal(err)
+	}
+	subs, _ := e.Subscriptions()
+	if !r.Subscription || len(subs) != 1 || !subs[0].Active {
+		t.Fatalf("whole config: %+v %+v", r, subs)
+	}
+
+	c2, e2 := serve(t)
+	r, err = setup.ImportConfigNamed("Merge.yaml")(context.Background(), c2, []byte("prepend-rules:\n  - DOMAIN-SUFFIX,example.com,DIRECT\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ls, _ := e2.Layers()
+	if r.Subscription || len(ls) == 0 || ls[0].Name != "Merge" || ls[0].Format != store.FormatVerge {
+		t.Fatalf("override: %+v %+v", r, ls)
+	}
+}

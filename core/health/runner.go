@@ -134,7 +134,7 @@ func runOne(ctx context.Context, c Check, env Env, timeout time.Duration) Result
 		defer func() {
 			if p := recover(); p != nil {
 				done <- Result{Status: StatusFail, Summary: L.msgCheckPanicked,
-					Evidence: []string{fmt.Sprint(p), string(debug.Stack())}}
+					Evidence: []string{fmt.Sprint(p), string(debug.Stack())}, Reasons: []string{ReasonCheckPanicked}}
 			}
 		}()
 		done <- c.Run(ctx, env)
@@ -146,6 +146,6 @@ func runOne(ctx context.Context, c Check, env Env, timeout time.Duration) Result
 		}
 		return r
 	case <-ctx.Done():
-		return Result{Status: StatusWarn, Summary: fmt.Sprintf(L.msgCheckTimeout, timeout)}
+		return Result{Status: StatusWarn, Summary: fmt.Sprintf(L.msgCheckTimeout, timeout), Reasons: []string{ReasonCheckTimeout}}
 	}
 }

@@ -384,13 +384,13 @@ func (a *app) startTailscaled() {
 func (a *app) connectTailscale(s status.Snapshot) { a.startTSLogin(s, false) }
 
 // tsInstallAction installs Tailscale: the onboarding wizard sets
-// tsInstallHook to open its Tailscale step; without it, 设置这台 Mac.
+// tsInstallHook to open its Tailscale step; without it, the wizard's ⑤.
 func (a *app) tsInstallAction() {
 	if a.tsInstallHook != nil {
 		a.tsInstallHook()
 		return
 	}
-	a.openPage(pageSetup)
+	a.openWizardAt(wizTS)
 }
 
 // --- the panel ---

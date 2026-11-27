@@ -53,6 +53,11 @@ func (a *app) mainView(c *ui.Context) {
 		a.shotSnap(&s)
 	}
 	helperOutdatedNow = helperOutdated(s)
+	if a.page == pageWizard { // the first-run wizard: the whole window (wizard.go)
+		a.wizardWindow(c, s)
+		a.toasts(c)
+		return
+	}
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
 	}
@@ -236,8 +241,6 @@ func (a *app) pageBody(c *ui.Context, s status.Snapshot) {
 		a.installPage(c, s)
 	case pageLeave:
 		a.leavePage(c, s)
-	case pageSetup:
-		a.setupPage(c, s)
 	}
 }
 
@@ -375,7 +378,7 @@ func (a *app) pageChanged(old string) {
 	case pageTakeover, pageAbout, pageKernel:
 		a.detectLiveSetup() // again on each visit: the service may have changed
 	}
-	if a.page == pageSetup && old != pageSetup {
+	if a.page == pageWizard && old != pageWizard {
 		a.setupV.detected = false // find what is done again on each visit
 	}
 	if a.page == pageHealth && old != pageHealth {
@@ -697,7 +700,9 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	open := a.groupsOpen[g.Name]
 	sel := pendingValue(a, nodeKey(g.Name), g.Now) // the pick shows at once
 	chain := strings.Join(g.Chain, " → ")
-	ui.Column(c).Gap(8).PaddingY(listRowPadY).Clip().Transition(expandFor(open)).Children(func() {
+	box := ui.Column(c).Gap(8).PaddingY(listRowPadY).Clip().Transition(expandFor(open))
+	a.spotRing(c, box, "group:"+g.Name) // a health fix's 去调整 points here
+	box.Children(func() {
 		// The head is a disclosure the keyboard reaches: Tab stops on it,
 		// Return or Space opens and closes the group.
 		head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).

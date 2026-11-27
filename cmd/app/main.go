@@ -94,17 +94,20 @@ type app struct {
 	live        liveSetup                  // the running mihomo before takeover (livesetup.go)
 	hm          helperMgmtView             // 设置 → 后台助手 (helpermgmt.go)
 	setupV      setupView                  // 设置这台 Mac (setuppage.go)
+	wiz         wizardView                 // the first-run wizard (wizard.go)
 	agent       agentView                  // 设置 → 本地 Agent (agentsection.go)
 	creds       credsState                 // controller credentials from the helper
 	toast       string                     // shown once by the next frame of the main window
 	toastOp     bool                       // toast is an operation's outcome: it links to 日志 → Twinnel (H7)
 	toastErr    string                     // a failed operation's outcome, shown until dismissed (H7)
+	toastHint   string                     // an instruction (a health fix's 去调整): no outcome glyph
 	pend        pendingState               // optimistic control values and their errors (pending.go)
 	retry       busySpan                   // the unreachable states' 重试 press (states.go)
 	loadingSeen map[string][2]time.Time    // loadingBox: first and last frame per key
 	langShown   bool                       // applyLang ran once
 	trayTip     string                     // the tray's tooltip as last set
 	egress      egressState                // the on-demand egress test (statusui.go)
+	fx          fixState                   // the health checks' fixes (healthfix.go)
 	tsl         tsLoginFlow                // the Tailscale login under way (tslogin.go)
 	// tsInstallHook, when set (the onboarding wizard), is what the
 	// Tailscale panel's 安装 Tailscale opens instead of 设置这台 Mac.
@@ -186,6 +189,10 @@ func newApp(getenv func(string) string) (*app, error) {
 		}
 	}
 	a.cfgPath = filepath.Join(dir, "twinnel", "app.json")
+	if !a.shotMode { // shots never read or write the person's setup state
+		a.wiz.path = wizardStatePath(a.cfgPath)
+		a.wiz.state = loadWizardState(a.wiz.path)
+	}
 	a.cfg, err = status.LoadConfig(a.cfgPath, getenv)
 	if err != nil {
 		log.Printf("config %s: %v (using defaults)", a.cfgPath, err)
@@ -368,6 +375,7 @@ func (a *app) changed(mon *status.Monitor) {
 			a.tray.SetToolTip(tip)
 		}
 		a.syncExitNodeAcceptance(s)
+		a.wizardLaunchCheck(s) // the first launch of a machine not set up opens the wizard
 		if a.panel != nil {
 			a.panel.Invalidate()
 		}
