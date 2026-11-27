@@ -477,12 +477,5 @@ func (a *app) railPair(c *ui.Context, s status.Snapshot) {
 		} else {
 			mark("h", i18n.F(T.StateLabel, T.Helper, s.Helper.State.Text()), hm, hcol)
 		}
-		if !s.WritesAllowed {
-			ui.Row(c.Key("ro")).Size(24, 18).AlignItems(ui.Center).Justify(ui.Center).
-				Tooltip(T.ReadOnlyShort + T.LabelSep + T.WritesDisabledHint).
-				Label(T.ReadOnlyShort + T.LabelSep + T.WritesDisabledHint).Role(ui.RoleStatus).Children(func() {
-				ui.Icon(c, iconSecure).FontSize(iconSmall).TextColor(t.TextMuted)
-			})
-		}
 	})
 }

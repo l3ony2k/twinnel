@@ -227,7 +227,6 @@ func (a *app) aboutBasics(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	card(c, T.AboutBasics, func() {
 		kv(c, T.ConfigFile, a.cfgPath)
-		kv(c, T.AllowWrites, onOff(a.cfg.AllowWrites))
 		in := s.Tailscale.Install
 		ts := T.InstallKind(string(in.Kind)) + sourceSuffix(in.Source)
 		if in.Daemon != "" {
@@ -305,7 +304,6 @@ func (a *app) aboutFAQ(c *ui.Context) {
 	}
 	qs := [][2]string{
 		{T.FAQVPNQ, T.FAQVPNA},
-		{T.FAQReadOnlyQ, T.FAQReadOnlyA},
 		{T.FAQRollbackQ, T.FAQRollbackA},
 		{T.FAQQuitQ, T.FAQQuitA},
 	}

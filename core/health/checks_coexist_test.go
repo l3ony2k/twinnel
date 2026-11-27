@@ -90,7 +90,9 @@ func TestLeakEgress(t *testing.T) {
 
 	env := healthyEnv()
 	env.settings.Egress = false
-	want(t, c, env, StatusSkip, "--egress")
+	if r := want(t, c, env, StatusSkip, "未开启"); r.Fix == nil || r.Fix.AutoFix != FixEgressProbe {
+		t.Errorf("egress off: fix %+v, want %s", r.Fix, FixEgressProbe)
+	}
 
 	env = healthyEnv()
 	env.egressProxied = env.egressDirect

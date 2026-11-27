@@ -11,7 +11,7 @@ import (
 )
 
 // takeoverE2E drives the takeover wizard end to end against a development
-// helper (DUET_SHOTS_FLOW=takeover, with DUET_SOCKET, DUET_ALLOW_WRITES=1):
+// helper (DUET_SHOTS_FLOW=takeover, with DUET_SOCKET, DUET_READ_ONLY=0):
 // plan → candidates → re-plan with another base → plan with the best base →
 // adopt (health before/after) → rollback to the pre-adopt file via 历史 →
 // controller.secure, then checks the monitor still reaches the controller

@@ -54,6 +54,9 @@ func (l localAPI) GetPrefs(ctx context.Context) (*ipn.Prefs, error)     { return
 func (l localAPI) EditPrefs(ctx context.Context, mp *ipn.MaskedPrefs) (*ipn.Prefs, error) {
 	return l.lc.EditPrefs(ctx, mp)
 }
+func (l localAPI) StartLoginInteractive(ctx context.Context) error {
+	return l.lc.StartLoginInteractive(ctx)
+}
 func (l localAPI) WatchIPNBus(ctx context.Context, mask ipn.NotifyWatchOpt) (Watcher, error) {
 	return l.lc.WatchIPNBus(ctx, mask)
 }
@@ -341,6 +344,28 @@ func (c *Client) Up(ctx context.Context) error {
 // Down disconnects the node (as `tailscale down`).
 func (c *Client) Down(ctx context.Context) error {
 	return c.edit(ctx, &ipn.MaskedPrefs{Prefs: ipn.Prefs{WantRunning: false}, WantRunningSet: true})
+}
+
+// loginer is implemented by APIs that can start an interactive login
+// (localAPI); fakes need not.
+type loginer interface {
+	StartLoginInteractive(ctx context.Context) error
+}
+
+// ErrNoLogin is returned by Login when the API cannot start a login.
+var ErrNoLogin = errors.New("tailscale: login is not supported here")
+
+// Login starts an interactive login (as `tailscale login`): the node then
+// reports the URL to open (State.AuthURL).
+func (c *Client) Login(ctx context.Context) error {
+	if !c.allowWrites {
+		return ErrWritesDisabled
+	}
+	l, ok := c.api.(loginer)
+	if !ok {
+		return ErrNoLogin
+	}
+	return l.StartLoginInteractive(ctx)
 }
 
 // SetExitNode uses the peer with the stable ID id as exit node; "" stops

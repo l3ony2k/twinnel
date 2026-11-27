@@ -3,6 +3,7 @@ package status
 import (
 	"strings"
 
+	"github.com/l3ony2k/duet/core/i18n"
 	"github.com/l3ony2k/duet/core/mihomo"
 	"github.com/l3ony2k/duet/core/tailscale"
 )
@@ -62,4 +63,20 @@ func tailscaleDown(t Tailscale) bool {
 		return t.Err != "" && t.Install.Kind != tailscale.InstallUnknown
 	}
 	return !t.State.Running()
+}
+
+// TrayToolTip is the menu bar icon's tooltip: the app, the overall state
+// and what makes it so (出现故障 · Tailscale 需要登录), which reads as the
+// legend of the icon's shape.
+func TrayToolTip(s Snapshot) string {
+	T := i18n.Cur()
+	tip := T.AppName + T.TrayTipSep + s.Level.Text()
+	if s.Level == LevelWarn || s.Level == LevelError {
+		for _, r := range s.Reasons {
+			if r.Level == s.Level {
+				return tip + T.TrayTipSep + r.Text
+			}
+		}
+	}
+	return tip
 }

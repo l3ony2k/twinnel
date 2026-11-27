@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"runtime"
@@ -10,7 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/duet/core/i18n"
-	"github.com/l3ony2k/duet/core/mihomo"
+	"github.com/l3ony2k/duet/core/rpc"
 	"github.com/l3ony2k/duet/core/status"
 )
 
@@ -75,11 +74,9 @@ func (a *app) panelView(c *ui.Context) {
 		sep()
 		a.panelTailscale(c, s)
 		sep()
-		if !s.WritesAllowed {
-			ui.Row(c.Key("ro")).Gap(6).AlignItems(ui.Center).Tooltip(T.WritesDisabledHint).Children(func() {
-				ui.Icon(c, iconSecure).FontSize(iconSmall).TextColor(t.TextMuted)
-				small(c, T.ReadOnlyShort).Grow(1)
-			})
+		if h := s.Helper.State; h != status.HelperNotInstalled && h != status.HelperUnknown {
+			// 应急恢复: works while things are broken (statusui.go).
+			ui.Row(c).Children(func() { a.recoveryMenu(c, s) })
 		}
 		if a.actionErr != "" {
 			errorNote(c, a.actionErr)
@@ -118,26 +115,29 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 	if m.Reachable {
 		mark, col, state = markOK, t.Success, T.Running
 	}
-	sectionTitle(c, T.Mihomo, mark, col, state+versionSuffix(m.Version))
 	if !m.Reachable {
+		// Down: no stale values, the plain state, and 启动 when the
+		// helper can start it (else the lock says why it can't).
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			stateDot(c, mark, col, 8)
+			ui.Text(c, T.Mihomo).FontWeight(plat.headingWeight)
+			ui.Spacer(c)
+			small(c, state).SingleLine()
+			if s.WritesAllowed && !m.Unauthorized {
+				busy := a.hd.busy == T.StartMihomo
+				if busyButton(c.Key("start-mihomo"), T.StartShort, false, busy, !s.Can().Helper || a.hd.busy != "").Clicked() {
+					a.mihomoService(rpc.MethodServiceStart, T.StartMihomo)
+				}
+				a.helperLock(c, s)
+			}
+		})
 		unreachableLine(c, svcMihomo, m.Err)
 		return
 	}
-	w := s.WritesAllowed
+	sectionTitle(c, T.Mihomo, mark, col, state+versionSuffix(m.Version))
+	w := s.Can().Mihomo
 	kvWith(c, T.Mode, func() {
-		idx := 0
-		cur := pendingValue(a, pendMode, m.Config.Mode)
-		labels := make([]string, len(mihomo.Modes))
-		for i, md := range mihomo.Modes {
-			labels[i] = T.ModeName(string(md))
-			if md == cur {
-				idx = i
-			}
-		}
-		if ui.Segmented(c.Key("mode"), &idx, labels...).Disabled(!w).Grow(1).Height(plat.rowMinHeight).Changed() {
-			md := mihomo.Modes[idx]
-			a.optimistic(pendMode, md, T.ModeFailed, func(ctx context.Context) error { return a.mh.SetMode(ctx, md) })
-		}
+		a.modeControl(c, s).Grow(1).Height(plat.rowMinHeight)
 	})
 	a.controlError(c, pendMode)
 	tun := T.TunOff
@@ -191,7 +191,10 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 			state = T.TSState(st.BackendState)
 		}
 		small(c, state)
-		if ts.Reachable {
+		switch {
+		case needsLogin(s):
+			a.tsLoginButton(c, s)
+		case ts.Reachable:
 			a.tsPowerSwitch(c, s)
 		}
 	})
@@ -199,6 +202,9 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 	if !ts.Reachable {
 		unreachableLine(c, svcTailscale, ts.Err)
 		return
+	}
+	if needsLogin(s) {
+		return // its addresses, devices and exit node are not this node's now
 	}
 	if ip := st.Self.IPv4(); ip.IsValid() {
 		kv(c, T.SelfIP, ip.String()+" · "+st.Self.Name)
@@ -215,28 +221,38 @@ func versionSuffix(v string) string {
 	return " · " + v
 }
 
-// helperLine is the panel's line about the helper, while it is not
-// connected; clicking it opens the 订阅与覆写 page (first-run view).
+// needsLogin: Tailscale answers and wants a login.
+func needsLogin(s status.Snapshot) bool {
+	st := s.Tailscale.State.BackendState
+	return s.Tailscale.Reachable && (st == "NeedsLogin" || st == "NeedsMachineAuth")
+}
+
+// helperLine is the panel's line about the helper while it is not
+// connected: installed but down (a warning: what needs it is locked), or
+// not installed (quiet). A click opens where that is dealt with.
 func (a *app) helperLine(c *ui.Context, s status.Snapshot) {
 	h := s.Helper
 	if h.State == status.HelperConnected || h.State == status.HelperUnknown {
 		return
 	}
 	t := c.Theme()
-	row := ui.Row(c.Key("helper-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius)
+	T := i18n.T
+	icon, col, text := iconSkip, t.TextMuted, T.Helper+T.LabelSep+h.State.Text()
+	if h.State != status.HelperNotInstalled {
+		icon, col, text = iconWarning, t.Warning, T.HelperDownRow
+	}
+	row := ui.Row(c.Key("helper-line")).Gap(8).AlignItems(ui.Center).Padding(6, 8).MarginX(-8).Radius(plat.controlRadius).
+		Focusable().Role(ui.RoleButton).Label(text)
 	row.Children(func() {
-		ui.Icon(c, iconSkip).FontSize(iconInline).TextColor(t.TextMuted)
-		ui.Text(c, i18n.T.Helper+"："+h.State.Text()).Grow(1).SingleLine()
+		ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
+		ui.Text(c, text).Grow(1).SingleLine()
 		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted)
 	})
 	if row.Hovered() {
 		row.Background(t.Text.Alpha(0.08))
 	}
 	if row.Clicked() {
-		old := a.page
-		a.page = pageConfig
-		a.openMain()
-		a.pageChanged(old)
+		a.openHelperSetup(s)
 	}
 }
 

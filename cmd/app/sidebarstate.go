@@ -7,12 +7,13 @@ import (
 	"github.com/l3ony2k/duet/core/status"
 )
 
-// duetPair is the signature: the two networks side by side, each with its
-// state mark, and the helper under them. State is told by shape as well
-// as color (Differentiate Without Color, and the owner's rule for the
-// tray icon): a filled dot is running, a ring with a dot in it needs
-// attention, an empty ring is down or unknown. Each line carries its
-// state in words as a tooltip and for VoiceOver.
+// duetPair is the signature: one row of state marks, mihomo, Tailscale
+// and the helper, each with its state in words as a tooltip and for
+// VoiceOver. State is told by shape as well as color (Differentiate
+// Without Color, and the owner's rule for the tray icon): a filled dot is
+// running, a ring with a dot in it needs attention, an empty ring is down
+// or unknown. A second row shows only when something asks for an action
+// (install the helper, start it, update it).
 func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
 	t := c.Theme()
 	T := i18n.T
@@ -21,15 +22,22 @@ func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
 	if s.Mihomo.Reachable {
 		mstate, mtext = markOK, T.Running
 	}
+	pair := func(key, name, text string, m stateMark, col ui.Color) {
+		label := i18n.F(i18n.T.StateLabel, name, text)
+		ui.Row(c.Key(key)).Gap(5).AlignItems(ui.Center).Shrink(1).MinWidth(0).Tooltip(label).Label(label).Role(ui.RoleStatus).Children(func() {
+			stateDot(c, m, col, 8)
+			ui.Text(c, name).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		})
+	}
+	hm, hcol := markDown, t.TextMuted
+	switch s.Helper.State {
+	case status.HelperConnected:
+		hm, hcol = markOK, t.Success
+	case status.HelperNotRunning, status.HelperDenied, status.HelperNotInstalled:
+		hm, hcol = markAttention, t.Warning
+	}
 	ui.Column(c).Gap(6).Padding(8, padX).Children(func() {
-		pair := func(key, name, text string, m stateMark, col ui.Color) {
-			label := i18n.F(i18n.T.StateLabel, name, text)
-			ui.Row(c.Key(key)).Gap(6).AlignItems(ui.Center).Tooltip(label).Label(label).Role(ui.RoleStatus).Children(func() {
-				stateDot(c, m, col, 8)
-				ui.Text(c, name).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine()
-			})
-		}
-		ui.Row(c).Gap(14).Children(func() {
+		ui.Row(c).Gap(10).Children(func() {
 			pair("m", T.Mihomo, mtext, mstate, stateMarkColor(t, mstate))
 			tm := tsMark(s)
 			ttext := T.Unreachable
@@ -37,36 +45,38 @@ func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
 				ttext = T.TSState(s.Tailscale.State.BackendState)
 			}
 			pair("t", T.Tailscale, ttext, tm, tsColor(t, s))
+			pair("h", T.HelperShort, s.Helper.State.Text(), hm, hcol)
 		})
-		hm := markDown
-		hcol := t.TextMuted
-		switch s.Helper.State {
-		case status.HelperConnected:
-			hm, hcol = markOK, t.Success
-		case status.HelperNotRunning, status.HelperDenied, status.HelperNotInstalled:
-			hm, hcol = markAttention, t.Warning
-		}
-		if helperOutdated(s) {
+		switch {
+		case helperOutdated(s):
 			// The version handshake is one row here: the state, and 更新.
 			ui.Row(c.Key("h-update")).Gap(6).AlignItems(ui.Center).Children(func() {
-				pair("h", T.HelperNeedsUpdate, T.HelperNeedsUpdate, markAttention, t.Warning)
+				pair("hu", T.HelperNeedsUpdate, T.HelperNeedsUpdate, markAttention, t.Warning)
 				ui.Spacer(c)
 				a.helperUpdateButton(c, s, "side-update")
 			})
-		} else {
-			pair("h", T.Helper+" · "+s.Helper.State.Text(), s.Helper.State.Text(), hm, hcol)
-		}
-		if !s.WritesAllowed {
-			// Read-only is a state of the whole app: one line here, on
-			// every page, instead of a banner on each; the tooltip says
-			// how to turn it off.
-			ui.Row(c.Key("ro")).Gap(6).AlignItems(ui.Center).Tooltip(T.WritesDisabledHint).
-				Label(T.ReadOnlyShort + "：" + T.WritesDisabledHint).Role(ui.RoleStatus).Children(func() {
-				ui.Icon(c, iconSecure).FontSize(iconSmall).TextColor(t.TextMuted).MarginStart(-2).Shrink(0)
-				ui.Text(c, T.ReadOnlyShort).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine()
-			})
+		case s.Helper.State == status.HelperNotInstalled, s.Helper.State == status.HelperNotRunning, s.Helper.State == status.HelperDenied:
+			text := T.Helper + " · " + s.Helper.State.Text()
+			if s.Helper.State != status.HelperNotInstalled {
+				text = T.HelperDownRow
+			}
+			footLink(c.Key("h-act"), text, func() { a.openHelperSetup(s) })
 		}
 	})
+}
+
+// footLink is the sidebar foot's action row: small text in the accent that
+// opens where the state is dealt with (a button: the arrow cursor).
+func footLink(c *ui.Context, text string, fn func()) {
+	t := c.Theme()
+	l := ui.Row(c).Gap(4).AlignItems(ui.Center).Role(ui.RoleButton).Label(text).Focusable()
+	l.Children(func() {
+		ui.Text(c, text).FontSize(plat.smallSize).TextColor(t.Accent).SingleLine().Shrink(1)
+		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.Accent)
+	})
+	if l.Clicked() {
+		fn()
+	}
 }
 
 // windowKeys are the main window's standard shortcuts that belong to no
