@@ -255,13 +255,20 @@ func TestTailscaleInstallWindowsRepairAndNoStart(t *testing.T) {
 	h.e.TSProbe = &kernel.TailscaleProbe{
 		Stat:         func(string) (os.FileInfo, error) { return os.Stat(".") },
 		EvalSymlinks: func(p string) (string, error) { return cli, nil },
-		Run:          func(context.Context, string, ...string) ([]byte, error) { return []byte(`{"majorMinorPatch":"1.104.7"}`), nil },
+		Run: func(context.Context, string, ...string) ([]byte, error) {
+			return []byte(`{"majorMinorPatch":"1.104.7"}`), nil
+		},
 	}
 	var repairs, installs int
 	h.e.TSInstaller = &kernel.TailscaleInstaller{Dir: h.e.Store.Path("tailscale"), PkgsURL: srv.URL, GOOS: "windows", GOARCH: "amd64",
 		WindowsDir: winDir,
 		RunMSI:     func(context.Context, string, string) (int, error) { installs++; scm.installed = true; return 0, nil },
-		RepairMSI:  func(context.Context, string, string) (int, error) { repairs++; damaged = false; scm.installed = true; return 0, nil },
+		RepairMSI: func(context.Context, string, string) (int, error) {
+			repairs++
+			damaged = false
+			scm.installed = true
+			return 0, nil
+		},
 		Sane: func(p string) binsane.Result {
 			if damaged && !strings.Contains(p, "tailscaled") { // the CLI the probe found
 				return binsane.Result{Path: p, Problem: binsane.Zeroed}
