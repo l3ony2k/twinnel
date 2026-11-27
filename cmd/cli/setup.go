@@ -118,6 +118,8 @@ func runSetupFlow(args []string, statusOnly bool) error {
 	fs.StringVar(&f.o.KernelChannel, "channel", "", "mihomo `CHANNEL`: stable or alpha")
 	fs.BoolVar(&f.o.NoDNS, "no-dns", false, "leave the system DNS alone")
 	fs.BoolVar(&f.o.NoTailscale, "no-tailscale", false, "no Tailscale install or login")
+	fs.BoolVar(&f.o.TailscaleInstallOnly, "tailscale-install-only", false, "install Tailscale but leave it stopped (no login)")
+	fs.BoolVar(&f.o.RepairTailscale, "repair-tailscale", false, "reinstall a Tailscale install whose files are damaged")
 	fs.BoolVar(&f.yes, "yes", false, "never ask (fail where input is needed)")
 	fs.StringVar(&f.stepOnly, "step", "", "run only `STEP` again (a retry)")
 	fs.DurationVar(&f.o.LoginTimeout, "login-timeout", 10*time.Minute, "how long to wait for the Tailscale login")
@@ -148,7 +150,7 @@ func runSetupFlow(args []string, statusOnly bool) error {
 	}, f.o)
 	flow.Detect(ctx)
 	if statusOnly {
-		return printSetup(flow, cf.json, nil)
+		return printSetup(flow, cf.json, true, nil)
 	}
 	if !cf.json {
 		flow.OnChange = progressPrinter(flow)
@@ -173,7 +175,7 @@ func runSetupFlow(args []string, statusOnly bool) error {
 			break
 		}
 	}
-	return printSetup(flow, cf.json, err)
+	return printSetup(flow, cf.json, false, err)
 }
 
 // maxImportZip bounds an export zip read into memory.
@@ -232,6 +234,13 @@ func askForStep(flow *setup.Flow, se *setup.StepError) bool {
 			return false
 		}
 		return true
+	case setup.CodeDamaged:
+		fmt.Fprintln(stdout, "Tailscale's files are damaged:", se.Err)
+		if !strings.HasPrefix(strings.ToLower(ask("Repair (reinstall Tailscale)? [y/N] ")), "y") {
+			return false
+		}
+		flow.Opts.RepairTailscale = true
+		return true
 	}
 	return strings.HasPrefix(strings.ToLower(ask("Retry "+string(se.Step)+"? [y/N] ")), "y")
 }
@@ -260,19 +269,27 @@ func progressPrinter(flow *setup.Flow) func() {
 			case setup.Failed:
 				fmt.Fprintf(stdout, "[%d/%d] %s ✗ %s\n", i+1, len(setup.Order), s.ID, s.Error)
 			case setup.Skipped:
-				fmt.Fprintf(stdout, "[%d/%d] %s skipped\n", i+1, len(setup.Order), s.ID)
+				why := "not available on this system"
+				if s.Code == setup.CodeUserSkipped {
+					why = "your choice"
+				}
+				fmt.Fprintf(stdout, "[%d/%d] %s skipped (%s)\n", i+1, len(setup.Order), s.ID, why)
 			}
 		}
 	}
 }
 
-func printSetup(flow *setup.Flow, asJSON bool, err error) error {
+func printSetup(flow *setup.Flow, asJSON bool, statusOnly bool, err error) error {
 	if asJSON {
+		// complete: every step done. Skipped steps (by choice or because
+		// this system lacks them) are listed in remaining, never counted
+		// as done.
 		out := struct {
-			Complete bool              `json:"complete"`
-			Steps    []setup.StepState `json:"steps"`
-			Error    string            `json:"error,omitempty"`
-		}{flow.Complete(), flow.Steps(), ""}
+			Complete  bool              `json:"complete"`
+			Steps     []setup.StepState `json:"steps"`
+			Remaining []setup.Left      `json:"remaining,omitempty"`
+			Error     string            `json:"error,omitempty"`
+		}{flow.AllDone(), flow.Steps(), flow.Remaining(), ""}
 		if err != nil {
 			out.Error = err.Error()
 		}
@@ -280,11 +297,7 @@ func printSetup(flow *setup.Flow, asJSON bool, err error) error {
 		fmt.Fprintln(stdout, string(b))
 		return err
 	}
-	if err == nil && flow.Complete() {
-		fmt.Fprintln(stdout, "Setup complete.")
-		return nil
-	}
-	if err == nil { // status
+	if statusOnly {
 		for _, s := range flow.Steps() {
 			fmt.Fprintf(stdout, "  %-12s %s", s.ID, s.State)
 			if s.Detail != "" {
@@ -292,6 +305,8 @@ func printSetup(flow *setup.Flow, asJSON bool, err error) error {
 			}
 			fmt.Fprintln(stdout)
 		}
+		fmt.Fprintln(stdout)
 	}
+	fmt.Fprintln(stdout, flow.Summary())
 	return err
 }

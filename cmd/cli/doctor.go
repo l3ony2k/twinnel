@@ -62,6 +62,7 @@ func runDoctor(args []string) error {
 	}
 	settings.AllowExitNode = *allowExit
 	settings.Egress, settings.EgressURL = *egress, *egressURL
+	settings.Binaries = doctorBinaries()
 
 	env, err := newHealthEnv(healthEnvOptions{Controller: *controller, ConfigPath: *configPath, Settings: &settings})
 	if err != nil {

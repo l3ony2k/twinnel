@@ -47,6 +47,7 @@ func tailnetInterface(ctx context.Context) (string, error) {
 //     the interval and after applies and service operations.
 func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	linuxSettings(e)
+	e.Autostarts = autostartSource(o)
 	o.group = linuxGroup(o.group)
 	e.PortOwner = func(ctx context.Context, port int) (*foreign.Process, error) {
 		return foreign.ProcPortOwner(ctx, "/proc", port)
@@ -108,6 +109,7 @@ func healthOptions(e *engine.Engine, opts *options) linux.Options {
 	o := linux.Options{TailscaleStatus: devTailnetStatus(e, opts), Dataplane: health.NetProbes{}}
 	settings := health.DefaultSettings()
 	o.Settings = &settings
+	healthExtras(e, &settings)
 	st, err := e.Store.Settings()
 	if err != nil {
 		return o

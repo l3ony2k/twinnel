@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/autostart"
 	"github.com/l3ony2k/twinnel/core/config"
 	"github.com/l3ony2k/twinnel/core/dnswatch"
 	"github.com/l3ony2k/twinnel/core/foreign"
@@ -121,6 +122,10 @@ type Engine struct {
 	// profile to SYSTEM; see tailscale.Client.LoginInSession). Reading the
 	// login state still works.
 	TSLoginInSession bool
+	// Autostarts reads the competing clients' autostart entries
+	// (autostart.list/change, the competitor-autostart check); nil: not on
+	// this platform.
+	Autostarts autostart.Source
 	// TSInstaller is the template of tailscale.install's installer (nil:
 	// <state>/tailscale with the public sources).
 	TSInstaller *kernel.TailscaleInstaller

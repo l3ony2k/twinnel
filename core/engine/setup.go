@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/binsane"
 	"github.com/l3ony2k/twinnel/core/kernel"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/service"
@@ -194,10 +195,24 @@ func (e *Engine) TailscaleInstall(ctx context.Context, p rpc.TailscaleInstallPar
 		probe = &kernel.TailscaleProbe{}
 	}
 	in := e.tsInstaller()
+	in.Repair = p.Repair
 	_, managedDaemon := in.Binaries()
 	if existing := probe.FindExisting(); existing != "" {
-		out.Kept, out.Path, out.Kind = true, existing, probe.Kind(existing)
+		kind := probe.Kind(existing)
+		bad := in.Damaged(existing, daemonNextTo(existing))
+		if len(bad) > 0 && p.Repair && kind == kernel.TSWindows && in.UsesMSI() {
+			e.log().Warn("tailscale install damaged: repairing", "files", len(bad))
+			r, err := e.tailscaleInstallMSI(ctx, st, p, in)
+			r.Repaired = err == nil
+			return r, err
+		}
+		out.Kept, out.Path, out.Kind = true, existing, kind
 		out.UsesSystemVPN = out.Kind == kernel.TSStandalone || out.Kind == kernel.TSAppStore
+		if len(bad) > 0 {
+			out.Damaged = binaryProblems(bad)
+			e.log().Warn("tailscale install damaged", "kind", kind, "files", len(bad))
+			return out, rpc.Errorf(rpc.CodeFailed, "%v", kernel.DamagedError(bad))
+		}
 		if v, err := probe.LocalVersion(ctx, existing); err == nil {
 			out.Version = v
 		}
@@ -207,7 +222,19 @@ func (e *Engine) TailscaleInstall(ctx context.Context, p rpc.TailscaleInstallPar
 	if in.UsesMSI() {
 		return e.tailscaleInstallMSI(ctx, st, p, in)
 	}
-	if cur := in.Current(); cur != "" && fileExists(managedDaemon) {
+	cur := in.Current()
+	if cur != "" && fileExists(managedDaemon) {
+		cli, daemon := in.Binaries()
+		if bad := in.Damaged(cli, daemon); len(bad) > 0 {
+			if !p.Repair {
+				out.Kept, out.Kind, out.Path, out.Daemon = true, "twinnel", cli, daemon
+				out.Damaged = binaryProblems(bad)
+				return out, rpc.Errorf(rpc.CodeFailed, "%v", kernel.DamagedError(bad))
+			}
+			cur, out.Repaired = "", true // unpack it again
+		}
+	}
+	if cur != "" && fileExists(managedDaemon) {
 		// Installed by an earlier run: only make sure the service is there.
 		cli, daemon := in.Binaries()
 		out.Kept, out.Kind, out.Path, out.Version, out.Daemon = true, "twinnel", cli, cur, daemon
@@ -245,8 +272,45 @@ func (e *Engine) TailscaleInstall(ctx context.Context, p rpc.TailscaleInstallPar
 		return out, err
 	}
 	e.publish(rpc.EventServiceChanged, map[string]any{"name": "tailscaled", "op": "install", "dry_run": svc.DryRun})
+	if p.NoStart && !svc.DryRun {
+		out.Stopped = e.stopAfterInstall(ctx)
+	}
 	e.triggerHealth("tailscale install")
 	return out, nil
+}
+
+// stopAfterInstall stops tailscaled after an install-only request (the
+// installer started it) and reports whether it is stopped.
+func (e *Engine) stopAfterInstall(ctx context.Context) bool {
+	if _, err := e.ServiceOp(ctx, "tailscaled", service.OpStop); err != nil {
+		e.log().Warn("tailscale: stop after install-only failed", "err", err)
+		return false
+	}
+	e.log().Info("tailscale installed and left stopped (install only)")
+	return true
+}
+
+// daemonNextTo is the tailscaled next to a tailscale CLI, if there is one.
+func daemonNextTo(cli string) string {
+	dir, base := filepath.Split(cli)
+	name := "tailscaled"
+	if strings.HasSuffix(strings.ToLower(base), ".exe") {
+		name += ".exe"
+	} else if strings.Contains(cli, `\`) {
+		return ""
+	}
+	if d := filepath.Join(dir, name); fileExists(d) {
+		return d
+	}
+	return ""
+}
+
+func binaryProblems(rs []binsane.Result) []rpc.BinaryProblem {
+	out := make([]rpc.BinaryProblem, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, rpc.BinaryProblem{Path: r.Path, Problem: string(r.Problem), Detail: r.Detail})
+	}
+	return out
 }
 
 // tailscaleInstallMSI installs the official Windows client from its MSI
@@ -281,6 +345,9 @@ func (e *Engine) tailscaleInstallMSI(ctx context.Context, st *store.Settings, p 
 	got, err := in.InstallMSI(ctx, a, logPath)
 	if err != nil {
 		e.log().Warn("tailscale msi install failed", "version", a.Version, "err", err)
+		if bad := in.Damaged(got.CLI, got.Daemon); len(bad) > 0 {
+			out.Damaged = binaryProblems(bad)
+		}
 		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
 	}
 	out.Version, out.Path, out.Daemon, out.RestartNeeded = got.Version, got.CLI, got.Daemon, got.RestartNeeded
@@ -300,6 +367,10 @@ func (e *Engine) tailscaleInstallMSI(ctx context.Context, st *store.Settings, p 
 	}
 	if !svc.Running {
 		return out, rpc.Errorf(rpc.CodeFailed, "Tailscale was installed but its service did not start; restart the computer and try again")
+	}
+	if p.NoStart {
+		// The MSI starts its service; the user asked for the install only.
+		out.Stopped = e.stopAfterInstall(ctx)
 	}
 	return out, nil
 }

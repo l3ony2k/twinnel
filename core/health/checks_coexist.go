@@ -25,7 +25,7 @@ func (ResolverBinding) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	if !cfg.DNS.Enable {
 		return skipText(L.msgMihomoDNSOff)
@@ -183,7 +183,7 @@ func (FakeIPMode) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
-		return skipErr(L.msgMihomoUnavailable, err)
+		return skipMihomo(ctx, err)
 	}
 	if !cfg.DNS.Enable || !strings.EqualFold(cfg.DNS.EnhancedMode, "fake-ip") {
 		return skipText(L.msgFakeIPNotUsed)
@@ -317,7 +317,7 @@ func (LeakEgress) Run(ctx context.Context, env Env) Result {
 	}
 	rt, err := env.MihomoRuntime(ctx)
 	if err != nil {
-		r := skipErr(L.msgMihomoUnavailable, err)
+		r := skipMihomo(ctx, err)
 		r.Egress = ips
 		return r
 	}

@@ -99,6 +99,10 @@ const (
 	// did not start). Another proxy does not help; the error is a coded
 	// message (core/msg) a client words.
 	CodeInstallFailed = "install-failed"
+	// CodeDamaged: an installed program's files are damaged (zeroed by an
+	// interrupted installer, a bad signature). The client offers a repair:
+	// Options.RepairTailscale, then the step again.
+	CodeDamaged = "damaged"
 )
 
 // StepState is a step's progress.
@@ -150,6 +154,12 @@ type Options struct {
 	KernelChannel string
 	NoDNS         bool // leave the system DNS alone (mihomo's TUN still hijacks DNS)
 	NoTailscale   bool // no Tailscale install or login
+	// TailscaleInstallOnly installs Tailscale and leaves its service
+	// stopped (the Windows installer starts it); the login is left out.
+	TailscaleInstallOnly bool
+	// RepairTailscale reinstalls a Tailscale install whose files are
+	// damaged (CodeDamaged).
+	RepairTailscale bool
 	// LoginTimeout bounds the wait for the browser login (default 10 min).
 	LoginTimeout time.Duration
 }
@@ -261,7 +271,9 @@ func (f *Flow) set(id Step, fn func(*StepState)) {
 	}
 }
 
-// Complete reports whether every step is done or skipped.
+// Complete reports whether every step is done or skipped: nothing is left
+// to run. It does not mean the machine is set up: a skipped step is still
+// missing (AllDone, Remaining).
 func (f *Flow) Complete() bool {
 	for _, s := range f.Steps() {
 		if s.State != Done && s.State != Skipped {
@@ -322,12 +334,20 @@ func (f *Flow) Detect(ctx context.Context) {
 		}
 	}
 	if f.Opts.NoDNS {
-		f.skip(StepDNS, "")
+		f.skip(StepDNS, CodeUserSkipped)
+	} else if f.dnsUnsupported(ctx, hc) {
+		f.skip(StepDNS, CodeUnsupported)
 	}
 	if f.Opts.NoTailscale {
-		f.skip(StepTailscale, "")
-		f.skip(StepLogin, "")
+		f.skip(StepTailscale, CodeUserSkipped)
+		f.skip(StepLogin, CodeUserSkipped)
 	}
+}
+
+// dnsUnsupported: the helper says this platform cannot set the system DNS.
+func (f *Flow) dnsUnsupported(ctx context.Context, hc Caller) bool {
+	var d rpc.DNSStatus
+	return hc.Call(ctx, rpc.MethodDNSStatus, nil, &d) == nil && !d.Supported
 }
 
 func (f *Flow) skip(id Step, code string) {
@@ -432,7 +452,7 @@ func (f *Flow) RunStep(ctx context.Context, id Step) error {
 		switch se.Code {
 		case CodeNeedsSubscription:
 			state = Waiting
-		case CodeUnsupported:
+		case CodeUnsupported, CodeUserSkipped:
 			state = Skipped
 		}
 		f.set(id, func(s *StepState) { s.State, s.Error, s.Code, s.Detail = state, cleanErr(se.Err), se.Code, detail })
@@ -574,7 +594,11 @@ var installCodes = map[string]bool{
 // after the download is CodeInstallFailed, anything else a download
 // failure (the client offers another proxy).
 func installErr(err error) error {
-	if installCodes[msg.Parse(cleanErr(err)).Code] {
+	code := msg.Parse(cleanErr(err)).Code
+	if code == "ts-damaged" {
+		return &StepError{Code: CodeDamaged, Err: err}
+	}
+	if installCodes[code] {
 		return &StepError{Code: CodeInstallFailed, Err: err}
 	}
 	return downloadErr(err)
@@ -694,7 +718,7 @@ func (f *Flow) runApply(ctx context.Context, hc Caller) (string, error) {
 
 func (f *Flow) runDNS(ctx context.Context, hc Caller) (string, error) {
 	if f.Opts.NoDNS {
-		return "", &StepError{Code: CodeUnsupported, Err: errors.New("left alone (--no-dns)")}
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("left alone (--no-dns)")}
 	}
 	var d rpc.DNSStatus
 	if err := hc.Call(ctx, rpc.MethodDNSStatus, nil, &d); err != nil {
@@ -714,15 +738,21 @@ func (f *Flow) runDNS(ctx context.Context, hc Caller) (string, error) {
 
 func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 	if f.Opts.NoTailscale {
-		return "", &StepError{Code: CodeUnsupported, Err: errors.New("skipped (--no-tailscale)")}
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("skipped (--no-tailscale)")}
 	}
 	var r rpc.TailscaleInstallResult
-	if err := hc.Call(ctx, rpc.MethodTailscaleInstall, rpc.TailscaleInstallParams{Proxy: f.Opts.Proxy}, &r); err != nil {
+	p := rpc.TailscaleInstallParams{Proxy: f.Opts.Proxy, NoStart: f.Opts.TailscaleInstallOnly, Repair: f.Opts.RepairTailscale}
+	if err := hc.Call(ctx, rpc.MethodTailscaleInstall, p, &r); err != nil {
 		var re *rpc.Error
 		if errors.As(err, &re) && (re.Code == rpc.CodeFailed) {
 			return "", installErr(err)
 		}
 		return "", err
+	}
+	if r.Repaired {
+		f.mu.Lock()
+		f.Opts.RepairTailscale = false
+		f.mu.Unlock()
 	}
 	if r.RestartNeeded {
 		f.warn(StepTailscale, WarnRestart, "restart the computer to finish installing Tailscale")
@@ -748,7 +778,10 @@ func (f *Flow) runTailscale(ctx context.Context, hc Caller) (string, error) {
 
 func (f *Flow) runLogin(ctx context.Context, hc Caller) (string, error) {
 	if f.Opts.NoTailscale {
-		return "", &StepError{Code: CodeUnsupported, Err: errors.New("skipped (--no-tailscale)")}
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("skipped (--no-tailscale)")}
+	}
+	if f.Opts.TailscaleInstallOnly {
+		return "", &StepError{Code: CodeUserSkipped, Err: errors.New("Tailscale was left stopped (install only)")}
 	}
 	state := func(start bool) (rpc.TailscaleLoginResult, error) {
 		var ls rpc.TailscaleLoginResult

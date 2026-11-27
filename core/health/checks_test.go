@@ -1,6 +1,8 @@
 package health
 
 import (
+	"github.com/l3ony2k/twinnel/core/autostart"
+
 	"context"
 	"errors"
 	"github.com/l3ony2k/twinnel/core/foreign"
@@ -83,6 +85,9 @@ func healthyEnv() *fakeEnv {
 	}
 	settings := DefaultSettings()
 	settings.Egress = true
+	// Helper-only facts (checks_extra_test.go fakes the binary check).
+	settings.Binaries = []BinaryRef{{Name: "mihomo", Path: "/synthetic/kernels/mihomo/current/mihomo"}}
+	settings.Autostarts = func(context.Context) ([]autostart.Entry, error) { return nil, nil }
 	return &fakeEnv{
 		settings:      settings,
 		owner:         &foreign.Owner{Addr: "127.0.0.1:9090", Verdict: foreign.Managed, PID: 4242, Exe: "/opt/twinnel/kernels/mihomo/current/mihomo"},

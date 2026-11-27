@@ -142,6 +142,7 @@ func tailnetInterface(ctx context.Context) (string, error) {
 // after applies and service operations.
 func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 	windowsSettings(e)
+	e.Autostarts = autostartSource(o)
 	e.PortOwner = windows.PortOwner
 	if d := systemDNS(o); d != nil {
 		e.SystemDNS = d
@@ -211,6 +212,7 @@ func healthOptions(e *engine.Engine, opts *options) windows.Options {
 	o := windows.Options{TailscaleStatus: devTailnetStatus(e, opts), Dataplane: windows.Probes()}
 	settings := health.DefaultSettings()
 	o.Settings = &settings
+	healthExtras(e, &settings)
 	st, err := e.Store.Settings()
 	if err != nil {
 		return o

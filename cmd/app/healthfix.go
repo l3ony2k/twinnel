@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/l3ony2k/twinnel/core/autostart"
+
 	"context"
 	"fmt"
 	"runtime"
@@ -338,6 +340,10 @@ func systemSettingsURL(open, platform string) string {
 		return "x-apple.systempreferences:com.apple.NetworkExtensionSettingsUI.NESettingsUIExtension"
 	case "darwin|" + health.OpenNetworkSettings:
 		return "x-apple.systempreferences:com.apple.Network-Settings.extension"
+	case "darwin|" + health.OpenLoginItems:
+		return autostart.LoginItemsSettings
+	case "windows|" + health.OpenLoginItems:
+		return "ms-settings:startupapps"
 	case "windows|" + health.OpenVPNSettings:
 		return "ms-settings:network-vpn"
 	case "windows|" + health.OpenNetworkSettings:

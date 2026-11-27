@@ -22,8 +22,10 @@ package kernel
 
 import (
 	"context"
+
 	"errors"
 	"fmt"
+	"github.com/l3ony2k/twinnel/core/binsane"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -105,6 +107,14 @@ func MSIArgs(msi, log string) []string {
 	return []string{"/i", msi, "/qn", "/norestart", "/l*v", log, "TS_NOLAUNCH=true"}
 }
 
+// MSIRepairArgs repair an install of the same package: /fa rewrites every
+// file whatever its version or checksum (winget's "repair" does not
+// support WiX packages; this is what `winget install --force` amounts to
+// for a damaged file).
+func MSIRepairArgs(msi, log string) []string {
+	return []string{"/fa", msi, "/qn", "/norestart", "/l*v", log}
+}
+
 // MSIExec is msiexec.exe in %SystemRoot%\System32 (never one found on PATH).
 func MSIExec() string {
 	root := os.Getenv("SystemRoot")
@@ -117,7 +127,16 @@ func MSIExec() string {
 // RunMSIExec runs msiexec with MSIArgs and returns its exit code; err is
 // for msiexec not starting at all.
 func RunMSIExec(ctx context.Context, msi, log string) (int, error) {
-	cmd := exec.CommandContext(ctx, MSIExec(), MSIArgs(msi, log)...)
+	return runMSIExec(ctx, MSIArgs(msi, log))
+}
+
+// RunMSIRepair runs msiexec with MSIRepairArgs.
+func RunMSIRepair(ctx context.Context, msi, log string) (int, error) {
+	return runMSIExec(ctx, MSIRepairArgs(msi, log))
+}
+
+func runMSIExec(ctx context.Context, args []string) (int, error) {
+	cmd := exec.CommandContext(ctx, MSIExec(), args...)
 	err := cmd.Run()
 	var ee *exec.ExitError
 	if errors.As(err, &ee) {
@@ -181,9 +200,24 @@ func (t *TailscaleInstaller) InstallMSI(ctx context.Context, a TailscaleAsset, l
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
-	code, err := run(ctx, msi, logPath)
-	if err != nil {
-		return MSIInstalled{}, err
+	code := -1
+	if t.Repair {
+		// The same package repaired in place; when the installed one is
+		// another version (or none), /fa fails and a plain install
+		// replaces it.
+		repair := t.RepairMSI
+		if repair == nil {
+			repair = RunMSIRepair
+		}
+		if c, err := repair(ctx, msi, logPath); err == nil && (c == 0 || c == 3010 || c == 1641) {
+			code = c
+		}
+	}
+	if code < 0 {
+		code, err = run(ctx, msi, logPath)
+		if err != nil {
+			return MSIInstalled{}, err
+		}
 	}
 	out := MSIInstalled{Version: a.Version}
 	switch code {
@@ -198,6 +232,9 @@ func (t *TailscaleInstaller) InstallMSI(ctx context.Context, a TailscaleAsset, l
 		dir = windowsTailscaleDir()
 	}
 	out.CLI, out.Daemon = filepath.Join(dir, "tailscale.exe"), filepath.Join(dir, "tailscaled.exe")
+	if bad := t.Damaged(out.CLI, out.Daemon); len(bad) > 0 {
+		return out, DamagedError(bad)
+	}
 	probe := t.Probe
 	if probe == nil {
 		probe = ProbeTailscale
@@ -208,4 +245,34 @@ func (t *TailscaleInstaller) InstallMSI(ctx context.Context, a TailscaleAsset, l
 		return out, fmt.Errorf("Tailscale was installed but %s does not run: %w", out.CLI, err)
 	}
 	return out, nil
+}
+
+// Damaged checks installed Tailscale binaries (core/binsane: header,
+// zeroed bytes, and on Windows the Authenticode signature) and returns
+// the damaged ones. A missing or unreadable file is not damage.
+func (t *TailscaleInstaller) Damaged(paths ...string) []binsane.Result {
+	check := t.Sane
+	if check == nil {
+		goos := t.goos()
+		check = func(p string) binsane.Result { return binsane.Check(p, goos, goos == "windows") }
+	}
+	var out []binsane.Result
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		if r := check(p); r.Problem.Damaged() {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// DamagedError words damaged Tailscale binaries (core/msg "ts-damaged").
+func DamagedError(bad []binsane.Result) error {
+	var parts []string
+	for _, r := range bad {
+		parts = append(parts, r.Path+" ("+string(r.Problem)+")")
+	}
+	return fmt.Errorf("Tailscale is installed but its files are damaged: %s; repair it to reinstall", strings.Join(parts, ", "))
 }

@@ -808,6 +808,16 @@ func (a *app) wizTS(c *ui.Context, s status.Snapshot) {
 			b := busyButton(c.Key("ts-install"), T.WizTSInstalling, true, true, true)
 			disabledPrimaryFace(c, b)
 			return
+		case inst.State == setup.Failed && inst.Code == setup.CodeDamaged:
+			// An install left broken (a zeroed tailscale.exe): reinstall it.
+			failedRowWhy(c.Key("failed"), T.WizTSDamaged, setupReason(inst), inst.Error, nil, false)
+			ui.Row(c).Children(func() {
+				if b := primaryButton(c.Key("ts-repair"), T.WizTSRepair, a.setupV.running); b.Clicked() {
+					a.setupFlow().Opts.RepairTailscale = true
+					a.wizRun(nil, setup.StepTailscale)
+				}
+			})
+			return
 		case inst.State == setup.Failed:
 			failedRowWhy(c.Key("failed"), T.WizTSFailed, setupReason(inst), inst.Error, func() { a.wizRun(nil, setup.StepTailscale) }, a.setupV.running)
 			return
@@ -835,16 +845,25 @@ func (a *app) wizDone(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	warn, fail := s.Health.Counts()
 	issues := warn + fail
+	// 设置完成 only when nothing is left: a skipped or failed step counts,
+	// as does every health issue.
+	left := a.wizLeft(s) + issues
 	head := T.WizDoneHead
-	if issues > 0 && s.Health.Report != nil {
-		head = i18n.F(T.WizDoneIssues, issues)
+	switch {
+	case left > 0:
+		head = i18n.F(T.WizDoneIssues, left)
+	case s.Health.Report == nil:
+		head = T.WizDoneChecking
 	}
 	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-		icon, col := iconOK, pal(t).okText
-		if issues > 0 {
-			icon, col = iconWarning, t.Warning
+		switch {
+		case left > 0:
+			ui.Icon(c, iconWarning).FontSize(iconHero).TextColor(t.Warning)
+		case s.Health.Report == nil:
+			ui.Box(c).Width(iconHero).AlignItems(ui.Center).Shrink(0).Children(func() { spinnerIcon(c) })
+		default:
+			ui.Icon(c, iconOK).FontSize(iconHero).TextColor(pal(t).okText)
 		}
-		ui.Icon(c, icon).FontSize(iconHero).TextColor(col)
 		displayFont(ui.Text(c, head).FontSize(plat.titleSize - 3).FontWeight(plat.titleWeight))
 	})
 	listBox(c, t).Children(func() {
@@ -875,6 +894,19 @@ func (a *app) wizDone(c *ui.Context, s status.Snapshot) {
 			})
 		default:
 			a.doneRow(c, "ts", T.WizDoneTS, false, "", wizTS)
+		}
+		if a.wizDNSLeft(s) {
+			doneLine(c, "dns", func() {
+				doneRowHead(c, iconSkip, t.TextMuted, T.WizDoneDNS)
+				if st := a.wizStep(setup.StepDNS); st.State == setup.Skipped && st.Code == setup.CodeUnsupported {
+					small(c, T.WizDoneManual)
+					return
+				}
+				small(c, T.WizDoneNotSet)
+				if pushButton(c.Key("dns-fix"), T.WizDoneFix).Clicked() {
+					a.setWizardStep(wizSub)
+				}
+			})
 		}
 		doneLine(c, "health", func() {
 			switch {
@@ -914,6 +946,28 @@ func (a *app) wizDone(c *ui.Context, s status.Snapshot) {
 			}
 		})
 	})
+}
+
+// wizLeft counts ⑥'s rows that are not done: a step not set up, Tailscale
+// skipped, the system DNS not pointed at the proxy.
+func (a *app) wizLeft(s status.Snapshot) int {
+	n := 0
+	for _, done := range []bool{a.wizHelperDone(s), a.wizMihomoDone(s), a.wizSubDone(s), a.wizTSDone(s), !a.wizDNSLeft(s)} {
+		if !done {
+			n++
+		}
+	}
+	return n
+}
+
+// wizDNSLeft: the flow's DNS step ran and did not point the system DNS at
+// the proxy (skipped, failed). A taken-over setup has its own DNS.
+func (a *app) wizDNSLeft(s status.Snapshot) bool {
+	if a.wizTakenOver(s) {
+		return false
+	}
+	st := a.wizStep(setup.StepDNS)
+	return st.State == setup.Failed || st.State == setup.Skipped
 }
 
 // doneLine is one row of ⑥'s summary: mark, name, detail, action on one

@@ -98,6 +98,10 @@ type Manager struct {
 	// Keep is how many versions stay installed (default 3; current and
 	// previous are always kept).
 	Keep int
+	// Repair replaces the current version's files when that version is
+	// installed again (a damaged binary: core/binsane); otherwise a
+	// reinstall of the current version changes nothing.
+	Repair bool
 }
 
 func (m *Manager) api() string {
@@ -308,7 +312,21 @@ func (m *Manager) Install(ctx context.Context, r Release) (State, error) {
 		// Reinstall of the same version: move the old dir aside first, but
 		// never the one current points at while it is still current.
 		cur, _ := m.link("current")
+		if cur == r.Version && !m.Repair {
+			return m.List()
+		}
 		if cur == r.Version {
+			// current keeps pointing at the version's name; only the
+			// files under it change.
+			old := filepath.Join(m.Dir, fmt.Sprintf(".damaged-%s-%d", r.Version, time.Now().UnixNano()))
+			if err := os.Rename(dst, old); err != nil {
+				return State{}, err
+			}
+			if err := os.Rename(tmp, dst); err != nil {
+				os.Rename(old, dst)
+				return State{}, err
+			}
+			os.RemoveAll(old)
 			return m.List()
 		}
 		if err := os.RemoveAll(dst); err != nil {

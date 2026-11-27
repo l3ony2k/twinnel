@@ -475,3 +475,54 @@ func TestFlowSessionLogin(t *testing.T) {
 		t.Fatalf("sessions %d opened %v step %+v", sessions, *opened, f.Step(StepLogin))
 	}
 }
+
+// A setup with skipped steps is not complete: Summary never says so, and
+// Remaining names each step with what to do.
+func TestSummaryIsHonest(t *testing.T) {
+	h := newFakeHelper()
+	h.dns.Supported = false
+	installed := true
+	f, _, _ := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x", NoTailscale: true})
+	f.Detect(context.Background())
+	if f.Step(StepDNS).State != Skipped || f.Step(StepDNS).Code != CodeUnsupported {
+		t.Fatalf("detect: dns %+v", f.Step(StepDNS))
+	}
+	if err := f.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !f.Complete() || f.AllDone() {
+		t.Fatalf("complete %v all done %v", f.Complete(), f.AllDone())
+	}
+	sum := f.Summary()
+	if strings.Contains(sum, "Setup complete") || !strings.Contains(sum, "3 steps left") {
+		t.Fatalf("summary:\n%s", sum)
+	}
+	left := f.Remaining()
+	want := map[Step]string{StepDNS: LeftUnsupported, StepTailscale: LeftUserSkipped, StepLogin: LeftUserSkipped}
+	if len(left) != len(want) {
+		t.Fatalf("left %+v", left)
+	}
+	for _, l := range left {
+		if want[l.Step] != l.Why || l.Do == "" {
+			t.Errorf("%+v", l)
+		}
+	}
+
+	// Everything done: complete.
+	g, _, _ := newTestFlow(newFakeHelper(), &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	if err := g.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !g.AllDone() || g.Summary() != "Setup complete." {
+		t.Fatalf("%v %q", g.AllDone(), g.Summary())
+	}
+
+	// A failed health step is left, with doctor as the way on.
+	k := newFakeHelper()
+	k.health = append(k.health, health.CheckReport{ID: "system-dns", Title: "System DNS", Result: health.Result{Status: health.StatusFail}})
+	m, _, _ := newTestFlow(k, &installed, Options{SubscriptionURL: "https://sub.example.com/x"})
+	_ = m.Run(context.Background())
+	if l := m.Remaining(); len(l) != 1 || l[0].Why != LeftHealth || !strings.Contains(l[0].Do, "doctor") {
+		t.Fatalf("%+v", l)
+	}
+}

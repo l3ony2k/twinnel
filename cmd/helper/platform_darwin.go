@@ -55,6 +55,7 @@ func setupPlatform(e *engine.Engine, o *options) func(ctx context.Context) {
 		e.TailnetInterface = func(context.Context) (string, error) { return name, nil }
 	}
 	setupTakeover(e, o)
+	e.Autostarts = autostartSource(o)
 	ownerRun := takeoverprobe.SafeRunner(5 * time.Second)
 	e.PortOwner = func(ctx context.Context, port int) (*foreign.Process, error) {
 		return foreign.LsofPortOwner(ctx, foreign.Runner(ownerRun), port)
@@ -93,6 +94,7 @@ func healthOptions(e *engine.Engine, opts *options) darwin.Options {
 	o := darwin.Options{Run: takeoverprobe.SafeRunner(8 * time.Second), TailscaleStatus: devTailnetStatus(e, opts), Dataplane: health.NetProbes{}}
 	settings := health.DefaultSettings()
 	o.Settings = &settings
+	healthExtras(e, &settings)
 	st, err := e.Store.Settings()
 	if err != nil {
 		return o

@@ -118,6 +118,11 @@ func setupReason(st setup.StepState) string {
 		return i18n.F(T.SetupWhyHealth, st.Error)
 	case setup.CodeNeedsSubscription:
 		return T.SetupNeedsSub
+	case setup.CodeDamaged:
+		if m, ok := T.Msg(msg.Parse(st.Error)); ok {
+			return m
+		}
+		return T.SetupWhyInstall
 	case setup.CodeInstallFailed:
 		// The helper's coded message (the installer's exit, a binary
 		// that does not run), worded when Twinnel knows it.

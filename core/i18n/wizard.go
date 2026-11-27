@@ -74,9 +74,14 @@ type WizardStrings struct {
 	WizTSLoggedIn                              string // %s: the tailnet
 	WizTSLoggedInBare                          string
 	WizTSSkip                                  string
+	WizTSRepair, WizTSDamaged                  string // reinstalls a damaged Tailscale; its failed row
 
 	// ⑥ 完成
-	WizDoneHead, WizDoneIssues                           string // WizDoneIssues: %d checks
+	// WizDoneHead only when nothing is left; WizDoneIssues: %d things
+	// left (steps not done, skipped ones included, and health issues);
+	// WizDoneChecking: everything set up, the checks still running.
+	WizDoneHead, WizDoneIssues, WizDoneChecking          string
+	WizDoneDNS, WizDoneManual                            string // the system DNS row; a step this system cannot do
 	WizDoneHelper, WizDoneProxy, WizDoneSub, WizDoneTS   string // the summary's row names
 	WizDoneHealth                                        string
 	WizDoneInstalled, WizDoneRunning, WizDoneNotSet      string // WizDoneRunning: %s version
@@ -172,9 +177,14 @@ var zhWizard = WizardStrings{
 	WizTSLoggedIn:     "已登录 %s",
 	WizTSLoggedInBare: "已登录",
 	WizTSSkip:         "跳过",
+	WizTSRepair:       "修复 Tailscale",
+	WizTSDamaged:      "Tailscale 需要修复",
 
 	WizDoneHead:         "设置完成",
-	WizDoneIssues:       "设置完成，有 %d 项需要注意",
+	WizDoneIssues:       "还有 %d 项要处理",
+	WizDoneChecking:     "正在做最后的检查",
+	WizDoneDNS:          "系统 DNS",
+	WizDoneManual:       "需要手动设置",
 	WizDoneHelper:       "后台助手",
 	WizDoneProxy:        "代理",
 	WizDoneSub:          "订阅",
@@ -282,9 +292,14 @@ var enWizard = WizardStrings{
 	WizTSLoggedIn:     "Logged in to %s",
 	WizTSLoggedInBare: "Logged in",
 	WizTSSkip:         "Skip",
+	WizTSRepair:       "Repair Tailscale",
+	WizTSDamaged:      "Tailscale needs repair",
 
 	WizDoneHead:         "You're All Set",
-	WizDoneIssues:       "Set up, with %d thing{s} to look at",
+	WizDoneIssues:       "%d Thing{s} Left to Do",
+	WizDoneChecking:     "Running the Last Checks",
+	WizDoneDNS:          "System DNS",
+	WizDoneManual:       "Set it by hand",
 	WizDoneHelper:       "Helper",
 	WizDoneProxy:        "Proxy",
 	WizDoneSub:          "Subscription",

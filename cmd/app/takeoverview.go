@@ -58,6 +58,9 @@ func (a *app) takeoverPage(c *ui.Context, s status.Snapshot) {
 	if a.takeoverAdopted() && a.section("result") {
 		a.secureCard(c, s)
 	}
+	if a.section("autostart") {
+		a.autostartCard(c, s)
+	}
 }
 
 // takeoverNotes draws the page's operation notes, except a failed

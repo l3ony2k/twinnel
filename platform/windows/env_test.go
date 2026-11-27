@@ -3,6 +3,7 @@ package windows
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -321,5 +322,25 @@ func TestChecksOtherVPNHoldsDefault(t *testing.T) {
 	}
 	if r := byID["tailnet-route"]; r.Status != health.StatusOK {
 		t.Errorf("tailnet-route: %+v", r)
+	}
+}
+
+// A config this process may not read is "access denied", not "not found".
+func TestConfigNotRead(t *testing.T) {
+	t.Setenv("ProgramData", `C:\ProgramData`)
+	t.Setenv("USERPROFILE", t.TempDir())
+	e := New(Options{ReadFile: func(p string) ([]byte, error) {
+		if strings.Contains(p, "ProgramData") || strings.Contains(p, "Twinnel") {
+			return nil, &fs.PathError{Op: "open", Path: p, Err: fs.ErrPermission}
+		}
+		return nil, &fs.PathError{Op: "open", Path: p, Err: fs.ErrNotExist}
+	}})
+	_, err := e.MihomoConfig(context.Background())
+	if !errors.Is(err, fs.ErrPermission) || strings.Contains(err.Error(), "no mihomo config found") {
+		t.Fatalf("%v", err)
+	}
+	e = New(Options{ReadFile: func(p string) ([]byte, error) { return nil, &fs.PathError{Op: "open", Path: p, Err: fs.ErrNotExist} }})
+	if _, err := e.MihomoConfig(context.Background()); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("%v", err)
 	}
 }

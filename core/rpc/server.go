@@ -36,6 +36,7 @@ var AllMethods = []string{
 	MethodHardenPlan, MethodHardenPlans, MethodHardenApply,
 	MethodHelperInfo, MethodHelperInventory, MethodHelperRestart, MethodEventsWait,
 	MethodDNSStatus, MethodDNSPoint, MethodDNSRestore, MethodTailscaleInstall, MethodTailscaleLogin,
+	MethodAutostartList, MethodAutostartChange,
 }
 
 // HandlerFunc serves one method. params is the raw JSON (may be empty).

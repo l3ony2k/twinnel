@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/binsane"
 	"github.com/l3ony2k/twinnel/core/kernel"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/service"
@@ -119,6 +120,7 @@ func TestTailscaleInstallWindowsMSI(t *testing.T) {
 	// An existing official client is kept: nothing is downloaded or run.
 	msiRuns = nil
 	h.e.TSInstaller.RunMSI = func(context.Context, string, string) (int, error) { t.Error("ran msiexec"); return 0, nil }
+	h.e.TSInstaller.Sane = func(p string) binsane.Result { return binsane.Result{Path: p} }
 	h.e.TSProbe = &kernel.TailscaleProbe{
 		Stat:         func(string) (os.FileInfo, error) { return os.Stat(".") },
 		EvalSymlinks: func(p string) (string, error) { return `C:\Program Files\Tailscale\tailscale.exe`, nil },
@@ -232,5 +234,55 @@ func TestTailscaleLoginInSession(t *testing.T) {
 	f.backend = "Running"
 	if r, err := h.e.TailscaleLogin(ctx, rpc.TailscaleLoginParams{Start: true}); err != nil || r.BackendState != "Running" {
 		t.Fatalf("running: %+v %v", r, err)
+	}
+}
+
+// An official client whose CLI was zeroed by an interrupted install:
+// tailscale.install says so (ts-damaged) and, with Repair, reinstalls it
+// from the MSI (msiexec /fa first). NoStart stops the service the MSI
+// started.
+func TestTailscaleInstallWindowsRepairAndNoStart(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	srv := msiHost(t)
+	scm := &scmFake{runAfter: 0}
+	h.e.Services = scm
+	h.e.ServiceRunner = &ServiceRunner{Exec: &recExec{}, Files: &recFiles{}}
+	h.e.Sleep = func(context.Context, time.Duration) error { return nil }
+	winDir := filepath.Join(t.TempDir(), "Tailscale")
+	cli := `C:\Program Files\Tailscale\tailscale.exe`
+	damaged := true
+	h.e.TSProbe = &kernel.TailscaleProbe{
+		Stat:         func(string) (os.FileInfo, error) { return os.Stat(".") },
+		EvalSymlinks: func(p string) (string, error) { return cli, nil },
+		Run: func(context.Context, string, ...string) ([]byte, error) {
+			return []byte(`{"majorMinorPatch":"1.104.7"}`), nil
+		},
+	}
+	var repairs, installs int
+	h.e.TSInstaller = &kernel.TailscaleInstaller{Dir: h.e.Store.Path("tailscale"), PkgsURL: srv.URL, GOOS: "windows", GOARCH: "amd64",
+		WindowsDir: winDir,
+		RunMSI:     func(context.Context, string, string) (int, error) { installs++; scm.installed = true; return 0, nil },
+		RepairMSI: func(context.Context, string, string) (int, error) {
+			repairs++
+			damaged = false
+			scm.installed = true
+			return 0, nil
+		},
+		Sane: func(p string) binsane.Result {
+			if damaged && !strings.Contains(p, "tailscaled") { // the CLI the probe found
+				return binsane.Result{Path: p, Problem: binsane.Zeroed}
+			}
+			return binsane.Result{Path: p}
+		},
+		Probe: func(context.Context, string) (string, error) { return "1.104.7", nil }}
+
+	r, err := h.e.TailscaleInstall(ctx, rpc.TailscaleInstallParams{Proxy: rpc.ProxyDirect})
+	if err == nil || !strings.Contains(err.Error(), "files are damaged") || len(r.Damaged) != 1 || r.Damaged[0].Problem != "zeroed" || repairs+installs != 0 {
+		t.Fatalf("damaged: %+v %v", r, err)
+	}
+	r, err = h.e.TailscaleInstall(ctx, rpc.TailscaleInstallParams{Proxy: rpc.ProxyDirect, Repair: true, NoStart: true})
+	if err != nil || !r.Repaired || repairs != 1 || installs != 0 || !r.Stopped {
+		t.Fatalf("repair: %+v %v (repairs %d installs %d)", r, err, repairs, installs)
 	}
 }

@@ -76,9 +76,6 @@ func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 	helperOK := M{setup.StepHelper: D}
 	mihomoOK := M{setup.StepHelper: D, setup.StepMihomo: D}
 	proxyOK := M{setup.StepHelper: D, setup.StepMihomo: D, setup.StepSubscription: D, setup.StepConfig: D, setup.StepApply: D, setup.StepDNS: D}
-	if goos == "windows" {
-		proxyOK[setup.StepDNS] = S // not supported there until feat/win-sysdns
-	}
 	plus := func(m M, k setup.Step, v setup.State) M {
 		out := M{}
 		for kk, vv := range m {
@@ -148,6 +145,9 @@ func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 		{name: "ts-failed", step: wizTS, helper: true, ts: "none", steps: with(ver(st(plus(proxyOK, setup.StepTailscale, F))), setup.StepTailscale, func(s *setup.StepState) {
 			s.Code, s.Error = setup.CodeDownload, `Get "https://pkgs.tailscale.com/stable/": dial tcp 192.0.2.20:443: i/o timeout`
 		})},
+		{name: "ts-damaged", step: wizTS, helper: true, ts: "none", steps: with(ver(st(plus(proxyOK, setup.StepTailscale, F))), setup.StepTailscale, func(s *setup.StepState) {
+			s.Code, s.Error = setup.CodeDamaged, `Tailscale is installed but its files are damaged: `+map[bool]string{true: `C:\Program Files\Tailscale\tailscale.exe`, false: `/usr/local/bin/tailscale`}[goos == "windows"]+` (zeroed); repair it to reinstall`
+		})},
 		{name: "ts-login", step: wizTS, helper: true, ts: "login", steps: ver(st(plus(proxyOK, setup.StepTailscale, D)))},
 		{name: "ts-done", step: wizTS, helper: true, ts: "running", steps: ver(st(plus(plus(proxyOK, setup.StepTailscale, D), setup.StepLogin, D)))},
 		{name: "done", step: wizDone, helper: true, steps: ver(st(plus(plus(proxyOK, setup.StepTailscale, D), setup.StepLogin, D))),
@@ -157,6 +157,8 @@ func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 			setup: func(a *app) { a.wiz.state.TSSkipped = true; a.wiz.counted, a.wiz.nodes = true, 128 }},
 		{name: "done-checking", step: wizDone, helper: true, ts: "none", steps: ver(st(proxyOK)), facts: wizardShot{mihomoVer: "v1.19.34"},
 			setup: func(a *app) { a.wiz.state.TSSkipped = true }},
+		{name: "done-dns-manual", step: wizDone, helper: true, ts: "none", steps: with(ver(st(plus(proxyOK, setup.StepDNS, S))), setup.StepDNS, func(s *setup.StepState) { s.Code = setup.CodeUnsupported }),
+			facts: wizardShot{mihomoVer: "v1.19.34"}, health: clean, setup: func(a *app) { a.wiz.state.TSSkipped = true; a.wiz.counted, a.wiz.nodes = true, 128 }},
 		{name: "overview-resume", page: pageOverview, step: wizSub, helper: true, steps: ver(st(mihomoOK))},
 		{name: "config-gate", page: pageConfig, step: wizHelper, steps: st(nil)},
 	}
