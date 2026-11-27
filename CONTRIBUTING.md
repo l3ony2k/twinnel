@@ -60,6 +60,8 @@ DUET_SHOTS=$S/out DUET_SHOTS_FLOW=status DUET_SOCKET=$S/duet.sock DUET_CONTROLLE
   DUET_TAILSCALE_STATUS_FILE=$TS HOME=$S/home $S/duet-app
 ```
 
+The README's images (`docs/images/`) come from `scripts/readme-shots.sh <scratch dir>` (`DUET_SHOTS_FLOW=readme`, fixtures in `cmd/app/testdata/readme`): it builds the same hermetic stack, seeds the scratch helper with a synthetic subscription and layers, shoots English and Chinese in light and dark, and frames and compresses the PNGs. Look at every image before committing it.
+
 ## Pull requests
 
 - One topic per pull request, with a clear description of what changed and how you tested it.

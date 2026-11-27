@@ -67,7 +67,7 @@ func (a *app) readmeShots(save func(*mygo.Window, string)) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	page(pageOverview, 900)
+	page(pageOverview, 672) // ends under the traffic chart
 	probe := a.egressProbe
 	a.egressProbe = func(ctx context.Context) *health.CheckReport {
 		cr := probe(ctx)

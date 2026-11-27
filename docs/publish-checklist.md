@@ -176,9 +176,9 @@ Counted on 2026-11-27 with `git grep -c`:
 
 | Identifier | Files |
 |---|---|
-| `github.com/l3ony2k/duet` (module path, imports) | `go.mod` and almost every `.go` file (`gofmt -r` or `go mod edit -module`, then fix imports) |
+| `github.com/l3ony2k/duet` (module path, imports) | 266 files: `go.mod`, almost every `.go` file, the `-X` ldflags in `scripts/build-release.sh` (`go mod edit -module`, then rewrite the imports) |
 | `io.github.l3ony2k.duet` (bundle id) | `cmd/app/mygo.json` |
-| `com.l3ony2k.duet.helper` / `.mihomo` (launchd labels, plist names) | `core/store/settings.go`, `cmd/helper`, `cmd/app/helper.go`, `cmd/app/leavepage.go`, `core/uninstall`, `core/engine`, tests, `cmd/app/testdata/shots-install-plan.txt`, `docs/architecture.md`, `docs/runbook-adopt-macos.md`, `docs/security-review.md`, `CONTRIBUTING.md`, `AGENTS.md` |
+| `com.l3ony2k.duet.helper` / `.mihomo` (launchd labels, plist names; 14 and 10 files) | `core/store/settings.go`, `cmd/helper`, `cmd/app/helper.go`, `cmd/app/leavepage.go`, `core/uninstall`, `core/engine`, tests, `cmd/app/testdata/shots-install-plan.txt`, `docs/architecture.md`, `docs/runbook-adopt-macos.md`, `docs/security-review.md`, `CONTRIBUTING.md`, `AGENTS.md` |
 | `/var/run/duet/helper.sock`, `/Library/Application Support/duet`, `/Library/PrivilegedHelperTools/…`, `~/Library/Application Support/duet` | helper, CLI and app defaults, docs |
 | `duet` as a command, app and archive name (`duet`, `duet-helper`, `duet.app`) | `scripts/build-release.sh`, `scripts/install-local.sh`, README, docs |
 | `DUET_*` environment variables | code, CONTRIBUTING, AGENTS |

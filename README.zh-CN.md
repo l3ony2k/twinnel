@@ -13,6 +13,26 @@ duet 在桌面上同时跑**官方的** [mihomo](https://github.com/MetaCubeX/mi
 
 > **现状：早期开发中。** 首先支持 macOS（arm64）。Linux 上的命令行、健康检查、接管分析和 helper（含 systemd unit）都已接好，但只用测试数据验证过，还没在真实的 Linux 机器上跑过。Windows 能编译，但还没有平台层。接口和文件格式都可能变。
 
+## 截图
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/zh/overview-dark.png">
+  <img src="docs/images/zh/overview-light.png" alt="duet 总览：出口节点的延迟和出口 IP、连接数、内存、在线设备和实时流量" width="880">
+</picture>
+
+| | |
+|---|---|
+| <img src="docs/images/zh/proxies-light.png" alt="策略组" width="420"><br>策略组与延迟 | <img src="docs/images/zh/tailscale-light.png" alt="Tailscale 设备" width="420"><br>Tailscale 设备 |
+| <img src="docs/images/zh/health-light.png" alt="健康检查全部通过" width="420"><br>共存健康检查 | <img src="docs/images/zh/health-warn-light.png" alt="有一项警告的健康检查" width="420"><br>警告项：证据和修复建议 |
+| <img src="docs/images/zh/config-preview-light.png" alt="订阅与覆写：预览一项未应用的改动" width="420"><br>覆写层：预览未应用的改动 | <img src="docs/images/zh/history-light.png" alt="历史：和当前配置对比" width="420"><br>历史版本，和当前配置对比 |
+| <img src="docs/images/zh/settings-agent-light.png" alt="设置：本地 Agent（MCP）" width="420"><br>通过 MCP 接入本地 Agent | <img src="docs/images/zh/flyout-light.png" alt="菜单栏面板" width="340"><br>菜单栏面板 |
+
+菜单栏图标是单色的，不同状态只靠形状区分（正常、警告、错误、未知、Tailscale 断开、直连/全局模式、没有后台助手）：
+
+<img src="docs/images/tray-states.png" alt="菜单栏图标的各种状态" width="504">
+
+截图里都是虚构的数据（`scripts/readme-shots.sh`）。
+
 ## 目前能做什么
 
 | 功能 | 状态 |
@@ -25,7 +45,7 @@ duet 在桌面上同时跑**官方的** [mihomo](https://github.com/MetaCubeX/mi
 | helper 内置健康检查：定时跑，配置应用和服务操作之后跑，网络变化时跑（仅 macOS）；`duet helper health` | macOS、Linux（Linux 还没有网络变化触发） |
 | 通过 RPC 管理服务：mihomo 和 tailscaled 的启动 / 停止 / 重启，mihomo 服务的安装 / 卸载 | macOS（launchd）、Linux（systemd）；helper 不是 root 时只返回计划，不执行 |
 | `duet helper install` / `uninstall` / `upgrade` / `restart`：先打印计划（卸载会列出移除和保留的内容，`--purge` 同时删除 duet 的数据），再以 root 执行。卸载不会让 mihomo 失去服务：`harden` 之后会先把 mihomo 切回原来的服务（`--restore-mihomo`） | macOS：弹一次管理员密码框；Linux：用 `sudo` 运行（`--dry-run` 不需要 root）。还没在真机上实际安装过。 |
-| 菜单栏 App：单色状态图标（不同状态只靠形状区分：角标、断开的环、不同符号）和弹出面板；主窗口有总览、策略组、Tailscale 设备、健康检查、日志、设置，以及经 helper 的订阅与覆写、历史、内核三页；helper 未安装时显示首次使用页 | macOS；控件在它作用的对象能操作时可用（mihomo 控制接口、Tailscale LocalAPI、后台助手）；开发和测试运行用 `DUET_READ_ONLY=1` 关掉所有写操作 |
+| 菜单栏 App：单色状态图标（不同状态只靠形状区分：角标、断开的环、不同符号）和弹出面板；主窗口有总览（出口节点的延迟，按需检测出口 IP）、策略组、Tailscale 设备、健康检查、日志、设置（登录时打开、程序坞图标、界面语言：中文或英文、通过 MCP 接入本地 Agent），以及经 helper 的订阅与覆写、历史、内核、接管；helper 未安装时显示首次使用页 | macOS；控件在它作用的对象能操作时可用（mihomo 控制接口、Tailscale LocalAPI、后台助手）；开发和测试运行用 `DUET_READ_ONLY=1` 关掉所有写操作 |
 | 凭证（controller secret、订阅地址） | macOS：helper 以 root 运行时存在系统钥匙串（System keychain）；Linux 和开发用的 helper：状态目录里一个 0600 权限的 `secrets.json`（以后接 Secret Service） |
 
 ## 从源码安装
