@@ -64,3 +64,21 @@ func TestRealHomeIgnoresHOME(t *testing.T) {
 		t.Fatalf("realHome followed $HOME: %q", h)
 	}
 }
+
+func TestXDGInsideHome(t *testing.T) {
+	env := map[string]string{}
+	get := func(k string) string { return env[k] }
+	if err := xdgInsideHome(get, "/tmp/s/home"); err != nil {
+		t.Errorf("unset: %v", err)
+	}
+	env["XDG_CONFIG_HOME"] = "/tmp/s/home/.config"
+	if err := xdgInsideHome(get, "/tmp/s/home"); err != nil {
+		t.Errorf("under HOME: %v", err)
+	}
+	for _, x := range []string{"/home/someone/.config", "/tmp/s/home/../.config", "relative/.config"} {
+		env["XDG_CONFIG_HOME"] = x
+		if err := xdgInsideHome(get, "/tmp/s/home"); err == nil {
+			t.Errorf("%s accepted", x)
+		}
+	}
+}

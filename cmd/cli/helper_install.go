@@ -6,7 +6,9 @@ package main
 //
 //	osascript -e 'do shell script "<Twinnel> helper install --as-root ..." with administrator privileges'
 //
-// which shows the system's administrator password dialog once. As root
+// on macOS, or pkexec <Twinnel> helper install --as-root ... on Linux
+// (polkit), which shows the system's password dialog once (elevation, per
+// platform). As root
 // (--as-root) it applies the plan.
 
 import (
@@ -216,15 +218,14 @@ func runAsRoot(op string, f *installFlags, show func(io.Writer), run func(contex
 	return elevate(op, f, exe, rargs)
 }
 
-// elevateOSA re-runs Twinnel as root through osascript's administrator
-// password dialog (macOS; on Linux osascript is missing and this fails:
-// run with sudo).
-func elevateOSA(op string, f *installFlags, exe string, rargs []string) error {
-	argv, err := osascriptArgv(exe, rargs)
+// elevateWith re-runs Twinnel as root through el (osascript's administrator
+// password dialog on macOS, pkexec on Linux: elevation in helper_<os>.go).
+func elevateWith(el elevator, op string, f *installFlags, exe string, rargs []string) error {
+	argv, err := el.argv(exe, rargs)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(stdout, "# macOS will ask for an administrator password, then run:")
+	fmt.Fprintf(stdout, "# %s, then run:\n", el.prompt)
 	fmt.Fprintf(stdout, "#   %s\n", shellCommand(exe, rargs))
 	if !f.yes && !confirm() {
 		return errors.New("cancelled; nothing was changed")
@@ -232,19 +233,48 @@ func elevateOSA(op string, f *installFlags, exe string, rargs []string) error {
 	var errOut bytes.Buffer
 	if err := runElevated(context.Background(), argv, stdout, io.MultiWriter(os.Stderr, &errOut)); err != nil {
 		var ee *exec.ExitError
-		if errors.As(err, &ee) && ee.ExitCode() == 1 {
-			// osascript exits 1 when the elevated run fails and when the
-			// user cancels the dialog; its stderr says which.
-			if msg, cancelled := elevatedFailure(errOut.String()); cancelled {
+		if errors.As(err, &ee) {
+			msg, cancelled, known := el.failure(ee.ExitCode(), errOut.String())
+			switch {
+			case cancelled:
 				return errors.New("cancelled; nothing was changed")
-			} else if msg != "" {
+			case msg != "":
 				return errors.New(msg)
+			case known:
+				return fmt.Errorf("helper %s did not complete (cancelled, or the elevated run failed; see above)", op)
 			}
-			return fmt.Errorf("helper %s did not complete (cancelled, or the elevated run failed; see above)", op)
 		}
 		return fmt.Errorf("helper %s: %w", op, err)
 	}
 	return nil
+}
+
+// elevator runs a copy of Twinnel as root: argv is the command that asks
+// the system for the right (a password dialog) and runs exe with args;
+// prompt says what the system will ask; failure reads a failed run's exit
+// code and stderr: the elevated Twinnel's own error, or cancelled when
+// the person dismissed the dialog. known is true when the code is one the
+// elevation tool uses for a failed or refused run.
+type elevator struct {
+	argv    func(exe string, args []string) ([]string, error)
+	prompt  string
+	failure func(code int, stderr string) (msg string, cancelled, known bool)
+}
+
+// osascriptElevator: macOS's administrator password dialog
+// (osascript `do shell script ... with administrator privileges`).
+var osascriptElevator = elevator{
+	argv:   osascriptArgv,
+	prompt: "macOS will ask for an administrator password",
+	failure: func(code int, stderr string) (string, bool, bool) {
+		if code != 1 {
+			return "", false, false
+		}
+		// osascript exits 1 when the elevated run fails and when the
+		// user cancels the dialog; its stderr says which.
+		msg, cancelled := elevatedFailure(stderr)
+		return msg, cancelled, true
+	},
 }
 
 var osascriptErrRE = regexp.MustCompile(`(?s)execution error: (.*) \((-?\d+)\)\s*$`)

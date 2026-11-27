@@ -163,3 +163,6 @@ var dropLegacySecrets = func(keys []string) []string {
 	}
 	return notes
 }
+
+// elevation: macOS's administrator password dialog (osascript).
+var elevation = osascriptElevator

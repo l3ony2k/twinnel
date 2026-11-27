@@ -23,10 +23,15 @@ import (
 //     caption buttons by the system), cards of radius 8 and controls of 4,
 //     40 px rows, the accent from the system; the tray flyout opaque with
 //     the Acrylic material when available.
-//   - Linux (GNOME / libadwaita): Cantarell or the desktop's font, 14 px
-//     body, no material (opaque sidebar of the "view" color), the system's
-//     own title bar, boxed lists of radius 12 with 6 on controls, 46 px
-//     rows, the tray as a plain menu (panel.go: no flyout on Linux).
+//   - Linux (GNOME / libadwaita, KDE, Hyprland): the desktop's UI font
+//     (gtk-font-name through fontconfig: Cantarell, Noto Sans, Inter…),
+//     14 px body, no material (opaque sidebar), libadwaita's colors with
+//     the portal's accent and color scheme, the title bar drawn by the app
+//     with the desktop's window buttons over it (none where the compositor
+//     decorates: KWin, Hyprland), boxed lists of radius 12 with 6 on
+//     controls, 46 px rows; the tray icon's menu, and its activation (a
+//     left click on KDE/quickshell, a double click on GNOME) opens the
+//     panel as a window at the top right (panel_linux.go).
 type platformStyle struct {
 	// Window chrome.
 	titleBar        mygo.TitleBarStyle
@@ -50,7 +55,11 @@ type platformStyle struct {
 	titleWeight     int
 	headingWeight   int
 	panelPad        float32 // the flyout's padding
-	trayMenuOnly    bool    // the tray opens a menu, not a flyout
+	panelWindow     bool    // the panel is a window placed by the app, not a flyout of the tray (Linux: AppIndicator tells no icon position)
+	trafficLights   bool    // macOS's traffic lights sit in the title bar (sidebar.go measures from them)
+	titleBarHeight  int     // the title bar the window draws, where the system centers its buttons in it (Linux); 0 = the system's
+	sidebarKey      ui.Key  // the sidebar toggle's key without modifiers (Linux: F9, as GNOME's apps); 0 = none
+	adwaita         bool    // libadwaita's colors (Linux)
 	trayTitle       bool    // the menu bar item shows text beside its icon (macOS)
 	dock            bool    // a Dock icon by setting (macOS; elsewhere the taskbar follows the window)
 	panelMaterialOK bool    // the flyout shows the popover material
@@ -98,11 +107,11 @@ func platformFor(goos string) platformStyle {
 		}
 	case "linux":
 		return platformStyle{
-			titleBar:     mygo.TitleBarDefault,
+			titleBar: mygo.TitleBarHidden, titleBarHeight: 52, sidebarKey: ui.KeyF9, adwaita: true,
 			sidebarWidth: 220, contentMax: 900, pagePadX: 24, pagePadTop: 24,
 			groupRadius: 12, controlRadius: 6, innerRadius: 8, rowMinHeight: 46,
 			bodySize: 14, smallSize: 12, calloutSize: 13, leadSize: 16, figureSize: 20, panelTextSize: 13, titleSize: 20, headingSize: 14,
-			titleWeight: 700, headingWeight: 700, panelPad: 16, trayMenuOnly: true,
+			titleWeight: 700, headingWeight: 700, panelPad: 16, panelWindow: true,
 			titleBarSize: 15, titleBarWeight: 700, navSel: navNeutral,
 		}
 	}
@@ -116,7 +125,7 @@ func platformFor(goos string) platformStyle {
 		groupRadius: 10, controlRadius: 6, innerRadius: 8, rowMinHeight: 24,
 		bodySize: 13, smallSize: 11, calloutSize: 12, leadSize: 15, figureSize: 20, panelTextSize: 13, titleSize: 20, headingSize: 13,
 		titleWeight: 600, headingWeight: 600, panelPad: 14, panelMaterialOK: true,
-		pushFace: true, trayTitle: true, dock: true,
+		pushFace: true, trayTitle: true, dock: true, trafficLights: true,
 		// A unified toolbar's window title (System Settings, Finder): about
 		// 15 pt bold, not the 20 pt of an in-content heading.
 		titleBarSize: 15, titleBarWeight: 700,
@@ -139,7 +148,9 @@ const (
 // accent and contrast settings on top (WithPreferences).
 func systemTheme(dark bool, p ui.Preferences) *ui.Theme {
 	var t *ui.Theme
-	if dark {
+	if plat.adwaita {
+		t = adwaitaTheme(dark)
+	} else if dark {
 		t = ui.DarkTheme()
 		t.Background = ui.Hex("#1e1e1e")
 		t.Surface = ui.Hex("#3a3a3c")
@@ -166,6 +177,43 @@ func systemTheme(dark bool, p ui.Preferences) *ui.Theme {
 		t.Success = ui.Hex("#34c759")
 		t = t.WithAccent(ui.Hex("#007aff"))
 	}
+	return finishTheme(t, p)
+}
+
+// adwaitaTheme is libadwaita's palette (GNOME 47): the window and view
+// grays, the blue accent, the status colors. The portal's accent replaces
+// the blue where the desktop has one (WithPreferences).
+func adwaitaTheme(dark bool) *ui.Theme {
+	if dark {
+		t := ui.DarkTheme()
+		t.Background = ui.Hex("#222226")
+		t.Surface = ui.Hex("#2e2e32")
+		t.SurfaceHover = ui.Hex("#38383c")
+		t.SurfacePressed = ui.Hex("#424246")
+		t.Border = ui.RGBA(255, 255, 255, 0.15)
+		t.Text = ui.Hex("#ffffff")
+		t.TextMuted = ui.Hex("#a3a3a8")
+		t.Danger = ui.Hex("#ff7b63")
+		t.Warning = ui.Hex("#f8e45c")
+		t.Success = ui.Hex("#8ff0a4")
+		return t.WithAccent(ui.Hex("#3584e4"))
+	}
+	t := ui.LightTheme()
+	t.Background = ui.Hex("#fafafb")
+	t.Surface = ui.Hex("#ffffff")
+	t.SurfaceHover = ui.Hex("#f0f0f2")
+	t.SurfacePressed = ui.Hex("#e4e4e7")
+	t.Border = ui.RGBA(0, 0, 6, 0.15)
+	t.Text = ui.Hex("#2e2e32")
+	t.TextMuted = ui.Hex("#6c6c72")
+	t.Danger = ui.Hex("#c01c28")
+	t.Warning = ui.Hex("#9c6e03")
+	t.Success = ui.Hex("#1b8553")
+	return t.WithAccent(ui.Hex("#3584e4"))
+}
+
+// finishTheme sets what every platform's theme shares.
+func finishTheme(t *ui.Theme, p ui.Preferences) *ui.Theme {
 	t.Radius = plat.controlRadius
 	t.FontSize = plat.bodySize
 	// Tooltips (labels) open after half a second, as AppKit's; once one

@@ -12,9 +12,10 @@ import (
 // platformEUID is the effective uid (0: root).
 func platformEUID() int { return os.Geteuid() }
 
-// elevate re-runs Twinnel as root: osascript's password dialog on macOS.
+// elevate re-runs Twinnel as root: osascript's password dialog on macOS,
+// polkit's pkexec on Linux (elevation, helper_<os>.go).
 func elevate(op string, f *installFlags, exe string, rargs []string) error {
-	return elevateOSA(op, f, exe, rargs)
+	return elevateWith(elevation, op, f, exe, rargs)
 }
 
 // attachOutput is Windows-only (the elevated copy's output pipe).
