@@ -264,7 +264,7 @@ func componentVersions(s status.Snapshot, cli string) version.Report {
 		st := *s.Helper.Status
 		src.Helper = func(context.Context) (rpc.Status, error) { return st, nil }
 	}
-	if s.Mihomo.Reachable && s.Mihomo.Version != "" {
+	if s.MihomoLive() && s.Mihomo.Version != "" {
 		mv := s.Mihomo.Version
 		src.Mihomo = func(context.Context) (mihomo.Version, error) { return mihomo.Version{Version: mv}, nil }
 	}

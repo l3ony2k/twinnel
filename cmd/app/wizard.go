@@ -869,7 +869,7 @@ func (a *app) wizDone(c *ui.Context, s status.Snapshot) {
 	listBox(c, t).Children(func() {
 		a.doneRow(c, "helper", T.WizDoneHelper, a.wizHelperDone(s), T.WizDoneInstalled, wizHelper)
 		proxy := T.WizDoneInstalled
-		if s.Mihomo.Reachable && s.Mihomo.Version != "" {
+		if s.MihomoLive() && s.Mihomo.Version != "" {
 			proxy = i18n.F(T.WizDoneRunning, s.Mihomo.Version)
 		} else if sh := a.wiz.shot; sh != nil && sh.mihomoVer != "" {
 			proxy = i18n.F(T.WizDoneRunning, sh.mihomoVer)
