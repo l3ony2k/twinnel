@@ -288,6 +288,8 @@ func planText(p *uninstall.Plan, all bool) string {
 			*list = append(*list, T.ItemOriginalMihomo)
 		case uninstall.Tailscale:
 			*list = append(*list, T.ItemTailscale)
+		case uninstall.SystemDNS:
+			*list = append(*list, T.ItemSystemDNS)
 		case uninstall.App:
 			if !all {
 				*list = append(*list, T.ItemApp)

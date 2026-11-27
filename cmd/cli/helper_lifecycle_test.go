@@ -439,3 +439,32 @@ func TestRestartFallsBackToLaunchctl(t *testing.T) {
 func planWithStateDir(dir string) uninstall.Plan {
 	return uninstall.Plan{Remove: []uninstall.Item{{Kind: uninstall.StateDir, Path: dir}}}
 }
+
+func TestUninstallAsRootRestoresDNSFirst(t *testing.T) {
+	l := lifecycle(t, 0)
+	dir := writeSettings(t, &store.Settings{})
+	l.exists[filepath.Join(dir, "dns-backup.json")] = true
+	var restored string
+	old := restoreSystemDNS
+	restoreSystemDNS = func(_ context.Context, stateDir string) error {
+		if len(l.applied) != 0 {
+			t.Error("DNS restored after the helper's removal")
+		}
+		restored = stateDir
+		return nil
+	}
+	t.Cleanup(func() { restoreSystemDNS = old })
+	if err := runHelperUninstall([]string{"--as-root", "--yes", "--state-dir", dir}); err != nil {
+		t.Fatal(err)
+	}
+	if restored != dir {
+		t.Fatalf("restored %q, output:\n%s", restored, l.out.String())
+	}
+	// A failed restore stops the uninstall: nothing else changes.
+	l2 := lifecycle(t, 0)
+	l2.exists[filepath.Join(dir, "dns-backup.json")] = true
+	restoreSystemDNS = func(context.Context, string) error { return errors.New("networksetup failed") }
+	if err := runHelperUninstall([]string{"--as-root", "--yes", "--state-dir", dir}); err == nil || len(l2.applied) != 0 {
+		t.Fatalf("err = %v, applied %v", err, l2.applied)
+	}
+}

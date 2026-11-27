@@ -113,3 +113,18 @@ func TestUnknown(t *testing.T) {
 		t.Fatalf("plan = %+v, %v", p, err)
 	}
 }
+
+func TestFreshSetupRestoresDNS(t *testing.T) {
+	info := &rpc.HelperInfo{StateDir: "/S/twinnel", Mihomo: rpc.HelperMihomoService{Label: "com.l3ony2k.twinnel.mihomo", Installed: true}, DNSBackup: true}
+	p, err := Make(facts(info), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.RestoreDNS || !p.Removes(SystemDNS) {
+		t.Fatalf("plan %+v", p)
+	}
+	info.DNSBackup = false
+	if p, _ := Make(facts(info), Options{}); p.RestoreDNS || p.Removes(SystemDNS) {
+		t.Fatalf("restores without a backup: %+v", p)
+	}
+}

@@ -40,6 +40,9 @@ const (
 	OriginalMihomo Kind = "original-mihomo" // the service mihomo ran under before Twinnel (adopted)
 	Tailscale      Kind = "tailscale"       // tailscaled: never touched
 	App            Kind = "app"             // Twinnel.app itself
+	// SystemDNS is the system DNS Twinnel pointed at mihomo: listed under
+	// Remove, it is written back to the recorded values (RestoreDNS).
+	SystemDNS Kind = "system-dns"
 )
 
 // Item is one line of the plan.
@@ -66,6 +69,10 @@ type Plan struct {
 	Remove  []Item   `json:"remove"`
 	Keep    []Item   `json:"keep"`
 	Restore *Restore `json:"restore_mihomo,omitempty"`
+	// RestoreDNS: write the system DNS back (from <state>/dns-backup.json)
+	// before anything else, so no network service is left pointing at a
+	// mihomo that may go away.
+	RestoreDNS bool `json:"restore_dns,omitempty"`
 	// Known is false when the helper's settings could not be read (it is
 	// not running and the caller is not root): the plan then lists only
 	// the helper itself, and the run as root checks again.
@@ -153,6 +160,10 @@ func Make(f Facts, o Options) (Plan, error) {
 		case m.Installed:
 			p.Keep = append(p.Keep, Item{Kind: TwinnelMihomo, Path: m.Label})
 		}
+	}
+	if info != nil && info.DNSBackup {
+		p.RestoreDNS = true
+		p.Remove = append(p.Remove, Item{Kind: SystemDNS})
 	}
 	data := Item{Kind: StateDir, Path: stateDir}
 	if info != nil {
