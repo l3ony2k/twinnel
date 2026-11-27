@@ -67,7 +67,7 @@ func TestComposeErrors(t *testing.T) {
 		}, `duplicate layer ID "x"`},
 		{"missing id", "a: 1\n", []Layer{OverrideLayer("", "n", KindUser, StageUser, nil)}, "has no ID"},
 		{"bad layer yaml", "a: 1\n", []Layer{OverrideLayer("x", "", KindUser, StageUser, []byte("a: [\n"))}, "layer x:"},
-		{"bad layer op", "a: 1\n", []Layer{OverrideLayer("x", "", KindUser, StageUser, []byte("+a: 1\n"))}, "layer x: a:"},
+		{"bad layer op", "a: 1\n", []Layer{OverrideLayer("x", "", KindUser, StageUser, []byte("+a: 1\n"))}, `layer x: line 1: "+a" needs a list`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

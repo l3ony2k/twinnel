@@ -45,7 +45,7 @@ var zhConfig = ConfigStrings{
 	LayerEnable:       "启用",
 	LayerDisable:      "停用",
 	LayerReorderHint:  "拖动可以调整顺序（⌥⌘↑ / ⌥⌘↓）",
-	LayerManagedFixed: "托管层由 duet 生成，固定在用户覆写之后",
+	LayerManagedFixed: "托管覆写由 duet 生成，固定在用户覆写之后",
 	CopyID:            "复制 ID",
 	CopyName:          "复制名称",
 	CopyLine:          "复制这一行",

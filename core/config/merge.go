@@ -109,7 +109,7 @@ func mergeMap(dst, src *yaml.Node, path string) error {
 				continue
 			}
 			if v.Kind != yaml.SequenceNode {
-				return fmt.Errorf("%s: %q needs a list, got %s", p, kn.Value, kindName(v.Kind))
+				return fmt.Errorf("line %d: %s%q needs a list, got %s", kn.Line, pathPrefix(path), kn.Value, kindName(v.Kind))
 			}
 			add, err := clean(v, p)
 			if err != nil {
@@ -197,6 +197,16 @@ func deepCopy(n *yaml.Node) *yaml.Node {
 		}
 	}
 	return &c
+}
+
+// pathPrefix is "path: " for an error about a key under path, "" at the
+// top level. The key itself is quoted after it as written (a "+.lan"
+// under hosts reads `hosts: "+.lan"`, not "hosts..lan").
+func pathPrefix(path string) string {
+	if path == "" {
+		return ""
+	}
+	return path + ": "
 }
 
 func join(path, key string) string {

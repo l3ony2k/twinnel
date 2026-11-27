@@ -9,6 +9,7 @@ import (
 
 	"github.com/l3ony2k/duet/core/config"
 	"github.com/l3ony2k/duet/core/rpc"
+	"github.com/l3ony2k/duet/core/store"
 )
 
 const tailnetCache = "tailnet.json"
@@ -102,7 +103,7 @@ func (e *Engine) RefreshTailnet(ctx context.Context) (rpc.TailnetRefreshResult, 
 		return out, serr
 	}
 	_, active := st.ActiveSubscription()
-	autoApply := out.Changed && active && st.Tailscale.Coexist && *st.AutoApply && e.appliedBefore()
+	autoApply := out.Changed && active && st.Tailscale.Coexist && *st.AutoApply && st.Drift == nil && e.appliedBefore()
 	out.Tailnet = rpc.TailnetStatus{Peers: info.PeerShortNames, Suffix: info.MagicDNSSuffix, Interface: info.Interface, LastPoll: now}
 	e.mu.Lock()
 	e.tailnet = out.Tailnet
@@ -111,7 +112,7 @@ func (e *Engine) RefreshTailnet(ctx context.Context) (rpc.TailnetRefreshResult, 
 	if out.Changed {
 		e.publish(rpc.EventTailnetChanged, out.Tailnet)
 		if autoApply && !e.adopting.Load() {
-			r, _ := e.Apply(ctx, rpc.ApplyParams{Reason: "tailnet changed"})
+			r, _ := e.Apply(ctx, rpc.ApplyParams{Reason: "tailnet changed", ReasonCode: store.ReasonTailnet})
 			out.Apply = r
 		}
 	}
