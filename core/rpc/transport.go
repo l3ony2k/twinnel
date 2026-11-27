@@ -13,7 +13,10 @@ import (
 	"time"
 )
 
-// Peer is the identity of the process on the other end of a connection.
+// Peer is the identity of the process on the other end of a connection,
+// as the platform's PeerOf reads it from the kernel (never from what the
+// client says). Logs and audit records name a caller with Caller and
+// LogValue, which work on every platform.
 type Peer struct {
 	UID  int   // -1 on Windows
 	GIDs []int // primary group first when the platform reports it
@@ -24,6 +27,9 @@ type Peer struct {
 	SID      string
 	Elevated bool
 	Admin    bool
+	// User is the account name of UID (unix) or SID (Windows,
+	// DOMAIN\name); "" when it could not be looked up.
+	User string
 }
 
 // Transport hides the local socket kind: a unix socket on macOS and Linux,
@@ -102,7 +108,11 @@ func (t *UnixTransport) PeerOf(c net.Conn) (Peer, error) {
 	if !ok {
 		return Peer{}, errors.New("not a unix socket connection")
 	}
-	return peerCred(uc)
+	p, err := peerCred(uc)
+	if err == nil {
+		p.User = userName(p.UID)
+	}
+	return p, err
 }
 
 // Authorizer decides whether a peer may use the helper.

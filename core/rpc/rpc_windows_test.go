@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -54,6 +55,10 @@ func TestPipePeerAndSecondListener(t *testing.T) {
 	p := <-got
 	if p.SID != self || p.PID != os.Getpid() || p.UID != -1 {
 		t.Fatalf("peer %+v, want SID %s pid %d", p, self, os.Getpid())
+	}
+	// The account name, for logs and audit records (Caller).
+	if p.User == "" || !strings.Contains(p.Caller(), self) {
+		t.Fatalf("peer %+v: no account name (caller %q)", p, p.Caller())
 	}
 	if err := (&SIDAuthorizer{SelfSID: self}).Authorize(p); err != nil {
 		t.Fatal(err)
