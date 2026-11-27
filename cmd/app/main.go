@@ -100,12 +100,14 @@ type app struct {
 	toast       string                     // shown once by the next frame of the main window
 	toastOp     bool                       // toast is an operation's outcome: it links to 日志 → Twinnel (H7)
 	toastErr    string                     // a failed operation's outcome, shown until dismissed (H7)
+	toastHint   string                     // an instruction (a health fix's 去调整): no outcome glyph
 	pend        pendingState               // optimistic control values and their errors (pending.go)
 	retry       busySpan                   // the unreachable states' 重试 press (states.go)
 	loadingSeen map[string][2]time.Time    // loadingBox: first and last frame per key
 	langShown   bool                       // applyLang ran once
 	trayTip     string                     // the tray's tooltip as last set
 	egress      egressState                // the on-demand egress test (statusui.go)
+	fx          fixState                   // the health checks' fixes (healthfix.go)
 	tsl         tsLoginFlow                // the Tailscale login under way (tslogin.go)
 	// tsInstallHook, when set (the onboarding wizard), is what the
 	// Tailscale panel's 安装 Tailscale opens instead of 设置这台 Mac.

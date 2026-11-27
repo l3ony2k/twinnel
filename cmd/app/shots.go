@@ -130,6 +130,7 @@ func (a *app) shotFlows() map[string]func(save shotSaver) {
 		"agent":           a.agentShots,           // shots_agent.go
 		"readme":          a.readmeShots,          // shots_readme.go
 		"wizard":          a.wizardShots,          // shots_wizard.go
+		"healthfix":       a.healthFixShots,       // shots_healthfix.go
 		"takeover":        a.takeoverE2E,
 	}
 }

@@ -32,7 +32,7 @@ func TestHealthHeadlineMatchesOverview(t *testing.T) {
 
 // One health number everywhere (U5): the sidebar badge, the overview's
 // reason and the health page's headline say the same count for one
-// snapshot, here 3 failures and 2 warnings.
+// snapshot, here 3 failures and 2 warnings: 5, split in words.
 func TestHealthBadgeEqualsHeadline(t *testing.T) {
 	rep := &health.Report{}
 	for _, st := range []health.Status{health.StatusFail, health.StatusFail, health.StatusFail, health.StatusWarn, health.StatusWarn, health.StatusOK} {
@@ -42,11 +42,15 @@ func TestHealthBadgeEqualsHeadline(t *testing.T) {
 	status.Evaluate(&s)
 	n, _ := s.HealthBadge()
 	page := healthHeadline("", rep.Counts())
-	if n != 3 || page != i18n.F(i18n.T.HealthFailN, n) {
-		t.Fatalf("badge %d, page %q", n, page)
+	r, _ := healthReason(s)
+	if n != 5 || page != "5 项需要处理：3 项失败、2 项警告" || healthReasonShort(r) != page {
+		t.Fatalf("badge %d, page %q, overview %q", n, page, healthReasonShort(r))
+	}
+	if healthReasonIcon(r) != iconError {
+		t.Error("failures in the number without ⊗")
 	}
 	sections := navSections(0, n, toneAlert)
-	if got := sections[0].items[3].count; got != 3 {
+	if got := sections[0].items[3].count; got != 5 {
 		t.Errorf("health row count %d", got)
 	}
 }

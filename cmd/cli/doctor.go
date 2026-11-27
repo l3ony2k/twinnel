@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/health"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // healthEnvOptions are the doctor flags that reach the platform Env.
@@ -22,7 +23,7 @@ type healthEnvOptions struct {
 }
 
 func init() {
-	register("doctor", "run the mihomo + Tailscale coexistence health checks (read-only)", runDoctor)
+	register("doctor", "run the mihomo + Tailscale coexistence health checks; --fix <check> fixes one", runDoctor)
 }
 
 func runDoctor(args []string) error {
@@ -38,8 +39,18 @@ func runDoctor(args []string) error {
 	strict := fs.Bool("strict", false, "exit with status 1 when any check fails")
 	egress := fs.Bool("egress", false, "also run the egress test: one HTTPS GET to --egress-url directly and one through mihomo, compared (opt-in, sends no personal data)")
 	egressURL := fs.String("egress-url", health.DefaultEgressURL, "neutral IP-echo `URL` for --egress (Cloudflare trace or a plain-IP body)")
+	fix := fs.String("fix", "", "fix the failure reasons of check `ID` through the helper: preview each fix, ask, apply, check again")
+	reason := fs.String("reason", "", "with --fix: only this failure reason")
+	yes := fs.Bool("yes", false, "with --fix: apply without asking")
+	undo := fs.String("undo", "", "put a fix back: the undo `JSON` --fix printed")
+	lang := fs.String("lang", "", "language of --fix texts (zh-Hans or en)")
+	socket := fs.String("socket", rpc.SocketFromEnv(), "helper socket `PATH` for --fix/--undo (env TWINNEL_SOCKET)")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *fix != "" || *undo != "" {
+		return runDoctorFix(fixOptions{check: *fix, reason: *reason, undo: *undo, yes: *yes, json: *asJSON,
+			socket: *socket, lang: *lang, in: os.Stdin, out: os.Stdout})
 	}
 	if *markdown && *asJSON {
 		return fmt.Errorf("--markdown and --json are exclusive")

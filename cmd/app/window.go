@@ -700,7 +700,9 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	open := a.groupsOpen[g.Name]
 	sel := pendingValue(a, nodeKey(g.Name), g.Now) // the pick shows at once
 	chain := strings.Join(g.Chain, " → ")
-	ui.Column(c).Gap(8).PaddingY(listRowPadY).Clip().Transition(expandFor(open)).Children(func() {
+	box := ui.Column(c).Gap(8).PaddingY(listRowPadY).Clip().Transition(expandFor(open))
+	a.spotRing(c, box, "group:"+g.Name) // a health fix's 去调整 points here
+	box.Children(func() {
 		// The head is a disclosure the keyboard reaches: Tab stops on it,
 		// Return or Space opens and closes the group.
 		head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).
