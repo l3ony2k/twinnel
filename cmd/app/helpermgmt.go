@@ -527,12 +527,12 @@ func (a *app) helperVersionRow(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	hv := s.Helper.Status.HelperVersion
 	kvWith(c, T.Version, func() {
-		text := hv
 		switch helperMatch(s) {
 		case version.MatchHelperOlder, version.MatchHelperNewer:
-			text = fmt.Sprintf(T.HelperVersionVsApp, hv, version.Version)
+			num(ui.Text(c, fmt.Sprintf(T.HelperVersionVsApp, hv, version.Version)).SingleLine().Selectable())
+		default:
+			monoText(c, hv).SingleLine().Selectable()
 		}
-		num(ui.Text(c, text).SingleLine().Selectable())
 		switch helperMatch(s) {
 		case version.MatchHelperOlder:
 			tag(c, T.HelperNeedsUpdate)

@@ -167,21 +167,21 @@ func (a *app) serviceRow(c *ui.Context, s status.Snapshot, name string) {
 		}
 	})
 	if own {
-		kv(c, T.ServiceLabel, orDash(a.ownMihomoLabel()))
+		kvMono(c, T.ServiceLabel, orDash(a.ownMihomoLabel()))
 		return
 	}
-	kv(c, T.ServiceLabel, orDash(st.Label))
+	kvMono(c, T.ServiceLabel, orDash(st.Label))
 	if st.PID > 0 {
-		kv(c, "PID", fmt.Sprint(st.PID))
+		kvMono(c, "PID", fmt.Sprint(st.PID))
 	}
 	if st.LastExitCode != nil && *st.LastExitCode != 0 {
-		kv(c, T.ServiceExit, fmt.Sprint(*st.LastExitCode))
+		kvMono(c, T.ServiceExit, fmt.Sprint(*st.LastExitCode))
 	}
 	if st.Program != "" {
-		kv(c, T.ServiceProgram, st.Program)
+		kvMono(c, T.ServiceProgram, st.Program)
 	}
 	if st.Definition != "" {
-		kv(c, T.ServiceDefinition, st.Definition)
+		kvMono(c, T.ServiceDefinition, st.Definition)
 	}
 	if st.Error != "" {
 		errorNote(c, T.ErrorPrefix+st.Error)
@@ -293,7 +293,7 @@ func (a *app) accessoryCard(c *ui.Context, s status.Snapshot, k accessoryKind) {
 	}), func() {
 		listRow(c).Children(func() {
 			if ck := v.check; ck != nil && ck.Dir != "" {
-				kv(c, T.AccessoryDir, ck.Dir)
+				kvMono(c, T.AccessoryDir, ck.Dir)
 			} else if ck == nil {
 				small(c, T.AccessoryUnchecked) // state, before the first check
 			}
@@ -349,7 +349,7 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 			tag(c, T.AccessoryUnverifiable)
 		}
 		ui.Spacer(c)
-		ui.Text(c, filepath.Base(f.File)).FontSize(plat.smallSize).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable().Tooltip(f.File)
+		mono(ui.Text(c, filepath.Base(f.File))).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable().Tooltip(f.File)
 	})
 	local := T.AccessoryMissing
 	if f.Installed {
@@ -358,13 +358,17 @@ func accessoryFile(c *ui.Context, f rpc.AccessoryFile) {
 			local += " · " + status.Bytes(f.Size)
 		}
 	}
-	kv(c, T.AccessoryLocal, local)
+	if f.Installed {
+		kvMono(c, T.AccessoryLocal, local)
+	} else {
+		kv(c, T.AccessoryLocal, local)
+	}
 	if f.Remote != "" {
 		remote := shortDigest(f.Remote)
 		if f.RemoteSize > 0 {
 			remote += " · " + status.Bytes(f.RemoteSize)
 		}
-		kv(c, T.AccessoryRemote, remote)
+		kvMono(c, T.AccessoryRemote, remote)
 	}
 	if f.Error != "" {
 		errorNote(c, T.ErrorPrefix+f.Error)

@@ -149,7 +149,7 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot) {
 		a.liveFileRow(c, "config", T.TakeoverLive, a.liveConfigPath(s))
 		if l := a.live; l.Label != "" {
 			kvWith(c.Key("service"), T.TkFoundService, func() {
-				ui.Text(c, l.Label).SingleLine().Shrink(1).Selectable().Tooltip(l.Plist)
+				monoText(c, l.Label).SingleLine().Shrink(1).Selectable().Tooltip(l.Plist)
 			})
 		}
 		if l := a.live; l.Binary != "" {
@@ -192,8 +192,8 @@ func (a *app) liveFileRow(c *ui.Context, key, label, path string) {
 	kvWith(c.Key(key), label, func() {
 		switch {
 		case path != "":
-			ui.Text(c, filepath.Base(path)).SingleLine().Shrink(0).Selectable().Tooltip(path)
-			meta(c, filepath.Dir(path)).Shrink(1)
+			monoText(c, filepath.Base(path)).SingleLine().Shrink(0).Selectable().Tooltip(path)
+			mono(meta(c, filepath.Dir(path))).FontSize(plat.smallSize).Shrink(1)
 		case a.live.loaded || a.shotMode:
 			ui.Text(c, T.TkNotDetected).TextColor(t.TextMuted).SingleLine()
 		default:
@@ -232,10 +232,10 @@ func (a *app) takeoverPlanRow(c *ui.Context, s status.Snapshot, p rpc.TakeoverPl
 	v := &a.hd.take
 	sel := v.plan != nil && v.plan.PlanID == p.PlanID
 	id := p.PlanID
-	row := ui.Row(c.Key(id)).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).PaddingY(8).
+	row := ui.Row(c.Key(id)).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).PaddingY(listRowPadY).
 		Transition(rowMotion).Label(p.CreatedAt.Local().Format("01-02 15:04")).AccessSelected(sel)
 	if sel { // the open plan: a tinted row, as a selected list row
-		row.Background(pal(t).accentSoft).Radius(plat.controlRadius).MarginX(-8).PaddingX(8)
+		rowFill(c, rowBleed(row), true)
 	}
 	canDiscard := p.State != rpc.PlanAdopted && !v.fixture && a.helperWrites(s)
 	row.ContextMenu(func(m *ui.Menu) {
@@ -249,7 +249,7 @@ func (a *app) takeoverPlanRow(c *ui.Context, s status.Snapshot, p rpc.TakeoverPl
 	})
 	row.Children(func() {
 		num(ui.Text(c, p.CreatedAt.Local().Format("01-02 15:04")).SingleLine().Shrink(0))
-		ui.Text(c, filepath.Base(p.Base)).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(p.Base)
+		monoText(c, filepath.Base(p.Base)).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(p.Base)
 		ui.Spacer(c)
 		tag(c, T.PlanState(p.State))
 		if !sel && pushButton(c.Key("open"), T.TakeoverOpen).Disabled(a.hd.busy != "").Clicked() {
@@ -409,19 +409,19 @@ func (a *app) takeoverEffectsCard(c *ui.Context, p *rpc.TakeoverPlan) {
 func (a *app) takeoverFoundLegacy(c *ui.Context, p *rpc.TakeoverPlan) {
 	T := i18n.T
 	card(c, T.TakeoverFound, func() {
-		kv(c, T.TakeoverLive, p.LiveConfig)
-		kv(c, T.TakeoverMihomoSvc, orDash(p.MihomoService))
+		kvMono(c, T.TakeoverLive, p.LiveConfig)
+		kvMono(c, T.TakeoverMihomoSvc, orDash(p.MihomoService))
 		bin := orDash(p.MihomoBinary)
 		if p.MihomoVersion != "" {
 			bin += " · " + p.MihomoVersion
 		}
-		kv(c, T.TakeoverBinary, bin)
+		kvMono(c, T.TakeoverBinary, bin)
 		secret := T.TakeoverSecretSet
 		if !p.SecretSet {
 			secret = T.TkSecretNone
 		}
 		kv(c, T.TkSecretItem, secret)
-		kv(c, T.TakeoverTSSvc, orDash(p.TailscaleSvc))
+		kvMono(c, T.TakeoverTSSvc, orDash(p.TailscaleSvc))
 	})
 }
 
