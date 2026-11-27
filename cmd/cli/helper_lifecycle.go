@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -426,7 +427,34 @@ type UpgradeCheck struct {
 	Action      string `json:"action"`                 // see the Upgrade* constants
 	Detail      string `json:"detail,omitempty"`       //
 	InstalledAt string `json:"installed_at,omitempty"` // path
+	// ServiceHost is Windows' service host (twinnel-svchost.exe), the
+	// copy of the helper that runs mihomo as a service: an upgrade
+	// refreshes it with the helper (nil elsewhere, or not installed).
+	ServiceHost *HostCheck `json:"service_host,omitempty"`
+
+	hostSteps []service.Step // the host's refresh, when it needs one
 }
+
+// HostCheck is the service host in an UpgradeCheck.
+type HostCheck struct {
+	Path    string `json:"path"`
+	Version string `json:"version,omitempty"`
+	Action  string `json:"action"` // HostNone, HostRefresh
+	// Restarts are the services the refresh restarts (they run an older
+	// host, whose behaviour must change now): a second or two offline.
+	Restarts []string `json:"restarts,omitempty"`
+}
+
+// Service host actions.
+const (
+	HostNone    = "none"
+	HostRefresh = "refresh"
+)
+
+// serviceHostCheck reads the service host against the helper binary src
+// and plans its refresh; nil where there is none (all but Windows,
+// helper_windows.go). Reads only.
+var serviceHostCheck = func(ctx context.Context, src string) (*HostCheck, []service.Step) { return nil, nil }
 
 // Upgrade actions.
 const (
@@ -435,6 +463,9 @@ const (
 	UpgradeRestart      = "restart"       // the binary is current, the running process is not
 	UpgradeDowngrade    = "downgrade"     // the bundled helper is older: --force
 	UpgradeNotInstalled = "not-installed" // twinnel helper install
+	// UpgradeServiceHost: the helper is current, the service host is not
+	// (Windows).
+	UpgradeServiceHost = "service-host"
 )
 
 func runHelperUpgrade(args []string) error {
@@ -497,6 +528,9 @@ func helperUpgrade(ctx context.Context, f *installFlags, c UpgradeCheck, force b
 			reloginNote(access)
 		}
 		return nil
+	case UpgradeServiceHost:
+		// Only the host: the helper keeps running.
+		return runPlan("upgrade", f, append(planSocketAccess(), c.hostSteps...), nil)
 	case UpgradeNotInstalled:
 		return errors.New("the helper is not installed: twinnel helper install")
 	case UpgradeMigrate:
@@ -511,9 +545,12 @@ func helperUpgrade(ctx context.Context, f *installFlags, c UpgradeCheck, force b
 		// renamed over it) and reload the helper's own service definition,
 		// which restarts only the helper.
 		steps, err = planHelperInstall(f.helperBin, f.stateDir, f.socket, f.label)
+		// The host first, while the old helper runs: the new one finds
+		// it current when it starts (it refreshes it itself otherwise).
+		steps = append(c.hostSteps[:len(c.hostSteps):len(c.hostSteps)], steps...)
 	case UpgradeRestart:
 		steps, err = planHelperRestart(f.label)
-		steps = append(planSocketAccess(), steps...)
+		steps = slices.Concat(planSocketAccess(), c.hostSteps, steps)
 	}
 	if err != nil {
 		return err
@@ -626,10 +663,13 @@ func checkUpgrade(ctx context.Context, f *installFlags) (UpgradeCheck, error) {
 		c.Running = st.HelperVersion
 	}
 	cancel()
+	c.ServiceHost, c.hostSteps = serviceHostCheck(ctx, f.helperBin)
 	if sameFile(f.helperBin, installed) {
 		c.Action = UpgradeNone
 		if c.Running != "" && c.Running != c.Installed {
 			c.Action, c.Detail = UpgradeRestart, "the installed binary is current; the running helper is not"
+		} else if len(c.hostSteps) > 0 {
+			c.Action = UpgradeServiceHost
 		}
 		return c, nil
 	}
@@ -671,11 +711,31 @@ func printUpgradeCheck(w io.Writer, c UpgradeCheck) {
 		UpgradeDowngrade:    "the bundled helper is OLDER than the installed one (--force to install it anyway)",
 		UpgradeNotInstalled: "not installed (twinnel helper install)",
 		UpgradeMigrate:      "the helper from before the rename will be migrated",
+		UpgradeServiceHost:  "the helper is up to date; its copy that runs mihomo (the service host) will be updated",
 	}[c.Action]
 	if c.Detail != "" {
 		text += " (" + c.Detail + ")"
 	}
 	fmt.Fprintf(w, "action    %s\n", text)
+	if h := c.ServiceHost; h != nil {
+		fmt.Fprintf(w, "host      %s (%s)\n", orDash(h.Version), h.Path)
+		if note := hostNote(*h); note != "" {
+			fmt.Fprintf(w, "          %s\n", note)
+		}
+	}
+}
+
+// hostNote says what an upgrade does to the service host, and whether
+// mihomo restarts for it.
+func hostNote(h HostCheck) string {
+	switch {
+	case h.Action != HostRefresh:
+		return ""
+	case len(h.Restarts) > 0:
+		return "the service host is updated, and " + strings.Join(h.Restarts, ", ") + " restarts for it (offline for a second or two): it runs an older host"
+	default:
+		return "the service host is updated in place; mihomo keeps running and uses it from its next restart"
+	}
 }
 
 // verifyTimeout bounds the wait for the helper to come back.

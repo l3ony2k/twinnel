@@ -25,6 +25,9 @@ type AboutStrings struct {
 
 	// 组件版本.
 	Components, CompApp, CompCLI, CompHelper string
+	// The Windows service host: its row, ⓘ, and the tag when it lags the
+	// helper (后台助手 → 更新 brings it up to date).
+	CompServiceHost, TipServiceHost, CompStale string
 
 	// 入门.
 	GettingStarted                                        string
@@ -57,6 +60,10 @@ var zhAbout = AboutStrings{
 	CompApp:    "Twinnel App",
 	CompCLI:    "命令行工具",
 	CompHelper: "后台助手",
+
+	CompServiceHost: "服务宿主",
+	TipServiceHost:  "让 mihomo 作为 Windows 服务运行的程序，是后台助手的一份副本。更新后台助手时它会一起更新。",
+	CompStale:       "待更新",
 
 	GettingStarted:       "入门",
 	StepHelper:           "安装后台助手",

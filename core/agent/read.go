@@ -310,6 +310,10 @@ func (s *Server) version(c *call, in versionIn) (any, error) {
 		if h.Call(c.ctx, rpc.MethodStatus, nil, &st) == nil {
 			out["helper"] = st.HelperVersion
 			out["mihomo_running"] = st.Mihomo.Version
+			if st.ServiceHost != nil {
+				// Windows: the helper's copy that runs mihomo.
+				out["service_host"] = st.ServiceHost
+			}
 		}
 		var kl rpc.KernelList
 		if h.Call(c.ctx, rpc.MethodKernelList, nil, &kl) == nil {

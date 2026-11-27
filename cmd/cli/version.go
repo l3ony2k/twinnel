@@ -122,7 +122,36 @@ func collectVersions(ctx context.Context, timeout time.Duration, socket, control
 		Tailscale: tailscaleVersion,
 	})
 	rep.HelperBinaries = collectHelperBinaries(ctx, timeout, rep.Helper.Version)
+	if rep.ServiceHost == nil {
+		rep.ServiceHost = readServiceHost(ctx, timeout, rep.HelperBinaries)
+	}
 	return rep
+}
+
+// serviceHostPath is Windows' service host ("" elsewhere;
+// helper_windows.go).
+var serviceHostPath = func() string { return "" }
+
+// readServiceHost reads the service host's file when the helper did not
+// report it (not running, or older): its version against the installed
+// helper's. nil when there is none.
+func readServiceHost(ctx context.Context, timeout time.Duration, hb *coreversion.HelperBinaries) *VersionEntry {
+	p := serviceHostPath()
+	if p == "" || !fileExistsFn(p) {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	e := &VersionEntry{Detail: p}
+	v, err := binaryVersion(ctx, p)
+	if err != nil {
+		e.Error = err.Error()
+	}
+	e.Version = v
+	if hb != nil {
+		e.Warning = coreversion.ServiceHostDrift(v, hb.Installed.Version, false)
+	}
+	return e
 }
 
 // collectHelperBinaries reads the version of both helper binaries
@@ -152,11 +181,14 @@ func collectHelperBinaries(ctx context.Context, timeout time.Duration, running s
 	return hb
 }
 
+// namedEntry is one line of `twinnel version`.
+type namedEntry struct {
+	name string
+	e    VersionEntry
+}
+
 func writeVersions(w io.Writer, rep VersionReport) {
-	for _, r := range []struct {
-		name string
-		e    VersionEntry
-	}{{"twinnel", rep.CLI}, {"twinnel-helper", rep.Helper}, {"mihomo", rep.Mihomo}, {"tailscale", rep.Tailscale}} {
+	for _, r := range []namedEntry{{"twinnel", rep.CLI}, {"twinnel-helper", rep.Helper}, {"mihomo", rep.Mihomo}, {"tailscale", rep.Tailscale}} {
 		v := r.e.Version
 		if v == "" {
 			v = "-"
@@ -173,27 +205,48 @@ func writeVersions(w io.Writer, rep VersionReport) {
 			line += "  (" + strings.Join(extra, "; ") + ")"
 		}
 		fmt.Fprintln(w, line)
-		if r.name == "twinnel-helper" && rep.HelperBinaries != nil {
-			hb := rep.HelperBinaries
-			for _, b := range []struct {
-				name string
-				e    VersionEntry
-			}{{"  installed", hb.Installed}, {"  bundled", hb.Bundled}} {
-				v := b.e.Version
-				if v == "" {
-					v = "-"
-				}
-				line := fmt.Sprintf("%-15s %s", b.name, v)
-				if b.e.Detail != "" || b.e.Error != "" {
-					line += "  (" + strings.Join(nonEmpty(b.e.Detail, b.e.Error), "; ") + ")"
-				}
-				fmt.Fprintln(w, line)
+		if r.name != "twinnel-helper" {
+			continue
+		}
+		// The helper's binaries on disk: the installed one, the one
+		// shipped with Twinnel, and Windows' service host (its copy that
+		// runs mihomo).
+		var bins []namedEntry
+		if hb := rep.HelperBinaries; hb != nil {
+			bins = append(bins, namedEntry{"  installed", hb.Installed}, namedEntry{"  bundled", hb.Bundled})
+		}
+		if h := rep.ServiceHost; h != nil {
+			bins = append(bins, namedEntry{"  service host", *h})
+		}
+		for _, b := range bins {
+			v := b.e.Version
+			if v == "" {
+				v = "-"
 			}
+			line := fmt.Sprintf("%-15s %s", b.name, v)
+			if b.e.Detail != "" || b.e.Error != "" {
+				line += "  (" + strings.Join(nonEmpty(b.e.Detail, b.e.Error), "; ") + ")"
+			}
+			fmt.Fprintln(w, line)
 		}
 	}
-	if hb := rep.HelperBinaries; hb != nil && hb.Warning != "" {
-		fmt.Fprintln(w, "warning: "+hb.Warning)
+	for _, warn := range nonEmpty(helperWarning(rep), hostWarning(rep)) {
+		fmt.Fprintln(w, "warning: "+warn)
 	}
+}
+
+func helperWarning(rep VersionReport) string {
+	if rep.HelperBinaries == nil {
+		return ""
+	}
+	return rep.HelperBinaries.Warning
+}
+
+func hostWarning(rep VersionReport) string {
+	if rep.ServiceHost == nil {
+		return ""
+	}
+	return rep.ServiceHost.Warning
 }
 
 func nonEmpty(ss ...string) []string {

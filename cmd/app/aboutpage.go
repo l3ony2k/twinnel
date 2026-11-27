@@ -241,6 +241,16 @@ func (a *app) aboutComponents(c *ui.Context, s status.Snapshot) {
 		} else {
 			row(T.CompHelper, helper)
 		}
+		if h := rep.ServiceHost; h != nil {
+			// Windows: the helper's copy that runs mihomo; a tag when it
+			// lags the helper (后台助手 → 更新 refreshes it).
+			kvTipWith(c, T.CompServiceHost, T.TipServiceHost, nil, func() {
+				monoText(c, orDash(h.Version)).SingleLine().Selectable().Tooltip(h.Detail)
+				if h.Warning != "" {
+					tag(c, T.CompStale).Tooltip(h.Warning)
+				}
+			})
+		}
 		row("mihomo", rep.Mihomo.Version)
 		row("Tailscale", rep.Tailscale.Version)
 	})

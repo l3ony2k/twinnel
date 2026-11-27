@@ -692,6 +692,10 @@ var enAbout = AboutStrings{
 	CompCLI:    "Command line tool",
 	CompHelper: "Helper",
 
+	CompServiceHost: "Service host",
+	TipServiceHost:  "Runs mihomo as a Windows service. It's a copy of the helper and is updated with it.",
+	CompStale:       "Update pending",
+
 	GettingStarted:       "Getting started",
 	StepHelper:           "Install the helper",
 	StepSetup:            "Take over your setup, or add a subscription",

@@ -122,7 +122,12 @@ needs "another helper is already listening": go-winio's first instance uses
 
 `twinnel helper install|upgrade|uninstall` as a non-elevated user:
 
-1. print the plan (same as macOS);
+1. print the plan (same as macOS), in Windows terms: every plan, step and
+   plan sentence goes through `service.Current()`, whose Windows dialect
+   (`scm.Dialect`) prints `mkdir`, `copy /y`, `move /y`, `del /f`,
+   `rmdir /s /q`, the `sc.exe` steps, "as administrator" and "Twinnel";
+   `--dry-run --json` also carries the steps as data (`steps`), which is
+   what the app shows;
 2. capture the current user's SID (`--allow-sid` for the pipe; the elevated
    copy may run as another admin account after an over-the-shoulder prompt);
 3. `ShellExecuteExW(lpVerb="runas", lpFile=<twinnel.exe>, lpParameters=<args>, nShow=SW_HIDE, fMask=SEE_MASK_NOCLOSEPROCESS|SEE_MASK_NO_CONSOLE)`,
@@ -169,6 +174,21 @@ twinnel-svchost.exe svchost --name TwinnelMihomo --log <state>\logs\mihomo.log
   to `--log`.
 - The restart/backoff logic (`platform/windows/svchost.Supervisor`) is
   platform-free and tested with a fake process starter.
+- Upgrades. The host is the third Twinnel binary (CLI, helper, host) and is
+  kept a copy of the helper (`platform/windows/scm` `Host`, `HostKeeper`):
+  `twinnel helper upgrade` refreshes it first (before the new helper
+  starts; `--check` reports `service_host`, action `service-host` when only
+  the host lags), and the installed helper refreshes it again whenever it
+  starts. A running service keeps the host's file locked, so a refresh
+  moves it aside (`twinnel-svchost.old-<n>.exe`, deleted once nothing runs
+  it) and copies the new one in place; mihomo keeps running on the old copy
+  until its next restart. mihomo is restarted at once only when it runs a
+  host of an older `svchost.Revision` (`twinnel-helper svchost
+  --revision`; hosts from before it report 0): bump the revision when a
+  host change must reach running services. The plan and the helper's log
+  and `service.changed` event (op `host-refresh`) say when mihomo restarts.
+  `status.get` reports the host (`service_host`), `twinnel version` and
+  关于 → 组件版本 show its version and a warning when it lags.
 
 `service.start/stop/restart/status` for `mihomo` and `tailscaled` go through
 the same SCM manager. The Tailscale service (`Tailscale`) is only started,

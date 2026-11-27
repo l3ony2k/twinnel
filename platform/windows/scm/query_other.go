@@ -17,3 +17,9 @@ func queryService(context.Context, string) (service.Status, error) {
 func ServiceCommandLine(string) (string, error) {
 	return "", errors.New("the Service Control Manager only exists on Windows")
 }
+
+func serviceInfo(context.Context, string) (string, bool, int, error) {
+	return "", false, 0, errors.New("the Service Control Manager only exists on Windows")
+}
+
+func processImage(int) string { return "" }

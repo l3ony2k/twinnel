@@ -19,6 +19,10 @@ type Report struct {
 	// is found): the one shipped beside the CLI and the installed one the
 	// service runs.
 	HelperBinaries *HelperBinaries `json:"helper_binaries,omitempty"`
+	// ServiceHost is Windows' service host (twinnel-svchost.exe), the
+	// copy of the helper that runs mihomo as a service; nil elsewhere.
+	// Detail: its path.
+	ServiceHost *Entry `json:"service_host,omitempty"`
 }
 
 // HelperBinaries compares the helper binary shipped with Twinnel with the
@@ -52,11 +56,26 @@ func HelperDrift(bundled, installed, running string) string {
 	return ""
 }
 
+// ServiceHostDrift says when the service host is out of step with the
+// helper ("" when it is not, or a version is unknown): its version
+// differs from the installed helper's, or the helper reports it stale
+// (mihomo runs an older host).
+func ServiceHostDrift(host, helper string, stale bool) string {
+	if host == "" {
+		return ""
+	}
+	if stale || helper != "" && host != helper {
+		return "the service host that runs mihomo (" + host + ") is not up to date with the helper: run `twinnel helper upgrade` (or Twinnel → 设置 → 后台助手 → 更新)"
+	}
+	return ""
+}
+
 // Entry is one component. Version is empty when it could not be read.
 type Entry struct {
 	Version string `json:"version,omitempty"`
 	Detail  string `json:"detail,omitempty"` // where it was read, build info
 	Error   string `json:"error,omitempty"`
+	Warning string `json:"warning,omitempty"` // out of step with another component
 }
 
 // Sources read the components; each may be nil (then it reads as not
@@ -108,6 +127,10 @@ func Collect(ctx context.Context, timeout time.Duration, self Entry, src Sources
 
 	if hasHelp {
 		rep.Helper = Entry{Version: hst.HelperVersion, Detail: src.Socket}
+		if h := hst.ServiceHost; h != nil {
+			rep.ServiceHost = &Entry{Version: h.Version, Detail: h.Path, Error: h.Error,
+				Warning: ServiceHostDrift(h.Version, "", h.Stale)}
+		}
 	} else {
 		rep.Helper = Entry{Detail: src.Socket, Error: herr.Error()}
 	}

@@ -15,13 +15,16 @@ import (
 )
 
 func fakeVersionSources(t *testing.T, h func() (rpc.Status, error), m func() (mihomo.Version, error), ts func() (string, error)) {
-	oldH, oldM, oldT, oldP := helperStatus, mihomoVersion, tailscaleVersion, helperBinaryPaths
+	oldH, oldM, oldT, oldP, oldS := helperStatus, mihomoVersion, tailscaleVersion, helperBinaryPaths, serviceHostPath
 	helperStatus = func(context.Context, string) (rpc.Status, error) { return h() }
 	mihomoVersion = func(context.Context, string, string) (mihomo.Version, error) { return m() }
 	tailscaleVersion = func(context.Context) (string, error) { return ts() }
 	// Never the machine's own helper binaries (TestVersionHelperDrift sets them).
 	helperBinaryPaths = func() (string, string) { return "", "" }
-	t.Cleanup(func() { helperStatus, mihomoVersion, tailscaleVersion, helperBinaryPaths = oldH, oldM, oldT, oldP })
+	serviceHostPath = func() string { return "" }
+	t.Cleanup(func() {
+		helperStatus, mihomoVersion, tailscaleVersion, helperBinaryPaths, serviceHostPath = oldH, oldM, oldT, oldP, oldS
+	})
 }
 
 func TestVersionAllReachable(t *testing.T) {
@@ -132,5 +135,50 @@ func TestVersionHelperDrift(t *testing.T) {
 	writeVersions(&b, rep)
 	if rep.HelperBinaries.Warning != "" || strings.Contains(b.String(), "warning") {
 		t.Fatalf("unexpected warning:\n%s", b.String())
+	}
+}
+
+// Windows' service host is the third helper binary: reported by the
+// helper, else read from disk, with a warning when it lags.
+func TestVersionServiceHost(t *testing.T) {
+	const host, installed = `C:\Program Files\Twinnel\twinnel-svchost.exe`, `C:\Program Files\Twinnel\twinnel-helper.exe`
+	fakeVersionSources(t,
+		func() (rpc.Status, error) {
+			return rpc.Status{HelperVersion: "0.2.0", ServiceHost: &rpc.ServiceHost{Path: host, Version: "0.1.0", Stale: true}}, nil
+		},
+		func() (mihomo.Version, error) { return mihomo.Version{}, errors.New("refused") },
+		func() (string, error) { return "", errors.New("no tailscaled") },
+	)
+	rep := collectVersions(context.Background(), time.Second, "x", "127.0.0.1:9090", "")
+	if h := rep.ServiceHost; h == nil || h.Version != "0.1.0" || h.Detail != host || !strings.Contains(h.Warning, "twinnel helper upgrade") {
+		t.Fatalf("service host = %+v", rep.ServiceHost)
+	}
+	var b bytes.Buffer
+	writeVersions(&b, rep)
+	for _, s := range []string{"  service host  0.1.0  (" + host + ")", "warning: the service host that runs mihomo (0.1.0)"} {
+		if !strings.Contains(b.String(), s) {
+			t.Errorf("output lacks %q:\n%s", s, b.String())
+		}
+	}
+
+	// The helper does not answer: the file, against the installed helper.
+	helperStatus = func(context.Context, string) (rpc.Status, error) { return rpc.Status{}, errors.New("dial: no pipe") }
+	helperBinaryPaths = func() (string, string) { return "", installed }
+	serviceHostPath = func() string { return host }
+	oldV, oldE := binaryVersion, fileExistsFn
+	binaryVersion = func(_ context.Context, bin string) (string, error) {
+		return map[string]string{host: "0.1.0", installed: "0.2.0"}[bin], nil
+	}
+	fileExistsFn = func(p string) bool { return p == host }
+	t.Cleanup(func() { binaryVersion, fileExistsFn = oldV, oldE })
+	rep = collectVersions(context.Background(), time.Second, "x", "127.0.0.1:9090", "")
+	if h := rep.ServiceHost; h == nil || h.Version != "0.1.0" || h.Warning == "" {
+		t.Fatalf("service host = %+v", rep.ServiceHost)
+	}
+	// In step: no warning.
+	binaryVersion = func(context.Context, string) (string, error) { return "0.2.0", nil }
+	rep = collectVersions(context.Background(), time.Second, "x", "127.0.0.1:9090", "")
+	if h := rep.ServiceHost; h == nil || h.Warning != "" {
+		t.Fatalf("service host = %+v", rep.ServiceHost)
 	}
 }

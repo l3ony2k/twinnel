@@ -143,6 +143,10 @@ type Engine struct {
 	// program's mihomo.
 	PortOwner func(ctx context.Context, port int) (*foreign.Process, error)
 
+	// ServiceHost keeps Windows' service host (the copy of the helper that
+	// runs mihomo as a service) up to date; nil elsewhere.
+	ServiceHost ServiceHostKeeper
+
 	// EgressProbe runs the egress test (health.LeakEgress with the test
 	// on) once, for health.egress; nil where there is none.
 	EgressProbe func(ctx context.Context) health.CheckReport
@@ -463,6 +467,9 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 	}
 	out.Kernel, _ = e.KernelList()
 	out.DNSWatch = e.DNSWatch()
+	if e.ServiceHost != nil {
+		out.ServiceHost = e.ServiceHost.State(ctx)
+	}
 	return out, nil
 }
 
