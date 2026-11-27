@@ -36,17 +36,17 @@ func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
 	case status.HelperNotRunning, status.HelperDenied, status.HelperNotInstalled:
 		hm, hcol = markAttention, t.Warning
 	}
-	ui.Column(c).Gap(6).Padding(8, padX).Children(func() {
-		ui.Row(c).Gap(10).Children(func() {
-			pair("m", T.Mihomo, mtext, mstate, stateMarkColor(t, mstate))
-			tm := tsMark(s)
-			ttext := T.Unreachable
-			if s.Tailscale.Reachable {
-				ttext = T.TSState(s.Tailscale.State.BackendState)
-			}
-			pair("t", T.Tailscale, ttext, tm, tsColor(t, s))
-			pair("h", T.HelperShort, s.Helper.State.Text(), hm, hcol)
-		})
+	// One line per state, so that no name is ever cut (the sidebar is as
+	// wide as these lines need, sidebarNeed). The helper's line is the
+	// way to deal with it when it needs something.
+	ui.Column(c).Gap(5).Padding(8, padX).Children(func() {
+		pair("m", T.Mihomo, mtext, mstate, stateMarkColor(t, mstate))
+		tm := tsMark(s)
+		ttext := T.Unreachable
+		if s.Tailscale.Reachable {
+			ttext = T.TSState(s.Tailscale.State.BackendState)
+		}
+		pair("t", T.Tailscale, ttext, tm, tsColor(t, s))
 		switch {
 		case helperOutdated(s):
 			// The version handshake is one row here: the state, and 更新.
@@ -60,7 +60,12 @@ func (a *app) duetPair(c *ui.Context, s status.Snapshot, padX float32) {
 			if s.Helper.State != status.HelperNotInstalled {
 				text = T.HelperDownRow
 			}
-			footLink(c.Key("h-act"), text, func() { a.openHelperSetup(s) })
+			ui.Row(c.Key("h")).Gap(5).AlignItems(ui.Center).Children(func() {
+				stateDot(c, hm, hcol, 8)
+				footLink(c.Key("h-act"), text, func() { a.openHelperSetup(s) })
+			})
+		default:
+			pair("h", T.HelperShort, s.Helper.State.Text(), hm, hcol)
 		}
 	})
 }

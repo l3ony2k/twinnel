@@ -20,7 +20,7 @@ func TestLangLayouts(t *testing.T) {
 	}
 	defer func() { i18n.Set("zh-Hans"); setLayout("zh-Hans") }()
 	setLayout("en")
-	if labelWidth != langLayouts["en"].label || sidebarExtra == 0 {
+	if labelWidth != langLayouts["en"].label || halfCardMin == 0 {
 		t.Error("setLayout(en)")
 	}
 }

@@ -44,19 +44,18 @@ func initLang() {
 // langLayout is what a language's longer words need of the layout:
 // widths are set per language, never by shortening the text.
 type langLayout struct {
-	label        float32 // kv label column (labelWidth)
-	sidebarExtra float32 // added to the platform's sidebar width
-	halfCard     float32 // narrowest a half-width card may be before cards stack
+	label    float32 // kv label column (labelWidth)
+	halfCard float32 // narrowest a half-width card may be before cards stack
 }
 
 var langLayouts = map[string]langLayout{
 	"zh-Hans": {label: 96},
-	"en":      {label: 116, sidebarExtra: 28, halfCard: 330}, // "This Mac's name", "Subscriptions & Overrides"
+	"en":      {label: 116, halfCard: 330}, // "This Mac's name"
 }
 
-// sidebarExtra widens the sidebar for the current language; halfCardMin
-// is langLayout.halfCard of it.
-var sidebarExtra, halfCardMin float32
+// halfCardMin is langLayout.halfCard of the current language. (The
+// sidebar's width is measured from its labels, sidebarNeed.)
+var halfCardMin float32
 
 // setLayout sizes the layout for tag. Main thread.
 func setLayout(tag string) {
@@ -64,7 +63,7 @@ func setLayout(tag string) {
 	if !ok {
 		l = langLayouts["en"]
 	}
-	labelWidth, sidebarExtra, halfCardMin = l.label, l.sidebarExtra, l.halfCard
+	labelWidth, halfCardMin = l.label, l.halfCard
 }
 
 // uiLang returns the language to show: DUET_LANG, else the setting, else
