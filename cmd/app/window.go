@@ -326,6 +326,7 @@ func (a *app) showPage(id string) {
 }
 
 func (a *app) pageChanged(old string) {
+	noteSubPage(a.page, old)
 	if a.page != old && a.hd.busy == "" {
 		a.hd.msg, a.hd.msgErr = "", false // the last outcome belongs to the page it ran on
 	}

@@ -389,7 +389,12 @@ func (a *app) aboutTakeover(c *ui.Context) {
 	para := func(text string) {
 		ui.Text(c, text).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 	}
-	el := card(c, T.AboutTakeover, func() {
+	var anchor ui.Element
+	card(c, T.AboutTakeover, func() {
+		// Scrolled to, the card's top lands under the toolbar, which is
+		// drawn over the page: the anchor sits a toolbar's height above
+		// it (walkthrough 2, N17).
+		anchor = ui.Box(c.Key("anchor")).Absolute().Top(-(toolbarHeight(c) + 12)).Left(0).Size(1, 1).PassThrough().AccessHidden(true)
 		flowRow(c, "now", T.TkNow, T.AbtTkYourConfig, "mihomo")
 		flowRow(c, "after", T.TkAfter, T.AbtTkSub+" + "+T.AbtTkLayers, T.AbtTkComposed, "mihomo")
 
@@ -423,7 +428,7 @@ func (a *app) aboutTakeover(c *ui.Context) {
 	})
 	if a.about.reveal == aboutTakeoverAnchor {
 		a.about.reveal = ""
-		el.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollStart, Animation: &rowMove})
+		anchor.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollStart, Animation: &rowMove})
 	}
 }
 
