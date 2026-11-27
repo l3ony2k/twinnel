@@ -343,71 +343,107 @@ func TestTailscaleProbe(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		w.Write([]byte(`{"TarballsVersion":"1.104.7","MacZipsVersion":"1.104.6","Version":"1.104.5"}`))
+		w.Write([]byte(`{"TarballsVersion":"1.104.7","MacZipsVersion":"1.104.6","MSIsVersion":"1.104.8","Version":"1.104.5"}`))
 	}))
 	defer pkgs.Close()
 
-	// The macOS and Linux install kinds, on any host: the Unix candidate
-	// list (Windows searches Program Files), and the stat keys in the
-	// host's separators, as filepath.Join builds them in Kind.
-	defer func(c []string) { TailscaleCandidates = c }(TailscaleCandidates)
-	TailscaleCandidates = []string{"/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"}
-	files := map[string]bool{}
-	links := map[string]string{}
-	p := &TailscaleProbe{
-		PkgsURL: pkgs.URL, HTTP: pkgs.Client(),
-		Stat: func(n string) (os.FileInfo, error) {
-			if files[n] {
-				return fakeFI{}, nil
-			}
-			return nil, os.ErrNotExist
-		},
-		EvalSymlinks: func(n string) (string, error) {
-			if l, ok := links[n]; ok {
-				return l, nil
-			}
-			return n, nil
-		},
-		Run: func(ctx context.Context, bin string, args ...string) ([]byte, error) {
-			if strings.Join(args, " ") != "version --json" {
-				return nil, fmt.Errorf("unexpected args %v", args)
-			}
-			return []byte(`{"majorMinorPatch":"1.98.1","short":"1.98.1"}`), nil
-		},
+	// probe probes goos with fake files and links, whatever the host.
+	probe := func(goos string) (*TailscaleProbe, map[string]bool, map[string]string) {
+		files := map[string]bool{}
+		links := map[string]string{}
+		return &TailscaleProbe{
+			GOOS:    goos,
+			Getenv:  func(k string) string { return map[string]string{"ProgramFiles": `D:\Apps`}[k] },
+			PkgsURL: pkgs.URL, HTTP: pkgs.Client(),
+			Stat: func(n string) (os.FileInfo, error) {
+				if files[n] {
+					return fakeFI{}, nil
+				}
+				return nil, os.ErrNotExist
+			},
+			EvalSymlinks: func(n string) (string, error) {
+				if l, ok := links[n]; ok {
+					return l, nil
+				}
+				return n, nil
+			},
+			Run: func(ctx context.Context, bin string, args ...string) ([]byte, error) {
+				if strings.Join(args, " ") != "version --json" {
+					return nil, fmt.Errorf("unexpected args %v", args)
+				}
+				return []byte(`{"majorMinorPatch":"1.98.1","short":"1.98.1"}`), nil
+			},
+		}, files, links
 	}
 
-	info, err := p.Info(context.Background())
-	if err != nil || info.Installed || info.Latest != "1.104.7" {
-		t.Errorf("not installed: %+v %v", info, err)
+	// Nothing installed: the newest version of the package Twinnel would
+	// install there (tarballs on Unix, the MSI on Windows).
+	for goos, want := range map[string]string{"darwin": "1.104.7", "linux": "1.104.7", "windows": "1.104.8"} {
+		p, _, _ := probe(goos)
+		info, err := p.Info(context.Background())
+		if err != nil || info.Installed || info.Latest != want {
+			t.Errorf("%s not installed: %+v %v", goos, info, err)
+		}
 	}
 
+	// macOS: brew, the standalone app, the App Store app.
+	p, files, links := probe("darwin")
 	files["/opt/homebrew/bin/tailscale"] = true
 	links["/opt/homebrew/bin/tailscale"] = "/opt/homebrew/Cellar/tailscale/1.98.1/bin/tailscale"
-	info, err = p.Info(context.Background())
+	info, err := p.Info(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !info.Installed || info.Kind != TSBrew || info.Version != "1.98.1" || info.Latest != "1.104.7" || !info.UpdateAvailable {
 		t.Errorf("brew: %+v", info)
 	}
-
 	app := "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
 	if k := p.Kind(app); k != TSStandalone {
 		t.Errorf("app kind = %s", k)
 	}
-	files[filepath.FromSlash("/Applications/Tailscale.app/Contents/_MASReceipt")] = true
+	files["/Applications/Tailscale.app/Contents/_MASReceipt"] = true
 	if k := p.Kind(app); k != TSAppStore {
 		t.Errorf("app store kind = %s", k)
 	}
-	files[filepath.FromSlash("/usr/local/sbin/tailscaled")] = true
+	if v, _ := p.Latest(context.Background(), TSStandalone); v != "1.104.6" {
+		t.Errorf("mac zip version = %s", v)
+	}
+
+	// Linux: the static binaries, anything else unknown.
+	p, files, _ = probe("linux")
+	files["/usr/local/sbin/tailscaled"] = true
 	if k := p.Kind("/usr/local/sbin/tailscale"); k != TSStatic {
 		t.Errorf("static kind = %s", k)
 	}
 	if k := p.Kind("/somewhere/tailscale"); k != TSUnknown {
 		t.Errorf("unknown kind = %s", k)
 	}
-	if v, _ := p.Latest(context.Background(), TSStandalone); v != "1.104.6" {
-		t.Errorf("mac zip version = %s", v)
+
+	// Windows: the official client under %ProgramFiles%.
+	p, files, _ = probe("windows")
+	files[`D:\Apps\Tailscale\tailscale.exe`] = true
+	info, err = p.Info(context.Background())
+	if err != nil || !info.Installed || info.Path != `D:\Apps\Tailscale\tailscale.exe` || info.Kind != TSWindows || info.Latest != "1.104.8" {
+		t.Errorf("windows: %+v %v", info, err)
+	}
+}
+
+func TestTailscaleCandidatesFor(t *testing.T) {
+	none := func(string) string { return "" }
+	pf := func(string) string { return `E:\Programs\` }
+	for _, c := range []struct {
+		goos   string
+		getenv func(string) string
+		want   string
+	}{
+		{"windows", none, `C:\Program Files\Tailscale\tailscale.exe`},
+		{"windows", pf, `E:\Programs\Tailscale\tailscale.exe`},
+		{"darwin", pf, "/opt/homebrew/bin/tailscale /usr/local/bin/tailscale /Applications/Tailscale.app/Contents/MacOS/Tailscale"},
+		{"linux", none, "/opt/homebrew/bin/tailscale /usr/local/bin/tailscale /Applications/Tailscale.app/Contents/MacOS/Tailscale"},
+	} {
+		if got := strings.Join(TailscaleCandidatesFor(c.goos, c.getenv), " "); got != c.want {
+			t.Errorf("%s: %s, want %s", c.goos, got, c.want)
+		}
 	}
 }
 

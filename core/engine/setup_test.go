@@ -126,7 +126,7 @@ func TestTailscaleInstall(t *testing.T) {
 	h.e.ServiceRunner = &ServiceRunner{Exec: ex, Files: files}
 	h.e.TSInstaller = &kernel.TailscaleInstaller{Dir: h.e.Store.Path("tailscale"), PkgsURL: srv.URL, GOOS: "linux", GOARCH: "arm64",
 		Probe: func(context.Context, string) (string, error) { return "1.104.7", nil }}
-	h.e.TSProbe = &kernel.TailscaleProbe{Stat: func(string) (os.FileInfo, error) { return nil, os.ErrNotExist }}
+	h.e.TSProbe = &kernel.TailscaleProbe{GOOS: "linux", Stat: func(string) (os.FileInfo, error) { return nil, os.ErrNotExist }}
 
 	r, err := h.e.TailscaleInstall(ctx, rpc.TailscaleInstallParams{Proxy: rpc.ProxyDirect})
 	if err != nil {
@@ -152,6 +152,7 @@ func TestTailscaleInstall(t *testing.T) {
 	// An install Twinnel did not make is kept, and nothing else happens.
 	n := len(m.specs)
 	h.e.TSProbe = &kernel.TailscaleProbe{
+		GOOS: "darwin", // the kept install is the Mac app
 		Stat: func(p string) (os.FileInfo, error) {
 			if p == "/Applications/Tailscale.app/Contents/MacOS/Tailscale" {
 				return os.Stat(".")

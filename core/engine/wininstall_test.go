@@ -69,7 +69,7 @@ func TestTailscaleInstallWindowsMSI(t *testing.T) {
 	h.e.Services = scm
 	h.e.ServiceRunner = &ServiceRunner{Exec: &recExec{}, Files: &recFiles{}}
 	h.e.Sleep = func(context.Context, time.Duration) error { return nil }
-	h.e.TSProbe = &kernel.TailscaleProbe{Stat: func(string) (os.FileInfo, error) { return nil, os.ErrNotExist }}
+	h.e.TSProbe = &kernel.TailscaleProbe{GOOS: "windows", Stat: func(string) (os.FileInfo, error) { return nil, os.ErrNotExist }}
 	winDir := filepath.Join(t.TempDir(), "Tailscale")
 	h.e.TSInstaller = &kernel.TailscaleInstaller{Dir: h.e.Store.Path("tailscale"), PkgsURL: srv.URL, GOOS: "windows", GOARCH: "amd64",
 		WindowsDir: winDir,
@@ -122,6 +122,7 @@ func TestTailscaleInstallWindowsMSI(t *testing.T) {
 	h.e.TSInstaller.RunMSI = func(context.Context, string, string) (int, error) { t.Error("ran msiexec"); return 0, nil }
 	h.e.TSInstaller.Sane = func(p string) binsane.Result { return binsane.Result{Path: p} }
 	h.e.TSProbe = &kernel.TailscaleProbe{
+		GOOS:         "windows",
 		Stat:         func(string) (os.FileInfo, error) { return os.Stat(".") },
 		EvalSymlinks: func(p string) (string, error) { return `C:\Program Files\Tailscale\tailscale.exe`, nil },
 		Run: func(context.Context, string, ...string) ([]byte, error) {
@@ -140,7 +141,7 @@ func TestTailscaleInstallWindowsDryRun(t *testing.T) {
 	srv := msiHost(t)
 	h.e.Services = &scmFake{}
 	h.e.ServiceRunner = &ServiceRunner{DryRun: true}
-	h.e.TSProbe = &kernel.TailscaleProbe{Stat: func(string) (os.FileInfo, error) { return nil, os.ErrNotExist }}
+	h.e.TSProbe = &kernel.TailscaleProbe{GOOS: "windows", Stat: func(string) (os.FileInfo, error) { return nil, os.ErrNotExist }}
 	h.e.TSInstaller = &kernel.TailscaleInstaller{Dir: h.e.Store.Path("tailscale"), PkgsURL: srv.URL, GOOS: "windows", GOARCH: "amd64",
 		RunMSI: func(context.Context, string, string) (int, error) { t.Error("ran msiexec"); return 0, nil }}
 	r, err := h.e.TailscaleInstall(context.Background(), rpc.TailscaleInstallParams{Proxy: rpc.ProxyDirect})
@@ -253,6 +254,7 @@ func TestTailscaleInstallWindowsRepairAndNoStart(t *testing.T) {
 	cli := `C:\Program Files\Tailscale\tailscale.exe`
 	damaged := true
 	h.e.TSProbe = &kernel.TailscaleProbe{
+		GOOS:         "windows",
 		Stat:         func(string) (os.FileInfo, error) { return os.Stat(".") },
 		EvalSymlinks: func(p string) (string, error) { return cli, nil },
 		Run: func(context.Context, string, ...string) ([]byte, error) {
