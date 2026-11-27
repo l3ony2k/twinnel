@@ -80,7 +80,7 @@ func (a *app) aboutOpened() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		out, err := runCLI(ctx, "version", "--short")
+		out, err := a.runCLI(ctx, "version", "--short")
 		ver := ""
 		if err == nil {
 			ver = strings.TrimSpace(firstLine(out))
