@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/core/store"
@@ -456,6 +457,8 @@ func helperUpgrade(ctx context.Context, f *installFlags, c UpgradeCheck, force b
 		return nil
 	case UpgradeNotInstalled:
 		return errors.New("the helper is not installed: twinnel helper install")
+	case UpgradeMigrate:
+		return helperMigrate(f, c.Bundled, "upgrade")
 	case UpgradeDowngrade:
 		if !force {
 			return fmt.Errorf("the bundled helper %s is older than the installed %s; pass --force to install it anyway", c.Bundled, c.Installed)
@@ -547,6 +550,19 @@ func checkUpgrade(ctx context.Context, f *installFlags) (UpgradeCheck, error) {
 	}
 	installed, _ := helperPaths(f.stateDir, f.label)
 	c.InstalledAt = installed
+	if migrationNeeded(f) {
+		// The helper from before the rename: install/upgrade migrate it.
+		c.Action, c.InstalledAt = UpgradeMigrate, legacyHelper.Bin
+		c.Detail = "the helper from before the rename (" + legacy.Name + ") is moved to the new name, with its data"
+		c.Installed, _ = binaryVersion(ctx, legacyHelper.Bin)
+		sctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		var st rpc.Status
+		if helperRPC(sctx, legacyHelper.Socket, rpc.MethodStatus, nil, &st) == nil {
+			c.Running = st.HelperVersion
+		}
+		cancel()
+		return c, nil
+	}
 	if !fileExistsFn(installed) {
 		c.Action = UpgradeNotInstalled
 		return c, nil
@@ -604,6 +620,7 @@ func printUpgradeCheck(w io.Writer, c UpgradeCheck) {
 		UpgradeRestart:      "the helper will be restarted",
 		UpgradeDowngrade:    "the bundled helper is OLDER than the installed one (--force to install it anyway)",
 		UpgradeNotInstalled: "not installed (twinnel helper install)",
+		UpgradeMigrate:      "the helper from before the rename will be migrated",
 	}[c.Action]
 	if c.Detail != "" {
 		text += " (" + c.Detail + ")"

@@ -232,6 +232,18 @@ func (l *Launchd) bootstrap(path string) service.Step {
 		Retry: 4, RetryOn: BootstrapRetryOn, RetryBackoff: 500 * time.Millisecond}
 }
 
+// PlanStop unloads label and waits until launchd has let go of it (a
+// label it does not know is not an error). The plist stays.
+func (l *Launchd) PlanStop(label string) ([]service.Step, error) {
+	if err := checkLabel(label); err != nil {
+		return nil, err
+	}
+	return []service.Step{
+		{Kind: service.StepRun, Argv: []string{l.launchctl(), "bootout", "system/" + label}, IgnoreError: true},
+		l.waitUnloaded(label),
+	}, nil
+}
+
 // waitUnloaded waits (up to 10 s) until launchd no longer knows label. A
 // timeout is not fatal: the bootstrap after it retries and fails loudly.
 func (l *Launchd) waitUnloaded(label string) service.Step {

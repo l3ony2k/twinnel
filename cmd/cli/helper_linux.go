@@ -3,6 +3,8 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/platform/linux"
 	"github.com/l3ony2k/twinnel/platform/linux/systemd"
@@ -49,3 +51,17 @@ func planMihomoRestore(from, to, toPlist string) (stop, start, undo []service.St
 
 // readServiceState is used by the macOS plans only.
 func readServiceState(string) (bool, []byte, error) { return false, nil, nil }
+
+// legacyInstall: there is no install from before the rename to migrate
+// here (the rename happened before a release for this platform).
+func legacyInstall() migrateSide { return migrateSide{} }
+
+func planHelperStop(string) ([]service.Step, error) {
+	return nil, errors.New("migrating a helper from before the rename is only implemented for macOS")
+}
+
+func planHelperStart(string) ([]service.Step, error) {
+	return nil, errors.New("migrating a helper from before the rename is only implemented for macOS")
+}
+
+var dropLegacySecrets = func([]string) []string { return nil }

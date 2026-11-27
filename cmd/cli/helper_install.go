@@ -113,6 +113,12 @@ func helperInstall(f *installFlags) error {
 		return err
 	}
 	f.helperBin = bin
+	if migrationNeeded(f) {
+		// A helper from before the rename: move it (and its data) over
+		// instead of installing a second one next to it.
+		want, _ := binaryVersion(context.Background(), f.helperBin)
+		return helperMigrate(f, want, "install")
+	}
 	steps, err := planHelperInstall(f.helperBin, f.stateDir, f.socket, f.label)
 	if err != nil {
 		return err

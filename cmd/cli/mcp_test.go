@@ -23,6 +23,10 @@ func TestMain(m *testing.M) {
 		main()
 		os.Exit(0)
 	}
+	// The machine running the tests may have a real helper from before
+	// the rename: no test may see it (tests that need one set their own).
+	legacyHelper = migrateSide{Label: "test.legacy.helper", StateDir: "/nonexistent/twinnel-test/old",
+		Socket: "/nonexistent/twinnel-test/old.sock", Bin: "/nonexistent/twinnel-test/old-bin", Plist: "/nonexistent/twinnel-test/old.plist"}
 	os.Exit(m.Run())
 }
 

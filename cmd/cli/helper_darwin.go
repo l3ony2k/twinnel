@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/legacy"
 	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/platform/darwin/keychain"
 	"github.com/l3ony2k/twinnel/platform/darwin/launchd"
@@ -117,4 +118,45 @@ func planMihomoRestore(from, to, toPlist string) (stop, start, undo []service.St
 		run(false, "bootstrap", "system", serviceDefinition(from)),
 	}
 	return stop, start, undo
+}
+
+// legacyInstall is the helper as installed before the rename to Twinnel.
+func legacyInstall() migrateSide {
+	return migrateSide{
+		Label: legacy.HelperLabel, StateDir: legacy.StateDir, Socket: legacy.Socket,
+		Bin: legacy.HelperTools, Plist: legacy.HelperPlist,
+	}
+}
+
+// planHelperStop unloads a helper's LaunchDaemon and waits until launchd
+// let go of it. Its plist and binary stay.
+func planHelperStop(label string) ([]service.Step, error) { return launchd.New().PlanStop(label) }
+
+// planHelperStart loads an installed, unloaded helper (enable, bootstrap).
+func planHelperStart(label string) ([]service.Step, error) {
+	return launchd.New().PlanStartOrRestart(label, false)
+}
+
+// dropLegacySecrets deletes the keychain items from before the rename
+// whose value the current item holds (copied by the new helper when it
+// first read them). An item not copied yet stays: the helper still reads
+// it from there. Replaceable in tests.
+var dropLegacySecrets = func(keys []string) []string {
+	cur := &keychain.Keychain{}
+	old := &keychain.Keychain{Service: legacy.KeychainService, Account: legacy.KeychainAccount}
+	var notes []string
+	for _, k := range keys {
+		v, err := cur.Get(k)
+		if err != nil {
+			notes = append(notes, "keychain item "+legacy.KeychainService+"."+k+" kept: "+err.Error())
+			continue
+		}
+		if ov, err := old.Get(k); err != nil || ov != v {
+			continue // no old item, or another value: leave it alone
+		}
+		if err := old.Delete(k); err != nil {
+			notes = append(notes, "keychain item "+legacy.KeychainService+"."+k+" kept: "+err.Error())
+		}
+	}
+	return notes
 }
