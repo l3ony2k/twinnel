@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/rpc"
@@ -71,17 +70,41 @@ type Plan struct {
 	Command string         `json:"command,omitempty"` // the check's command, for manual fixes
 }
 
-// Undo puts a fix back.
+// Undo puts a fix back. A fix that writes the config records, for
+// every stored layer and setting it writes, the value before the fix
+// (Layers, Settings); the undo writes those back and applies, so the
+// layer store and the running config return to the same pre-fix state.
 type Undo struct {
-	Action    string              `json:"action"`
-	Settings  *rpc.SettingsUpdate `json:"settings,omitempty"` // settings as before
-	LayerID   string              `json:"layer_id,omitempty"` // a layer the fix added
-	HistoryID string              `json:"history_id,omitempty"`
-	Mode      string              `json:"mode,omitempty"`
-	ExitNode  string              `json:"exit_node,omitempty"`
-	DNS       bool                `json:"dns,omitempty"` // dns.restore
+	Action string `json:"action"`
+	Check  string `json:"check,omitempty"`  // the check the fix was for
+	Reason string `json:"reason,omitempty"` // the failure reason it fixed
+	// Layers are the stored layers the fix wrote, as they were before it.
+	Layers   []LayerBefore       `json:"layers,omitempty"`
+	Settings *rpc.SettingsUpdate `json:"settings,omitempty"` // settings as before
+	Mode     string              `json:"mode,omitempty"`
+	ExitNode string              `json:"exit_node,omitempty"`
+	DNS      bool                `json:"dns,omitempty"` // dns.restore
 	// Autostart enables again the entries a disable-autostart turned off.
 	Autostart *rpc.AutostartChangeParams `json:"autostart,omitempty"`
+
+	// LayerID and HistoryID are the undo of older versions, still
+	// accepted: a layer the fix added (deleted on undo), and the history
+	// entry before the fix (its layers are put back from that entry's
+	// manifest, then applied; never a bare rollback).
+	LayerID   string `json:"layer_id,omitempty"`
+	HistoryID string `json:"history_id,omitempty"`
+}
+
+// LayerBefore is a stored layer as it was before a fix: Absent when there
+// was none (the undo deletes it), else its metadata and content.
+type LayerBefore struct {
+	ID      string `json:"id"`
+	Absent  bool   `json:"absent,omitempty"`
+	Name    string `json:"name,omitempty"`
+	Stage   string `json:"stage,omitempty"`
+	Format  string `json:"format,omitempty"`
+	Enabled bool   `json:"enabled,omitempty"`
+	Content string `json:"content,omitempty"`
 }
 
 // Outcome is what Apply did.
@@ -146,14 +169,16 @@ func (f *Fixer) Plan(ctx context.Context, cr health.CheckReport, reason string) 
 		p.Steps = []string{L.stepEgress}
 	case health.FixCoexist:
 		need(f.Helper != nil, L.blockedHelper)
+		p.Undo = true // turns the override on: off again on undo
 		if f.Helper != nil {
 			var st rpc.Settings
-			if err := f.Helper.Call(ctx, rpc.MethodSettingsGet, rpc.Empty{}, &st); err == nil && !st.TailscaleCoexist {
-				p.Steps = append(p.Steps, L.stepCoexistOn)
+			if err := f.Helper.Call(ctx, rpc.MethodSettingsGet, rpc.Empty{}, &st); err == nil {
+				if p.Undo = !st.TailscaleCoexist; p.Undo {
+					p.Steps = append(p.Steps, L.stepCoexistOn)
+				}
 			}
 		}
 		p.Steps = append(p.Steps, L.stepCoexistRegen, L.stepApply)
-		p.Undo = true
 	case health.FixLeakGuard:
 		need(f.Helper != nil, L.blockedHelper)
 		groups := splitParam(p.Param)
@@ -300,6 +325,10 @@ func (f *Fixer) Apply(ctx context.Context, p Plan) (*Outcome, error) {
 	if err != nil {
 		return out, err
 	}
+	if out.Undo != nil {
+		// What the undo goes back to: the preview says it fails again.
+		out.Undo.Check, out.Undo.Reason = p.Check, p.Reason
+	}
 	if rep == nil {
 		if rep, err = f.rerun(ctx); err != nil {
 			return out, fmt.Errorf("%s: %w", L.errRerun, err)
@@ -314,49 +343,6 @@ func (f *Fixer) Apply(ctx context.Context, p Plan) (*Outcome, error) {
 		}
 	}
 	return out, nil
-}
-
-// Undo puts back what Apply changed, then runs the checks again.
-func (f *Fixer) Undo(ctx context.Context, u *Undo) (*health.Report, error) {
-	if u == nil {
-		return nil, errors.New("nothing to undo")
-	}
-	var err error
-	switch {
-	case u.Autostart != nil:
-		err = f.undoAutostart(ctx, u.Autostart)
-	case u.DNS:
-		err = f.helper().Call(ctx, rpc.MethodDNSRestore, rpc.Empty{}, &rpc.DNSStatus{})
-	case u.Mode != "":
-		if f.Mihomo == nil {
-			return nil, errors.New(tx(f.Lang).blockedMihomo)
-		}
-		err = f.Mihomo.SetMode(ctx, u.Mode)
-	case u.ExitNode != "":
-		if f.Tailscale == nil {
-			return nil, errors.New(tx(f.Lang).blockedTailscale)
-		}
-		err = f.Tailscale.SetExitNode(ctx, u.ExitNode)
-	case u.Settings != nil || u.LayerID != "":
-		h := f.helper()
-		if u.LayerID != "" {
-			err = h.Call(ctx, rpc.MethodLayerDelete, rpc.IDParams{ID: u.LayerID}, nil)
-		}
-		if err == nil && u.Settings != nil {
-			err = h.Call(ctx, rpc.MethodSettingsUpdate, *u.Settings, nil)
-		}
-		if err == nil {
-			err = f.apply(ctx, "undo")
-		}
-	case u.HistoryID != "":
-		err = f.helper().Call(ctx, rpc.MethodHistoryRollback, rpc.IDParams{ID: u.HistoryID}, &rpc.ApplyResult{})
-	default:
-		return nil, errors.New("nothing to undo")
-	}
-	if err != nil {
-		return nil, err
-	}
-	return f.rerun(ctx)
 }
 
 // helper is the helper, or one that refuses every call.
@@ -396,49 +382,24 @@ func (f *Fixer) apply(ctx context.Context, what string) error {
 	return err
 }
 
-// latestHistory is the newest history entry's ID ("" for none).
-func (f *Fixer) latestHistory(ctx context.Context) string {
-	var hs []rpc.HistoryEntry
-	if err := f.Helper.Call(ctx, rpc.MethodHistoryList, rpc.Empty{}, &hs); err != nil {
-		return ""
-	}
-	var id string
-	var at time.Time
-	for _, h := range hs {
-		if h.Kind != "backup" && !h.Time.Before(at) {
-			id, at = h.ID, h.Time
-		}
-	}
-	return id
-}
-
+// applyCoexist turns the coexistence override on if it is off, makes the
+// helper read the tailnet now (the override is generated from it) and
+// applies. With the override on already nothing stored changes: the fix
+// only regenerates it from the current tailnet, and has no undo.
 func (f *Fixer) applyCoexist(ctx context.Context, p Plan) (*Undo, error) {
 	var st rpc.Settings
 	if err := f.Helper.Call(ctx, rpc.MethodSettingsGet, rpc.Empty{}, &st); err != nil {
 		return nil, err
 	}
-	u := &Undo{Action: p.Action}
+	var ch configChange
 	if !st.TailscaleCoexist {
-		on, off := true, false
-		if err := f.Helper.Call(ctx, rpc.MethodSettingsUpdate, rpc.SettingsUpdate{TailscaleCoexist: &on}, nil); err != nil {
-			return nil, err
-		}
-		u.Settings = &rpc.SettingsUpdate{TailscaleCoexist: &off}
-	} else {
-		u.HistoryID = f.latestHistory(ctx)
+		on := true
+		ch.settings = &rpc.SettingsUpdate{TailscaleCoexist: &on}
 	}
-	if err := f.Helper.Call(ctx, rpc.MethodTailnetRefresh, rpc.Empty{}, &rpc.TailnetRefreshResult{}); err != nil {
-		f.revert(ctx, u)
-		return nil, err
+	ch.then = func(ctx context.Context) error {
+		return f.Helper.Call(ctx, rpc.MethodTailnetRefresh, rpc.Empty{}, &rpc.TailnetRefreshResult{})
 	}
-	if err := f.apply(ctx, p.Check); err != nil {
-		f.revert(ctx, u)
-		return nil, err
-	}
-	if u.Settings == nil && u.HistoryID == "" {
-		return nil, nil
-	}
-	return u, nil
+	return f.changeConfig(ctx, p, ch)
 }
 
 func (f *Fixer) applyLeakGuard(ctx context.Context, p Plan) (*Undo, error) {
@@ -452,19 +413,7 @@ func (f *Fixer) applyLeakGuard(ctx context.Context, p Plan) (*Undo, error) {
 			groups = append(groups, g)
 		}
 	}
-	prev := slices.Clone(st.LeakGuardGroups)
-	if prev == nil {
-		prev = []string{}
-	}
-	u := &Undo{Action: p.Action, Settings: &rpc.SettingsUpdate{LeakGuardGroups: &prev}}
-	if err := f.Helper.Call(ctx, rpc.MethodSettingsUpdate, rpc.SettingsUpdate{LeakGuardGroups: &groups}, nil); err != nil {
-		return nil, err
-	}
-	if err := f.apply(ctx, p.Check); err != nil {
-		f.revert(ctx, u)
-		return nil, err
-	}
-	return u, nil
+	return f.changeConfig(ctx, p, configChange{settings: &rpc.SettingsUpdate{LeakGuardGroups: &groups}})
 }
 
 // LoopbackLayerID is the override the controller-loopback fix adds.
@@ -472,61 +421,20 @@ const LoopbackLayerID = "controller-loopback"
 
 func (f *Fixer) applyLoopback(ctx context.Context, p Plan) (*Undo, error) {
 	content := "# Twinnel health fix: the controller listens on this computer only.\nexternal-controller: " + loopbackAddr(p.Param) + "\n"
-	if err := f.Helper.Call(ctx, rpc.MethodLayerPut, rpc.LayerPutParams{ID: LoopbackLayerID, Name: tx(f.Lang).layerLoopback, Content: content}, &rpc.Layer{}); err != nil {
-		return nil, err
-	}
-	u := &Undo{Action: p.Action, LayerID: LoopbackLayerID}
-	if err := f.apply(ctx, p.Check); err != nil {
-		f.revert(ctx, u)
-		return nil, err
-	}
-	return u, nil
-}
-
-// applyTUNStack adds the override that switches mihomo's TUN to the
-// gvisor stack (health.TUNStackLayer), enabled and last among the user
-// overrides so it wins over a stack set in another one, then applies.
-//
-// An override of that id may exist already (one written by hand): then
-// its content is put back if the apply fails, and the undo rolls back to
-// the config before the fix instead of deleting the override.
-func (f *Fixer) applyTUNStack(ctx context.Context, p Plan) (*Undo, error) {
-	var old rpc.LayerContent
-	existed := f.Helper.Call(ctx, rpc.MethodLayerGet, rpc.IDParams{ID: health.TUNStackLayerID}, &old) == nil && old.ID != ""
-	u := &Undo{Action: p.Action, LayerID: health.TUNStackLayerID}
-	if existed {
-		u = &Undo{Action: p.Action, HistoryID: f.latestHistory(ctx)}
-	}
 	on := true
-	if err := f.Helper.Call(ctx, rpc.MethodLayerPut, rpc.LayerPutParams{ID: health.TUNStackLayerID, Name: tx(f.Lang).layerTUNStack,
-		Enabled: &on, Content: health.TUNStackLayer}, &rpc.Layer{}); err != nil {
-		return nil, err
-	}
-	if err := f.apply(ctx, p.Check); err != nil {
-		if existed {
-			was := old.Enabled
-			_ = f.Helper.Call(ctx, rpc.MethodLayerPut, rpc.LayerPutParams{ID: old.ID, Name: old.Name, Stage: old.Stage, Format: old.Format,
-				Enabled: &was, Content: old.Content}, &rpc.Layer{})
-		} else {
-			f.revert(ctx, u)
-		}
-		return nil, err
-	}
-	if u.LayerID == "" && u.HistoryID == "" {
-		return nil, nil // no history to go back to: applied, without an undo
-	}
-	return u, nil
+	return f.changeConfig(ctx, p, configChange{layers: []rpc.LayerPutParams{
+		{ID: LoopbackLayerID, Name: tx(f.Lang).layerLoopback, Enabled: &on, Content: content}}})
 }
 
-// revert undoes the settings and layer steps of a fix whose apply failed
-// (the helper already kept the running config).
-func (f *Fixer) revert(ctx context.Context, u *Undo) {
-	if u.LayerID != "" {
-		_ = f.Helper.Call(ctx, rpc.MethodLayerDelete, rpc.IDParams{ID: u.LayerID}, nil)
-	}
-	if u.Settings != nil {
-		_ = f.Helper.Call(ctx, rpc.MethodSettingsUpdate, *u.Settings, nil)
-	}
+// applyTUNStack writes the override that switches mihomo's TUN to the
+// gvisor stack (health.TUNStackLayer), enabled, then applies. A new
+// override goes last among the user overrides, so it wins over a stack
+// set in another one; an override of that id written by hand keeps its
+// place and name, and the undo puts its content back.
+func (f *Fixer) applyTUNStack(ctx context.Context, p Plan) (*Undo, error) {
+	on := true
+	return f.changeConfig(ctx, p, configChange{layers: []rpc.LayerPutParams{
+		{ID: health.TUNStackLayerID, Name: tx(f.Lang).layerTUNStack, Enabled: &on, Content: health.TUNStackLayer}}})
 }
 
 func loopbackAddr(port string) string {
