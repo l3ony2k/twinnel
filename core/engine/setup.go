@@ -26,30 +26,22 @@ import (
 	"github.com/l3ony2k/twinnel/core/sysdns"
 )
 
-// DNSTarget is where dns.point sends the system's queries: mihomo's DNS
-// listener of the built-in base settings (dns.listen 127.0.0.1:53). A
-// platform part with a DNSTarget method sets its own (Windows adds ::1).
-var DNSTarget = []string{"127.0.0.1"}
-
-// dnsTarget is the platform part's target, else DNSTarget. Its first entry
-// is mihomo's listener (what dns.point probes).
-func (e *Engine) dnsTarget() []string {
-	if t, ok := e.SystemDNS.(interface{ DNSTarget() []string }); ok {
-		if v := t.DNSTarget(); len(v) > 0 {
-			return v
-		}
-	}
-	return DNSTarget
-}
+// dnsTarget is what dns.point sets (sysdns.TargetOf). Its first entry is
+// mihomo's listener (what dns.point probes).
+func (e *Engine) dnsTarget() []string { return sysdns.TargetOf(e.SystemDNS) }
 
 var tsInstallMu sync.Mutex
 
+// dnsBackupFile keeps what the services used before dns.point.
+const dnsBackupFile = "dns-backup.json"
+
 func (e *Engine) dnsManager() *sysdns.Manager {
-	return &sysdns.Manager{P: e.SystemDNS, Path: e.Store.Path("dns-backup.json"), Now: e.now}
+	return &sysdns.Manager{P: e.SystemDNS, Path: e.Store.Path(dnsBackupFile), Target: e.dnsTarget(), Now: e.now}
 }
 
 func toDNSStatus(st sysdns.Status, target []string) rpc.DNSStatus {
-	out := rpc.DNSStatus{Target: target, Pointed: st.Pointed, Changed: st.Changed, Supported: true, Services: []rpc.DNSService{}}
+	out := rpc.DNSStatus{Target: target, Pointed: st.Pointed, Changed: st.Changed, Supported: true, Services: []rpc.DNSService{},
+		Unprotected: st.Unprotected, Recorded: st.Recorded}
 	for _, s := range st.Services {
 		out.Services = append(out.Services, rpc.DNSService{Name: s.Name, Servers: s.Servers})
 	}
@@ -65,10 +57,10 @@ func toDNSStatus(st sysdns.Status, target []string) rpc.DNSStatus {
 // DNSStatus reads the system DNS.
 func (e *Engine) DNSStatus(ctx context.Context) (rpc.DNSStatus, error) {
 	if e.SystemDNS == nil {
-		return rpc.DNSStatus{Target: DNSTarget, Services: []rpc.DNSService{}}, nil
+		return rpc.DNSStatus{Target: sysdns.DefaultTarget, Services: []rpc.DNSService{}}, nil
 	}
 	target := e.dnsTarget()
-	st, err := e.dnsManager().Status(ctx, target)
+	st, err := e.dnsManager().Status(ctx)
 	if err != nil {
 		return rpc.DNSStatus{}, err
 	}
@@ -109,7 +101,7 @@ func (e *Engine) DNSPoint(ctx context.Context) (rpc.DNSStatus, error) {
 		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeFailed, "mihomo's DNS does not answer at %s (%v); the system DNS was not changed", addr, err)
 	}
 	e.dnsWatch.mu.Lock()
-	st, err := e.dnsManager().Point(ctx, target)
+	st, err := e.dnsManager().Point(ctx)
 	if err == nil {
 		// Pointed on purpose: a watchdog restore is over.
 		if w := e.dnsWatchdog(); w != nil {
@@ -124,6 +116,31 @@ func (e *Engine) DNSPoint(ctx context.Context) (rpc.DNSStatus, error) {
 		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
 	}
 	e.triggerHealth("dns point")
+	return out, nil
+}
+
+// DNSBackup records automatic (DHCP) as the restore value of every
+// service that points at mihomo without one (sysdns.Manager.Adopt): the
+// system DNS was pointed at mihomo before Twinnel did it (by hand, or by
+// another tool), so nothing could put it back if mihomo stopped. It
+// changes no DNS setting and works while mihomo is down; the watchdog
+// protects those services from then on.
+func (e *Engine) DNSBackup(ctx context.Context) (rpc.DNSStatus, error) {
+	if e.SystemDNS == nil {
+		return rpc.DNSStatus{}, rpc.Errorf(rpc.CodeNotImplemented, "setting the system DNS is not supported on this platform yet")
+	}
+	e.dnsWatch.mu.Lock()
+	st, err := e.dnsManager().Adopt(ctx)
+	e.dnsWatch.mu.Unlock()
+	out := toDNSStatus(st, e.dnsTarget())
+	out.Watch = e.DNSWatch()
+	e.log().Info("system DNS backup recorded", "recorded", len(st.Recorded), "err", err)
+	if err != nil {
+		return out, rpc.Errorf(rpc.CodeFailed, "%v", err)
+	}
+	if len(st.Recorded) > 0 {
+		e.triggerHealth("dns backup")
+	}
 	return out, nil
 }
 

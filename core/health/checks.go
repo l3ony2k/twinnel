@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/l3ony2k/twinnel/core/sysdns"
 )
 
 // DefaultRegistry returns a registry with all built-in checks, in report order.
@@ -599,6 +602,7 @@ func (SystemDNS) Platforms() []string   { return AllPlatforms }
 
 func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	L := tx(ctx)
+	G := dnsGuardFor(L)
 	cfg, err := env.MihomoConfig(ctx)
 	if err != nil {
 		return skipMihomo(ctx, err)
@@ -607,18 +611,12 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 		return skipText(L.msgMihomoDNSOff)
 	}
 	listen := hostOf(cfg.DNS.Listen)
-	want := map[string]bool{listen: true}
-	if listen == "0.0.0.0" || listen == "" || listen == "::" {
-		want["127.0.0.1"] = true
-	}
-	if env.Platform() == Windows && want["127.0.0.1"] {
-		// dns.point sets ::1 as the IPv6 server on Windows: nothing
-		// listens there, so IPv6 queries fail on the host instead of
-		// leaving it (platform/windows/sysdns.go).
-		want["::1"] = true
-	}
+	// The one definition of "resolves through mihomo" (core/sysdns), the
+	// same the helper's dns.point and its DNS watchdog use.
+	mihomo := sysdns.MihomoAddrs(listen, env.Platform())
 	tun, _, _ := tunConfig(ctx, env)
 	hijack := hijacksAll53(tun)
+	guard := dnsGuard(ctx, env)
 
 	svcs, err := env.NetworkServices(ctx)
 	if r, ok := unsupportedErr(ctx, env, err); ok {
@@ -654,7 +652,7 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	if strings.TrimSpace(cfg.DNS.Listen) == "" {
 		res.Summary = L.msgDNSOKNoListen
 	}
-	var bad, viaHijack []string
+	var bad, viaHijack, pointed, restored []string
 	nActive := 0
 	for _, s := range svcs {
 		if s.Device == "" {
@@ -669,15 +667,20 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 		if len(servers) == 0 {
 			servers = defaultNS
 		}
-		ok := len(servers) > 0
-		for _, ns := range servers {
-			if !want[ns] {
-				ok = false
-			}
-		}
 		line := fmt.Sprintf(L.evSvc, s.Name, s.Device, strings.Join(servers, ", "), how)
-		if ok {
+		if sysdns.PointsAt(servers, mihomo) {
+			pointed = append(pointed, s.Name)
+			if guard != nil && slices.Contains(guard.Unprotected, s.Name) {
+				line += "  ← " + G.evNoBackup
+			}
 			res.Evidence = append(res.Evidence, line)
+			continue
+		}
+		if guard != nil && slices.Contains(guard.Restored, s.Name) {
+			// Off mihomo on purpose: the watchdog put the earlier DNS back
+			// while mihomo does not answer, and points it back later.
+			res.Evidence = append(res.Evidence, line+"  ← "+G.evRestored)
+			restored = append(restored, s.Name)
 			continue
 		}
 		// Not pointing at mihomo: dns-hijack only catches queries that enter
@@ -702,18 +705,54 @@ func (SystemDNS) Run(ctx context.Context, env Env) Result {
 	if len(defaultNS) > 0 {
 		res.Evidence = append(res.Evidence, fmt.Sprintf(L.evDefaultResolver, strings.Join(defaultNS, ", ")))
 	}
-	switch {
-	case len(bad) > 0:
-		res.Status = StatusFail
-		res.Summary = fmt.Sprintf(L.msgDNSBad, strings.Join(bad, ", "))
-		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: FixSystemDNS}
-		res.because(ReasonDNSNotMihomo)
-	case len(viaHijack) > 0:
-		res.Status = StatusWarn
-		res.Summary = fmt.Sprintf(L.msgDNSHijack, strings.Join(viaHijack, ", "))
-		res.Fix = &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: FixSystemDNS}
-		res.because(ReasonDNSViaHijack)
-	case nActive == 0:
+	var unprotected []string
+	if guard != nil {
+		for _, n := range pointed {
+			if slices.Contains(guard.Unprotected, n) {
+				unprotected = append(unprotected, n)
+			}
+		}
+	}
+	// Only asked when something depends on mihomo's DNS.
+	down := (len(pointed) > 0 || len(restored) > 0) && mihomoDown(ctx, env)
+
+	// Reasons in order of weight; the first one sets the summary and fix.
+	set := func(st Status, summary string, fix *FixHint, reason string) {
+		if res.Reasons == nil {
+			res.Summary, res.Fix = summary, fix
+		}
+		res.Status = Worse(res.Status, st)
+		res.because(reason)
+	}
+	restart := &FixHint{Text: G.fixRestart, AutoFix: FixRestartMihomo}
+	pointFix := &FixHint{Text: dnsFixText(L, env.Platform(), listen), AutoFix: FixSystemDNS}
+	if len(pointed) > 0 && down {
+		// Every lookup on the machine goes to a resolver that is gone.
+		set(StatusFail, fmt.Sprintf(G.msgDown, strings.Join(pointed, ", ")), restart, ReasonDNSMihomoDown)
+		if len(unprotected) == 0 && guard != nil {
+			res.Evidence = append(res.Evidence, G.evWatchdogWill)
+		}
+	}
+	if len(bad) > 0 {
+		set(StatusFail, fmt.Sprintf(L.msgDNSBad, strings.Join(bad, ", ")), pointFix, ReasonDNSNotMihomo)
+	}
+	if len(restored) > 0 {
+		st, msg := StatusWarn, G.msgRestoredBack
+		if down {
+			st, msg = StatusFail, G.msgRestored
+		}
+		set(st, fmt.Sprintf(msg, strings.Join(restored, ", ")), restart, ReasonDNSRestored)
+	}
+	if len(viaHijack) > 0 {
+		set(StatusWarn, fmt.Sprintf(L.msgDNSHijack, strings.Join(viaHijack, ", ")), pointFix, ReasonDNSViaHijack)
+	}
+	if len(unprotected) > 0 {
+		// Nothing recorded to put back: when mihomo stops, the watchdog
+		// cannot restore these and the machine loses DNS.
+		set(StatusWarn, fmt.Sprintf(G.msgNoBackup, strings.Join(unprotected, ", ")),
+			&FixHint{Text: G.fixBackup, AutoFix: FixDNSBackup}, ReasonDNSNoBackup)
+	}
+	if res.Reasons == nil && nActive == 0 {
 		// Offline: nothing to check, nothing to fix here.
 		res.Status = StatusSkip
 		res.Summary = L.msgDNSNoActive

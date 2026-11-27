@@ -20,7 +20,7 @@ var restoreSystemDNS = func(ctx context.Context, stateDir string) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	p := windows.SystemDNS{Sys: windows.NewSys(), Static: windows.NewStaticDNS(), Run: windows.ExecRunner(20 * time.Second)}
-	m := &sysdns.Manager{P: p, Path: filepath.Join(stateDir, "dns-backup.json")}
+	m := &sysdns.Manager{P: p, Path: filepath.Join(stateDir, "dns-backup.json"), Target: sysdns.TargetOf(p)}
 	st, err := m.Restore(ctx)
 	if errors.Is(err, sysdns.ErrNoBackup) {
 		return nil

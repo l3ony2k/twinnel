@@ -17,6 +17,11 @@ const (
 	MethodDNSPoint = "dns.point"
 	// MethodDNSRestore writes the recorded values back.
 	MethodDNSRestore = "dns.restore"
+	// MethodDNSBackup records automatic (DHCP) as the value to restore for
+	// every service that already points at mihomo without a recorded one
+	// (DNSStatus.Unprotected), so the DNS watchdog can protect it. It
+	// changes no DNS setting and works while mihomo is down.
+	MethodDNSBackup = "dns.backup"
 	// MethodTailscaleInstall installs the open-source tailscaled as a
 	// system service when no Tailscale is installed; an existing install
 	// is kept.
@@ -50,7 +55,15 @@ type DNSService struct {
 type DNSStatus struct {
 	Services []DNSService `json:"services"`
 	Target   []string     `json:"target"`
-	Pointed  bool         `json:"pointed"`
+	// Pointed: every service points at mihomo (sysdns.PointsAt Target).
+	Pointed bool `json:"pointed"`
+	// Unprotected are the services that point at mihomo with nothing
+	// recorded to restore: if mihomo stops they lose DNS and the watchdog
+	// cannot help (dns.backup, or dns.point, records automatic for them).
+	Unprotected []string `json:"unprotected,omitempty"`
+	// Recorded are the services dns.point or dns.backup recorded as
+	// automatic because they already pointed at mihomo.
+	Recorded []string `json:"recorded,omitempty"`
 	// Backup is what the services used before dns.point (nil: Twinnel did
 	// not change the system DNS, or restored it).
 	Backup   []DNSService `json:"backup,omitempty"`

@@ -84,3 +84,71 @@ func hasEvent(evs []rpc.Event, typ string) bool {
 	}
 	return false
 }
+
+// D0 end to end in the helper: Windows, Wi-Fi set to 127.0.0.1 by hand
+// before Twinnel, no backup. dns.status calls it pointed but unprotected
+// (and so does the health guard); dns.backup records automatic without
+// touching the DNS, even while mihomo is down; the watchdog then restores
+// Wi-Fi to automatic, never to 127.0.0.1.
+func TestDNSBackupProtectsHandPointed(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 28, 9, 0, 0, 0, time.UTC)
+	h.e.Now = func() time.Time { return now }
+	d := &targetDNS{fakeDNS{svcs: []sysdns.Service{{Name: "Wi-Fi", Servers: []string{"127.0.0.1"}}}}}
+	h.e.SystemDNS = d
+	var down atomic.Bool
+	down.Store(true)
+	h.e.DNSProbe = func(context.Context, string) error {
+		if down.Load() {
+			return errors.New("connection refused")
+		}
+		return nil
+	}
+	ds, err := h.e.DNSStatus(ctx)
+	if err != nil || !ds.Pointed || !slices.Equal(ds.Unprotected, []string{"Wi-Fi"}) || ds.Watch.Phase != rpc.DNSWatchOff {
+		t.Fatalf("before: %+v %v", ds, err)
+	}
+	if g, err := h.e.HealthDNSGuard(ctx); err != nil || !slices.Equal(g.Unprotected, []string{"Wi-Fi"}) || len(g.Restored) != 0 {
+		t.Fatalf("guard: %+v %v", g, err)
+	}
+	// dns.point refuses while mihomo is down; dns.backup works.
+	if _, err := h.e.DNSPoint(ctx); err == nil {
+		t.Fatal("pointed while mihomo is down")
+	}
+	ds, err = h.e.DNSBackup(ctx)
+	if err != nil || !slices.Equal(ds.Recorded, []string{"Wi-Fi"}) || len(ds.Unprotected) != 0 || ds.Watch.Phase != rpc.DNSWatchWatching {
+		t.Fatalf("backup: %+v %v", ds, err)
+	}
+	if !slices.Equal(d.svcs[0].Servers, []string{"127.0.0.1"}) {
+		t.Fatalf("dns.backup changed the DNS: %+v", d.svcs)
+	}
+	w := h.e.dnsWatchdog()
+	for range 6 {
+		w.Tick(ctx)
+		now = now.Add(5 * time.Second)
+	}
+	if d.svcs[0].Servers != nil {
+		t.Fatalf("not restored to automatic: %+v", d.svcs)
+	}
+	if g, _ := h.e.HealthDNSGuard(ctx); !slices.Equal(g.Restored, []string{"Wi-Fi"}) {
+		t.Fatalf("guard while restored: %+v", g)
+	}
+}
+
+// dns.point on a service that already points at mihomo records
+// automatic, never the target, as what to restore.
+func TestDNSPointRecordsAutomaticForPointed(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	d := &targetDNS{fakeDNS{svcs: []sysdns.Service{{Name: "Wi-Fi", Servers: []string{"127.0.0.1"}}}}}
+	h.e.SystemDNS = d
+	h.e.DNSProbe = func(context.Context, string) error { return nil }
+	ds, err := h.e.DNSPoint(ctx)
+	if err != nil || !slices.Equal(ds.Recorded, []string{"Wi-Fi"}) || len(ds.Backup) != 1 || ds.Backup[0].Servers != nil {
+		t.Fatalf("point: %+v %v", ds, err)
+	}
+	if !slices.Equal(d.svcs[0].Servers, []string{"127.0.0.1", "::1"}) {
+		t.Fatalf("not set to the full target: %+v", d.svcs)
+	}
+}

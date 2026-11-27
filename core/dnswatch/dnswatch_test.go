@@ -358,3 +358,31 @@ func TestUnknownServiceCountsAsDown(t *testing.T) {
 		t.Fatalf("state %+v", st)
 	}
 }
+
+// One definition of "points at mihomo" (sysdns.PointsAt): on Windows the
+// target is 127.0.0.1 + ::1, and an adapter set by hand to 127.0.0.1 alone
+// still depends on mihomo, so it is restored too. A backup entry that
+// holds the target itself (written by an older Twinnel) is restored as
+// automatic, never to the dead resolver.
+func TestRestoresSubsetAndNeverToTheTarget(t *testing.T) {
+	r := newRig(t)
+	win := []string{"127.0.0.1", "::1"}
+	r.w.Target = func() []string { return win }
+	r.dns.svcs = map[string][]string{"Wi-Fi": {"127.0.0.1"}, "Ethernet": {"127.0.0.1", "::1"}}
+	r.backup.Services = []sysdns.Service{{Name: "Wi-Fi", Servers: []string{"127.0.0.1"}}, {Name: "Ethernet", Servers: []string{"192.0.2.53"}}}
+	r.run(time.Minute)
+	r.answers, r.svc.Running, r.svc.PID = false, false, 0
+	r.run(30 * time.Second)
+	if r.phase() != PhaseRestored {
+		t.Fatalf("phase %s", r.phase())
+	}
+	if r.servers("Wi-Fi") != nil || !slices.Equal(r.servers("Ethernet"), []string{"192.0.2.53"}) {
+		t.Fatalf("restored to %v", r.dns.svcs)
+	}
+	// Back: both are pointed at the full target again.
+	r.answers, r.svc.Running, r.svc.PID, r.svc.Runs = true, true, 200, 2
+	r.run(time.Minute)
+	if r.phase() != PhaseWatching || !slices.Equal(r.servers("Wi-Fi"), win) || !slices.Equal(r.servers("Ethernet"), win) {
+		t.Fatalf("phase %s dns %v", r.phase(), r.dns.svcs)
+	}
+}

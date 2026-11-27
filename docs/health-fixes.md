@@ -22,7 +22,8 @@
 | `controller-loopback` | 加覆写 `controller-loopback`：`external-controller: 127.0.0.1:<原端口>`；compose.apply | 删掉这个覆写再应用 |
 | `controller-port` | controller.move：找一个空闲端口，把 Twinnel 的控制接口改过去（覆写 `controller-port`），写入配置但不去重载占着旧端口的别人的 mihomo，再重启 Twinnel 的 mihomo（装了服务时） | 不能撤销（旧端口还被别的程序占着）；预览里说明 |
 | `controller-secret` | controller.secure：新随机密钥，存助手，应用 | 不能撤销（旧密钥不保留）；预览里说明 |
-| `system-dns` | dns.point（预览逐条列出 服务：旧 DNS → 新 DNS） | dns.restore |
+| `system-dns` | dns.point（预览逐条列出 服务：旧 DNS → 新 DNS）。已经指向 mihomo 的服务备份记为「自动（DHCP）」，从不把目标地址记成备份 | dns.restore |
+| `dns-backup` | dns.backup：为指向 mihomo 却没有备份的服务记下「自动（DHCP）」，不改现在的 DNS；mihomo 停着也能做，之后看门狗就能临时恢复（预览逐条列出服务） | 无需撤销（只多了一条备份） |
 | `mode-rule` | mihomo 切回 rule 模式 | 切回原模式 |
 | `exit-node-off` | Tailscale 停用出口节点 | 重新选回原出口节点 |
 | `tun-stack-gvisor` | 加覆写 `tun-stack`：`tun.stack: gvisor`；compose.apply（TUN 重建，网络断一两秒） | 删掉这个覆写再应用 |
@@ -62,8 +63,11 @@
 | `peer-short-names/none` | 规则里还没有 tailnet 设备的短名，用短名访问设备会走代理。 | 一键修复 `tailscale-coexist-override` | 重新生成「Tailscale 共存」覆写并应用：按当前设备写入短名规则。 |  |
 | `peer-short-names/outdated` | 规则里的设备短名和现在的 tailnet 对不上。 | 一键修复 `tailscale-coexist-override` | 重新生成「Tailscale 共存」覆写并应用：按当前设备更新短名规则。 |  |
 | `read-failed` | 读取系统信息时出错，这次没能检查完。 | 一键修复 `rerun` | 重新检查一次；如果一直出错，复制报告反馈给我们。 |  |
+| `system-dns/mihomo-down` | 系统 DNS 指向 mihomo，但 mihomo 没有响应：本机所有域名都解析不了，网页打不开。 | 一键修复 `restart-mihomo` | 重启 mihomo。 | 失败（fail）；同时没有备份时另列 `system-dns/no-backup` |
+| `system-dns/no-backup` | 这些连接的 DNS 在 Twinnel 之前就指向了 mihomo，没有记下原来的设置：mihomo 一停，本机就解析不了域名，看门狗也没法恢复。 | 一键修复 `dns-backup` | 把「自动（DHCP）」记为它们的备份。现在的 DNS 不变；以后 mihomo 停了，看门狗会临时恢复成自动获取。 | 只有后台助手能管系统 DNS 的平台（macOS、Windows） |
 | `system-dns/not-mihomo` | 有网络连接的 DNS 没交给 mihomo，分流和防泄漏对它不起作用。 | 一键修复 `system-dns` | 把这些连接的 DNS 指向 mihomo。会先备份原来的设置，可以撤销。 | linux：无法自动修复；linux 另有措辞 |
 | `system-dns/via-hijack` | 有网络连接的 DNS 没交给 mihomo，现在靠 TUN 劫持兜底。 | 一键修复 `system-dns` | 把这些连接的 DNS 直接指向 mihomo。会先备份原来的设置，可以撤销。 | linux：无法自动修复；linux 另有措辞 |
+| `system-dns/watchdog-restored` | mihomo 没有响应。为了不断网，看门狗临时把系统 DNS 恢复成了原来的设置，现在不经过 mihomo 分流。 | 一键修复 `restart-mihomo` | 重启 mihomo。它恢复后，看门狗会自动把 DNS 指回 mihomo。 | mihomo 仍没响应时失败（fail），已恢复、等待指回时警告（warn） |
 | `tailnet-resolver-binding/missing` | tailnet 名字的查询会从物理网卡发出，到不了 Tailscale。 | 一键修复 `tailscale-coexist-override` | 重新生成「Tailscale 共存」覆写并应用：把查询绑定到 Tailscale 的网卡，并写好设备 hosts。 |  |
 | `tailnet-resolver-binding/stale` | tailnet 名字的查询绑在 Tailscale 旧的网卡上，会超时。 | 一键修复 `tailscale-coexist-override` | 重新生成「Tailscale 共存」覆写并应用：绑定到 Tailscale 现在的网卡。 |  |
 | `tailnet-route/elsewhere` | 发往 tailnet 设备的流量走了别的网卡，没进 Tailscale。 | 一键修复 `restart-tailscaled` | 重启 tailscaled，让它把路由重新写一遍。期间 tailnet 连接会断几秒。 |  |

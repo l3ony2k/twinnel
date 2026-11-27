@@ -20,6 +20,7 @@ import (
 var configureActions = map[string]bool{
 	health.FixCoexist: true, health.FixLeakGuard: true, health.FixControllerLoopback: true,
 	health.FixController: true, health.FixSystemDNS: true, health.FixTUNStack: true, health.FixControllerPort: true,
+	health.FixDNSBackup: true,
 }
 
 func (s *Server) registerHealthFix() {
@@ -43,7 +44,8 @@ this tool to revert. Config and system DNS fixes are health_fix_config.`,
 or the system: tailscale-coexist-override, leak-guard-override, controller-loopback (overrides,
 then an apply the helper validates and rolls back on failure), controller-secret (new controller
 secret: other controller clients need it), system-dns (point the system DNS at mihomo, backed up),
-tun-stack-gvisor (an override that switches the TUN to the gvisor stack; the TUN is rebuilt).
+dns-backup (record Automatic/DHCP as the restore value of connections whose DNS already points at
+mihomo without a backup; no DNS setting changes, no undo needed), tun-stack-gvisor (an override that switches the TUN to the gvisor stack; the TUN is rebuilt).
 Then the checks run again. Undo: pass the result's undo as undo (controller-secret has none).`,
 		toolOpts{destructive: true}, s.healthFixConfigure)
 }

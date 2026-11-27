@@ -18,7 +18,8 @@ import (
 var restoreSystemDNS = func(ctx context.Context, stateDir string) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	m := &sysdns.Manager{P: darwin.SystemDNS{Run: darwin.ExecRunner(10 * time.Second)}, Path: filepath.Join(stateDir, "dns-backup.json")}
+	p := darwin.SystemDNS{Run: darwin.ExecRunner(10 * time.Second)}
+	m := &sysdns.Manager{P: p, Path: filepath.Join(stateDir, "dns-backup.json"), Target: sysdns.TargetOf(p)}
 	st, err := m.Restore(ctx)
 	if errors.Is(err, sysdns.ErrNoBackup) {
 		return nil

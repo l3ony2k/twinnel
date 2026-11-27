@@ -163,6 +163,7 @@ func (h *fakeHelper) Call(_ context.Context, method string, params, result any) 
 		return out(h.dns)
 	case rpc.MethodDNSPoint:
 		h.dns.Pointed = true
+		h.dns.Recorded, h.dns.Unprotected = h.dns.Unprotected, nil
 		return out(h.dns)
 	case rpc.MethodTailscaleInfo:
 		return out(rpc.TailscaleInfo{Installed: h.tsInst})
@@ -524,5 +525,32 @@ func TestSummaryIsHonest(t *testing.T) {
 	_ = m.Run(context.Background())
 	if l := m.Remaining(); len(l) != 1 || l[0].Why != LeftHealth || !strings.Contains(l[0].Do, "doctor") {
 		t.Fatalf("%+v", l)
+	}
+}
+
+// DNS pointed at mihomo by hand before Twinnel (no backup): the DNS step
+// is not done, and running it calls dns.point, which records automatic
+// for it so the watchdog can protect it.
+func TestDNSStepPointedWithoutBackup(t *testing.T) {
+	h := newFakeHelper()
+	h.dns.Pointed, h.dns.Unprotected = true, []string{"Wi-Fi"}
+	installed := true
+	f, _, _ := newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x", NoTailscale: true})
+	f.Detect(context.Background())
+	if f.Step(StepDNS).State == Done {
+		t.Fatalf("detect: %+v", f.Step(StepDNS))
+	}
+	if _, err := f.runDNS(context.Background(), h); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(h.calls, rpc.MethodDNSPoint) || len(h.dns.Unprotected) != 0 {
+		t.Fatalf("calls %v dns %+v", h.calls, h.dns)
+	}
+	// Pointed with a backup: done, nothing called.
+	h = newFakeHelper()
+	h.dns.Pointed = true
+	f, _, _ = newTestFlow(h, &installed, Options{SubscriptionURL: "https://sub.example.com/x", NoTailscale: true})
+	if _, err := f.runDNS(context.Background(), h); err != nil || slices.Contains(h.calls, rpc.MethodDNSPoint) {
+		t.Fatalf("calls %v %v", h.calls, err)
 	}
 }
