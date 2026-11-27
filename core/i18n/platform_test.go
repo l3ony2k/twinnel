@@ -21,7 +21,7 @@ var windowsHidden = map[string]bool{
 }
 
 func TestWindowsWording(t *testing.T) {
-	for _, l := range platformLangs("windows", Langs()) {
+	for _, l := range platformLangs("windows", []Lang{{Tag: "zh-Hans", S: &zh}, {Tag: "en", S: &en}}) {
 		walkStrings(reflect.ValueOf(l.S).Elem(), "", func(path, s string) {
 			if macWords.MatchString(s) && !windowsHidden[path[strings.LastIndex(path, "."):]] {
 				t.Errorf("%s %s: %q", l.Tag, path, s)
@@ -33,21 +33,22 @@ func TestWindowsWording(t *testing.T) {
 // The patch works on copies: macOS keeps its words, and the shared maps
 // are not changed under it.
 func TestWindowsPatchCopies(t *testing.T) {
-	win := platformLangs("windows", Langs())
+	raw := []Lang{{Tag: "zh-Hans", S: &zh}, {Tag: "en", S: &en}} // as written, whatever the host
+	win := platformLangs("windows", raw)
 	if win[1].S == &en || en.ShowInFinder != "Show in Finder" || !strings.Contains(en.MsgTexts["refuses-exposed"], "this Mac") {
 		t.Fatal("the Windows patch changed the macOS table")
 	}
 	if win[1].S.ShowInFinder != "Show in File Explorer" || !strings.Contains(win[1].S.MsgTexts["refuses-exposed"], "this PC") {
 		t.Fatal("the Windows table is not patched")
 	}
-	if got := platformLangs("darwin", Langs()); got[0].S != &zh {
+	if got := platformLangs("darwin", raw); got[0].S != &zh {
 		t.Fatal("macOS should keep the tables as written")
 	}
 }
 
 // The Windows Chinese table keeps to the same rule as the macOS one.
 func TestWindowsChineseHasNoEnglish(t *testing.T) {
-	zh := platformLangs("windows", Langs())[0].S
+	zh := platformLangs("windows", []Lang{{Tag: "zh-Hans", S: &zh}})[0].S
 	walkStrings(reflect.ValueOf(*zh), "zh", func(path, s string) {
 		if w := EnglishWords(s); len(w) > 0 && !pendingElsewhere[path] {
 			t.Errorf("%s: %s ← %s", path, strings.Join(w, " "), s)

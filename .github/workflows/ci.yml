@@ -54,6 +54,10 @@ jobs:
           ./platform/windows/...
       - name: test (cli elevation)
         run: go test -run Windows ./cmd/cli
+      - name: test (app, Windows parts)
+        run: >-
+          go test ./core/i18n && go test ./cmd/app -run
+          "Windows|TrayIconPx|AppRemoval|EncodePowerShell|BundleFromExe|CmdQuote|ParsePlan"
 
   cross-build:
     runs-on: ubuntu-latest

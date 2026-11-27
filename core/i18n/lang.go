@@ -57,7 +57,8 @@ func Resolve(preferred []string) string {
 	return Fallback
 }
 
-// For returns the texts of a language tag; an unknown tag gets Chinese.
+// For returns the texts of a language tag; an unknown tag gets Chinese
+// (the first table: on Windows its patched copy, not zh itself).
 func For(tag string) *Strings {
 	if m := Match(tag); m != "" {
 		for _, l := range langs {
@@ -66,7 +67,7 @@ func For(tag string) *Strings {
 			}
 		}
 	}
-	return &zh
+	return langs[0].S
 }
 
 // T is the current language's texts, for code on the app's main thread
