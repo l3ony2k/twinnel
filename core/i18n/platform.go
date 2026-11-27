@@ -87,6 +87,9 @@ func windowsZh(s *Strings) {
 	s.ItemApp = "Twinnel 应用"
 	s.ItemAppTrash = "Twinnel 程序文件夹（退出后删除）"
 	s.OpenAtLoginApprove = "在 设置 › 应用 › 启动 中允许 Twinnel"
+	s.SetupTitle = "设置这台电脑"
+	s.StepSetUpMac = "设置这台电脑"
+	s.SetupDone = "这台电脑已设置好"
 	s.TipLeaveRemoveAll = "卸载后台助手，退出后删除 Twinnel 程序文件夹。mihomo 和 Tailscale 继续运行。不会撤销接管：要换回原来的配置，先撤销接管。"
 }
 
@@ -102,6 +105,10 @@ func windowsEn(s *Strings) {
 	s.LayerReorderHint = "Drag to reorder (Alt+Shift+↑ / Alt+Shift+↓)"
 	s.ConfigEmptyHint = "Add a subscription link or file, or take over the mihomo config already on this PC"
 	cloneMaps(s)
+	s.HistReasons["setup"] = "Set up this PC"
+	s.SetupTitle = "Set Up This PC"
+	s.StepSetUpMac = "Set up this PC"
+	s.SetupDone = "This PC is set up"
 	s.MsgTexts["refuses-exposed"] = "%[1]s listens on %[2]s beyond this PC without a secret; Twinnel won't write that"
 	s.TkEffStoreSub = "Saved encrypted · downloaded on the first manual update"
 	s.ShowInFinder = "Show in File Explorer"
@@ -124,4 +131,5 @@ func windowsEn(s *Strings) {
 // cloneMaps gives s maps of its own before a patch changes an entry.
 func cloneMaps(s *Strings) {
 	s.MsgTexts = maps.Clone(s.MsgTexts)
+	s.HistReasons = maps.Clone(s.HistReasons)
 }

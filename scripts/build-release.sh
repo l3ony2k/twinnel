@@ -5,20 +5,26 @@
 #   dist/Twinnel_<version>_macos_<arch>.dmg     Twinnel.app in a disk image  } macOS
 #   dist/Twinnel_<version>_macos_<arch>.zip     Twinnel.app zipped (ditto)    } hosts
 #   dist/app/<platform>/Twinnel.app            the signed bundle itself      } only
+#   dist/Twinnel_<version>_linux_<arch>_app.tar.gz  the Linux app with twinnel, twinnel-helper,
+#                                             desktop entry, icons, install.sh, uninstall.sh
+#   dist/Twinnel_<version>_linux_<arch>.AppImage  with --appimage
+#   dist/PKGBUILD, dist/twinnel-bin.install     Arch Linux package of those archives
 #   dist/Twinnel_<version>_windows_<arch>.zip   Twinnel.exe, bin\twinnel.exe, bin\twinnel-helper.exe,
 #                                             install.ps1, INSTALL.md (--windows-app; any host)
 #   dist/SHA256SUMS
 #
 # Usage: scripts/build-release.sh [-v VERSION] [--no-app] [--targets "darwin/arm64 linux/amd64"]
-#                                 [--app-platform darwin/arm64|darwin/amd64|darwin/universal]
-#                                 [--windows-app "windows/amd64 windows/arm64"]
+#                                 [--app-platform darwin/arm64|darwin/amd64|darwin/universal|linux/amd64|linux/arm64,...]
+#                                 [--appimage] [--windows-app "windows/amd64 windows/arm64"]
 #
 # --targets "" builds no CLI archives (the app only). --app-platform picks the
-# app's architecture (default darwin/arm64); darwin/universal makes one app
-# for Apple silicon and Intel, with universal embedded tools (no Xcode needed).
-# --windows-app builds the Windows app zips (default none); it cross-compiles
-# from any host, unsigned (no Authenticode certificate: SmartScreen warns,
-# docs/install.md says what to do).
+# app's platforms, comma-separated (default darwin/arm64); darwin/universal
+# makes one app for Apple silicon and Intel, with universal embedded tools (no
+# Xcode needed). Linux apps build on any host (packaging/linux,
+# scripts/package-linux-app.sh); --appimage also makes AppImages (needs
+# mksquashfs; downloads the pinned AppImage runtime). --windows-app builds the
+# Windows app zips (default none) on any host, unsigned (no Authenticode
+# certificate: SmartScreen warns, docs/install.md says what to do).
 #
 # Pure Go, no cgo: every target cross-compiles from any host. The .app needs
 # `mygo build` (run through `go run`, pinned to the version in go.mod) and,
@@ -45,6 +51,7 @@ cd "$(dirname "$0")/.."
 version=""
 build_app=1
 app_platform="darwin/arm64"
+appimage=0
 targets="darwin/arm64 darwin/amd64 linux/amd64 linux/arm64"
 windows_app=""
 while [ $# -gt 0 ]; do
@@ -53,8 +60,9 @@ while [ $# -gt 0 ]; do
 	--no-app) build_app=0; shift ;;
 	--targets) targets="$2"; shift 2 ;;
 	--app-platform) app_platform="$2"; shift 2 ;;
+	--appimage) appimage=1; shift ;;
 	--windows-app) windows_app="$2"; shift 2 ;;
-	-h | --help) sed -n '2,25p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,27p' "$0"; exit 0 ;;
 	*) echo "unknown argument: $1" >&2; exit 2 ;;
 	esac
 done
@@ -141,7 +149,37 @@ for t in $targets; do
 	rm -rf "$out"
 done
 
+# --app-platform: at most one macOS app, any Linux architectures.
+darwin_app=""
+linux_arches=""
 if [ "$build_app" = 1 ]; then
+	for p in ${app_platform//,/ }; do
+		case "$p" in
+		darwin/*)
+			[ -z "$darwin_app" ] || { echo "one macOS --app-platform at a time" >&2; exit 2; }
+			darwin_app="$p"
+			;;
+		linux/amd64 | linux/arm64) linux_arches="$linux_arches ${p#*/}" ;;
+		*) echo "unsupported --app-platform $p" >&2; exit 2 ;;
+		esac
+	done
+fi
+
+# CFBundleShortVersionString (and mygo.json's version) wants numbers: 1.2.3
+# from v1.2.3-4-gabc, 0.0.0 for an untagged build.
+bundle_version="$(printf '%s' "$version" | sed -nE 's/^([0-9]+(\.[0-9]+){0,2}).*/\1/p')"
+bundle_version="${bundle_version:-0.0.0}"
+res="cmd/app/resources"
+app_json="cmd/app/mygo.json"
+app_json_orig="$dist/.mygo.json.orig"
+cleanup_app() {
+	cp "$app_json_orig" "$app_json" && rm -f "$app_json_orig"
+	rm -rf "$res"
+}
+mygo_version="$(go list -m -f '{{.Version}}' github.com/egoist/mygo)"
+
+if [ -n "$darwin_app" ]; then
+	app_platform="$darwin_app"
 	if [ "$(uname -s)" = Darwin ]; then
 		# Twinnel.app ships the CLI and the helper in Contents/Resources/bin, so
 		# the first-run 安装后台助手 button works from a packaged app (the app
@@ -154,14 +192,7 @@ if [ "$build_app" = 1 ]; then
 		darwin/universal) res_arches="arm64 amd64" ;; # mygo lipos darwin-arm64 + darwin-amd64
 		*) echo "unsupported --app-platform $app_platform" >&2; exit 2 ;;
 		esac
-		res="cmd/app/resources"
-		app_json="cmd/app/mygo.json"
-		app_json_orig="$dist/.mygo.json.orig"
 		cp "$app_json" "$app_json_orig"
-		cleanup_app() {
-			cp "$app_json_orig" "$app_json" && rm -f "$app_json_orig"
-			rm -rf "$res"
-		}
 		trap cleanup_app EXIT
 		rm -rf "$res"
 		for a in $res_arches; do
@@ -171,17 +202,12 @@ if [ "$build_app" = 1 ]; then
 					-o "$res/darwin-$a/bin/${cmd#*:}" "./cmd/${cmd%:*}"
 			done
 		done
-		# CFBundleShortVersionString wants numbers: 1.2.3 from v1.2.3-4-gabc,
-		# 0.0.0 for an untagged build.
-		bundle_version="$(printf '%s' "$version" | sed -nE 's/^([0-9]+(\.[0-9]+){0,2}).*/\1/p')"
-		bundle_version="${bundle_version:-0.0.0}"
 		awk -v v="$bundle_version" '
 			/^[[:space:]]*"version":/ { next }
 			{ print }
 			/^[[:space:]]*"name":/ && !done { match($0, /^[[:space:]]*/); printf "%s\"version\": \"%s\",\n", substr($0, 1, RLENGTH), v; done = 1 }
 		' "$app_json_orig" >"$app_json"
 		grep -q "\"version\": \"${bundle_version}\"" "$app_json" || { echo "could not set the app version in $app_json" >&2; exit 1; }
-		mygo_version="$(go list -m -f '{{.Version}}' github.com/egoist/mygo)"
 		echo "==> Twinnel.app ${bundle_version} (mygo $mygo_version)"
 		MYGO_LDFLAGS="$vflags" go run "github.com/egoist/mygo/cmd/mygo@${mygo_version}" build -platform "$app_platform" -o "$PWD/$dist/app" cmd/app
 		cleanup_app
@@ -232,6 +258,45 @@ if [ "$build_app" = 1 ]; then
 	else
 		echo "==> skipping Twinnel.app: mygo signs and packages .app bundles on macOS only"
 	fi
+fi
+
+if [ -n "$linux_arches" ]; then
+	# The Linux app: mygo compiles it (any host, no cgo) with twinnel and
+	# twinnel-helper from resources/linux-<arch>/bin next to the executable,
+	# where the app's first-run page finds them; scripts/package-linux-app.sh
+	# lays out the archive (packaging/linux), the AppImage and the PKGBUILD.
+	# mygo.json gets a version and, for this build only, a linux section:
+	# native UI (no WebKitGTK) and none of mygo's own packages.
+	cp "$app_json" "$app_json_orig"
+	trap cleanup_app EXIT
+	rm -rf "$res"
+	platforms=""
+	for a in $linux_arches; do
+		mkdir -p "$res/linux-$a/bin"
+		for cmd in cli:twinnel helper:twinnel-helper; do
+			CGO_ENABLED=0 GOOS=linux GOARCH="$a" go build -trimpath -ldflags "$ldflags" \
+				-o "$res/linux-$a/bin/${cmd#*:}" "./cmd/${cmd%:*}"
+		done
+		platforms="${platforms:+$platforms,}linux/$a"
+	done
+	awk -v v="$bundle_version" '
+		/^[[:space:]]*"version":/ { next }
+		/^[[:space:]]*"linux":/ { print "could not add the linux section: mygo.json has one" > "/dev/stderr"; exit 1 }
+		/^[[:space:]]*"macos":/ && !linux { match($0, /^[[:space:]]*/); printf "%s\"linux\": { \"webview\": false, \"formats\": [] },\n", substr($0, 1, RLENGTH); linux = 1 }
+		{ print }
+		/^[[:space:]]*"name":/ && !done { match($0, /^[[:space:]]*/); printf "%s\"version\": \"%s\",\n", substr($0, 1, RLENGTH), v; done = 1 }
+	' "$app_json_orig" >"$app_json"
+	grep -q '"linux": { "webview": false' "$app_json" || { echo "could not set the linux section in $app_json" >&2; exit 1; }
+	echo "==> Twinnel for Linux ($platforms, mygo $mygo_version)"
+	CGO_ENABLED=0 MYGO_LDFLAGS="$vflags" go run "github.com/egoist/mygo/cmd/mygo@${mygo_version}" build -platform "$platforms" -o "$PWD/$dist/app" cmd/app
+	cleanup_app
+	trap - EXIT
+	pflags=()
+	if [ "$appimage" = 1 ]; then pflags+=(--appimage); fi
+	for a in $linux_arches; do
+		scripts/package-linux-app.sh app -v "$version" -a "$a" -i "$dist/app/linux-$a" -o "$dist" ${pflags[@]+"${pflags[@]}"}
+	done
+	scripts/package-linux-app.sh pkgbuild -v "$version" -o "$dist"
 fi
 
 # Windows: Twinnel.exe (mygo build: icon, version info, manifest, no console)

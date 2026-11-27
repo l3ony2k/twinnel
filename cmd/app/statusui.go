@@ -227,6 +227,8 @@ func (a *app) fixAction(cr health.CheckReport, s status.Snapshot) *fixAction {
 	}
 	helperStep := func(label string, run func()) *fixAction {
 		switch {
+		case a.freshMachine(s): // nothing to take over: set it up
+			return &fixAction{label: T.SetupTitle, run: func() { a.openPage(pageSetup) }, off: !s.WritesAllowed}
 		case s.Helper.State == status.HelperNotInstalled:
 			return &fixAction{label: T.FixInstallHelper, run: func() { a.openPage(pageInstall) }, off: !s.WritesAllowed}
 		case !s.TakenOver():
@@ -524,6 +526,11 @@ func (a *app) gettingStarted(c *ui.Context, s status.Snapshot) {
 		{T.StepHelper, installed, pageInstall},
 		{T.StepTakeOver, taken, pageTakeover},
 		{T.StepCheckCoexist, clean, pageHealth},
+	}
+	if a.freshMachine(s) {
+		// Nothing to take over: 设置这台 Mac installs the helper too.
+		steps[0].page = pageSetup
+		steps[1].label, steps[1].page = T.StepSetUpMac, pageSetup
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 		ui.Text(c, T.GetStarted).FontWeight(600).Margin(0, 4, 0, 0).SingleLine()

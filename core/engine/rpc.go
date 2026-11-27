@@ -141,6 +141,15 @@ func (e *Engine) Register(s *rpc.Server) {
 	rpc.Typed(s, rpc.MethodHardenApply, func(ctx context.Context, p rpc.HardenApplyParams) (rpc.HardenResult, error) {
 		return e.HardenApply(ctx, p)
 	})
+	rpc.Typed(s, rpc.MethodDNSStatus, func(ctx context.Context, _ rpc.Empty) (rpc.DNSStatus, error) { return e.DNSStatus(ctx) })
+	rpc.Typed(s, rpc.MethodDNSPoint, func(ctx context.Context, _ rpc.Empty) (rpc.DNSStatus, error) { return e.DNSPoint(ctx) })
+	rpc.Typed(s, rpc.MethodDNSRestore, func(ctx context.Context, _ rpc.Empty) (rpc.DNSStatus, error) { return e.DNSRestore(ctx) })
+	rpc.Typed(s, rpc.MethodTailscaleInstall, func(ctx context.Context, p rpc.TailscaleInstallParams) (rpc.TailscaleInstallResult, error) {
+		return e.TailscaleInstall(ctx, p)
+	})
+	rpc.Typed(s, rpc.MethodTailscaleLogin, func(ctx context.Context, p rpc.TailscaleLoginParams) (rpc.TailscaleLoginResult, error) {
+		return e.TailscaleLogin(ctx, p)
+	})
 	e.registerCredentials(s)
 	e.registerAgent(s)
 

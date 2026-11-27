@@ -33,6 +33,7 @@ func (e *Engine) HelperInfo(ctx context.Context) (rpc.HelperInfo, error) {
 	if h := st.Hardened; h != nil {
 		info.Hardened = &rpc.HelperHardened{PlanID: h.PlanID, OldLabel: h.OldLabel, OldPlist: h.OldPlist}
 	}
+	info.DNSBackup = fileExists(e.Store.Path("dns-backup.json"))
 	if hist, err := e.Store.History(); err == nil {
 		info.History = len(hist)
 	}

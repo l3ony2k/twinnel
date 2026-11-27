@@ -25,6 +25,7 @@ import (
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/service"
 	"github.com/l3ony2k/twinnel/core/store"
+	"github.com/l3ony2k/twinnel/core/sysdns"
 	"github.com/l3ony2k/twinnel/core/takeover"
 )
 
@@ -97,6 +98,22 @@ type Engine struct {
 	// one to answer, polling every HardenPoll (default 250ms).
 	HardenStopTimeout, HardenStartTimeout, HardenPoll time.Duration
 
+	// SystemDNS reads and sets the DNS of network services for dns.*
+	// (nil: not supported on this platform).
+	SystemDNS sysdns.Platform
+	// DNSProbe checks that a DNS server answers at addr before dns.point
+	// (default: one UDP query).
+	DNSProbe func(ctx context.Context, addr string) error
+	// TSControl is tailscaled's LocalAPI for tailscale.login (nil: not
+	// supported).
+	TSControl TailscaleControl
+	// TSInstaller is the template of tailscale.install's installer (nil:
+	// <state>/tailscale with the public sources).
+	TSInstaller *kernel.TailscaleInstaller
+	// TempProxy starts the temporary mihomo of the "subscription" download
+	// proxy and returns its stop function (default: the real binary).
+	TempProxy func(ctx context.Context, bin string, cfg []byte, port int) (stop func(), err error)
+
 	// EgressProbe runs the egress test (health.LeakEgress with the test
 	// on) once, for health.egress; nil where there is none.
 	EgressProbe func(ctx context.Context) health.CheckReport
@@ -125,7 +142,7 @@ func New(st *store.Store, secrets store.Secrets) *Engine {
 		Store:   st,
 		Secrets: secrets,
 		Kernels: &kernel.Manager{Dir: st.Path("kernels", "mihomo")},
-		TSProbe: &kernel.TailscaleProbe{},
+		TSProbe: &kernel.TailscaleProbe{Managed: st.Path("tailscale", "current", "tailscale")},
 		Bus:     rpc.NewBus(0),
 		Log:     slog.Default(),
 		started: time.Now(),
