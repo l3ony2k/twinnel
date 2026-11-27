@@ -208,7 +208,8 @@ func (s *Server) serveConn(c net.Conn) {
 }
 
 // call runs a handler with the peer in its context (PeerFrom) and logs
-// the call at its method class's level (ClassOf): reads at DEBUG, changes
+// the call at its class's level (ClassOfCall: per method, or per params
+// for a method with a read mode): reads at DEBUG, changes
 // at INFO, long polls not at all. A panic is an error whatever the class.
 func (s *Server) call(ctx context.Context, h HandlerFunc, peer Peer, req Request) (res any, err error) {
 	start := time.Now()
@@ -217,7 +218,7 @@ func (s *Server) call(ctx context.Context, h HandlerFunc, peer Peer, req Request
 			err = Errorf(CodeInternal, "internal error: %v", r)
 			s.Log.Error("rpc: handler panic", "method", req.Method, "peer", peer, "panic", r)
 		}
-		if level, ok := ClassOf(req.Method).LogLevel(); ok {
+		if level, ok := ClassOfCall(req.Method, req.Params).LogLevel(); ok {
 			args := []any{"method", req.Method, "peer", peer, "dur", time.Since(start).Round(time.Millisecond)}
 			if err != nil {
 				args = append(args, "err", err.Error())

@@ -139,3 +139,66 @@ func TestSelf(t *testing.T) {
 		t.Fatal(b.String())
 	}
 }
+
+// A method with a read mode is a change as a method, and each call is
+// what its params ask for: setup status reads tailscale.login without
+// start, and that must not land in helper.log at INFO.
+func TestClassOfCall(t *testing.T) {
+	for _, tc := range []struct {
+		method, params string
+		want           MethodClass
+	}{
+		{MethodTailscaleLogin, ``, ClassRead},
+		{MethodTailscaleLogin, `null`, ClassRead},
+		{MethodTailscaleLogin, `{}`, ClassRead},
+		{MethodTailscaleLogin, `{"start":true}`, ClassChange},
+		{MethodTailscaleLogin, `{"start":true,"reauth":true}`, ClassChange},
+		{MethodTailscaleLogin, `{"start":"yes"}`, ClassChange}, // undecodable: the worst
+		{MethodAutostartChange, `{"ids":["a"],"op":"disable","preview":true}`, ClassRead},
+		{MethodAutostartChange, `{"ids":["a"],"op":"disable"}`, ClassChange},
+		{MethodConfigImport, `{"data":"","dry_run":true}`, ClassRead},
+		{MethodConfigImport, `{"data":""}`, ClassChange},
+		{MethodTakeoverUndo, `{"dry_run":true}`, ClassRead},
+		{MethodTakeoverUndo, ``, ClassChange},
+		{MethodControllerMove, `{"dry_run":true}`, ClassRead},
+		{MethodControllerMove, `{"port":9097}`, ClassChange},
+		{MethodStatus, `{"anything":1}`, ClassRead},
+		{MethodLayerDelete, ``, ClassChange},
+		{MethodEventsWait, ``, ClassWait},
+		{"nope.nope", ``, 0},
+	} {
+		if got := ClassOfCall(tc.method, json.RawMessage(tc.params)); got != tc.want {
+			t.Errorf("ClassOfCall(%s, %s) = %s, want %s", tc.method, tc.params, got, tc.want)
+		}
+	}
+	for _, m := range []string{MethodTailscaleLogin, MethodAutostartChange, MethodConfigImport, MethodTakeoverUndo, MethodControllerMove} {
+		if ClassOf(m) != ClassChange {
+			t.Errorf("%s: method class %s, want change (its worst call)", m, ClassOf(m))
+		}
+	}
+}
+
+// The server logs each call at its own class: tailscale.login reads at
+// DEBUG, the login start at INFO.
+func TestCallLogLevelPerCall(t *testing.T) {
+	var buf syncBuf
+	tr, sock := testTransport(t)
+	s := NewServer(tr, AllowAll{}, slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	s.Handle(MethodTailscaleLogin, func(ctx context.Context, _ Peer, _ json.RawMessage) (any, error) { return TailscaleLoginResult{}, nil })
+	l, err := tr.Listen(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go s.Serve(l)
+	t.Cleanup(func() { l.Close(); s.Close() })
+	c := dial(t, sock)
+	ctx := context.Background()
+	for _, p := range []any{nil, TailscaleLoginParams{}, TailscaleLoginParams{Start: true}} {
+		if err := c.Call(ctx, MethodTailscaleLogin, p, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := strings.Count(buf.String(), "method="+MethodTailscaleLogin); n != 1 {
+		t.Errorf("%d tailscale.login lines at INFO, want 1 (the start):\n%s", n, buf.String())
+	}
+}
