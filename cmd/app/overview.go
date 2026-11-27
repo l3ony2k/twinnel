@@ -500,12 +500,14 @@ func (a *app) tailscaleSummary(c *ui.Context, s status.Snapshot) {
 	if st.Tailnet != "" {
 		kvWith(c, T.OvTailnet, func() { monoText(c, st.Tailnet).SingleLine().Shrink(1).Selectable() })
 	}
-	kvWith(c, T.OvThisDevice, func() {
-		middleText(c, st.Self.Name).Selectable()
-		if ip := st.Self.IPv4(); ip.IsValid() {
-			monoText(c, ip.String()).TextColor(t.TextMuted).SingleLine().Shrink(0).Selectable()
-		}
-	})
+	// The name and the address on rows of their own: in a half-width
+	// card the address, never cut, would leave the name a few letters.
+	kvWith(c, T.OvThisDevice, func() { middleText(c, st.Self.Name).Selectable() })
+	if ip := st.Self.IPv4(); ip.IsValid() {
+		kvWith(c, T.PeerIP, func() {
+			monoText(c, ip.String()).SingleLine().Shrink(0).Selectable().Tooltip(peerIPs(st.Self))
+		})
+	}
 	kvTipWith(c, T.ExitNode, T.InfoExitNode, nil, func() { kvControl(a.exitNodePicker(c, s)) })
 	a.controlError(c, pendExit)
 	kvWith(c, T.MagicDNS, func() {
