@@ -85,6 +85,7 @@ type Strings struct {
 	HealthSkip                          string
 	PanelHealthOK, PanelHealthWarn      string // %d
 	PanelHealthFail, PanelHealthPending string // %d
+	PanelPeers                          string // %d online, %d in all
 	Seconds                             string // %.1f
 
 	// Controls (v0.2).
@@ -396,6 +397,7 @@ var zh = Strings{
 	PanelHealthWarn:    "健康检查：%d 项警告",
 	PanelHealthFail:    "健康检查：%d 项失败",
 	PanelHealthPending: "健康检查：正在检查",
+	PanelPeers:         "%d / %d 台在线",
 	Seconds:            "%.1f 秒",
 
 	Actions:               "操作",

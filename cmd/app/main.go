@@ -69,6 +69,8 @@ type app struct {
 	// panelShotH is the content height shot mode's panel was last sized
 	// to (fitShotPanel).
 	panelShotH int
+	// shotSnap overrides the flyout's snapshot in shot mode (shots_flyout.go).
+	shotSnap func(*status.Snapshot)
 	// shotSection limits a long page to one section in shot mode (MyGo
 	// captures only the top of a page); "" draws everything.
 	shotSection string

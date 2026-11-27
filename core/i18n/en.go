@@ -148,6 +148,7 @@ var en = Strings{
 	PanelHealthWarn:    "Health: %d warnings",
 	PanelHealthFail:    "Health: %d failed",
 	PanelHealthPending: "Health: checking",
+	PanelPeers:         "%d of %d online",
 	Seconds:            "%.1f s",
 
 	Actions:               "Actions",
