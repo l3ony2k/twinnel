@@ -114,14 +114,15 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 				}
 			}
 		})
+		own := !s.TakenOver() // duet's kernels: none of them runs yet
 		for _, kv := range k.Installed {
 			listRow(c.Key(kv.Version)).Children(func() {
 				ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Children(func() {
 					num(ui.Text(c, kv.Version).Font("monospace").FontSize(plat.calloutSize).SingleLine().Shrink(0))
-					if kv.Current {
+					if kv.Current && !own {
 						tag(c, T.KernelCurrent)
 					}
-					if kv.Previous {
+					if kv.Previous && !own {
 						tag(c, T.KernelPrevious)
 					}
 					ui.Spacer(c)
