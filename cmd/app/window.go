@@ -57,10 +57,7 @@ func (a *app) mainView(c *ui.Context) {
 	if back := pageBack(a.page); back != "" { // ⌘[ as in Finder and System Settings, Alt+← on Windows
 		windowKey(c, plat.backMods, plat.backKey, func() { a.showPage(back) })
 	}
-	s := a.mon.Snapshot()
-	if a.shotSnap != nil { // shot mode: synthetic state over the fake one
-		a.shotSnap(&s)
-	}
+	s := a.viewSnapshot()
 	helperOutdatedNow = helperOutdated(s)
 	if a.page == pageWizard { // the first-run wizard: the whole window (wizard.go)
 		a.wizardWindow(c, s)
@@ -1463,4 +1460,14 @@ func switchLabel(c *ui.Context, label, tip string, more func()) {
 			infoTipAbout(c, label, tip, more)
 		}
 	})
+}
+
+// viewSnapshot is the snapshot the window draws: the monitor's, with shot
+// mode's synthetic state over it.
+func (a *app) viewSnapshot() status.Snapshot {
+	s := a.mon.Snapshot()
+	if a.shotSnap != nil {
+		a.shotSnap(&s)
+	}
+	return s
 }

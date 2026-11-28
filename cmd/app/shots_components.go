@@ -85,9 +85,9 @@ func (a *app) componentShots(save func(*mygo.Window, string)) {
 		{name: "not-installed",
 			geo: accessoryView{check: geoCk(geoMissing(), time.Time{})},
 			ui:  accessoryView{check: uiCk(uiFile(false, "", ""), time.Time{}, false)}},
-		{name: "not-installed-sized",
-			geo: accessoryView{check: geoCk(geoMissing(), checked)},
-			ui:  accessoryView{check: uiCk(uiFile(false, "", "v1.91.0"), checked, false)}},
+		// No "not-installed-sized": a row without the component shows its
+		// size on the button whether checked or not (Windows QA round 5
+		// T3: the same picture as not-installed).
 		{name: "installed-unchecked",
 			geo: accessoryView{check: geoCk(geoInstalled(), time.Time{})},
 			ui:  accessoryView{check: uiCk(uiFile(true, "v1.90.0", ""), time.Time{}, true)}},

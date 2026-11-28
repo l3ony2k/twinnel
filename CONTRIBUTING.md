@@ -79,6 +79,8 @@ TWINNEL_SHOTS=$S/out TWINNEL_SHOTS_FLOW=status TWINNEL_SOCKET=$S/twinnel.sock TW
   TWINNEL_TAILSCALE_STATUS_FILE=$TS HOME=$S/home $S/twinnel-app
 ```
 
+`scripts/e2e/shot-flows.sh <scratch dir> [flow...]` builds this stack (seeded with the README's synthetic subscription and layers), runs the flows (default: `default lifecycle components`) and fails when one exits non-zero or saves the same picture twice; it runs on macOS, Linux and Windows (Git Bash), and CI's windows job runs it.
+
 `devfake`'s own controller answers only `/version` and `PUT /configs` (what the helper's tests need); pages want `fakemihomo`. `scripts/readme-shots.sh` is the full version of this recipe. On Windows the scratch helper serves its pipe (`--socket \\.\pipe\twinnel-dev-<name>`) without elevation; keep it unelevated next to the live services.
 
 The README's images (`docs/images/`) come from `scripts/readme-shots.sh <scratch dir>` (`TWINNEL_SHOTS_FLOW=readme`, fixtures in `cmd/app/testdata/readme`): it builds the same hermetic stack, seeds the scratch helper with a synthetic subscription and layers, shoots English and Chinese in light and dark, and frames and compresses the PNGs. Look at every image before committing it.
