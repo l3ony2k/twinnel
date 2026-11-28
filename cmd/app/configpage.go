@@ -1128,7 +1128,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 			id := strings.TrimSpace(v.edID)
 			// An error-level note means the helper would refuse the save:
 			// the button waits, the note says why (U35).
-			save := a.saveButton(c.Key("ed-save"), T.Save+" "+id).Disabled(!w || id == "" || blocked)
+			save := a.saveButton(c.Key("ed-save"), T.Save+" "+id, !w || id == "" || blocked)
 			if blocked {
 				save.Tooltip(T.LayerSaveBlocked)
 			}

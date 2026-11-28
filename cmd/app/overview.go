@@ -154,9 +154,10 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 		// 全部测速: one batch (status.Monitor.TestAll), the icon a spinner
 		// while it runs, as on 策略组.
 		_, _, busy := a.mon.DelayProgress()
-		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy || !live || len(m.Groups) == 0)
+		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay)
 		lockTip(b, lock)
 		spin := showBusy(c, b, busy)
+		busyFace(c, b, false, busy || !live || len(m.Groups) == 0, spin)
 		b.Children(func() {
 			if spin {
 				spinnerIcon(c)

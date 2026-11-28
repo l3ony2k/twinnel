@@ -291,14 +291,14 @@ func TestDisabledPrimariesKnowIt(t *testing.T) {
 		if _, ok := isCall(sel.X, "ui", "PrimaryButton"); ok {
 			return true
 		}
-		for _, name := range []string{"opButton", "iconButton", "busyButton"} {
+		for _, name := range []string{"opButton", "iconButton", "busyButton", "saveButton"} {
 			inner, ok := isCall(sel.X, "", name)
 			if !ok {
 				continue
 			}
 			arg := 3 // opButton(c, icon, label, primary, op), iconButton(c, icon, label, primary)
-			if name == "busyButton" {
-				arg = 2
+			if name == "busyButton" || name == "saveButton" {
+				arg = 2 // busyButton(c, label, primary, …); saveButton(c, op, disabled) is always primary
 			}
 			if len(inner.Args) > arg {
 				if id, ok := inner.Args[arg].(*ast.Ident); ok && id.Name == "false" {

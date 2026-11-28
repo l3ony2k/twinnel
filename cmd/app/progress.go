@@ -82,18 +82,19 @@ func stageText(stage string) string {
 	return T.StageValidate
 }
 
-// saveButton is the primary 保存 for helper operation op: while op runs
-// long enough for a spinner (busy.go) it shows one with 正在保存…, so
-// the wait says what it is.
-func (a *app) saveButton(c *ui.Context, op string) ui.Element {
+// saveButton is the primary 保存 for helper operation op, disabled
+// while disabled: while op runs long enough for a spinner (busy.go) it
+// shows one with 正在保存…, so the wait says what it is.
+func (a *app) saveButton(c *ui.Context, op string, disabled bool) ui.Element {
 	T := i18n.T
 	if a.hd.busy == op {
 		a.hd.busyOnButton = true
 	}
 	spin := a.opSpinning(op)
-	return ui.PrimaryButton(c, "").Label(T.Save).Busy(spin).Children(func() {
+	b := busyFace(c, ui.PrimaryButton(c, "").Label(T.Save), true, disabled, spin)
+	return b.Busy(spin).Children(func() {
 		if spin {
-			spinnerIcon(c).TextColor(c.Theme().AccentText)
+			onBusyFace(c, spinnerIcon(c), true, spin)
 			ui.Text(c, T.Saving).SingleLine()
 			return
 		}

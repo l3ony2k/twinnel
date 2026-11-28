@@ -721,8 +721,9 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 		if busy && total > 0 {
 			num(small(c, i18n.F(T.TestAllProgress, done, total))).SingleLine()
 		}
-		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy)
+		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay)
 		spin := showBusy(c, b, busy)
+		busyFace(c, b, false, busy, spin)
 		b.Children(func() {
 			busyIcon(c, iconSpeed, spin)
 			ui.Text(c, T.TestAllDelay).SingleLine()

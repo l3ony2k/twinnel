@@ -166,15 +166,10 @@ func (a *app) opAction(c *ui.Context, icon *ui.SVG, label string, primary, disab
 	} else {
 		b = pushFace(c, ui.Button(c, ""))
 	}
-	b.Label(label).Busy(spin).Disabled(disabled)
-	if primary {
-		disabledPrimaryFace(c, b)
-	}
+	busyFace(c, b.Label(label).Busy(spin), primary, disabled, spin)
 	return b.Children(func() {
-		mark := busyIcon(c, icon, spin)   // the refresh icon turns, others become a spinner
-		if spin && primary && !disabled { // on the accent, in the label's color
-			mark.TextColor(c.Theme().AccentText)
-		}
+		// the refresh icon turns, others become a spinner
+		onBusyFace(c, busyIcon(c, icon, spin), primary, spin)
 		ui.Text(c, label).SingleLine()
 	})
 }
