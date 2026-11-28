@@ -42,6 +42,10 @@ type app struct {
 	cfg     status.Config
 	install tailscale.Install
 
+	// paneBox and colBox are the content pane and the page column at the
+	// last layout, in window DIPs (layout_test.go checks one in the other).
+	paneBox, colBox ui.Rect
+
 	mh        *mihomo.Client
 	ts        *tailscale.Client
 	mon       *status.Monitor
@@ -65,6 +69,7 @@ type app struct {
 	panel     *mygo.Window
 	win       *mygo.Window
 	page      string
+	ovBar     commandBar // 总览's quick actions on Windows (overview.go)
 	actionErr string
 	settings  settingsForm
 	logs      logsView
@@ -327,7 +332,6 @@ func (a *app) start() {
 
 		ExitNodeAccepted: a.cfg.ExitNodeAccepted,
 		Processes:        a.probes.processes,
-		MihomoFile:       newMihomoFile(a.probes, cc),
 	})
 	a.egressProbe = newEgressProbe(a.probes, cc)
 	if a.hc != nil {
@@ -458,7 +462,7 @@ func (a *app) togglePanel() {
 	a.panel = mygo.NewFlyout(mygo.FlyoutOptions{
 		Tray:       a.tray,
 		Placement:  mygo.PlacementBottom,
-		Gap:        4,
+		Gap:        panelGap(),
 		Width:      panelWidth,
 		Height:     420,
 		FitContent: true,
@@ -472,6 +476,9 @@ func (a *app) togglePanel() {
 		Content:    ui.View(a.panelView),
 	})
 	a.panel.OnClosed(func() { a.panel = nil })
+	if plat.fluent {
+		keepFlyoutInset(a.panel) // panel.go
+	}
 }
 
 func (a *app) openMain() {

@@ -62,7 +62,7 @@ func exitTileView(s status.Snapshot, testing bool, eg *health.CheckReport, at ti
 		v.egress = egressNoTest
 		return v
 	}
-	v.node = p.Node
+	v.node = nodeText(p.Node)
 	v.route = routeText(p)
 	v.testing = testing
 	switch {
@@ -109,11 +109,12 @@ func exitTileView(s status.Snapshot, testing bool, eg *health.CheckReport, at ti
 	return v
 }
 
-// routeText is a group's route to its node: "PROXY → Auto → node".
+// routeText is a group's route to its node: "PROXY → Auto → node", as
+// the names show (nodeText).
 func routeText(p *status.Group) string {
-	out := p.Name
+	out := nodeText(p.Name)
 	for _, n := range p.Chain {
-		out += " → " + n
+		out += " → " + nodeText(n)
 	}
 	return out
 }
@@ -154,9 +155,19 @@ func (a *app) exitTile(c *ui.Context, s status.Snapshot) {
 	}
 	eg, at := a.egressNow(s)
 	v := exitTileView(s, testing, eg, at, a.canTestEgress(s), a.egress.running, a.egress.why)
+	// A group, not a button: it holds buttons of its own (测速,
+	// 检测出口 IP, 重试), which inside a button reach neither the keyboard
+	// nor assistive technology as themselves (4.2, 7.2). A click on the
+	// rest of it still opens 策略组, as the other tiles do, and so does its
+	// context menu; the keyboard has the sidebar.
 	b := ui.Column(c.Key("tile-exit")).Gap(4).Padding(12, groupPadX).Radius(plat.groupRadius).
 		Background(p.group).Border(1, p.groupLine).MinWidth(0).
-		Role(ui.RoleButton).Focusable().Label(T.OvTileExit + " " + v.figure)
+		Role(ui.RoleGroup).Label(T.OvTileExit + " " + v.figure)
+	b.ContextMenu(func(m *ui.Menu) {
+		if m.Item(T.PageProxies).Chosen() {
+			a.openPage(pageProxies)
+		}
+	})
 	if b.Hovered() {
 		b.Border(1, t.Text.Alpha(0.18))
 	}
@@ -181,7 +192,7 @@ func (a *app) exitTile(c *ui.Context, s status.Snapshot) {
 			case v.testing:
 				spinnerIcon(c).AlignSelf(ui.Center)
 			case v.offer:
-				if busyButton(c.Key("exit-test"), T.TestNodeDelay, false, false, false).Height(22).AlignSelf(ui.Center).Clicked() {
+				if tileButton(busyButton(c.Key("exit-test"), T.TestNodeDelay, false, false, false)).AlignSelf(ui.Center).Clicked() {
 					a.testNode(s.Mihomo.Primary.Node)
 				}
 			}
@@ -196,6 +207,16 @@ func (a *app) exitTile(c *ui.Context, s status.Snapshot) {
 		}
 		a.exitIPLine(c, v)
 	})
+}
+
+// tileButton sizes a button inside a tile: a small control (22) on macOS
+// and Linux; on Windows the standard button, as tall as every other
+// (4.2).
+func tileButton(b ui.Element) ui.Element {
+	if plat.fluent {
+		return b
+	}
+	return b.Height(22)
 }
 
 // exitIPLine is the tile's last line: the IP mihomo's traffic leaves from
@@ -214,7 +235,7 @@ func (a *app) exitIPLine(c *ui.Context, v exitView) {
 				num(small(c, v.ipAt)).SingleLine().Shrink(0)
 			}
 		case egressRunning:
-			busyButton(c.Key("egress-check"), T.OvEgressCheck, false, true, true).Height(22)
+			tileButton(busyButton(c.Key("egress-check"), T.OvEgressCheck, false, true, true))
 		case egressFailed:
 			ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(t.Warning).Shrink(0).AccessHidden(true)
 			small(c, T.EgressFailed).SingleLine().Shrink(1).MinWidth(0).Tooltip(v.why)
@@ -223,7 +244,7 @@ func (a *app) exitIPLine(c *ui.Context, v exitView) {
 				a.testEgress()
 			}
 		case egressNone:
-			if busyButton(c.Key("egress-check"), T.OvEgressCheck, false, false, false).Height(22).Clicked() {
+			if tileButton(busyButton(c.Key("egress-check"), T.OvEgressCheck, false, false, false)).Clicked() {
 				a.testEgress()
 			}
 		}

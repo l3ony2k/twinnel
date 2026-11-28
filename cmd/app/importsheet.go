@@ -199,7 +199,7 @@ func (a *app) importBody(c *ui.Context, s status.Snapshot, v *importView) {
 				a.closeImport()
 			}
 			can := a.helperWrites(s) && (importWrites(plan, importResolve(v)) > 0 || plan.Activated != "")
-			if ui.PrimaryButton(c.Key("import-do"), T.ImportDo).Disabled(!can).Clicked() {
+			if primaryButton(c.Key("import-do"), T.ImportDo, !can).Clicked() {
 				a.runImport()
 			}
 		})

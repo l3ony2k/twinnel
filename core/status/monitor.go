@@ -53,14 +53,9 @@ type Options struct {
 
 	// Processes lists the running processes, for mihomo's and
 	// tailscaled's memory, CPU and uptime; nil: not shown.
-	Processes ProcessSource
-	// MihomoFile reads the mihomo config file, for what the controller
-	// does not report (the DNS mode); nil: not shown.
-	MihomoFile func(ctx context.Context) (*health.MihomoConfig, error)
-
+	Processes     ProcessSource
 	MihomoPoll    time.Duration // default 3s
 	ProcessPoll   time.Duration // default 5s
-	DNSPoll       time.Duration // default 1 min
 	TailscalePoll time.Duration // default 10s; the IPN bus triggers the rest
 	HistoryLen    int           // traffic samples kept, default 120
 	LogLen        int           // log lines kept, default 1000
@@ -105,9 +100,6 @@ func NewMonitor(o Options) *Monitor {
 	if o.ProcessPoll == 0 {
 		o.ProcessPoll = 5 * time.Second
 	}
-	if o.DNSPoll == 0 {
-		o.DNSPoll = time.Minute
-	}
 	if o.HealthInterval == 0 {
 		o.HealthInterval = 10 * time.Minute
 	}
@@ -147,9 +139,6 @@ func (m *Monitor) Run(ctx context.Context) {
 	go m.trafficLoop(ctx)
 	if m.o.Processes != nil {
 		go m.processLoop(ctx)
-	}
-	if m.o.MihomoFile != nil {
-		go m.dnsLoop(ctx)
 	}
 	if m.o.Health != nil {
 		go m.healthLoop(ctx)

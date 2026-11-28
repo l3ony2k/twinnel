@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/netip"
 	neturl "net/url"
+	"strings"
 	"time"
 
 	"github.com/l3ony2k/twinnel/core/autostart"
@@ -352,6 +353,25 @@ type MihomoConfig struct {
 	HostNames   []string
 	Rules       []MihomoRule
 	ProxyGroups []MihomoProxy
+}
+
+// DNS modes besides mihomo's own enhanced-mode values (fake-ip,
+// redir-host).
+const (
+	DNSModeOff    = "off"    // dns.enable is false
+	DNSModeNormal = "normal" // dns on, no enhanced mode
+)
+
+// Mode is the DNS mode d sets: its enhanced-mode in lower case (fake-ip,
+// redir-host), DNSModeNormal with none, DNSModeOff while dns is off.
+func (d MihomoDNSConfig) Mode() string {
+	if !d.Enable {
+		return DNSModeOff
+	}
+	if m := strings.ToLower(strings.TrimSpace(d.EnhancedMode)); m != "" {
+		return m
+	}
+	return DNSModeNormal
 }
 
 // MihomoDNSConfig is the DNS part of the mihomo config file.

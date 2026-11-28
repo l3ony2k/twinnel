@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -138,7 +139,7 @@ func (a *app) agentCommand() string {
 		return l[0]
 	}
 	if a.shotMode {
-		return "/usr/local/bin/twinnel"
+		return shotCLILink(a.shotGOOS())
 	}
 	if p, err := cliPath(); err == nil {
 		return p
@@ -290,7 +291,7 @@ func (a *app) agentSection(c *ui.Context, s status.Snapshot) {
 			row.Children(func() {
 				switchLabel(c, label, tip, nil)
 				val := on
-				e := disabledWhy(c, disabled, why, func() ui.Element { return ui.Switch(c.Key(key), &val).Label(label) })
+				e := disabledWhy(c, disabled, why, func() ui.Element { return toggleSwitch(c.Key(key), &val).Label(label) })
 				if e.Changed() {
 					a.setAgentSwitch(set(val))
 				}
@@ -366,7 +367,7 @@ func (a *app) agentConnectRow(c *ui.Context) {
 	v := &a.agent
 	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 		settingsLabel(c, T.AgentConnect, "")
-		segmented(c.Key("ag-client"), &v.client, "Claude Code", "Codex", "Cursor", T.AgentClientOther)
+		selectorBar(c.Key("ag-client"), &v.client, "Claude Code", "Codex", "Cursor", T.AgentClientOther)
 		ui.Spacer(c)
 		snip := agentSnippet(v.client, a.agentCommand())
 		if pushButton(c.Key("ag-copy"), T.AgentCopy).Clicked() {
@@ -402,7 +403,7 @@ func (a *app) agentActivityRows(c *ui.Context) {
 					if !act.OK {
 						ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(t.Warning).Shrink(0).Label(T.ErrorPrefix)
 					}
-					ui.Text(c, agentActionText(act)).SingleLine().Shrink(1).Tooltip(agentActionTip(act))
+					ui.Text(c, a.agentActionText(act)).SingleLine().Shrink(1).Tooltip(agentActionTip(act))
 				})
 			}
 			if n := len(v.activity) - agentShownActions; n > 0 {
@@ -416,11 +417,12 @@ func (a *app) agentActivityRows(c *ui.Context) {
 	})
 }
 
-// agentActionTip is an action's tooltip: its arguments, its error and the
-// account the agent ran as, one per line.
+// agentActionTip is an action's tooltip: the raw call (tool and
+// arguments, as the helper logged them), its error and the account the
+// agent ran as, one per line.
 func agentActionTip(act rpc.AgentAction) string {
 	var lines []string
-	for _, s := range []string{act.Args, act.Error, act.Caller} {
+	for _, s := range []string{strings.TrimSpace(act.Tool + " " + act.Args), act.Error, act.Caller} {
 		if s != "" {
 			lines = append(lines, s)
 		}
@@ -428,15 +430,111 @@ func agentActionTip(act rpc.AgentAction) string {
 	return strings.Join(lines, "\n")
 }
 
-// agentActionText is one action in words: who and what.
-func agentActionText(act rpc.AgentAction) string {
-	what := act.Tool
-	if act.Args != "" {
-		what += " " + act.Args
+// agentActionText is one action in words: who and what, the object named
+// from the arguments (a name, else its id).
+func agentActionText(act rpc.AgentAction) string { return agentActionWords(act, nil) }
+
+// (a *app) agentActionText is agentActionText with ids named as the app knows
+// them (an override's title, a subscription's name).
+func (a *app) agentActionText(act rpc.AgentAction) string {
+	return agentActionWords(act, func(kind, id string) string {
+		switch kind {
+		case "layer":
+			for _, l := range a.hd.layers {
+				if l.ID == id {
+					return layerTitle(l)
+				}
+			}
+		case "sub":
+			for _, s := range a.hd.subs {
+				if s.ID == id && s.Name != "" {
+					return s.Name
+				}
+			}
+		}
+		return ""
+	})
+}
+
+// agentActionWords words act (ui-review 6.12): the tool as a short verb
+// and its object, never the raw "apply preview_hash=…" line, which stays
+// in the tooltip. name resolves an id of kind "layer" or "sub" ("" when
+// it does not know it); nil leaves ids as they are.
+func agentActionWords(act rpc.AgentAction, name func(kind, id string) string) string {
+	T := i18n.T
+	args := parseAgentArgs(act.Args)
+	key := act.Tool
+	switch act.Tool {
+	case "layer_enable", "set_tun":
+		if args["enabled"] == "false" {
+			key += ":off"
+		} else {
+			key += ":on"
+		}
 	}
-	f := i18n.T.EvAgent
+	obj := ""
+	named := func(kind string) string {
+		if n := args["name"]; n != "" {
+			return n
+		}
+		id := args["id"]
+		if name != nil && id != "" {
+			if n := name(kind, id); n != "" {
+				return n
+			}
+		}
+		return id
+	}
+	switch act.Tool {
+	case "layer_put", "layer_remove", "layer_enable":
+		obj = named("layer")
+	case "sub_put", "sub_activate", "sub_remove", "refresh_subscription":
+		obj = named("sub")
+	case "set_mode":
+		if m := args["mode"]; m != "" {
+			obj = T.ModeName(m)
+		}
+	case "select_node":
+		if g, n := args["group"], args["node"]; n != "" {
+			obj = n
+			if g != "" {
+				obj = g + " → " + n
+			}
+		}
+	case "set_exit_node":
+		obj = args["peer"]
+	}
+	what := ""
+	if f, ok := T.AgentToolsOf[key]; ok && obj != "" {
+		what = i18n.F(f, obj)
+	} else if w, ok := T.AgentTools[key]; ok {
+		what = w
+	} else {
+		what = act.Tool // a tool this app does not know yet
+	}
+	f := T.EvAgent
 	if !act.OK {
-		f = i18n.T.EvAgentFailed
+		f = T.EvAgentFailed
 	}
 	return i18n.F(f, act.Client, what)
 }
+
+// parseAgentArgs splits the helper's one-line argument summary
+// ("group=Proxy node=JP 1") into its values; a value runs to the next
+// " key=" (values may hold spaces).
+func parseAgentArgs(line string) map[string]string {
+	out := map[string]string{}
+	locs := agentArgKey.FindAllStringSubmatchIndex(line, -1)
+	for i, l := range locs {
+		end := len(line)
+		if i+1 < len(locs) {
+			end = locs[i+1][0]
+		}
+		out[line[l[2]:l[3]]] = strings.TrimSpace(line[l[1]:end])
+	}
+	return out
+}
+
+// agentArgKey is a key of the argument summary: at the start or after a
+// space, lowercase with underscores, then "=".
+var agentArgKey = regexp.MustCompile(`(?:^|\s)([a-z_]+)=`)

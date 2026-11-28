@@ -552,6 +552,7 @@ var en = Strings{
 	AboutApp:            "About Twinnel",
 	HealthProblems:      "Needs attention",
 	HealthPassed:        "Other checks",
+	HealthAll:           "All checks",
 
 	ConfigStrings:          enConfig,
 	WindowStrings:          enWindow,

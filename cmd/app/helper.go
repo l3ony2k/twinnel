@@ -402,7 +402,7 @@ func (a *app) opNotes(c *ui.Context, s status.Snapshot) {
 	if d.busy != "" && !d.busyOnButton && !accessoryOpShown(d.busy) && d.span.visible(time.Now()) {
 		// No opButton shows this operation: say it here (after busyDelay).
 		ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(4).Children(func() {
-			ui.Spinner(c)
+			spinner(c)
 			small(c, a.opLabelNamed(d.busy)+"…")
 		})
 	}
@@ -443,7 +443,7 @@ func (a *app) helperGate(c *ui.Context, s status.Snapshot) bool {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(32).Children(func() {
 			switch h.State {
 			case status.HelperUnknown:
-				ui.Spinner(c)
+				spinner(c)
 				ui.Text(c, T.Helper+" · "+h.State.Text()).FontWeight(600)
 			case status.HelperDenied:
 				stateDot(c, markAttention, t.Warning, 10)

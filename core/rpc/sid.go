@@ -27,27 +27,51 @@ func ValidSID(s string) bool { return sidRE.MatchString(s) }
 // pipe (squat it) while it is down.
 const PipeClientAccess = 0x0012019b
 
+// fileCreatePipeInstance is FILE_APPEND_DATA's meaning on a pipe.
+const fileCreatePipeInstance = 0x4
+
+// PipeServerAccess is what the serving user needs beyond a client's:
+// FILE_CREATE_PIPE_INSTANCE, for every instance after the first (go-winio
+// opens each with GENERIC_READ|GENERIC_WRITE on the existing pipe).
+// Without it a helper that is not LocalSystem or an elevated
+// administrator served one connection, then failed its next Accept with
+// "Access is denied".
+const PipeServerAccess = PipeClientAccess | fileCreatePipeInstance
+
 // PipeSDDL is the security descriptor of the helper's pipe: LocalSystem and
-// Administrators full access, and each allowed SID (the user who installed
-// the helper; the helper's own user when it is not LocalSystem, as a
-// development helper) client access. Protected: nothing is inherited. This
-// is the macOS rule (root, the helper's uid, the admin group) in Windows
-// terms: an admin's normal, filtered token has Administrators deny-only, so
-// the installing user's own SID is what lets the app connect without a UAC
-// prompt. Invalid SIDs are an error.
+// Administrators full access; the first SID (both callers pass it first:
+// the helper's listenTransport, PipeTransport's default) is the serving
+// helper's own user, which gets PipeServerAccess when it is neither (a development
+// helper, not elevated); every other allowed SID (the user who installed
+// the helper) gets client access, so it can never create an instance of
+// the pipe (squat it) while the helper is down. Protected: nothing is
+// inherited. This is the macOS rule (root, the helper's uid, the admin
+// group) in Windows terms: an admin's normal, filtered token has
+// Administrators deny-only, so the installing user's own SID is what lets
+// the app connect without a UAC prompt. Invalid SIDs are an error.
 func PipeSDDL(allowed ...string) (string, error) {
 	var b strings.Builder
 	b.WriteString("D:P(A;;GA;;;SY)(A;;GA;;;BA)")
 	seen := map[string]bool{SIDLocalSystem: true, SIDAdministrators: true}
-	for _, s := range allowed {
+	add := func(s string, access uint32) error {
 		if s == "" || seen[s] {
-			continue
+			return nil
 		}
 		if !ValidSID(s) {
-			return "", fmt.Errorf("invalid SID %q", s)
+			return fmt.Errorf("invalid SID %q", s)
 		}
 		seen[s] = true
-		fmt.Fprintf(&b, "(A;;0x%08x;;;%s)", PipeClientAccess, s)
+		fmt.Fprintf(&b, "(A;;0x%08x;;;%s)", access, s)
+		return nil
+	}
+	for i, s := range allowed {
+		access := uint32(PipeClientAccess)
+		if i == 0 {
+			access = PipeServerAccess
+		}
+		if err := add(s, access); err != nil {
+			return "", err
+		}
 	}
 	return b.String(), nil
 }

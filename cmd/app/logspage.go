@@ -45,6 +45,8 @@ type logsView struct {
 
 	width float32 // the page's width last frame (the bar's search follows it)
 
+	findKey bool // Ctrl+F (⌘F) or F3 was pressed: the search takes the focus on the next frame
+
 	svc serviceLog // mihomo's service output, shown before the stream (servicelog.go)
 
 	// The helper tab: its log file, and its own 暂停 / list.
@@ -162,6 +164,46 @@ func barIcon(c *ui.Context, icon *ui.SVG, label string) ui.Element {
 	return b
 }
 
+// logSearch is the bar's search: a search field with its magnifier on
+// Windows (WinUI's AutoSuggestBox with the search glyph), the plain field
+// elsewhere. The find keys put the focus in it from anywhere on the page:
+// Ctrl+F (⌘F on macOS), and F3 on Windows, as Explorer and Settings do.
+func (a *app) logSearch(c *ui.Context, width float32) ui.Element {
+	T := i18n.T
+	v := &a.logs
+	var f ui.Element
+	if plat.fluent {
+		f = ui.SearchField(c.Key("search"), &v.query)
+	} else {
+		f = ui.TextInput(c.Key("search"), &v.query)
+	}
+	f.Label(T.LogSearch).Placeholder(T.LogSearch).Width(width)
+	for _, k := range findKeys() {
+		windowKey(c, k.mods, k.key, func() { v.findKey = true })
+	}
+	if v.findKey {
+		v.findKey = false
+		f.Focus()
+	}
+	return f
+}
+
+// shortcutKey is a key with its modifiers.
+type shortcutKey struct {
+	mods ui.Modifiers
+	key  ui.Key
+}
+
+// findKeys put the focus in a page's search: Ctrl+F (⌘F), and F3 on
+// Windows.
+func findKeys() []shortcutKey {
+	keys := []shortcutKey{{ui.Cmd, ui.KeyF}}
+	if plat.fluent {
+		keys = append(keys, shortcutKey{0, ui.KeyF3})
+	}
+	return keys
+}
+
 // matches reports whether text holds every word of the query, ignoring
 // case.
 func matches(text, query string) bool {
@@ -185,13 +227,13 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 			// its ⓘ, the search, the level as a pop-up (its value names
 			// it), then 暂停 and 清空 as icons. It fits a 900 pt window in
 			// every language; the title never drops (R-kubai-1).
-			segmented(c.Key("source"), &v.source, T.LogsSourceMihomo, T.LogsSourceTwinnel, T.LogsSourceHelper).Label(T.PageLogs)
+			selectorBar(c.Key("source"), &v.source, T.LogsSourceMihomo, T.LogsSourceTwinnel, T.LogsSourceHelper).Label(T.PageLogs)
 			infoTipAbout(c, T.PageLogs, T.TipLogs, nil)
 			searchW := float32(200)
 			if v.width > 0 && v.width < 760 {
 				searchW = 140
 			}
-			ui.TextInput(c.Key("search"), &v.query).Label(T.LogSearch).Placeholder(T.LogSearch).Width(searchW)
+			a.logSearch(c, searchW)
 			if a.levelMenu(c) && v.source == logsMihomo {
 				a.mon.ClearLogs()
 				a.mon.SetLogLevel(v.levelName())
@@ -285,11 +327,12 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 				case "debug":
 					col = t.TextMuted
 				}
-				line := e.Time.Format("15:04:05") + " " + e.Type + " " + e.Payload
+				line := e.Time.Format("15:04:05") + " " + e.Type + " " + e.Payload // copied raw
+				shown := logPayloadText(e.Payload)
 				ui.Row(c).Gap(12).Padding(3, 12).AlignItems(ui.Start).Children(func() {
 					ui.Text(c, e.Time.Format("15:04:05")).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Shrink(0)
 					colLabel(c, ui.Span{Size: plat.smallSize}, logLevelName(e.Type), levelColW).TextColor(col)
-					ui.Text(c, e.Payload).Font("monospace").FontSize(plat.smallSize).TextColor(col).Grow(1).Wrap().LineHeight(lineText).Selectable().
+					ui.Text(c, shown).Font("monospace").FontSize(plat.smallSize).TextColor(col).Grow(1).Wrap().LineHeight(lineText).Selectable().
 						ContextMenu(func(m *ui.Menu) {
 							if m.Item(i18n.T.CopyLine).Chosen() {
 								copyText(c, line)
@@ -297,7 +340,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 							m.Separator()
 							m.EditItems()
 						})
-				}).Label(logLevelName(e.Type) + " " + e.Payload)
+				}).Label(logLevelName(e.Type) + " " + shown)
 			}).Grow(1).Background(ui.Transparent).PaddingY(6)
 		})
 	})

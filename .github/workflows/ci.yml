@@ -65,6 +65,22 @@ jobs:
         run: >-
           go test ./core/i18n && go test ./cmd/app -run
           "Windows|TrayIconPx|AppRemoval|EncodePowerShell|BundleFromExe|CmdQuote|ParsePlan"
+      - name: shot flows (default, lifecycle, components)
+        # The app's shot runs on a hermetic stack (fake controller, scratch
+        # helper on its own pipe, unelevated, synthetic tailnet, scratch
+        # profile): every flow must finish and never save the same picture
+        # twice. Allowed to fail until a runner has shown it can render
+        # the hidden windows; see HANDOFF (winui-r5).
+        continue-on-error: true
+        shell: bash
+        run: scripts/e2e/shot-flows.sh "$RUNNER_TEMP/twinnel-shots" default lifecycle components
+      - name: shot flow output
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: shot-flows-windows
+          path: ${{ runner.temp }}/twinnel-shots/out
+          if-no-files-found: ignore
 
   cross-build:
     runs-on: ubuntu-latest

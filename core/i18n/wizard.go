@@ -34,19 +34,23 @@ type WizardStrings struct {
 
 	// ② 后台助手
 	WizHelperHead, WizHelperBody                         string
+	TipWizHelper                                         string // the rest of WizHelperBody, behind ⓘ
 	WizHelperInstall, WizHelperInstalling, WizHelperDone string
 	WizHelperChanges                                     string // the disclosure over the install plan
+	WizPlanEmpty                                         string // the plan has no steps
 	WizHelperFailed, WizHelperCancelled                  string
 
 	// ③ 代理内核
 	WizMihomoHead, WizMihomoBody                           string
-	WizMihomoFound                                         string // %s: the running mihomo's config file
+	WizMihomoFound                                         string // the running mihomo; its config file's path follows on its own line
 	WizMihomoTakeOver, WizMihomoOwn                        string
 	WizMihomoTakenOver                                     string
 	WizMihomoDownload, WizMihomoDownloading, WizMihomoDone string // WizMihomoDone: %s version
 	WizMihomoExternal                                      string // the helper runs an existing binary
 	WizMihomoSubFirst                                      string // a failed download: add the subscription, download through it
 	WizMihomoFailed                                        string
+	WizMihomoDirect                                        string // ③ after WizMihomoSubFirst: back to downloading directly
+	TipWizMihomo                                           string // the rest of WizMihomoBody, behind ⓘ
 	TipWizTakeOver                                         string
 
 	// ④ 订阅
@@ -66,6 +70,7 @@ type WizardStrings struct {
 
 	// ⑤ Tailscale
 	WizTSHead, WizTSBody                       string
+	TipWizTS                                   string // the rest of WizTSBody, behind ⓘ (WizardOS.TSInstallHow follows)
 	WizTSFound                                 string // %s: version, or "" (WizTSFoundBare)
 	WizTSFoundBare                             string
 	WizTSInstall, WizTSInstalling, WizTSFailed string
@@ -82,6 +87,7 @@ type WizardStrings struct {
 	// WizDoneChecking: everything set up, the checks still running.
 	WizDoneHead, WizDoneIssues, WizDoneChecking          string
 	WizDoneDNS, WizDoneManual                            string // the system DNS row; a step this system cannot do
+	WizDoneDNSCopy                                       string // copies the DNS address to set by hand
 	WizDoneHelper, WizDoneProxy, WizDoneSub, WizDoneTS   string // the summary's row names
 	WizDoneHealth                                        string
 	WizDoneInstalled, WizDoneRunning, WizDoneNotSet      string // WizDoneRunning: %s version
@@ -110,7 +116,7 @@ var zhWizard = WizardStrings{
 	WizNeedsHelper: "这一步要先安装后台助手",
 
 	WizWelcomeHead: "欢迎使用 Twinnel",
-	WizWelcomeBody: "Twinnel 让代理（mihomo）和私有网络（Tailscale）在%s上同时运行、互不干扰。设置好以后，两者的状态和开关都在一个地方。",
+	WizWelcomeBody: "Twinnel 让代理（mihomo）和私有网络（Tailscale）在 %s 上同时运行、互不干扰。设置好以后，两者的状态和开关都在一个地方。",
 	WizPlanHead:    "接下来会做这些",
 	WizPlan: []string{
 		"安装后台助手，只需要授权一次",
@@ -121,17 +127,20 @@ var zhWizard = WizardStrings{
 	WizStart: "开始设置",
 
 	WizHelperHead:       "安装后台助手",
-	WizHelperBody:       "后台助手是一个常驻的系统服务。修改网络设置、下载内核、启停 mihomo 都由它完成，所以只需要授权这一次，以后 Twinnel 不再要管理员权限。",
+	WizHelperBody:       "后台助手是一个常驻的系统服务，替 Twinnel 修改网络设置、管理 mihomo。",
+	TipWizHelper:        "下载内核、启停 mihomo、修改 DNS 都由它完成。只需要授权这一次，以后 Twinnel 不再要管理员权限。",
 	WizHelperInstall:    "安装",
 	WizHelperInstalling: "正在安装…",
 	WizHelperDone:       "后台助手已安装，正在运行",
 	WizHelperChanges:    "会做哪些改动",
+	WizPlanEmpty:        "没有要改动的内容",
 	WizHelperFailed:     "后台助手没有装好",
 	WizHelperCancelled:  "授权窗口被关掉了，什么都没有改。点「重试」再来一次。",
 
 	WizMihomoHead:        "代理内核 mihomo",
-	WizMihomoBody:        "mihomo 是真正转发代理流量的程序。Twinnel 从 mihomo 官方的 GitHub 发布页下载它，校验后安装，以后在「内核」页更新。",
-	WizMihomoFound:       "这里已经有一个 mihomo 在运行，配置文件是 %s。",
+	WizMihomoBody:        "mihomo 是真正转发代理流量的程序。",
+	TipWizMihomo:         "Twinnel 从 mihomo 官方的 GitHub 发布页下载它，校验后安装，以后在「内核」页更新。",
+	WizMihomoFound:       "这里已经有一个 mihomo 在运行，它的配置文件：",
 	WizMihomoTakeOver:    "接管现有的 mihomo",
 	WizMihomoOwn:         "不接管，下载新的",
 	WizMihomoTakenOver:   "已接管现有的 mihomo",
@@ -141,10 +150,11 @@ var zhWizard = WizardStrings{
 	WizMihomoExternal:    "使用这里已有的 mihomo",
 	WizMihomoSubFirst:    "先添加订阅，用它的节点下载",
 	WizMihomoFailed:      "mihomo 没有下载下来",
+	WizMihomoDirect:      "改为直接下载",
 	TipWizTakeOver:       "Twinnel 读取现在的配置，拆成订阅和覆写，确认合成结果和原来一致后才替换。节点和规则保持不变，随时可以撤销。",
 
 	WizSubHead:          "订阅",
-	WizSubBody:          "订阅是代理服务商给你的一个链接，里面有节点和分流规则。粘贴链接；如果你在用 Clash Verge 或 Clash Party，也可以直接导入它的配置文件。",
+	WizSubBody:          "粘贴代理服务商给你的订阅链接，或导入 Clash Verge、Clash Party 的配置文件。",
 	WizSubURL:           "订阅链接",
 	WizSubPlaceholder:   "https://",
 	WizSubImport:        "导入配置文件…",
@@ -164,7 +174,8 @@ var zhWizard = WizardStrings{
 	WizSubDownloadLater: "mihomo 会通过订阅的节点下载",
 
 	WizTSHead:         "Tailscale（可选）",
-	WizTSBody:         "Tailscale 把你的电脑、手机和服务器连成一个私有网络，在任何地方都能互相访问。Twinnel 会让它和代理同时工作。用不到可以跳过，以后在「Tailscale 设备」页再装。",
+	WizTSBody:         "Tailscale 把你的电脑、手机和服务器连成一个私有网络。",
+	TipWizTS:          "在任何地方都能互相访问，Twinnel 让它和代理同时工作。用不到可以跳过，以后在「Tailscale 设备」页再装。",
 	WizTSFound:        "已安装 Tailscale %s",
 	WizTSFoundBare:    "已安装 Tailscale",
 	WizTSInstall:      "安装 Tailscale",
@@ -185,6 +196,7 @@ var zhWizard = WizardStrings{
 	WizDoneChecking:     "正在做最后的检查",
 	WizDoneDNS:          "系统 DNS",
 	WizDoneManual:       "需要手动设置",
+	WizDoneDNSCopy:      "复制 127.0.0.1",
 	WizDoneHelper:       "后台助手",
 	WizDoneProxy:        "代理",
 	WizDoneSub:          "订阅",
@@ -236,17 +248,20 @@ var enWizard = WizardStrings{
 	WizStart: "Get Started",
 
 	WizHelperHead:       "Install the Helper",
-	WizHelperBody:       "The helper is a small system service. It changes network settings, downloads the proxy core and starts or stops mihomo, so you approve it once and Twinnel never asks for administrator rights again.",
+	WizHelperBody:       "The helper is a small system service that changes network settings and runs mihomo for Twinnel.",
+	TipWizHelper:        "It downloads the proxy core, starts and stops mihomo and sets the DNS. You approve it once; Twinnel never asks for administrator rights again.",
 	WizHelperInstall:    "Install",
 	WizHelperInstalling: "Installing…",
 	WizHelperDone:       "The helper is installed and running",
 	WizHelperChanges:    "What it changes",
+	WizPlanEmpty:        "Nothing to change",
 	WizHelperFailed:     "The helper wasn't installed",
 	WizHelperCancelled:  "The approval window was closed, so nothing changed. Click Retry to try again.",
 
 	WizMihomoHead:        "The mihomo Proxy Core",
-	WizMihomoBody:        "mihomo is the program that actually carries proxy traffic. Twinnel downloads it from mihomo's official GitHub releases, verifies it and installs it; you can update it later on the Core page.",
-	WizMihomoFound:       "A mihomo is already running here, with the config file %s.",
+	WizMihomoBody:        "mihomo is the program that actually carries proxy traffic.",
+	TipWizMihomo:         "Twinnel downloads it from mihomo's official GitHub releases, verifies it and installs it; you can update it later on the Core page.",
+	WizMihomoFound:       "A mihomo is already running here, with this config file:",
 	WizMihomoTakeOver:    "Take Over This mihomo",
 	WizMihomoOwn:         "Download a New One Instead",
 	WizMihomoTakenOver:   "Took over the existing mihomo",
@@ -256,10 +271,11 @@ var enWizard = WizardStrings{
 	WizMihomoExternal:    "Using the mihomo already here",
 	WizMihomoSubFirst:    "Add the Subscription First, Download Through It",
 	WizMihomoFailed:      "mihomo didn't download",
+	WizMihomoDirect:      "Download Directly Instead",
 	TipWizTakeOver:       "Twinnel reads your current config, splits it into a subscription and overrides, and only switches once the result matches. Your nodes and rules stay the same, and you can undo it at any time.",
 
 	WizSubHead:          "Subscription",
-	WizSubBody:          "A subscription is a link from your proxy provider with the nodes and the routing rules. Paste it; if you use Clash Verge or Clash Party, you can import its config file instead.",
+	WizSubBody:          "Paste the subscription link from your proxy provider, or import a Clash Verge or Clash Party config file.",
 	WizSubURL:           "Subscription link",
 	WizSubPlaceholder:   "https://",
 	WizSubImport:        "Import a Config File…",
@@ -279,7 +295,8 @@ var enWizard = WizardStrings{
 	WizSubDownloadLater: "mihomo downloads through the subscription's nodes",
 
 	WizTSHead:         "Tailscale (Optional)",
-	WizTSBody:         "Tailscale joins your computers, phones and servers into one private network you can reach from anywhere. Twinnel keeps it working alongside the proxy. Skip it if you don't need it; you can install it later on the Tailscale Devices page.",
+	WizTSBody:         "Tailscale joins your computers, phones and servers into one private network.",
+	TipWizTS:          "You can reach them from anywhere, and Twinnel keeps it working alongside the proxy. Skip it if you don't need it; you can install it later on the Tailscale Devices page.",
 	WizTSFound:        "Tailscale %s is installed",
 	WizTSFoundBare:    "Tailscale is installed",
 	WizTSInstall:      "Install Tailscale",
@@ -300,6 +317,7 @@ var enWizard = WizardStrings{
 	WizDoneChecking:     "Running the Last Checks",
 	WizDoneDNS:          "System DNS",
 	WizDoneManual:       "Set it by hand",
+	WizDoneDNSCopy:      "Copy 127.0.0.1",
 	WizDoneHelper:       "Helper",
 	WizDoneProxy:        "Proxy",
 	WizDoneSub:          "Subscription",
@@ -333,6 +351,7 @@ type WizardOS struct {
 	AdminPrompt  string // what happens when the helper installs
 	TSInstallHow string // how Tailscale gets installed
 	TrayWhere    string // where the tray / menu bar icon lives
+	DNSManual    string // how to point the system DNS at 127.0.0.1 by hand
 }
 
 // wizardOS is WizardOS per language tag, then per GOOS.
@@ -343,18 +362,21 @@ var wizardOS = map[string]map[string]WizardOS{
 			AdminPrompt:  "点「安装」后，macOS 会弹窗请你输入这台 Mac 的登录密码。",
 			TSInstallHow: "装的是开源版 tailscaled，作为系统服务运行，不占用系统的 VPN 通道。",
 			TrayWhere:    "Twinnel 住在屏幕右上角的菜单栏里。点它的图标看状态、换节点；关掉这个窗口，它照样在后台工作。",
+			DNSManual:    "打开「系统设置」→「网络」，选当前的网络，点「详细信息」→「DNS」，把 DNS 服务器改成 127.0.0.1。",
 		},
 		"windows": {
 			Machine:      "这台电脑",
 			AdminPrompt:  "点「安装」后，Windows 会弹出「用户账户控制」窗口，选「是」。",
 			TSInstallHow: "从 Tailscale 官网下载官方安装包并安装，安装时可能再弹一次「用户账户控制」。",
 			TrayWhere:    "Twinnel 在任务栏右下角的通知区域。看不到图标时，点「^」展开隐藏的图标，可以把它拖到任务栏上常驻。关掉这个窗口，它照样在后台工作。",
+			DNSManual:    "打开「设置」→「网络和 Internet」，选当前的网络，在「DNS 服务器分配」旁点「编辑」，选「手动」，打开 IPv4，首选 DNS 填 127.0.0.1。",
 		},
 		"linux": {
 			Machine:      "这台电脑",
 			AdminPrompt:  "点「安装」后，系统会弹出身份验证窗口，输入你的登录密码。",
 			TSInstallHow: "下载 Tailscale 官方的 tailscaled，安装成系统服务。",
 			TrayWhere:    "Twinnel 在系统托盘里（GNOME 要先装 AppIndicator 扩展才显示托盘图标）。关掉这个窗口，它照样在后台工作。",
+			DNSManual:    "在系统的网络设置里，把当前连接的 DNS 改成 127.0.0.1，并关掉自动获取 DNS。",
 		},
 	},
 	"en": {
@@ -363,18 +385,21 @@ var wizardOS = map[string]map[string]WizardOS{
 			AdminPrompt:  "When you click Install, macOS asks for this Mac's login password.",
 			TSInstallHow: "Installs the open-source tailscaled as a system service, so it doesn't take the system's VPN slot.",
 			TrayWhere:    "Twinnel lives in the menu bar at the top right of the screen. Click its icon to see the status and switch nodes; it keeps working after you close this window.",
+			DNSManual:    "Open System Settings → Network, pick the current network, click Details → DNS and set the DNS server to 127.0.0.1.",
 		},
 		"windows": {
 			Machine:      "this PC",
 			AdminPrompt:  "When you click Install, Windows shows a User Account Control prompt; choose Yes.",
 			TSInstallHow: "Downloads Tailscale's official installer and runs it; Windows may show User Account Control once more.",
 			TrayWhere:    "Twinnel is in the notification area at the right end of the taskbar. If you don't see it, click ^ to show hidden icons; you can drag it onto the taskbar to keep it there. It keeps working after you close this window.",
+			DNSManual:    "Open Settings → Network & internet, pick the current network, click Edit next to DNS server assignment, choose Manual, turn on IPv4 and enter 127.0.0.1 as the preferred DNS.",
 		},
 		"linux": {
 			Machine:      "this computer",
 			AdminPrompt:  "When you click Install, your system asks you to authenticate with your login password.",
 			TSInstallHow: "Downloads Tailscale's official tailscaled and installs it as a system service.",
 			TrayWhere:    "Twinnel is in the system tray (on GNOME, install the AppIndicator extension to see tray icons). It keeps working after you close this window.",
+			DNSManual:    "In your system's network settings, set the current connection's DNS to 127.0.0.1 and turn off automatic DNS.",
 		},
 	},
 }

@@ -156,13 +156,14 @@ From the repo root:
 S=$HOME/.cache/twinnel-e2e/hermetic        # scratch dir, outside the repo
 TS=$PWD/cmd/app/testdata/shots-tailscale-status.json
 mkdir -p $S/home $S/state $S/empty
-go build -o $S/devfake ./cmd/helper/internal/devfake
+go build -o $S/fakemihomo ./cmd/app/internal/fakemihomo
 go build -o $S/twinnel-helper ./cmd/helper
 go build -o $S/twinnel ./cmd/cli
 go build -o $S/twinnel-app ./cmd/app      # needs the Linux GUI (feat/linux-gui) merged
 
-# 1. fake controller (invented groups and nodes)
-$S/devfake -listen 127.0.0.1:19894 &
+# 1. fake controller: invented groups, nodes, traffic and logs (fakemihomo;
+#    devfake answers only /version and PUT /configs, too little for the pages)
+$S/fakemihomo --listen 127.0.0.1:19894 &
 
 # 2. scratch helper: temp socket, file secrets, your own group, synthetic tailnet,
 #    no host health checks, no takeover probing
@@ -335,8 +336,8 @@ the remote-access path (Tailscale, when that is how you reach the PC).
 | `windows-deploy.sh HOST` | the Mac | builds the Windows app zip from main (refuses another branch), copies it to `%ProgramData%\TwinnelQA\deploy`, runs `install.ps1 -NoLaunch`, `twinnel helper upgrade`, prints `twinnel version` and `helper upgrade --check` |
 | `windows-snapshot.ps1 snapshot` / `verify -Dir` | the PC (elevated) | saves the state before a test (config.export zip, settings, layers, status, doctor, DNS of every adapter, service states) into `%ProgramData%\TwinnelQA\snap-<ts>`; `verify` compares and checks HTTPS to a DIRECT and a PROXY target through the TUN |
 | `windows-timebox.ps1 arm -Name N -Restore FILE -Seconds S` | the PC (elevated) | a one-shot SYSTEM scheduled task that runs the restore script after S seconds even when the SSH session dies; `run` restores early, `disarm` removes it |
-| `windows-usersession.ps1 -Script FILE -Arguments 'a;b'` | the PC (elevated) | runs a script in the signed-in user's desktop session (one-shot Interactive task, hidden console) and prints its output |
-| `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `open:VALUE` (`Twinnel.exe --open=page:<id>`: a running copy turns to that page), `wheel:N` (scroll the window), `windows`, `shot:NAME`, `winshot:NAME`, `printshot:NAME` (the window drawn by PrintWindow: works on a locked console), `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
+| `windows-usersession.ps1 -Script FILE -Arguments 'a;b' [-Task NAME]` | the PC (elevated) | runs a script in the signed-in user's desktop session (one-shot Interactive task, hidden console) and prints its output. Each run has its own task (`-Task`, else `TwinnelQA-us-<script>-<pid>`), so two agents or batches at once never replace each other's run; give `-Task` a name of your own when you need to find the run's `<task>.out.txt` |
+| `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `open:VALUE` (`Twinnel.exe --open=page:<id>`: a running copy turns to that page), `wheel:N` (scroll the window), `windows`, `shot:NAME`, `winshot:NAME`, `printshot:NAME` (the window drawn by PrintWindow: works on a locked console), `printall:NAME` (every Twinnel window, the flyout too), `max` / `restore` / `size:W,H` (DIPs, no activation), `workarea`, `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
 
 Rules that came out of round 1:
 
@@ -365,6 +366,14 @@ Rules that came out of round 1:
   `printshot:NAME` still captures the main window (the app draws it on
   request), but clicks, keys and the wheel do not reach it, and popups (menus,
   the tray flyout) cannot be captured: step with `open:page:<id>` only.
+- 截图的尺寸必须等于窗口的物理像素尺寸（`windows` / `printshot` 那一行会打印
+  尺寸和缩放比例）。150% 下 2575 DIP 宽的窗口是 3862 px。第 4 轮的
+  `printshot` 在一个没有拿到 per-monitor DPI 感知的 PowerShell 里运行，
+  位图按 2575×1417 建、PrintWindow 却按 3862×2125 画，只留下左上角三分之二，
+  看起来像内容整体右移并被右边缘截断。脚本现在设置线程级 DPI 感知并核对；
+  看到 `warning: not per-monitor DPI aware` 时尺寸是按窗口 DPI 换算的。
+  (A capture must be the window's size in physical pixels; round 4's was
+  cropped by a DPI-unaware capture, not the app.)
 - `twinnel doctor` shows the helper's last report when it is under 60 s old
   and no state change came after it (the header says `后台助手 N 秒前的检查结果`).
   The helper bumps a state generation on every change it sees (mihomo
@@ -372,6 +381,11 @@ Rules that came out of round 1:
   DNS watchdog, an apply, dns point/restore) and runs the checks again; a
   report from an older generation is never reused. `doctor --fresh` still
   forces a run.
+- PrintWindow draws no Mica or Acrylic: in the light theme the sidebar and
+  the flyout come out as dark text on black. Judge the light theme from a
+  hermetic shot run, not from `printshot`. The caption buttons are a child
+  window of their own (`MyGoCaption`): hit-test them there, not on the main
+  window, which answers `HTCLIENT` everywhere.
 - Tests that break traffic (mixed TUN stack, stopping mihomo, a foreign
   controller on 9090) arm a time box first. The LAN and the tailnet are
   excluded from the TUN, so SSH normally survives; plan for it not to.

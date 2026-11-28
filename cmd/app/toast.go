@@ -23,6 +23,11 @@ import (
 //   - it rises 8 pt and fades in over 240 ms (easeOut) and sinks 4 pt as
 //     it fades out over 160 ms (easeIn); Reduce Motion fades only.
 //
+// On Windows the toast is a Fluent overlay instead: radius 8 (the
+// overlay corner), WinUI's flyout surface, at the bottom right of the
+// page pane, and one at a time: a new toast replaces the one showing
+// (kubai 016), where macOS stacks them as HUDs.
+//
 // Types: toastSuccess, toastError, or "" (information). A toast without
 // a type whose text starts with i18n.T.ErrorPrefix is an error, the
 // prefix dropped (the mark says it).
@@ -49,6 +54,12 @@ var toastMotion = ui.ElementTransition{
 
 // toastSurface is a toast's fill, hairline and shadow color.
 func toastSurface(t *ui.Theme) (fill, line, shadow ui.Color) {
+	if plat.fluent {
+		if t.Dark {
+			return ui.Hex("#2c2c2c"), ui.RGBA(0, 0, 0, 0.2), ui.RGBA(0, 0, 0, 0.26)
+		}
+		return ui.Hex("#fcfcfc"), ui.RGBA(0, 0, 0, 0.0578), ui.RGBA(0, 0, 0, 0.14)
+	}
 	if t.Dark {
 		return ui.Hex("#3a3a3c"), ui.RGBA(255, 255, 255, 0.10), ui.RGBA(0, 0, 0, 0.35)
 	}
@@ -69,12 +80,34 @@ func toastKind(ts ui.Toast) (kind, text string) {
 // of the main window (mainView), after the page.
 func (a *app) toasts(c *ui.Context) {
 	left := a.side.widthOf(a.side.mode) // centred on the page pane, not the window
+	var replaced []string
 	ui.ToastViewportBase(c, func(viewport ui.Element, list []ui.Toast) {
 		viewport.Padding(0, 16, toastBottom, left+16).AlignItems(ui.Center).Gap(8)
-		for _, ts := range list {
+		if plat.fluent {
+			viewport.Padding(0, 24, 24, left+24).AlignItems(ui.End)
+		}
+		show, drop := toastsShown(list, plat.fluent)
+		replaced = drop
+		for _, ts := range show {
 			toastView(c, ts)
 		}
 	})
+	for _, id := range replaced { // after the viewport: closing edits its list
+		c.CloseToast(id)
+	}
+}
+
+// toastsShown splits the toasts into those to show and those a newer one
+// replaced: with one (Windows) only the newest shows and the others are
+// to be closed; else every one shows, stacked (macOS, Linux).
+func toastsShown(list []ui.Toast, one bool) (show []ui.Toast, replaced []string) {
+	if !one || len(list) <= 1 {
+		return list, nil
+	}
+	for _, ts := range list[:len(list)-1] {
+		replaced = append(replaced, ts.ID)
+	}
+	return list[len(list)-1:], replaced
 }
 
 // toastView draws one toast.
@@ -87,7 +120,9 @@ func toastView(c *ui.Context, ts ui.Toast) {
 	root := parts.Root.Row().AlignItems(ui.Center).Gap(8).MinHeight(toastH).MaxWidth(toastMaxW).
 		Padding(4, 14, 4, 12).Radius(toastH/2).Background(fill).Border(1, line).
 		Shadow(0, 8, 24, 0, shadow).Transition(toastMotion)
-	if t.Dark {
+	if plat.fluent {
+		root.Radius(8).Shadow(0, 8, 16, 0, shadow)
+	} else if t.Dark {
 		root.InsetShadow(0, 0.5, 0, 0, ui.RGBA(255, 255, 255, 0.08))
 	}
 	closable := kind == toastError || ts.Timeout < 0
@@ -114,7 +149,7 @@ func toastView(c *ui.Context, ts ui.Toast) {
 		}
 		if closable {
 			b := parts.CloseButton().Label(i18n.T.Close).Tooltip(i18n.T.Close).
-				Size(toastClose, toastClose).Radius(toastClose / 2).AlignItems(ui.Center).Justify(ui.Center).Shrink(0)
+				Size(toastClose, toastClose).Radius(toastCloseRadius()).AlignItems(ui.Center).Justify(ui.Center).Shrink(0)
 			switch {
 			case b.Pressed():
 				b.Background(t.Text.Alpha(0.14))
@@ -146,4 +181,13 @@ func (a *app) flushToast(c *ui.Context) {
 		c.AddToast(ui.Toast{ID: "op-failed", Title: a.toastErr, Type: toastError, Timeout: -1, Action: i18n.T.EvShow, OnAction: a.showTwinnelLog})
 		a.toastErr = ""
 	}
+}
+
+// toastCloseRadius is the ✕ button's corner: round in the capsule, the
+// control radius in Fluent's rounded rectangle.
+func toastCloseRadius() float32 {
+	if plat.fluent {
+		return plat.controlRadius
+	}
+	return toastClose / 2
 }

@@ -105,6 +105,26 @@ func ovCard(c *ui.Context, title, tip string, trailing func(), body func()) ui.E
 	})
 }
 
+// ovLineH is the height of a card's plain key–value line: 32 on Windows,
+// as a SettingsCard's text-only line (4.3), the platform's row height
+// elsewhere. A line that holds a control (the mode, TUN, the exit node, a
+// button) keeps plat.rowMinHeight (kvWith).
+func ovLineH() float32 {
+	if plat.fluent {
+		return 32
+	}
+	return plat.rowMinHeight
+}
+
+// ovKV is kvWith for a plain line of a card: label and value at
+// ovLineH.
+func ovKV(c *ui.Context, label string, body func()) {
+	ui.Row(c).Gap(12).AlignItems(ui.Center).MinHeight(ovLineH()).Children(func() {
+		kvLabel(c, label, "", nil, 0)
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Grow(1).Children(body)
+	})
+}
+
 // ovPair puts two cards side by side, equal widths and heights, or one
 // above the other when the page is too narrow for both.
 func ovPair(c *ui.Context, side bool, left, right func() ui.Element) {
@@ -130,13 +150,21 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 	can := s.Can()
 	live := s.MihomoLive()
 	lock := mihomoLockTip(s) // why the mihomo actions are off, if another mihomo is on the port
-	ui.Row(c.Key("quick")).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+	row := ui.Row(c.Key("quick")).Gap(8).AlignItems(ui.Center)
+	if plat.fluent {
+		row.FillWidth() // the CommandBar's width, which its commands fit (commandBar)
+	} else {
+		row.Wrap()
+	}
+	bar := &a.ovBar
+	row.Children(func() {
 		// 全部测速: one batch (status.Monitor.TestAll), the icon a spinner
 		// while it runs, as on 策略组.
 		_, _, busy := a.mon.DelayProgress()
-		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy || !live || len(m.Groups) == 0)
+		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Shrink(0)
 		lockTip(b, lock)
 		spin := showBusy(c, b, busy)
+		busyFace(c, b, false, busy || !live || len(m.Groups) == 0, spin)
 		b.Children(func() {
 			if spin {
 				spinnerIcon(c)
@@ -148,17 +176,85 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 		if b.Clicked() {
 			a.testAll()
 		}
+		bar.measure("test-all", b)
 		env := proxyEnv(m.Config)
-		cp := iconButton(c.Key("copy-env"), iconCopy, T.OvCopyProxyEnv, false).Disabled(!live || env == "")
-		if env != "" && live {
-			cp.Tooltip(env)
+		recovery := !a.bannerOffers(s, "recovery") // never twice on one screen
+		// On Windows the row is a CommandBar (4.1): the commands used most
+		// as buttons, then 应急恢复, and 重载配置 / 重启 mihomo under "…";
+		// the ones that do not fit the row fold into "…", last first (N3).
+		opt := []string{"copy-env", "dashboard"}
+		if recovery {
+			opt = append(opt, "recovery")
 		}
-		lockTip(cp, lock)
-		if cp.Clicked() {
-			copyText(c, env)
+		shown := len(opt)
+		if plat.fluent {
+			shown = bar.fit(c, opt, []string{"test-all", "more"}, 8)
 		}
-		if lockTip(iconButton(c.Key("dashboard"), iconDashboard, T.OvDashboard, false).Disabled(!live), lock).Clicked() {
-			a.openDashboard("/ui/")
+		show := func(key string) bool {
+			for i, k := range opt {
+				if k == key {
+					return i < shown
+				}
+			}
+			return false
+		}
+		if show("copy-env") {
+			cp := iconButton(c.Key("copy-env"), iconCopy, T.OvCopyProxyEnv, false).Disabled(!live || env == "").Shrink(0)
+			if env != "" && live {
+				cp.Tooltip(env)
+			}
+			lockTip(cp, lock)
+			if cp.Clicked() {
+				copyText(c, env)
+			}
+			bar.measure("copy-env", cp)
+		}
+		if show("dashboard") {
+			d := lockTip(iconButton(c.Key("dashboard"), iconDashboard, T.OvDashboard, false).Disabled(!live), lock).Shrink(0)
+			if d.Clicked() {
+				a.openDashboard("/ui/")
+			}
+			bar.measure("dashboard", d)
+		}
+		if plat.fluent {
+			if show("recovery") {
+				bar.measure("recovery", a.recoveryMenu(c, s).Shrink(0))
+			}
+			more := ui.Row(c).Gap(4).AlignItems(ui.Center).Shrink(0).Children(func() {
+				lockTip(overflowMenu(c.Key("more"), T.OvMoreActions, func(mn *ui.Menu) {
+					// The commands that did not fit, in their order, then
+					// the secondary ones.
+					folded := false
+					if !show("copy-env") {
+						if mn.Item(T.OvCopyProxyEnv).Disabled(!live || env == "").Chosen() {
+							copyText(c, env)
+						}
+						folded = true
+					}
+					if !show("dashboard") {
+						if mn.Item(T.OvDashboard).Disabled(!live).Chosen() {
+							a.openDashboard("/ui/")
+						}
+						folded = true
+					}
+					if recovery && !show("recovery") {
+						mn.Submenu(T.Recovery, func(sub *ui.Menu) { a.recoveryItems(sub, s) })
+						folded = true
+					}
+					if folded {
+						mn.Separator()
+					}
+					if mn.Item(T.ReloadConfig).Disabled(!can.Mihomo).Chosen() {
+						a.reloadMihomo(s)
+					}
+					if mn.Item(T.RestartMihomo).Disabled(!a.canRestartMihomo(s)).Chosen() {
+						a.confirmRestartMihomo()
+					}
+				}), lock)
+				a.helperLock(c, s)
+			})
+			bar.measure("more", more)
+			return
 		}
 		if lockTip(iconButton(c.Key("reload"), iconRefresh, T.ReloadConfig, false).Disabled(!can.Mihomo), lock).Clicked() {
 			a.reloadMihomo(s)
@@ -169,10 +265,74 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 			}
 			a.helperLock(c, s)
 		})
-		if !a.bannerOffers(s, "recovery") { // never twice on one screen
+		if recovery {
 			a.recoveryMenu(c, s)
 		}
 	})
+	bar.avail = row.Bounds().W
+}
+
+// commandBar is the overflow of WinUI's CommandBar: the optional
+// commands that do not fit the bar's row fold, last first, into its "…".
+// Widths come from the last frame; a command never shown counts as
+// fitting until it was measured.
+type commandBar struct {
+	w     map[string]float32 // each command's width when last shown
+	avail float32            // the row's width in the last frame
+	shown int                // how many optional commands showed
+}
+
+// measure records e's width as command key's, from the last frame.
+func (b *commandBar) measure(key string, e ui.Element) {
+	if w := e.Bounds().W; w > 0 {
+		if b.w == nil {
+			b.w = map[string]float32{}
+		}
+		b.w[key] = w
+	}
+}
+
+// fit returns how many of opt show, from the first, beside the commands
+// that always show (fixed), gap apart; it asks for another build when the
+// answer changed, as the widths it used are the last frame's.
+func (b *commandBar) fit(c *ui.Context, opt, fixed []string, gap float32) int {
+	n := len(opt)
+	if b.avail > 0 {
+		used := -gap
+		for _, k := range fixed {
+			used += gap + b.w[k]
+		}
+		for i, k := range opt {
+			if used+gap+b.w[k] > b.avail {
+				n = i
+				break
+			}
+			used += gap + b.w[k]
+		}
+	}
+	if n != b.shown {
+		b.shown = n
+		c.Invalidate()
+	}
+	return n
+}
+
+// iconMore is "…": a CommandBar's overflow (Windows' More glyph).
+var iconMore = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.75" fill="#000000"/><circle cx="12" cy="12" r="1.75" fill="#000000"/><circle cx="19" cy="12" r="1.75" fill="#000000"/></svg>`))
+
+// overflowMenu is a CommandBar's "…" button (WinUI's More): a square
+// push button with the More glyph, its name as tooltip and for assistive
+// technology, opening items as a menu.
+func overflowMenu(c *ui.Context, label string, items func(m *ui.Menu)) ui.Element {
+	t := c.Theme()
+	b := menuBelow(pushButton(c, "").Label(label).Tooltip(label).Padding(t.Space(1.5), t.Space(2)).Menu(items))
+	b.Children(func() {
+		ui.Icon(c, iconMore).FontSize(iconInline)
+		// An empty line of text: the button is as tall as its labelled
+		// neighbours in any font.
+		ui.Text(c, "\u200b").Width(0).AccessHidden(true)
+	})
+	return b
 }
 
 // bannerOffers reports whether the banner shows the action key now.
@@ -323,12 +483,12 @@ func processSlots(c *ui.Context, rows ovRows, p *status.Process, now time.Time) 
 	}
 	T := i18n.T
 	rows[slotProcess] = func() {
-		kvWith(c, T.OvProcess, func() {
+		ovKV(c, T.OvProcess, func() {
 			num(ui.Text(c, status.Bytes(p.RSS)+" · "+cpuText(p))).SingleLine().Shrink(1)
 		})
 	}
 	rows[slotUptime] = func() {
-		kvWith(c, T.OvUptime, func() { num(ui.Text(c, status.Duration(p.Uptime(now)))).SingleLine().Shrink(1) })
+		ovKV(c, T.OvUptime, func() { num(ui.Text(c, status.Duration(p.Uptime(now)))).SingleLine().Shrink(1) })
 	}
 }
 
@@ -406,7 +566,7 @@ func (a *app) mihomoRows(c *ui.Context, s status.Snapshot) ovRows {
 		return rows
 	}
 	rows[slotState] = func() {
-		kvWith(c, T.State, func() {
+		ovKV(c, T.State, func() {
 			ui.Text(c, T.Running).SingleLine().Shrink(0)
 			if m.Version != "" {
 				monoText(c, m.Version).TextColor(t.TextMuted).SingleLine().Shrink(1).Selectable()
@@ -417,21 +577,21 @@ func (a *app) mihomoRows(c *ui.Context, s status.Snapshot) ovRows {
 	if p := m.Primary; p != nil {
 		// Where traffic leaves: the node and its delay; the route to it
 		// on hover.
-		route := strings.Join(append([]string{p.Name}, p.Chain...), " → ")
+		route := routeText(p)
 		rows[slotExit] = func() {
-			kvWith(c, T.Exit, func() {
-				ui.Text(c, p.Node).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(route)
+			ovKV(c, T.Exit, func() {
+				ui.Text(c, nodeText(p.Node)).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(route)
 				ui.Spacer(c)
 				monoText(c, p.DelayText()).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0)
 			})
 		}
 	}
 	if d := dnsModeText(m.DNSMode); d != "" {
-		rows[slotDNS] = func() { kvWith(c, T.OvDNS, func() { monoText(c, d).SingleLine() }) }
+		rows[slotDNS] = func() { ovKV(c, T.OvDNS, func() { monoText(c, d).SingleLine() }) }
 	}
 	if ports := portsText(m.Config); ports != "" {
 		rows[slotAddr] = func() {
-			kvWith(c, T.OvProxyPort, func() { monoText(c, ports).SingleLine().Shrink(1).Selectable() })
+			ovKV(c, T.OvProxyPort, func() { monoText(c, ports).SingleLine().Shrink(1).Selectable() })
 		}
 	}
 	rows[slotOwn(0)] = func() {
@@ -522,7 +682,7 @@ func (a *app) tsCardRows(c *ui.Context, s status.Snapshot) ovRows {
 		return rows
 	}
 	rows[slotState] = func() {
-		kvWith(c, T.State, func() {
+		ovKV(c, T.State, func() {
 			ui.Text(c, T.TSState(st.BackendState)).SingleLine().Shrink(0)
 			if st.Version != "" {
 				monoText(c, shortTSVersion(st.Version)).TextColor(t.TextMuted).SingleLine().Shrink(1)
@@ -535,7 +695,7 @@ func (a *app) tsCardRows(c *ui.Context, s status.Snapshot) ovRows {
 		a.controlError(c, pendExit)
 	}
 	rows[slotDNS] = func() {
-		kvWith(c, T.MagicDNS, func() {
+		ovKV(c, T.MagicDNS, func() {
 			ui.Text(c, onOff(st.Prefs.MagicDNS)).SingleLine().Shrink(0)
 			if st.Prefs.MagicDNS && st.MagicDNSSuffix != "" {
 				monoText(c, st.MagicDNSSuffix).TextColor(t.TextMuted).SingleLine().Shrink(1)
@@ -546,12 +706,12 @@ func (a *app) tsCardRows(c *ui.Context, s status.Snapshot) ovRows {
 	// card the address, never cut, would leave the name a few letters.
 	// The address is the first of the card's own rows, so right under it.
 	rows[slotAddr] = func() {
-		kvWith(c, T.OvThisDevice, func() { middleText(c, st.Self.Name).Selectable() })
+		ovKV(c, T.OvThisDevice, func() { middleText(c, st.Self.Name).Selectable() })
 	}
 	own := 0
 	if ip := st.Self.IPv4(); ip.IsValid() {
 		rows[slotOwn(own)] = func() {
-			kvWith(c, T.PeerIP, func() {
+			ovKV(c, T.PeerIP, func() {
 				monoText(c, ip.String()).SingleLine().Shrink(0).Selectable().Tooltip(peerIPs(st.Self))
 			})
 		}
@@ -559,7 +719,7 @@ func (a *app) tsCardRows(c *ui.Context, s status.Snapshot) ovRows {
 	}
 	if st.Tailnet != "" {
 		rows[slotOwn(own)] = func() {
-			kvWith(c, T.OvTailnet, func() { monoText(c, st.Tailnet).SingleLine().Shrink(1).Selectable() })
+			ovKV(c, T.OvTailnet, func() { monoText(c, st.Tailnet).SingleLine().Shrink(1).Selectable() })
 		}
 		own++
 	}
@@ -577,7 +737,7 @@ func (a *app) tsCardRows(c *ui.Context, s status.Snapshot) ovRows {
 		own++
 	}
 	rows[slotOwn(own)] = func() {
-		kvWith(c, T.Install, func() { // wraps: long in some languages, and the card is half wide
+		ovKV(c, T.Install, func() { // wraps: long in some languages, and the card is half wide
 			ui.Text(c, T.InstallKind(string(ts.Install.Kind))+sourceSuffix(ts.Install.Source)).Grow(1).Wrap().LineHeight(lineText).Selectable()
 		})
 	}
@@ -686,7 +846,7 @@ func (a *app) twinnelSummary(c *ui.Context, s status.Snapshot) {
 				a.openPage(pageTakeover)
 			}
 		})
-		kvWith(c, T.LastApply, func() {
+		ovKV(c, T.LastApply, func() {
 			la := h.Status.LastApply
 			if la == nil {
 				ui.Text(c, T.OvNeverApplied).TextColor(t.TextMuted).SingleLine()
@@ -798,7 +958,13 @@ func (a *app) recentEvents(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	rows := recentRows(a.events.evs, a.eventName, ovRecentN)
 	if len(rows) == 0 {
-		ui.Text(c, T.EventsEmpty).TextColor(t.TextMuted).SingleLine().MinHeight(plat.rowMinHeight)
+		// Empty (kubai 022, 4.4): a muted icon and one line, centered in
+		// the card, which is as tall as Twinnel's beside it.
+		ui.Column(c.Key("events-empty")).Grow(1).Justify(ui.Center).AlignItems(ui.Center).Gap(8).PaddingY(12).
+			Role(ui.RoleStatus).Children(func() {
+			ui.Icon(c, iconHistory).FontSize(iconLarge).TextColor(t.TextMuted).AccessHidden(true)
+			ui.Text(c, T.EventsEmpty).TextColor(t.TextMuted).SingleLine()
+		})
 		return
 	}
 	for i, it := range rows {

@@ -175,6 +175,7 @@ type Engine struct {
 	pendingAuto *rpc.ApplyParams
 	resumed     sync.WaitGroup // a held-back auto-apply running
 	started     time.Time
+	dnsMode     dnsModeCache // the config file's DNS mode, for status.get
 	health      healthState
 	dnsWatch    dnsWatchState
 	gen         stateGenState // stategen.go
@@ -434,6 +435,7 @@ func (e *Engine) Status(ctx context.Context) (rpc.Status, error) {
 	}
 	out.Mihomo.ConfigPath = st.Mihomo.ConfigFile
 	out.Mihomo.Controller = st.Mihomo.Controller
+	out.Mihomo.DNSMode = e.dnsMode.of(st.Mihomo.ConfigFile)
 	if bin, err := e.mihomoBinary(st); err == nil {
 		out.Mihomo.Binary = bin
 	}

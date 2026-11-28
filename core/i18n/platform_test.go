@@ -56,3 +56,21 @@ func TestWindowsChineseHasNoEnglish(t *testing.T) {
 		}
 	})
 }
+
+// 6.4: a service's rows use the system's own words: launchd's label and
+// definition (plist) on macOS, a service name and its registry key on
+// Windows, a systemd unit and unit file on Linux.
+func TestServiceRowsWorded(t *testing.T) {
+	want := map[string][2]string{
+		Darwin + "/zh-Hans": {"标签", "定义文件"}, Darwin + "/en": {"Label", "Definition"},
+		Windows + "/zh-Hans": {"服务名", "注册表项"}, Windows + "/en": {"Service name", "Registry key"},
+		Linux + "/zh-Hans": {"单元", "单元文件"}, Linux + "/en": {"Unit", "Unit file"},
+	}
+	for k, w := range want {
+		goos, tag, _ := strings.Cut(k, "/")
+		s := WordedFor(tag, goos)
+		if s.ServiceLabel != w[0] || s.ServiceDefinition != w[1] {
+			t.Errorf("%s: %q / %q, want %q / %q", k, s.ServiceLabel, s.ServiceDefinition, w[0], w[1])
+		}
+	}
+}

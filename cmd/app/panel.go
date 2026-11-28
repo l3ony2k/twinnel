@@ -1,9 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math"
-	"runtime"
+	"slices"
 	"sort"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/i18n"
+	"github.com/l3ony2k/twinnel/core/mihomo"
 	"github.com/l3ony2k/twinnel/core/rpc"
 	"github.com/l3ony2k/twinnel/core/status"
 )
@@ -29,6 +31,7 @@ import (
 // the edge, outside a module too (rowInset+moduleInset there).
 func (a *app) panelView(c *ui.Context) {
 	a.applyTheme(c)
+	probeFlags(c) // flags.go
 	// Text one step under the main window's on Windows and Linux (13 for
 	// 14), as on macOS: the size of Control Center's and the Wi-Fi menu's.
 	th := *c.Theme()
@@ -46,7 +49,7 @@ func (a *app) panelView(c *ui.Context) {
 	box := ui.Column(c).FillWidth().Shrink(0)
 	switch {
 	case c.Vibrancy(): // over the popover's material on macOS
-	case runtime.GOOS == "windows":
+	case plat.fluent: // Windows 10 (no Acrylic): Windows rounds and outlines the flyout itself
 		box.Background(t.Background)
 	default:
 		box.Background(t.Background).Radius(plat.groupRadius+2).Border(1, pal(t).groupLine)
@@ -60,6 +63,10 @@ func (a *app) panelView(c *ui.Context) {
 			ui.Column(c).PaddingX(rowInset + moduleInset).Children(func() { errorNote(c, a.actionErr) })
 		}
 		a.fitShotPanel(box)
+		if plat.fluent {
+			a.panelFootFluent(c, s)
+			return
+		}
 		// The foot as a menu bar extra ends: a hairline, then menu rows.
 		ui.Column(c).Children(func() {
 			ui.Box(c).Height(1).Background(pal(t).separator).MarginX(rowInset + moduleInset).MarginY(2)
@@ -169,7 +176,10 @@ func (a *app) panelHeader(c *ui.Context, s status.Snapshot) {
 		})
 		if live {
 			m := s.Mihomo.Traffic
-			num(small(c, "↓ "+status.Rate(m.Down)+"  ↑ "+status.Rate(m.Up))).NoWrap()
+			ui.Row(c).Gap(8).Shrink(0).Children(func() {
+				steadyRate(c, "↓ ", m.Down)
+				steadyRate(c, "↑ ", m.Up)
+			})
 		}
 	})
 }
@@ -212,7 +222,7 @@ func (a *app) panelAttention(c *ui.Context, s status.Snapshot) {
 			// text stays in the text color.
 			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).PaddingY(5).MinHeight(panelRowH).Children(func() {
 				leading(c, levelIcon(r.Level), levelColor(t, r.Level))
-				ui.Text(c, r.Text).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
+				ui.Text(c, nodeText(r.Text)).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
 			})
 		}
 		if health {
@@ -254,7 +264,7 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 		ui.Text(c, text).Grow(1).Shrink(1).SingleLine()
 		switch age := healthAge(s); {
 		case s.Health.Running:
-			ui.Spinner(c).Size(12, 12) // the number is being updated
+			spinner(c).FontSize(12).Size(12, 12) // the number is being updated
 		case age != "":
 			num(small(c, age)).SingleLine()
 		}
@@ -372,11 +382,19 @@ func (a *app) panelMihomo(c *ui.Context, s status.Snapshot) {
 		return
 	}
 	moduleHeader(c, markOK, t.Success, T.Mihomo, T.Running+versionSuffix(m.Version), "", nil)
-	ui.Column(c).PaddingX(rowInset).PaddingY(4).Children(func() {
-		a.modeControl(c, s).FillEqually().Height(24).Label(T.Mode)
-	})
+	if plat.fluent {
+		a.modeSelectorBar(c, s)
+	} else {
+		ui.Column(c).PaddingX(rowInset).PaddingY(4).Children(func() {
+			a.modeControl(c, s).FillEqually().Height(24).Label(T.Mode)
+		})
+	}
 	a.controlError(c, pendMode)
-	a.tunRow(c, s)
+	if plat.fluent {
+		a.tunRowFluent(c, s)
+	} else {
+		a.tunRow(c, s)
+	}
 	a.controlError(c, pendTun)
 	a.keepExitFresh(s)
 	if p := m.Primary; p != nil {
@@ -454,7 +472,7 @@ func (a *app) nodeRow(c *ui.Context, s status.Snapshot, p *status.Group) {
 	}
 	row := panelMenuRow(c.Key("node"), T.Node, !can, func(m *ui.Menu) {
 		for _, mem := range p.Members {
-			if m.Item(mem.Name).Checked(mem.Name == sel).Trailing(mem.DelayText()).Chosen() && mem.Name != sel {
+			if m.Item(nodeText(mem.Name)).Checked(mem.Name == sel).Trailing(mem.DelayText()).Chosen() && mem.Name != sel {
 				a.selectNode(p.Name, mem.Name)
 			}
 		}
@@ -463,21 +481,21 @@ func (a *app) nodeRow(c *ui.Context, s status.Snapshot, p *status.Group) {
 		leading(c, iconGlobe, t.TextMuted)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).PaddingY(4).Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, p.Name).SingleLine().Shrink(0)
-				middleText(c, sel).TextColor(t.TextMuted).Grow(1).TextAlign(ui.End)
+				ui.Text(c, nodeText(p.Name)).SingleLine().Shrink(0)
+				middleText(c, nodeText(sel)).TextColor(t.TextMuted).Grow(1).TextAlign(ui.End)
 				if !via {
 					delay()
 				}
 			})
 			if via {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					small(c, p.Node).Grow(1).Shrink(1).MinWidth(0).TextAlign(ui.End).SingleLine().TruncateMiddle().Tooltip(p.Node)
+					small(c, nodeText(p.Node)).Grow(1).Shrink(1).MinWidth(0).TextAlign(ui.End).SingleLine().TruncateMiddle().Tooltip(routeText(p))
 					delay()
 				})
 			}
 		})
 		if can {
-			ui.Icon(c, iconUpDown).FontSize(iconSmall).TextColor(t.TextMuted)
+			popUpChevron(c)
 		}
 	})
 }
@@ -505,7 +523,10 @@ func (a *app) panelTailscale(c *ui.Context, s status.Snapshot) {
 	moduleHeader(c, tsMark(s), tsColor(t, s), T.Tailscale, summary, detail, func() {
 		// Every other state has its action in the panel below.
 		if ph := tsPhaseOf(s); ph == tsRunning || ph == tsStarting {
-			a.tsPowerSwitch(c, s).Size(32, 18).Radius(9)
+			sw := a.tsPowerSwitch(c, s)
+			if !plat.fluent { // Windows: the ToggleSwitch's own size, as TUN's beside it
+				sw.Size(32, 18).Radius(9)
+			}
 		}
 	})
 	a.controlError(c, pendTS)
@@ -562,7 +583,7 @@ func (a *app) exitNodeRow(c *ui.Context, s status.Snapshot) {
 		infoTip(c, "", T.InfoExitNode, nil)
 		ui.Text(c, sel).TextColor(t.TextMuted).Grow(1).Shrink(1).TextAlign(ui.End).SingleLine()
 		if can {
-			ui.Icon(c, iconUpDown).FontSize(iconSmall).TextColor(t.TextMuted)
+			popUpChevron(c)
 		}
 	})
 }
@@ -594,4 +615,216 @@ func (a *app) fitShotPanel(box ui.Element) {
 		_, ch := p.ContentSize()
 		p.SetSize(panelWidth, h+max(0, wh-ch))
 	})
+}
+
+// The flyout on Windows 11 (plat.fluent) follows Fluent rather than the
+// menu bar extra: a SelectorBar for the mode, a ToggleSwitch for TUN as
+// for Tailscale, a ComboBox's single chevron on the pop-up rows, and a
+// foot of icon buttons as Quick Settings' (退出 is in the tray icon's
+// right-click menu there).
+
+var iconChevronDown = svgIcon("chevron-down") // a ComboBox's chevron (Windows)
+
+// popUpChevron is the trailing mark of a row that opens a menu of
+// choices: ⌃⌄ as NSPopUpButton's on macOS (and Linux), a ComboBox's ⌄ on
+// Windows.
+func popUpChevron(c *ui.Context) {
+	icon := iconUpDown
+	if plat.fluent {
+		icon = iconChevronDown
+	}
+	ui.Icon(c, icon).FontSize(iconSmall).TextColor(c.Theme().TextMuted)
+}
+
+// steadyRate is one transfer rate of the flyout's header in a slot as wide
+// as the widest rate (tabular digits, "1023.9 KB/s"), right-aligned in it,
+// so neither rate moves as the figures and units change every tick.
+func steadyRate(c *ui.Context, arrow string, bps int64) {
+	ui.Row(c).Shrink(0).Children(func() {
+		num(small(c, arrow+rateSlot)).TextColor(ui.Transparent).NoWrap().AccessHidden(true)
+		num(small(c, arrow+status.Rate(bps))).NoWrap().Absolute().Top(0).Right(0)
+	})
+}
+
+// rateSlot is the widest text status.Rate gives (it switches units at 1024).
+const rateSlot = "0000.0 KB/s"
+
+// modeSelectorBar is mihomo's mode as WinUI's SelectorBar: the choices as
+// text, the chosen one in the text color over a short accent pill, the
+// others in the secondary color with a subtle fill on hover. It keeps the
+// segmented control's keyboard and roles (ui.SegmentedBase).
+func (a *app) modeSelectorBar(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	T := i18n.T
+	cur := pendingValue(a, pendMode, s.Mihomo.Config.Mode)
+	labels := make([]string, len(mihomo.Modes))
+	for i, md := range mihomo.Modes {
+		labels[i] = T.ModeName(string(md))
+	}
+	idx := max(slices.Index(mihomo.Modes, cur), 0)
+	parts := ui.SegmentedBase(c.Key("mode"), &idx, len(labels))
+	bar := parts.Track.Label(T.Mode).Disabled(!s.Can().Mihomo).Gap(2).PaddingX(rowInset - selectorPadX).AlignItems(ui.Stretch)
+	bar.Children(func() {
+		for i, label := range labels {
+			seg := parts.Segment(i).Height(selectorH).Padding(0, selectorPadX).Radius(plat.controlRadius).
+				AlignItems(ui.Center).Justify(ui.Center).Transition(colorMotion)
+			chosen := i == idx
+			if !chosen && !seg.IsDisabled() && (seg.Hovered() || seg.Pressed()) {
+				seg.Background(t.Text.Alpha(0.06))
+			}
+			seg.Children(func() {
+				col := t.TextMuted
+				if chosen {
+					col = t.Text
+				}
+				ui.Text(c, label).TextColor(col).SingleLine()
+				if chosen {
+					ui.Box(c).Absolute().Bottom(0).Left(0).Right(0).Height(3).AccessHidden(true).Children(func() {
+						ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
+							ui.Box(c).Size(16, 3).Radius(1.5).Background(t.Accent)
+						})
+					})
+				}
+			})
+		}
+	})
+	if bar.Changed() {
+		md := mihomo.Modes[idx]
+		a.optimistic(pendMode, md, T.ModeFailed, func(ctx context.Context) error { return a.mh.SetMode(ctx, md) })
+	}
+}
+
+// The SelectorBar's items.
+const (
+	selectorH    = 32
+	selectorPadX = 8
+)
+
+// tunRowFluent is TUN as a Settings row on Windows: the icon, the name,
+// the device (or 关闭), and the ToggleSwitch the Tailscale module's header
+// has, as the one control (no nested button in the row).
+func (a *app) tunRowFluent(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	T := i18n.T
+	on := a.tunOn(s)
+	dev := T.TunOff
+	if on {
+		if dev = s.Mihomo.Config.Tun.Device; dev == "" {
+			dev = T.TunOn
+		}
+	}
+	ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).MinHeight(panelRowH + 4).Children(func() {
+		leading(c, iconTun, t.TextMuted)
+		ui.Row(c).Gap(4).AlignItems(ui.Center).Grow(1).Children(func() {
+			ui.Text(c, T.Tun).SingleLine()
+			infoTip(c, "", T.InfoTun, nil)
+		})
+		ui.Text(c, dev).TextColor(t.TextMuted).SingleLine().Shrink(1)
+		a.tunSwitch(c, s)
+	})
+}
+
+// panelFootFluent is the flyout's foot on Windows, as Quick Settings':
+// 应急恢复 as a drop-down button at the start (while the helper is
+// installed), icon buttons for the main window and 设置 at the end.
+func (a *app) panelFootFluent(c *ui.Context, s status.Snapshot) {
+	t := c.Theme()
+	T := i18n.T
+	ui.Column(c).Children(func() {
+		ui.Box(c).Height(1).Background(pal(t).separator).Margin(0, rowInset+moduleInset, 4, rowInset+moduleInset)
+		ui.Row(c).Gap(4).AlignItems(ui.Center).PaddingX(moduleInset).Children(func() {
+			if h := s.Helper.State; h != status.HelperNotInstalled && h != status.HelperUnknown {
+				r := panelMenuRow(c.Key("recovery"), T.Recovery, false, func(m *ui.Menu) { a.recoveryItems(m, s) })
+				r.Children(func() {
+					ui.Text(c, T.Recovery).SingleLine()
+					infoTip(c, "", T.InfoRecovery, nil)
+					ui.Icon(c, iconChevronDown).FontSize(iconSmall).TextColor(t.TextMuted)
+				})
+			}
+			ui.Box(c).Grow(1)
+			if footIcon(c.Key("open"), iconDashboard, T.OpenMainWindow).Clicked() {
+				a.openMain()
+			}
+			if footIcon(c.Key("settings"), iconSettings, T.PageSettings).Clicked() {
+				a.openPage(pageSettings)
+			}
+		})
+	})
+}
+
+// footIcon is an icon button of the flyout's foot (Windows): 32 × 32,
+// the icon in the text color, a subtle fill on hover and press, its name
+// as tooltip and for assistive technology.
+func footIcon(c *ui.Context, icon *ui.SVG, label string) ui.Element {
+	t := c.Theme()
+	b := ui.Button(c, "").Label(label).Tooltip(label).Size(footIconSize, footIconSize).Padding(0).
+		Background(ui.Transparent).BorderWidth(0).Radius(plat.controlRadius).Shrink(0).
+		AlignItems(ui.Center).Justify(ui.Center)
+	switch {
+	case b.Pressed():
+		b.Background(t.Text.Alpha(0.08))
+	case b.Hovered():
+		b.Background(t.Text.Alpha(0.06))
+	}
+	return b.Children(func() { ui.Icon(c, icon).FontSize(iconNav).TextColor(t.Text) })
+}
+
+const footIconSize = 32
+
+// Where the flyout stands (Windows 11: Quick Settings and the calendar
+// keep 12 DIP from the taskbar and from the screen's edges; the macOS
+// popover's own arrow and gap are AppKit's, Gap does not apply there).
+const flyoutEdge = 12
+
+// panelGap is the flyout's distance from the tray icon, in DIPs.
+func panelGap() int {
+	if plat.fluent {
+		return flyoutEdge
+	}
+	return 4
+}
+
+// keepFlyoutInset keeps a tray flyout flyoutEdge DIP inside the work area
+// of its display, as Windows 11's own flyouts stand. MyGo places a flyout
+// against the work area's very edge (it slides it in, with no margin), and
+// places it again on every resize (FitContent): each time it moves, it is
+// nudged back in. Main thread.
+func keepFlyoutInset(w *mygo.Window) {
+	nudge := func() {
+		b := w.Bounds()
+		if r, ok := flyoutInset(b, mygo.Screen.Displays(), flyoutEdge); ok && r != b {
+			w.SetPosition(r.X, r.Y) // moves again, inside: no further nudge
+		}
+	}
+	w.OnMove(nudge)
+	w.OnResize(nudge)
+	nudge()
+}
+
+// flyoutInset returns b moved at least m inside the work area of the
+// display it is the most on; false when it is on none. A side with no room
+// for the margin keeps the edge (b as wide as the work area stays in it).
+func flyoutInset(b mygo.Rectangle, displays []mygo.Display, m int) (mygo.Rectangle, bool) {
+	best, area := -1, 0
+	for i, d := range displays {
+		w := d.WorkArea
+		ox := min(b.X+b.Width, w.X+w.Width) - max(b.X, w.X)
+		oy := min(b.Y+b.Height, w.Y+w.Height) - max(b.Y, w.Y)
+		if ox > 0 && oy > 0 && ox*oy > area {
+			best, area = i, ox*oy
+		}
+	}
+	if best < 0 {
+		return b, false
+	}
+	w := displays[best].WorkArea
+	inset := func(pos, size, start, span int) int {
+		if size+2*m > span {
+			return min(max(pos, start), start+span-size) // no room for the margin
+		}
+		return min(max(pos, start+m), start+span-m-size)
+	}
+	b.X = inset(b.X, b.Width, w.X, w.Width)
+	b.Y = inset(b.Y, b.Height, w.Y, w.Height)
+	return b, true
 }

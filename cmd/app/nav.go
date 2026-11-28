@@ -20,15 +20,20 @@ import (
 //     with the accent, icon and label in AccentText; in a window that is
 //     not key it is gray; hover is a faint fill.
 //   - Windows 11 (NavigationView): the neutral fill, a short accent pill at
-//     the row's leading edge, a hover fill. GNOME: the neutral fill.
+//     the row's leading edge, a hover fill; icons in the text color (only
+//     the pill is the accent: accent icons read as a column of links).
+//     GNOME: the neutral fill.
 //   - Every count is one component (countBadge) at the row's right edge,
 //     tabular figures, centered on the row. A neutral count (devices
 //     online) is the plain number in the secondary color, as Finder's and
 //     Mail's on macOS 26; one that calls for attention (health warnings,
 //     failures) is a tinted pill. On the rail only those show (railMark).
 //
-// Up and Down move the selection while the list has the focus; each row is
-// a tree item that reports itself selected to assistive technology.
+// Up and Down move the selection while the list has the focus; each row
+// reports itself selected to assistive technology: a tree item of an
+// outline on macOS (Finder's sidebar), a list item of a list elsewhere
+// (NavigationView's ListView on Windows), read as "selected", not as a
+// checked box (navRoles).
 // See scratch/sidebar/spec.md for the measurements and sources.
 
 // navTone is a count badge's tone.
@@ -83,7 +88,13 @@ func navList(c *ui.Context, selected *string, sections []navSection, active bool
 	}
 	changed := false
 	_, gap, _ := navMetrics()
-	list := ui.Column(c.Key("nav")).Gap(gap).Focusable().Role(ui.RoleTree).Label("Twinnel")
+	listRole, _ := navRoles()
+	list := ui.Column(c.Key("nav")).Gap(gap).Focusable().Role(listRole).Label("Twinnel")
+	if navFocus { // F6 moved here (window.go)
+		list.Focus()
+		navFocus = false
+	}
+	navFocused = list.FocusWithin()
 	list.Children(func() {
 		for si, s := range sections {
 			if s.title != "" {
@@ -161,9 +172,10 @@ func navRowPadX() float32 {
 func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 	t := c.Theme()
 	rowH, _, iconSize := navMetrics()
-	iconCol, textCol := t.Accent, t.Text
+	iconCol, textCol := navIconColor(t), t.Text
+	_, itemRole := navRoles()
 	row := ui.Row(c.Key("nav:" + it.id)).Height(rowH).Gap(navGap).AlignItems(ui.Center).
-		Role(ui.RoleTreeItem).Label(it.label).AccessSelected(chosen)
+		Role(itemRole).Label(it.label).AccessSelected(chosen)
 	if it.digit > 0 { // VoiceOver reads the row's ⌘ digit
 		row.KeyShortcuts(ui.Cmd, it.key)
 	}
@@ -201,8 +213,8 @@ func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 		}
 	}
 	row.Children(func() {
-		if pill { // Windows 11: 3 × 16, at the row's leading edge
-			ui.Box(c).Absolute().Left(0).Top((rowH-16)/2).Size(3, 16).Radius(1.5).Background(t.Accent).AccessHidden(true)
+		if pill {
+			navPill(c, rowH)
 		}
 		ui.Icon(c, it.icon).FontSize(iconSize).TextColor(iconCol).Width(iconSize + 2).Shrink(0)
 		ui.Text(c, it.label).TextColor(textCol).Grow(1).Shrink(1).SingleLine()
@@ -212,6 +224,38 @@ func navRow(c *ui.Context, it navItem, chosen, active, forceHover bool) bool {
 	})
 	return row.Clicked()
 }
+
+// navPill is Windows 11's selection mark: 3 × 16 in the accent, at the
+// row's leading edge, centered on a row rowH high.
+func navPill(c *ui.Context, rowH float32) {
+	ui.Box(c).Absolute().Left(0).Top((rowH-16)/2).Size(3, 16).Radius(1.5).Background(c.Theme().Accent).AccessHidden(true)
+}
+
+// navIconColor is a row's icon color at rest: the text color on Windows
+// 11, where only the selection pill carries the accent; the accent
+// elsewhere (every row's, as Finder's sidebar on macOS 26).
+func navIconColor(t *ui.Theme) ui.Color {
+	if plat.navSel == navNeutralPill {
+		return t.Text
+	}
+	return t.Accent
+}
+
+// navRoles are the list's and its rows' roles for assistive technology:
+// an outline of tree items on macOS, as Finder's sidebar; on Windows a
+// list box of options, as NavigationView's list of items, which UI
+// Automation gives as a List of ListItems with SelectionItem.IsSelected
+// (a tree item read "checked" there). Linux keeps the tree.
+func navRoles() (list, item ui.Role) {
+	if plat.fluent {
+		return ui.RoleListBox, ui.RoleOption
+	}
+	return ui.RoleTree, ui.RoleTreeItem
+}
+
+// navFocus asks navList to take the keyboard focus (F6 into the sidebar);
+// navFocused is whether it had it in the last frame. Main thread only.
+var navFocus, navFocused bool
 
 // navSelRadius is the neutral selection's corner radius (Finder, macOS
 // 26+: about 8 pt on a 32 pt row).

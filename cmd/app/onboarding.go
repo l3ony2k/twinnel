@@ -167,11 +167,17 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 			if v.running {
 				label = T.OnboardInstalling
 			}
-			if iconButton(c.Key("install"), iconOK, label, true).Disabled(!canInstall).Clicked() {
+			// Disabled while it is built, so the face shows it (disabledPrimaryFace).
+			b := ui.PrimaryButton(c.Key("install"), "").Label(label).Disabled(!canInstall)
+			disabledPrimaryFace(c, b).Children(func() {
+				ui.Icon(c, iconOK).FontSize(iconInline)
+				ui.Text(c, label).SingleLine()
+			})
+			if b.Clicked() {
 				a.installHelper()
 			}
 			if v.running {
-				ui.Spinner(c)
+				spinner(c)
 			}
 			if !s.WritesAllowed {
 				// A development run's read-only switch: a lock, its
@@ -223,7 +229,7 @@ func (a *app) installPlanList(c *ui.Context) {
 		case v.loading && v.plan == "":
 			listRow(c).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Spinner(c).Label(T.Loading) // the spinner says it (R-unslop-29)
+					spinner(c).Label(T.Loading) // the spinner says it (R-unslop-29)
 				})
 			})
 		case v.planErr != "" || v.timeout:
@@ -238,13 +244,24 @@ func (a *app) installPlanList(c *ui.Context) {
 			})
 		case !parsed && v.plan != "":
 			listRow(c).Children(func() { codeBlock(c, v.plan) })
+		case !parsed && !v.loaded:
+			// Asked for, not started yet (the caller loads it): the
+			// loading row, never an empty box.
+			listRow(c).Children(func() { spinner(c).Label(T.Loading) })
+		case !parsed:
+			listRow(c).Children(func() {
+				ui.Row(c).MinHeight(plat.rowMinHeight).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, T.WizPlanEmpty).TextColor(c.Theme().TextMuted)
+				})
+			})
 		case parsed:
 			head := ui.Row(c.Key("steps")).Gap(8).AlignItems(ui.Center).PaddingY(listRowPadY).
 				Transition(colorMotion).Focusable().Role(ui.RoleDisclosure).Expanded(v.stepsOpen).Label(i18n.F(T.OnboardSteps, len(steps)))
 			rowFill(c, rowBleed(head), false)
 			head.Children(func() {
-				disclosure(c, v.stepsOpen).Shrink(0)
-				ui.Text(c, i18n.F(T.OnboardSteps, len(steps))).FontWeight(500)
+				disclosureStart(c, v.stepsOpen)
+				ui.Text(c, i18n.F(T.OnboardSteps, len(steps))).FontWeight(500).Grow(1)
+				disclosureEnd(c, v.stepsOpen)
 			})
 			if head.Clicked() {
 				v.stepsOpen = !v.stepsOpen

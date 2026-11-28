@@ -238,33 +238,117 @@ func expandFor(open bool) ui.ElementTransition {
 	return expandClose
 }
 
-// disclosure draws the chevron of a row that opens in place: one
-// chevron-right turned 90° while open, as NSOutlineView's triangle.
-// linkDisclosure is a small accent link with a turning chevron that shows
-// or hides more text under it (a file's content, a full report). It is
-// focusable and spoken as a disclosure; the caller checks Clicked.
+// disclosure draws the chevron of a row that opens in place: on macOS
+// and Linux one chevron-right turned 90° while open, as NSOutlineView's
+// triangle; on Windows WinUI's Expander chevron, down while closed and up
+// while open. Where the chevron sits is the platform's too: a row builds
+// disclosureStart before its title and disclosureEnd after its trailing
+// controls, and only the platform's one draws (Windows: at the end).
+// disclosure itself draws on every platform, for a row that keeps it at
+// the end already.
+func disclosure(c *ui.Context, open bool) ui.Element {
+	e := ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(c.Theme().TextMuted).
+		Width(14).Rotate(chevronTurn(open)).Transition(turnMotion)
+	if plat.fluent {
+		e.Width(16).Shrink(0)
+	}
+	return e
+}
+
+// chevronTurn is how far the chevron-right glyph turns to show a
+// disclosure's state: right/down on macOS and Linux, down/up on Windows.
+func chevronTurn(open bool) float32 {
+	switch {
+	case plat.fluent && open:
+		return 270
+	case plat.fluent, open:
+		return 90
+	}
+	return 0
+}
+
+// disclosureStart is a row's leading disclosure chevron (macOS, Linux);
+// nothing on Windows, where disclosureEnd draws it.
+func disclosureStart(c *ui.Context, open bool) {
+	if !plat.fluent {
+		disclosure(c, open).Shrink(0)
+	}
+}
+
+// disclosureEnd is a row's trailing disclosure chevron, after its
+// controls (Windows' Expander); nothing elsewhere.
+func disclosureEnd(c *ui.Context, open bool) {
+	if plat.fluent {
+		disclosure(c, open).Shrink(0)
+	}
+}
+
+// disclosureHead makes head, a row that shows or hides what is under it
+// and holds other controls (a switch, ⓘ, a 测速 button), the disclosure:
+// focusable, spoken as one with its state, named label. On Windows the
+// row is WinUI's SettingsExpander header instead: not one control, as a
+// disclosure exposes no children to UI Automation and the controls in it
+// vanished from Narrator (Windows QA round 5 N6); its trailing chevron is
+// the expander's button (disclosureToggle). A click anywhere on the row
+// still opens and closes it.
+func disclosureHead(head ui.Element, open bool, label string) ui.Element {
+	if plat.fluent {
+		return head
+	}
+	return head.Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(label)
+}
+
+// disclosureToggle is the trailing chevron of a disclosureHead row on
+// Windows: a subtle button that the keyboard reaches, spoken as a
+// disclosure named label, expanded or collapsed (UIA's ExpandCollapse).
+// It reports a click. Nothing elsewhere, where the row is the control.
+func disclosureToggle(c *ui.Context, open bool, label string) bool {
+	if !plat.fluent {
+		return false
+	}
+	k := fluentTok(c.Theme())
+	b := ui.Row(c).AlignItems(ui.Center).Justify(ui.Center).Size(28, 28).Shrink(0).Radius(plat.controlRadius).
+		Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(label).Transition(colorMotion)
+	switch {
+	case b.Pressed():
+		b.Background(k.subtlePressed)
+	case b.Hovered():
+		b.Background(k.subtleHover)
+	}
+	b.Children(func() { disclosure(c, open) })
+	return b.Clicked()
+}
+
+// linkDisclosure shows or hides more text under it (a file's content, a
+// full report). On macOS and Linux it is a small accent link with a
+// turning chevron before it; on Windows a quiet Expander header: the label
+// in the text color, the chevron after it, down/up, and a subtle fill on
+// hover (an accent link there reads as navigation). It is focusable and
+// spoken as a disclosure; the caller checks Clicked.
 func linkDisclosure(c *ui.Context, open bool, label string) ui.Element {
 	t := c.Theme()
-	var turn float32
-	if open {
-		turn = 90
-	}
 	d := ui.Row(c).Gap(4).AlignItems(ui.Center).
 		Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(label)
+	if plat.fluent {
+		k := fluentTok(t)
+		d.Gap(8).Padding(4, 8).MarginX(-8).Radius(plat.controlRadius).Transition(colorMotion)
+		switch {
+		case d.Pressed():
+			d.Background(k.subtlePressed)
+		case d.Hovered():
+			d.Background(k.subtleHover)
+		}
+		d.Children(func() {
+			ui.Text(c, label).FontSize(plat.calloutSize).TextColor(t.Text)
+			ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.TextMuted).Rotate(chevronTurn(open)).Transition(turnMotion)
+		})
+		return d
+	}
 	d.Children(func() {
-		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.Accent).Rotate(turn).Transition(turnMotion)
+		ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(t.Accent).Rotate(chevronTurn(open)).Transition(turnMotion)
 		ui.Text(c, label).FontSize(plat.smallSize).TextColor(t.Accent)
 	})
 	return d
-}
-
-func disclosure(c *ui.Context, open bool) ui.Element {
-	var turn float32
-	if open {
-		turn = 90
-	}
-	return ui.Icon(c, iconCollapsed).FontSize(iconSmall).TextColor(c.Theme().TextMuted).
-		Width(14).Rotate(turn).Transition(turnMotion)
 }
 
 // levelColor is the dot color of a status level.
@@ -715,8 +799,16 @@ func toolbarFaceOf(c *ui.Context, b, st ui.Element) ui.Element {
 // capsule, the others a fainter pill on hover, as Finder's view switcher.
 // Elsewhere it is NSSegmentedControl's (pageSegmented). Use it for every
 // segmented control.
+//
+// On Windows a page's choice among two to four settings is WinUI's
+// RadioButtons laid out in a row (fluentRadios), not a segmented control,
+// which Windows does not have; tabs that switch what a card shows use
+// selectorBar.
 func segmented(c *ui.Context, selected *int, labels ...string) ui.Element {
 	if !inToolbar {
+		if plat.fluent {
+			return fluentRadios(c, selected, labels...)
+		}
 		return pageSegmented(c, selected, labels...)
 	}
 	t := c.Theme()
@@ -802,6 +894,12 @@ func disabledPrimaryFace(c *ui.Context, b ui.Element) ui.Element {
 		return b
 	}
 	t := c.Theme()
+	if plat.fluent {
+		// WinUI's disabled button: the faint control fill and stroke and
+		// the disabled text, quieter than an enabled 上一步 beside it.
+		k := fluentTok(t)
+		return b.Background(k.disabledFill).Border(1, k.disabledStroke).TextColor(k.disabledText).DimDisabled(false)
+	}
 	if t.Dark {
 		b.Background(ui.Hex("#4a4a4c").Alpha(0.5)).BorderWidth(0)
 	} else {
@@ -826,6 +924,36 @@ func disabledWhy(c *ui.Context, disabled bool, reason string, control func() ui.
 	}
 	w.Children(func() { e = control().Disabled(disabled) })
 	return e
+}
+
+// copyDetails is 复制详情, which copies a failure's raw text (tip, its
+// tooltip, when not empty). On Windows it is a text button (WinUI's
+// subtle button: no face at rest, the copy glyph and the label in the
+// text color, a faint fill on hover and press; ui-review 6.6, Windows QA
+// round 5 N5), not link text in the accent. Elsewhere it stays the
+// accent text of size, as macOS's inline actions.
+func copyDetails(c *ui.Context, size float32, tip string) ui.Element {
+	t := c.Theme()
+	label := i18n.T.TkCopyDetails
+	b := ui.Row(c).AlignItems(ui.Center).Focusable().Role(ui.RoleButton).Label(label).Shrink(0)
+	if tip != "" {
+		b.Tooltip(tip)
+	}
+	if !plat.fluent {
+		return b.Children(func() { ui.Text(c, label).FontSize(size).TextColor(t.Accent).SingleLine() })
+	}
+	k := fluentTok(t)
+	b.Gap(6).Padding(4, 8).Radius(plat.controlRadius).Transition(colorMotion)
+	switch {
+	case b.Pressed():
+		b.Background(k.subtlePressed)
+	case b.Hovered():
+		b.Background(k.subtleHover)
+	}
+	return b.Children(func() {
+		ui.Icon(c, iconCopy).FontSize(iconInline).TextColor(t.Text)
+		ui.Text(c, label).FontSize(plat.calloutSize).TextColor(t.Text).SingleLine()
+	})
 }
 
 // pushButton is a plain button with the native push-button face.
@@ -1014,5 +1142,210 @@ func diffBlock(c *ui.Context, lines []diffLine, counts bool) ui.Element {
 				})
 			}
 		})
+	})
+}
+
+// --- Windows 11 (Fluent) controls ---
+
+// fluentTokens are WinUI 3's control tokens for one appearance, which the
+// theme does not name.
+type fluentTokens struct {
+	strongStroke   ui.Color // ControlStrongStrokeColorDefault: rings and tracks of unchecked controls
+	altFill        ui.Color // ControlAltFillColorSecondary: their fill
+	altFillHover   ui.Color // ControlAltFillColorTertiary
+	textSecondary  ui.Color // TextFillColorSecondary: an unchecked switch's knob, unselected tabs
+	disabledFill   ui.Color // ControlFillColorDisabled
+	disabledStroke ui.Color // ControlStrokeColorDefault, kept while disabled
+	disabledText   ui.Color // TextFillColorDisabled
+	subtleHover    ui.Color // SubtleFillColorSecondary: faceless items on hover
+	subtlePressed  ui.Color // SubtleFillColorTertiary
+}
+
+func fluentTok(t *ui.Theme) fluentTokens {
+	if t.Dark {
+		return fluentTokens{
+			strongStroke: ui.RGBA(255, 255, 255, 0.6), altFill: ui.RGBA(0, 0, 0, 0.1), altFillHover: ui.RGBA(255, 255, 255, 0.042),
+			textSecondary: ui.RGBA(255, 255, 255, 0.786),
+			disabledFill:  ui.Hex("#2a2a2a"), // 0.042 white over the Mica base, opaque so a card does not add to it disabledStroke: ui.RGBA(255, 255, 255, 0.07),
+			disabledText:  ui.RGBA(255, 255, 255, 0.36),
+			subtleHover:   ui.RGBA(255, 255, 255, 0.061), subtlePressed: ui.RGBA(255, 255, 255, 0.042),
+		}
+	}
+	return fluentTokens{
+		strongStroke: ui.RGBA(0, 0, 0, 0.6), altFill: ui.RGBA(0, 0, 0, 0.024), altFillHover: ui.RGBA(0, 0, 0, 0.058),
+		textSecondary: ui.RGBA(0, 0, 0, 0.6),
+		disabledFill:  ui.RGBA(249, 249, 249, 0.3), disabledStroke: ui.RGBA(0, 0, 0, 0.058),
+		disabledText: ui.RGBA(0, 0, 0, 0.36),
+		subtleHover:  ui.RGBA(0, 0, 0, 0.037), subtlePressed: ui.RGBA(0, 0, 0, 0.024),
+	}
+}
+
+// fluentRadios is WinUI's RadioButtons in a row: a 20 DIP ring per
+// option, the chosen one filled with the accent around a dot in the text
+// on the accent, the label after it. It is SegmentedBase underneath: one
+// Tab stop, the arrows choose, a radio group for assistive technology,
+// and Changed on the returned element.
+func fluentRadios(c *ui.Context, selected *int, labels ...string) ui.Element {
+	t := c.Theme()
+	k := fluentTok(t)
+	parts := ui.SegmentedBase(c, selected, len(labels))
+	g := parts.Track.Row().Gap(20).AlignItems(ui.Center)
+	g.Children(func() {
+		for i, label := range labels {
+			s := parts.Segment(i).Row().Gap(8).AlignItems(ui.Center).Padding(4, 0).Radius(plat.controlRadius)
+			on := i == *selected
+			hover, pressed := !s.IsDisabled() && s.Hovered(), !s.IsDisabled() && s.Pressed()
+			s.Children(func() {
+				ring := ui.Box(c).Size(20, 20).Radius(10).Shrink(0)
+				if on {
+					ring.Background(t.Accent)
+					if hover {
+						ring.Background(t.AccentHover)
+					}
+				} else {
+					ring.Background(k.altFill).Border(1, k.strongStroke)
+					if hover || pressed {
+						ring.Background(k.altFillHover)
+					}
+				}
+				d := float32(0) // the dot: 12, 14 on hover, 10 pressed (WinUI)
+				switch {
+				case on && pressed:
+					d = 10
+				case on && hover:
+					d = 14
+				case on:
+					d = 12
+				case pressed:
+					d = 10 // an unchecked option pressed shows the dot to come
+				}
+				dot := t.AccentText
+				if !on {
+					dot = k.textSecondary
+				}
+				ring.Draw(func(p *ui.Painter, r ui.Rect) {
+					if d > 0 {
+						p.Fill(ui.Rect{X: r.X + (r.W-d)/2, Y: r.Y + (r.H-d)/2, W: d, H: d}, dot, d/2)
+					}
+				})
+				ui.Text(c, label).SingleLine()
+			})
+		}
+	})
+	return g
+}
+
+// selectorBar is a row of tabs that switch what a card shows (the log
+// source, the MCP client): WinUI's SelectorBar on Windows (text items,
+// the chosen one in the text color over a 3 × 16 accent pill, the others
+// in the secondary color, a subtle fill on hover), the platform's
+// segmented control elsewhere (segmented). Changed reports a new choice.
+func selectorBar(c *ui.Context, selected *int, labels ...string) ui.Element {
+	if !plat.fluent || inToolbar {
+		return segmented(c, selected, labels...)
+	}
+	t := c.Theme()
+	k := fluentTok(t)
+	tabs := ui.TabsBase(c, selected, len(labels))
+	tabs.List.Row().Gap(4).AlignItems(ui.Stretch)
+	tabs.List.Children(func() {
+		for i, label := range labels {
+			tab := tabs.Tab(i).Padding(6, 12, 9, 12).Radius(plat.controlRadius).AlignItems(ui.Center).Transition(colorMotion)
+			on := i == *selected
+			switch {
+			case tab.IsDisabled():
+			case tab.Pressed():
+				tab.Background(k.subtlePressed)
+			case tab.Hovered():
+				tab.Background(k.subtleHover)
+			}
+			col := k.textSecondary
+			if on {
+				col = t.Text
+				accent := t.Accent
+				tab.DrawOver(func(p *ui.Painter, r ui.Rect) {
+					p.Fill(ui.Rect{X: r.X + (r.W-16)/2, Y: r.Y + r.H - 3, W: 16, H: 3}, accent, 1.5)
+				})
+			}
+			tab.Children(func() { ui.Text(c, label).TextColor(col).SingleLine() })
+		}
+	})
+	return tabs.List
+}
+
+// toggleSwitch is the platform's switch toggling *on: ui.Switch on macOS
+// and Linux; on Windows WinUI's ToggleSwitch, 40 × 20: off, a clear track
+// with a 1 DIP strong stroke and a 12 DIP knob in the secondary text
+// color (MyGo's filled gray track nearly vanished on a light card); on,
+// the accent with the knob in the text on the accent (black in the dark).
+// The knob grows to 14 on hover. Label it; Changed reports a flip.
+func toggleSwitch(c *ui.Context, on *bool) ui.Element {
+	if !plat.fluent {
+		return ui.Switch(c, on)
+	}
+	t := c.Theme()
+	k := fluentTok(t)
+	sw := ui.SwitchBase(c, on).Size(40, 20).Radius(10).Shrink(0)
+	pos := sw.Animate("knob", b2f(*on), 140*time.Millisecond)
+	hover := !sw.IsDisabled() && (sw.Hovered() || sw.Pressed())
+	knob := k.textSecondary
+	if *on {
+		sw.Background(t.Accent).Border(1, t.Accent)
+		if hover {
+			sw.Background(t.AccentHover).Border(1, t.AccentHover)
+		}
+		knob = t.AccentText
+	} else {
+		sw.Background(k.altFill).Border(1, k.strongStroke)
+		if hover {
+			sw.Background(k.altFillHover)
+		}
+	}
+	d := float32(12)
+	if hover {
+		d = 14
+	}
+	sw.Draw(func(p *ui.Painter, r ui.Rect) {
+		in := (r.H - d) / 2
+		x := r.X + in + pos*(r.W-2*in-d)
+		p.Fill(ui.Rect{X: x, Y: r.Y + in, W: d, H: d}, knob, d/2)
+	})
+	return sw
+}
+
+func b2f(b bool) float32 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// listSelectionTheme is the theme a list or table that chooses a row is
+// built in (ui.Themed, with a transparent background): on Windows a
+// chosen row is WinUI ListView's, a subtle fill with the text in its
+// usual color (selectionPill marks it), not the solid accent bar MyGo
+// paints from Accent and AccentText; nil elsewhere, where the theme's
+// selection is the platform's.
+func listSelectionTheme(t *ui.Theme) *ui.Theme {
+	if !plat.fluent {
+		return nil
+	}
+	u := *t
+	fill := t.Text.Alpha(0.06).Over(t.Background)
+	u.Accent, u.AccentHover, u.AccentPressed, u.InactiveAccent = fill, fill, fill, fill
+	u.AccentText = t.Text
+	return &u
+}
+
+// selectionPill marks e, the first cell of a chosen row in a list built
+// in listSelectionTheme, with WinUI's 3 × 16 accent pill at the row's
+// leading edge, inset from e's box by inset (the cell's padding). Nothing
+// off Windows or when the row is not chosen.
+func selectionPill(e ui.Element, on bool, accent ui.Color, inset float32) ui.Element {
+	if !plat.fluent || !on {
+		return e
+	}
+	return e.DrawOver(func(p *ui.Painter, r ui.Rect) {
+		p.Fill(ui.Rect{X: r.X - inset + 4, Y: r.Y + (r.H-16)/2, W: 3, H: 16}, accent, 1.5)
 	})
 }

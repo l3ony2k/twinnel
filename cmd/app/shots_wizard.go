@@ -52,7 +52,10 @@ type wizShot struct {
 	setup func(a *app) // anything else (a URL typed, a file picked, …)
 }
 
-func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
+// wizShotList is every wizard state worth a picture, in goos's words
+// (shared by the shot flow and the hermetic Windows renders,
+// winshots_wizard_test.go).
+func wizShotList(goos string) []wizShot {
 	st := func(states map[setup.Step]setup.State) []setup.StepState {
 		out := make([]setup.StepState, len(setup.Order))
 		for i, id := range setup.Order {
@@ -162,43 +165,14 @@ func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 		{name: "overview-resume", page: pageOverview, step: wizSub, helper: true, steps: ver(st(mihomoOK))},
 		{name: "config-gate", page: pageConfig, step: wizHelper, steps: st(nil)},
 	}
+	return shots
+}
+
+func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 	mygo.RunOnMain(func() { a.win.SetSize(a.winWidth(), 760) })
-	for _, sh := range shots {
+	for _, sh := range wizShotList(goos) {
 		apply := func() {
-			a.wiz.goos = goos
-			a.wiz.state = wizardState{Step: sh.step}
-			facts := sh.facts
-			a.wiz.shot = &facts
-			a.wiz.planOpen, a.wiz.ownMih, a.wiz.viaSub = false, false, false
-			a.wiz.counted, a.wiz.counting, a.wiz.nodes, a.wiz.rules = false, false, 0, 0
-			a.wiz.importName, a.wiz.importData, a.wiz.subKernel = "", nil, false
-			a.live = liveSetup{loaded: true} // nothing to take over
-			a.setupV.shotSteps, a.setupV.url, a.setupV.running = sh.steps, "", false
-			a.setupV.proxyOpen, a.setupV.proxyAddr = false, ""
-			if sh.setup != nil {
-				sh.setup(a)
-			}
-			connected, rep, tsState := sh.helper, sh.health, sh.ts
-			a.shotSnap = func(s *status.Snapshot) {
-				if connected {
-					s.Helper = status.Helper{State: status.HelperConnected, Status: &rpc.Status{}}
-				} else {
-					s.Helper = status.Helper{State: status.HelperNotInstalled}
-				}
-				s.WritesAllowed = true
-				s.Health = status.Health{Report: rep}
-				switch tsState {
-				case "none":
-					s.Tailscale = status.Tailscale{Err: "tailscaled is not installed", Install: tailscale.Install{Kind: tailscale.InstallUnknown}}
-				case "login":
-					s.Tailscale.Reachable = true
-					s.Tailscale.State.BackendState = "NeedsLogin"
-					s.Tailscale.State.Version = "1.90.6"
-				case "running":
-					s.Tailscale.Reachable = true
-					s.Tailscale.State.BackendState = "Running"
-				}
-			}
+			a.applyWizShot(sh, goos)
 			a.win.Invalidate()
 		}
 		mygo.RunOnMain(func() {
@@ -214,5 +188,43 @@ func (a *app) wizardShotsFor(save func(*mygo.Window, string), goos string) {
 		mygo.RunOnMain(apply)
 		time.Sleep(300 * time.Millisecond)
 		save(a.win, "wiz-"+goos+"-"+sh.name)
+	}
+}
+
+// applyWizShot sets the app to sh's state. Main thread.
+func (a *app) applyWizShot(sh wizShot, goos string) {
+	a.wiz.goos = goos
+	a.wiz.state = wizardState{Step: sh.step}
+	facts := sh.facts
+	a.wiz.shot = &facts
+	a.wiz.planOpen, a.wiz.ownMih, a.wiz.viaSub = false, false, false
+	a.wiz.counted, a.wiz.counting, a.wiz.nodes, a.wiz.rules = false, false, 0, 0
+	a.wiz.importName, a.wiz.importData, a.wiz.subKernel = "", nil, false
+	a.live = liveSetup{loaded: true} // nothing to take over
+	a.setupV.shotSteps, a.setupV.url, a.setupV.running = sh.steps, "", false
+	a.setupV.proxyOpen, a.setupV.proxyAddr = false, ""
+	if sh.setup != nil {
+		sh.setup(a)
+	}
+	connected, rep, tsState := sh.helper, sh.health, sh.ts
+	a.shotSnap = func(s *status.Snapshot) {
+		if connected {
+			s.Helper = status.Helper{State: status.HelperConnected, Status: &rpc.Status{}}
+		} else {
+			s.Helper = status.Helper{State: status.HelperNotInstalled}
+		}
+		s.WritesAllowed = true
+		s.Health = status.Health{Report: rep}
+		switch tsState {
+		case "none":
+			s.Tailscale = status.Tailscale{Err: "tailscaled is not installed", Install: tailscale.Install{Kind: tailscale.InstallUnknown}}
+		case "login":
+			s.Tailscale.Reachable = true
+			s.Tailscale.State.BackendState = "NeedsLogin"
+			s.Tailscale.State.Version = "1.90.6"
+		case "running":
+			s.Tailscale.Reachable = true
+			s.Tailscale.State.BackendState = "Running"
+		}
 	}
 }

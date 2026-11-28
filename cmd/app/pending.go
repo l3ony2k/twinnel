@@ -144,7 +144,18 @@ func (a *app) opSpinning(op string) bool {
 // runs (after busyDelay, for at least busyMin) the refresh icon turns and
 // any other becomes a spinner (busyIcon); the label and width stay. Drawing it also tells opNotes not
 // to repeat the running operation at the top of the page.
+//
+// A primary opButton that can be disabled is built with opAction, which
+// knows it while building the face: a primary disabled after it was built
+// keeps a washed-out accent that reads as pressed
+// (TestDisabledPrimariesKnowIt).
 func (a *app) opButton(c *ui.Context, icon *ui.SVG, label string, primary bool, op string) ui.Element {
+	return a.opAction(c, icon, label, primary, false, op)
+}
+
+// opAction is opButton disabled while disabled is true, in the disabled
+// face of the platform (disabledPrimaryFace) when primary.
+func (a *app) opAction(c *ui.Context, icon *ui.SVG, label string, primary, disabled bool, op string) ui.Element {
 	if a.hd.busy == op {
 		a.hd.busyOnButton = true
 	}
@@ -155,11 +166,10 @@ func (a *app) opButton(c *ui.Context, icon *ui.SVG, label string, primary bool, 
 	} else {
 		b = pushFace(c, ui.Button(c, ""))
 	}
-	return b.Label(label).Busy(spin).Children(func() {
-		mark := busyIcon(c, icon, spin) // the refresh icon turns, others become a spinner
-		if spin && primary {            // on the accent, in the label's color
-			mark.TextColor(c.Theme().AccentText)
-		}
+	busyFace(c, b.Label(label).Busy(spin), primary, disabled, spin)
+	return b.Children(func() {
+		// the refresh icon turns, others become a spinner
+		onBusyFace(c, busyIcon(c, icon, spin), primary, spin)
 		ui.Text(c, label).SingleLine()
 	})
 }

@@ -254,6 +254,7 @@ type Strings struct {
 	TraySpeedOneLine, TraySpeedTwo     string
 	AboutApp                           string
 	HealthProblems, HealthPassed       string
+	HealthAll                          string // the passed checks' group when it is the only one
 
 	// Texts kept in their own files (one per area, so parallel work does
 	// not collide here). Fields are promoted: T.X reads them.
@@ -836,6 +837,7 @@ var zh = Strings{
 	AboutApp:            "关于 Twinnel",
 	HealthProblems:      "需要处理",
 	HealthPassed:        "其他检查",
+	HealthAll:           "全部检查",
 
 	ConfigStrings:          zhConfig,
 	WindowStrings:          zhWindow,

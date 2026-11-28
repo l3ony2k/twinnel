@@ -229,7 +229,7 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot, planErr string) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
 			ui.Spacer(c)
 			if v.loading {
-				ui.Spinner(c)
+				spinner(c)
 			}
 			if note := a.planNote(); note != "" {
 				small(c, note).SingleLine().Shrink(1) // what it is doing, while it runs
@@ -237,7 +237,7 @@ func (a *app) takeoverEmpty(c *ui.Context, s status.Snapshot, planErr string) {
 			// Planning is read-only for the system (the helper writes the
 			// plan into its own state dir), so it needs no write permission.
 			can := s.Helper.Connected() && d.busy == "" && !v.unsupported && !v.fixture
-			if a.opButton(c.Key("plan"), iconRefresh, T.TakeoverPlan, true, T.TakeoverPlan).Disabled(!can).Clicked() {
+			if a.opAction(c.Key("plan"), iconRefresh, T.TakeoverPlan, true, !can, T.TakeoverPlan).Clicked() {
 				a.takeoverMakePlan("")
 			}
 		})
@@ -275,7 +275,7 @@ func (a *app) takeoverPlanList(c *ui.Context, s status.Snapshot) {
 			return
 		}
 		can := s.Helper.Connected() && a.hd.busy == "" && !v.unsupported && !v.fixture
-		if a.opButton(c.Key("replan"), iconRefresh, T.TakeoverPlan, false, T.TakeoverPlan).Disabled(!can).Clicked() {
+		if a.opAction(c.Key("replan"), iconRefresh, T.TakeoverPlan, false, !can, T.TakeoverPlan).Clicked() {
 			a.takeoverMakePlan("")
 		}
 	}
@@ -798,7 +798,7 @@ func (a *app) takeoverImpactRow(c *ui.Context, im *rpc.ReloadImpact) {
 				ui.Text(c, text).Wrap().LineHeight(lineText).Shrink(1)
 				if len(im.Notes) > 0 {
 					ui.Spacer(c)
-					if actionLink(c.Key("impact-copy"), T.TkCopyDetails).Clicked() {
+					if copyDetails(c.Key("impact-copy"), plat.smallSize, "").Clicked() {
 						copyText(c, strings.Join(im.Notes, "\n"))
 					}
 				}
@@ -1003,7 +1003,7 @@ func (a *app) adoptCard(c *ui.Context, s status.Snapshot, p *rpc.TakeoverPlan) {
 					line.Tooltip(tip)
 				}
 			}
-			if a.opButton(c.Key("adopt"), iconTakeover, T.TakeoverAdopt, true, T.TakeoverAdopt).Disabled(!ok).Clicked() {
+			if a.opAction(c.Key("adopt"), iconTakeover, T.TakeoverAdopt, true, !ok, T.TakeoverAdopt).Clicked() {
 				plan := *p
 				a.confirm(T.TakeoverAdoptTitle, adoptConfirmBody(&plan), T.TakeoverAdopt, func() {
 					a.takeoverAdopt(plan)
@@ -1059,7 +1059,7 @@ func (a *app) adoptResultCard(c *ui.Context, s status.Snapshot, r *rpc.AdoptResu
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, icon).FontSize(iconInline + 2).TextColor(col)
 			ui.Text(c, head).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Grow(1).Wrap().LineHeight(lineText)
-			if actionLink(c.Key("copy-result"), T.TkCopyDetails).Clicked() {
+			if copyDetails(c.Key("copy-result"), plat.smallSize, "").Clicked() {
 				copyText(c, adoptResultText(r))
 			}
 		})
@@ -1412,7 +1412,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 			}
 			ui.Spacer(c)
 			can := a.helperWrites(s) && !v.unsupported && !v.fixture
-			if a.opButton(c.Key("secure"), iconSecure, T.SecureRun, !set, T.SecureRun).Disabled(!can).Clicked() {
+			if a.opAction(c.Key("secure"), iconSecure, T.SecureRun, !set, !can, T.SecureRun).Clicked() {
 				a.confirm(i18n.F(T.AskF, T.SecureTitle), T.SecureBody, T.SecureRun, a.controllerSecure)
 			}
 		})

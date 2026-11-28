@@ -55,8 +55,8 @@ func (realProbes) runCLI(ctx context.Context, args ...string) (string, error) {
 }
 func (realProbes) liveSetup() liveSetup { return probeLiveSetup() }
 func (realProbes) processes(ctx context.Context) ([]status.ProcessEntry, error) {
-	if runtime.GOOS == "windows" {
-		return nil, errors.New("no ps")
+	if list, ok, err := systemProcesses(ctx); ok { // Windows: no ps (procs_windows.go)
+		return list, err
 	}
 	out, err := exec.CommandContext(ctx, "ps", status.PSArgs...).Output()
 	if err != nil {
@@ -76,7 +76,12 @@ func (realProbes) tailscaleInstall() tailscale.Install {
 // (TWINNEL_HEALTH_FIXTURE, else fixture.Synthetic) whose tailnet is the
 // status file's, Tailscale is the status file (TWINNEL_TAILSCALE_STATUS_FILE),
 // and nothing is detected as a live setup (shot flows set a.live).
+//
+// Each platform gets its own fixture (goos): Windows paths, adapters and
+// install kinds on a Windows run, so a reviewer never sees brew or utun on
+// Windows.
 type shotProbes struct {
+	goos       string
 	machine    fixture.Machine
 	statusFile string
 }
@@ -84,7 +89,7 @@ type shotProbes struct {
 // newShotProbes builds the shot run's probes; shotGuard checked the
 // variables they need.
 func newShotProbes(getenv func(string) string) (*shotProbes, error) {
-	p := &shotProbes{machine: fixture.Synthetic(), statusFile: getenv(tailscale.StatusFileEnv)}
+	p := &shotProbes{goos: runtime.GOOS, machine: shotMachine(runtime.GOOS), statusFile: getenv(tailscale.StatusFileEnv)}
 	if f := getenv(envHealthFixture); f != "" {
 		m, err := fixture.Load(f)
 		if err != nil {
@@ -93,6 +98,60 @@ func newShotProbes(getenv func(string) string) (*shotProbes, error) {
 		p.machine = m
 	}
 	return p, nil
+}
+
+// shotMachine is fixture.Synthetic in goos's terms: on Windows the
+// adapters are named as Windows names them (Tailscale's wintun adapter
+// "Tailscale", mihomo's TUN "Meta", the uplink "Wi-Fi"), and this
+// computer runs Windows. Elsewhere it is fixture.Synthetic unchanged.
+func shotMachine(goos string) fixture.Machine {
+	m := fixture.Synthetic()
+	if goos != "windows" {
+		return m
+	}
+	names := map[string]string{"utun9": "Tailscale", "utun5": "Meta", "en0": "Wi-Fi"}
+	rename := func(s *string) {
+		if n, ok := names[*s]; ok {
+			*s = n
+		}
+	}
+	rename(&m.TailnetIface)
+	rename(&m.TunIface)
+	routes := make(map[string]health.RouteLookup, len(m.Routes))
+	for k, r := range m.Routes {
+		rename(&r.Interface)
+		routes[k] = r
+	}
+	m.Routes = routes
+	m.Table = slices.Clone(m.Table)
+	for i := range m.Table {
+		rename(&m.Table[i].Interface)
+	}
+	m.Interfaces = slices.Clone(m.Interfaces)
+	for i := range m.Interfaces {
+		rename(&m.Interfaces[i].Name)
+	}
+	m.Services = slices.Clone(m.Services)
+	for i := range m.Services {
+		rename(&m.Services[i].Device)
+	}
+	if m.Runtime != nil {
+		rt := *m.Runtime
+		rename(&rt.Configs.TUN.Device)
+		m.Runtime = &rt
+	}
+	if m.Config != nil {
+		c := *m.Config
+		rename(&c.TUN.Device)
+		c.Path = `C:\ProgramData\Twinnel\mihomo\config.yaml`
+		m.Config = &c
+	}
+	if m.Tailscale != nil {
+		ts := *m.Tailscale
+		ts.Self.OS = "windows"
+		m.Tailscale = &ts
+	}
+	return m
 }
 
 // envHealthFixture names a fixture.Machine JSON file for a shot run's
@@ -114,15 +173,49 @@ func (p *shotProbes) liveSetup() liveSetup { return liveSetup{} }
 
 // processes is a synthetic process list: mihomo and tailscaled with
 // plausible figures, nothing from this machine.
+// Commands are what each system's lister reports: a path from ps on
+// macOS and Linux, the image name on Windows (platform/windows/procs.go).
 func (p *shotProbes) processes(context.Context) ([]status.ProcessEntry, error) {
+	mihomo, tailscaled := "/usr/local/bin/mihomo", "/opt/homebrew/opt/tailscale/bin/tailscaled"
+	switch p.goos {
+	case "windows":
+		mihomo, tailscaled = "mihomo.exe", "tailscaled.exe"
+	case "linux":
+		mihomo, tailscaled = "/usr/local/bin/mihomo", "/usr/sbin/tailscaled"
+	}
 	return []status.ProcessEntry{
-		{PID: 812, RSS: 61 << 20, CPU: 1.8, Elapsed: 9*24*time.Hour + 20*time.Hour + 38*time.Minute, Command: "/usr/local/bin/mihomo"},
-		{PID: 405, RSS: 27 << 20, CPU: 0.3, Elapsed: 10*24*time.Hour + time.Hour, Command: "/opt/homebrew/opt/tailscale/bin/tailscaled"},
+		{PID: 812, RSS: 61 << 20, CPU: 1.8, Elapsed: 9*24*time.Hour + 20*time.Hour + 38*time.Minute, Command: mihomo},
+		{PID: 405, RSS: 27 << 20, CPU: 0.3, Elapsed: 10*24*time.Hour + time.Hour, Command: tailscaled},
 	}, nil
 }
 func (p *shotProbes) tailscaleAPI() tailscale.API { return tailscale.FileAPI(p.statusFile) }
+
+// tailscaleInstall is what DetectInstall finds on a typical machine of
+// p.goos: the official Windows client, a distribution's package on Linux,
+// brew's tailscaled on macOS.
 func (p *shotProbes) tailscaleInstall() tailscale.Install {
-	return tailscale.Install{Kind: tailscale.InstallTailscaled, Source: "brew", Daemon: "/opt/homebrew/opt/tailscale/bin/tailscaled"}
+	present, ok := shotTailscaleFiles[p.goos]
+	if !ok {
+		return tailscale.Install{Kind: tailscale.InstallTailscaled, Source: "brew", Daemon: "/opt/homebrew/opt/tailscale/bin/tailscaled"}
+	}
+	return tailscale.DetectInstall(p.goos, func(f string) bool { return slices.Contains(present, f) })
+}
+
+// shotTailscaleFiles are the Tailscale files a shot run's machine has on
+// Linux and Windows (macOS: brew's tailscaled, as the shots always had).
+var shotTailscaleFiles = map[string][]string{
+	"linux":   {"/usr/sbin/tailscaled", "/run/tailscale/tailscaled.sock"},
+	"windows": {tailscale.WindowsDaemon},
+}
+
+// shotCLILink is the Twinnel CLI link a shot shows (the 设置 page's agent
+// snippet and command line tool rows), where the installer puts it on
+// goos.
+func shotCLILink(goos string) string {
+	if goos == "windows" {
+		return `C:\Users\example\AppData\Local\Programs\Twinnel\bin\twinnel.exe`
+	}
+	return "/usr/local/bin/twinnel"
 }
 
 // runCLI answers the read-only CLI calls a page makes with synthetic
@@ -186,14 +279,11 @@ func newEgressProbe(p machineProbes, cfg status.Config) func(context.Context) *h
 	}
 }
 
-// newMihomoFile reads the mihomo config file through the probes' health
-// Env (the live config, or the fixture in shots); nil on platforms
-// without one.
-func newMihomoFile(p machineProbes, cfg status.Config) func(context.Context) (*health.MihomoConfig, error) {
-	if p.healthEnv(cfg, health.DefaultSettings()) == nil {
-		return nil
+// shotGOOS is the platform a shot run's fixtures are for: its probes'
+// (a test renders Windows from any machine), else this one.
+func (a *app) shotGOOS() string {
+	if p, ok := a.probes.(*shotProbes); ok && p.goos != "" {
+		return p.goos
 	}
-	return func(ctx context.Context) (*health.MihomoConfig, error) {
-		return p.healthEnv(cfg, health.DefaultSettings()).MihomoConfig(ctx)
-	}
+	return runtime.GOOS
 }

@@ -92,6 +92,13 @@ func (a *app) subPageHeader(c *ui.Context, title string) {
 func (a *app) installPage(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	a.subPageHeader(c, T.OnboardInstall)
+	if s.Helper.State == status.HelperNotInstalled {
+		// The page installs the helper: never helperGate here, whose
+		// not-installed answer is "这一页要先装好后台助手" (Windows QA
+		// round 5 N8).
+		a.onboarding(c, s)
+		return
+	}
 	if !a.helperGate(c, s) {
 		return
 	}
