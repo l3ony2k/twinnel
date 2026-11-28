@@ -35,6 +35,13 @@ type AgentStrings struct {
 	AgentActivityMore string // %d more{s}
 	AgentLoadFailed   string // failedRow: reading the switches / activity
 
+	// An action in words, per MCP tool (core/agent): AgentTools without
+	// an object, AgentToolsOf with one (%s: an override, a subscription,
+	// a node, a mode). A tool that turns something on or off has a
+	// "tool:on" and "tool:off" entry instead. Unknown tools show as they
+	// are; the raw arguments stay in the tooltip.
+	AgentTools, AgentToolsOf map[string]string
+
 	// 日志 → Twinnel.
 	EvAgent       string // %s: client, %s: what it did
 	EvAgentFailed string // %s: client, %s: what it tried
@@ -69,6 +76,26 @@ var zhAgent = AgentStrings{
 	AgentActivityNone: "还没有 Agent 操作",
 	AgentActivityMore: "另有 %d 条",
 	AgentLoadFailed:   "没能读取 Agent 设置",
+
+	AgentTools: map[string]string{
+		"apply": "应用配置", "history_rollback": "回滚配置", "settings_update": "修改设置", "config_import": "导入配置",
+		"layer_put": "保存覆写", "layer_remove": "删除覆写", "layer_enable:on": "启用覆写", "layer_enable:off": "停用覆写", "layer_order": "调整覆写顺序",
+		"sub_put": "保存订阅", "sub_activate": "切换订阅", "sub_remove": "删除订阅", "refresh_subscription": "更新订阅",
+		"set_mode": "切换模式", "select_node": "选择节点", "health_egress_run": "检测出口", "delay_test": "测速",
+		"set_tun:on": "打开 TUN", "set_tun:off": "关闭 TUN", "tailscale_up": "连接 Tailscale", "tailscale_down": "断开 Tailscale",
+		"set_exit_node": "设置出口节点", "clear_exit_node": "停用出口节点", "geo_update": "更新 GEO 数据库",
+		"dashboard_install": "安装控制面板", "flush_fakeip": "清空 fake-ip 缓存",
+		"health_fix": "修复健康检查", "health_fix_config": "修复健康检查", "health_fixes": "查看修复建议",
+		"status": "查看状态", "version": "查看版本", "health": "查看健康检查", "proxies": "查看策略组", "connections": "查看连接",
+		"traffic": "查看流量", "logs": "查看日志", "subscriptions": "查看订阅", "layers": "查看覆写", "history": "查看历史",
+		"preview": "预览配置", "takeover_plans": "查看接管计划", "tailnet_peers": "查看 Tailscale 设备", "doctor": "诊断",
+		"agent_activity": "查看 Agent 操作", "admin_only": "查看需要你来做的操作",
+	},
+	AgentToolsOf: map[string]string{
+		"layer_put": "保存覆写「%s」", "layer_remove": "删除覆写「%s」", "layer_enable:on": "启用覆写「%s」", "layer_enable:off": "停用覆写「%s」",
+		"sub_put": "保存订阅「%s」", "sub_activate": "切换到订阅「%s」", "sub_remove": "删除订阅「%s」", "refresh_subscription": "更新订阅「%s」",
+		"set_mode": "切换到 %s 模式", "select_node": "选择节点 %s", "set_exit_node": "把出口节点设为 %s",
+	},
 
 	EvAgent:       "%s · %s",
 	EvAgentFailed: "%s · %s 失败",
@@ -106,6 +133,26 @@ var enAgent = AgentStrings{
 	AgentActivityNone: "No agent actions yet",
 	AgentActivityMore: "%d more",
 	AgentLoadFailed:   "Couldn't read the agent settings",
+
+	AgentTools: map[string]string{
+		"apply": "Apply the config", "history_rollback": "Roll back the config", "settings_update": "Change settings", "config_import": "Import a config",
+		"layer_put": "Save an override", "layer_remove": "Remove an override", "layer_enable:on": "Turn on an override", "layer_enable:off": "Turn off an override", "layer_order": "Reorder overrides",
+		"sub_put": "Save a subscription", "sub_activate": "Switch subscriptions", "sub_remove": "Remove a subscription", "refresh_subscription": "Update a subscription",
+		"set_mode": "Change the mode", "select_node": "Choose a node", "health_egress_run": "Test the exit IP", "delay_test": "Test delays",
+		"set_tun:on": "Turn on TUN", "set_tun:off": "Turn off TUN", "tailscale_up": "Connect Tailscale", "tailscale_down": "Disconnect Tailscale",
+		"set_exit_node": "Set the exit node", "clear_exit_node": "Stop using the exit node", "geo_update": "Update GEO databases",
+		"dashboard_install": "Install the dashboard", "flush_fakeip": "Clear the fake-ip cache",
+		"health_fix": "Fix a health check", "health_fix_config": "Fix a health check", "health_fixes": "Read health fixes",
+		"status": "Read status", "version": "Read versions", "health": "Read health checks", "proxies": "Read proxy groups", "connections": "Read connections",
+		"traffic": "Read traffic", "logs": "Read logs", "subscriptions": "Read subscriptions", "layers": "Read overrides", "history": "Read history",
+		"preview": "Preview the config", "takeover_plans": "Read takeover plans", "tailnet_peers": "Read Tailscale devices", "doctor": "Run the doctor",
+		"agent_activity": "Read agent actions", "admin_only": "Read actions left to you",
+	},
+	AgentToolsOf: map[string]string{
+		"layer_put": "Save override “%s”", "layer_remove": "Remove override “%s”", "layer_enable:on": "Turn on override “%s”", "layer_enable:off": "Turn off override “%s”",
+		"sub_put": "Save subscription “%s”", "sub_activate": "Switch to subscription “%s”", "sub_remove": "Remove subscription “%s”", "refresh_subscription": "Update subscription “%s”",
+		"set_mode": "Switch to %s mode", "select_node": "Choose node %s", "set_exit_node": "Set the exit node to %s",
+	},
 
 	EvAgent:       "%s · %s",
 	EvAgentFailed: "%s · %s failed",
