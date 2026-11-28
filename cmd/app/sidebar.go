@@ -55,6 +55,10 @@ const (
 	sideMaxW    = 340 // the widest
 	// railRowW is a rail row's width (its selection), centered in the rail.
 	railRowW = 52
+	// sideRailFluent is Windows 11's compact pane: NavigationView's 48 DIP,
+	// its items 40 wide, 4 in from each side (railRowWidth, sidePadX).
+	sideRailFluent = 48
+	railRowFluent  = 40
 	// sideHandleW is the divider's grip, over both sides of the line.
 	sideHandleW = 6
 )
@@ -88,6 +92,8 @@ type sidebarState struct {
 	// was measured for.
 	need    float32
 	needKey string
+	// focusPage asks the page pane to take the keyboard focus (F6).
+	focusPage bool
 }
 
 // load reads the state from the app's config, once.
@@ -293,6 +299,9 @@ func sidebarTop(c *ui.Context) float32 {
 
 // railWidth is the rail's width for this window (sideRailW).
 func railWidth(c *ui.Context) float32 {
+	if plat.fluent {
+		return sideRailFluent
+	}
 	bar := c.TitleBar()
 	if bar.Left <= 0 || !plat.trafficLights {
 		return sideRailMin // window buttons on the left (Linux) are the toggle's business: sideToggleX
@@ -306,6 +315,12 @@ func railWidth(c *ui.Context) float32 {
 // the rail, which the lights fill: at the start of the page's toolbar.
 // Without lights: the window's inset.
 func (a *app) sideToggleX(c *ui.Context) float32 {
+	if plat.fluent {
+		// NavigationView: the pane's toggle stays at the top of the pane,
+		// in the same place expanded, compact and hidden, centered over
+		// the compact pane's items.
+		return (sideRailFluent - sideToggleWidth()) / 2
+	}
 	l := c.TitleBar().Left
 	if a.side.mode == sideRail {
 		x := sideRailW + sideToggleRailInset
@@ -331,10 +346,45 @@ const sideToggleRailInset = 8
 // around the sidebar icon.
 const sideToggleW = 2*toolbarPadX + iconSidebar
 
+// sideToggleWidth is the toggle's width: the capsule's, or on Windows the
+// compact pane's item width (NavigationView's toggle button, 40).
+func sideToggleWidth() float32 {
+	if plat.fluent {
+		return railRowFluent
+	}
+	return sideToggleW
+}
+
+// sideToggleRadius is the toggle's corner radius: a capsule's, or the
+// control radius on Windows.
+func sideToggleRadius() float32 {
+	if plat.fluent {
+		return plat.controlRadius
+	}
+	return toolbarItemH / 2
+}
+
+// railRowWidth is a rail row's width (railRowW; Windows' compact items).
+func railRowWidth() float32 {
+	if plat.fluent {
+		return railRowFluent
+	}
+	return railRowW
+}
+
+// sidePadX is the sidebar's side padding: 10, or on Windows' compact
+// pane 4, which centers its 40 DIP items in 48.
+func sidePadX() float32 {
+	if navRail && plat.fluent {
+		return (sideRailFluent - railRowFluent) / 2
+	}
+	return 10
+}
+
 // toolbarLead is the toolbar's left inset: the page's padding, or more
 // when the sidebar no longer covers the traffic lights and the toggle.
 func (a *app) toolbarLead(c *ui.Context) float32 {
-	clear := a.sideToggleX(c) + sideToggleW + toolbarGap - a.side.widthOf(a.side.mode)
+	clear := a.sideToggleX(c) + sideToggleWidth() + toolbarGap - a.side.widthOf(a.side.mode)
 	return max(plat.pagePadX, clear)
 }
 
@@ -378,24 +428,29 @@ func sidebarNeed(c *ui.Context) float32 {
 	return need
 }
 
-// sidebarChrome builds what lies over the window's layout: the toggle on
-// the title bar and the divider's grip. Built after the content, so that
-// both are above it.
-func (a *app) sidebarChrome(c *ui.Context, barH float32) {
-	s := &a.side
+// sideToggle builds the sidebar toggle on the title bar: a title bar
+// button as Finder's and Xcode's on macOS 26, a bare glyph at rest, a
+// toolbar capsule's fill on hover and press (no glass, no face), centered
+// on the traffic lights' line; on Windows NavigationView's pane toggle at
+// the top of the pane. It is built before the window's layout, so that
+// it is the first stop of Tab and the first thing screen readers meet, as
+// the top-left control (ui-review 7.4), and drawn above the layout
+// (ZIndex).
+func (a *app) sideToggle(c *ui.Context) {
 	T := i18n.T
-
-	if shotLights {
-		lightsOverlay(c)
-	}
-	// The toggle: a title bar button as Finder's and Xcode's on macOS 26,
-	// a bare glyph at rest, a toolbar capsule's fill on hover and press
-	// (no glass, no face), centered on the traffic lights' line.
 	t := c.Theme()
-	b := ui.Button(c.Key("side-toggle"), "").Label(T.SidebarToggle).Tooltip(T.SidebarToggle).
-		Absolute().Left(a.sideToggleX(c)).Top(trafficLightsMid(c)-toolbarItemH/2).
-		Size(sideToggleW, toolbarItemH).Padding(0).Radius(toolbarItemH / 2).
-		AlignItems(ui.Center).Justify(ui.Center).BorderWidth(0).Background(ui.Transparent)
+	a.side.load(a.cfg)
+	sideRailW = railWidth(c)
+	// An absolute element comes after the layout in Tab's and screen
+	// readers' order, so the toggle is in the flow: in a band of no height
+	// at the window's top, above the layout (ZIndex), which it overhangs.
+	var b ui.Element
+	ui.Row(c.Key("side-toggle-band")).Height(0).Shrink(0).AlignItems(ui.Start).ZIndex(1).Children(func() {
+		b = ui.Button(c.Key("side-toggle"), "").Label(T.SidebarToggle).Tooltip(T.SidebarToggle).
+			Margin(trafficLightsMid(c)-toolbarItemH/2, 0, 0, a.sideToggleX(c)).
+			Size(sideToggleWidth(), toolbarItemH).Shrink(0).Padding(0).Radius(sideToggleRadius()).
+			AlignItems(ui.Center).Justify(ui.Center).BorderWidth(0).Background(ui.Transparent)
+	})
 	switch {
 	case b.Pressed() || toolbarForce == "pressed":
 		b.Background(t.Text.Alpha(0.12))
@@ -407,6 +462,18 @@ func (a *app) sidebarChrome(c *ui.Context, barH float32) {
 	})
 	if b.Clicked() {
 		a.toggleSidebar()
+	}
+}
+
+// sidebarChrome builds what lies over the window's layout: the traffic
+// lights of shots and the divider's grip. Built after the content, so
+// that both are above it.
+func (a *app) sidebarChrome(c *ui.Context, barH float32) {
+	s := &a.side
+	T := i18n.T
+
+	if shotLights {
+		lightsOverlay(c)
 	}
 
 	// The divider's grip: over the line between the sidebar and the page,
@@ -446,19 +513,29 @@ func (a *app) sidebarChrome(c *ui.Context, barH float32) {
 func railRow(c *ui.Context, it navItem, chosen, active bool) bool {
 	t := c.Theme()
 	rowH, _, iconSize := navMetrics()
-	iconCol := t.Accent
+	iconCol := navIconColor(t)
 	tip := it.label
 	if it.count > 0 {
 		tip = fmt.Sprintf("%s · %d", it.label, it.count)
 	}
-	row := ui.Row(c.Key("nav:" + it.id)).Width(railRowW).AlignSelf(ui.Center).Height(rowH).AlignItems(ui.Center).Justify(ui.Center).
-		Radius(navSelRadius).Tooltip(tip).Role(ui.RoleTreeItem).Label(tip).AccessSelected(chosen)
+	_, itemRole := navRoles()
+	row := ui.Row(c.Key("nav:" + it.id)).Width(railRowWidth()).AlignSelf(ui.Center).Height(rowH).AlignItems(ui.Center).Justify(ui.Center).
+		Radius(navSelRadius).Tooltip(tip).Role(itemRole).Label(tip).AccessSelected(chosen)
 	if it.digit > 0 {
 		row.KeyShortcuts(ui.Cmd, it.key)
 	}
-	onAccent := false
+	onAccent, pill := false, false
 	switch plat.navSel {
-	case navNeutral, navNeutralPill:
+	case navNeutralPill: // Windows 11's compact pane: navRow's look
+		row.Radius(plat.controlRadius)
+		switch {
+		case chosen:
+			row.Background(navNeutralFill(t, true))
+			pill = active
+		case row.Hovered():
+			row.Background(navHoverFill(t))
+		}
+	case navNeutral:
 		if chosen {
 			row.Background(navNeutralFill(t, active))
 		}
@@ -477,6 +554,9 @@ func railRow(c *ui.Context, it navItem, chosen, active bool) bool {
 		}
 	}
 	row.Children(func() {
+		if pill {
+			navPill(c, rowH)
+		}
 		ui.Box(c).Size(iconSize+2, iconSize).Shrink(0).Children(func() {
 			ui.Icon(c, it.icon).FontSize(iconSize).TextColor(iconCol)
 			if it.count > 0 && it.tone != toneNeutral {
@@ -508,7 +588,7 @@ func railMark(c *ui.Context, tone navTone, onAccent bool) ui.Element {
 func railGap(c *ui.Context) {
 	t := c.Theme()
 	rowH, _, _ := navMetrics()
-	ui.Column(c).Width(railRowW).AlignSelf(ui.Center).Height(rowH / 2).Justify(ui.Center).PaddingX(8).AccessHidden(true).Children(func() {
+	ui.Column(c).Width(railRowWidth()).AlignSelf(ui.Center).Height(rowH / 2).Justify(ui.Center).PaddingX(8).AccessHidden(true).Children(func() {
 		ui.Box(c).Height(1).Background(pal(t).separator)
 	})
 }
@@ -556,4 +636,45 @@ func (a *app) railPair(c *ui.Context, s status.Snapshot) {
 			mark("h", i18n.F(T.StateLabel, T.Helper, s.Helper.State.Text()), hm, hcol)
 		}
 	})
+}
+
+// panesCycle is whether F6 and Shift+F6 move the focus between the
+// sidebar and the page, as between a Windows app's panes (File
+// Explorer's, Settings') and GTK's: off on macOS, which has no such key.
+func panesCycle() bool { return !plat.trafficLights }
+
+// paneKeys hears F6 and Shift+F6 (panesCycle): from the sidebar's list
+// the focus goes to the page; from anywhere else to the sidebar's list,
+// or to the page while the sidebar is hidden. With two panes both keys
+// do the same.
+func (a *app) paneKeys(c *ui.Context) {
+	if !panesCycle() {
+		return
+	}
+	cycle := func() {
+		if navFocused || a.side.mode == sideHidden {
+			a.side.focusPage = true
+		} else {
+			navFocus = true
+		}
+		if a.win != nil {
+			a.win.Invalidate()
+		}
+	}
+	c.OnWindowShortcut(0, ui.KeyF6, cycle)
+	c.OnWindowShortcut(ui.Shift, ui.KeyF6, cycle)
+}
+
+// pagePane makes the page's pane a place F6 can put the focus: not a
+// stop of Tab, which goes on from it to the page's first control; named
+// as the page for screen readers. Nothing on macOS (panesCycle).
+func (a *app) pagePane(pane ui.Element) {
+	if !panesCycle() {
+		return
+	}
+	pane.TabStop(false).FocusRing(false)
+	if a.side.focusPage {
+		pane.Focus(ui.FocusOptions{PreventScroll: true})
+		a.side.focusPage = false
+	}
 }
