@@ -279,18 +279,6 @@ func newEgressProbe(p machineProbes, cfg status.Config) func(context.Context) *h
 	}
 }
 
-// newMihomoFile reads the mihomo config file through the probes' health
-// Env (the live config, or the fixture in shots); nil on platforms
-// without one.
-func newMihomoFile(p machineProbes, cfg status.Config) func(context.Context) (*health.MihomoConfig, error) {
-	if p.healthEnv(cfg, health.DefaultSettings()) == nil {
-		return nil
-	}
-	return func(ctx context.Context) (*health.MihomoConfig, error) {
-		return p.healthEnv(cfg, health.DefaultSettings()).MihomoConfig(ctx)
-	}
-}
-
 // shotGOOS is the platform a shot run's fixtures are for: its probes'
 // (a test renders Windows from any machine), else this one.
 func (a *app) shotGOOS() string {

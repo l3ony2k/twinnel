@@ -11,9 +11,9 @@ import (
 // shellTester renders the main window on goos's shell (plat, title bar).
 func shellTester(t *testing.T, goos string, w, h int) (*app, *ui.Tester) {
 	t.Helper()
+	t.Cleanup(resetFlags) // after usePlat's cleanup (LIFO): from the platform restored
 	usePlat(t, goos)
 	resetFlags()
-	t.Cleanup(resetFlags)
 	a, _ := layoutApp(t)
 	tr := ui.NewTester(func(c *ui.Context) { a.mainView(c) }, w, h)
 	tr.SetTitleBar(titleBarFor(goos))
@@ -263,6 +263,49 @@ func TestBusyButtonDisabledPrimary(t *testing.T) {
 			if off := at("BusyOff"); colorNear(off, th.Accent, 60) || colorNear(off, th.Accent.Mix(th.Background, 0.5), 30) {
 				t.Errorf("%s dark=%v: disabled primary keeps the accent: %v", goos, dark, off)
 			}
+		}
+	}
+}
+
+// N6 (Windows QA round 5): a group's head on 策略组 (as a layer's on
+// 订阅与覆写) holds controls. On Windows the row is an expander header: its
+// 测速 button stays visible to assistive technology, and the chevron is
+// the disclosure, expanded or collapsed, that Enter toggles. On macOS the
+// row is the disclosure.
+func TestExpanderHeadsKeepTheirControls(t *testing.T) {
+	T := i18n.T
+	for _, goos := range []string{"windows", "darwin"} {
+		a, tr := shellTester(t, goos, 1280, 900)
+		a.page = pageProxies
+		tr.Frame()
+		tr.Frame()
+		const raw = "🇺🇸 Auto" // layoutSnapshot's group
+		name := nodeText(raw)
+		d, ok := tr.AccessByRole(ui.RoleDisclosure, name)
+		if !ok || d.Expanded {
+			t.Fatalf("%s: no collapsed disclosure %q (%v)", goos, name, ok)
+		}
+		tests := 0
+		for _, e := range tr.AccessAll() {
+			if e.Name == T.TestGroupDelay {
+				tests++
+			}
+		}
+		if goos == "darwin" {
+			continue // the row is the control, as before
+		}
+		if tests < 2 {
+			t.Errorf("%s: %d 测速 buttons visible to assistive technology, want one per group", goos, tests)
+		}
+		if d.Bounds.W > 40 {
+			t.Errorf("%s: the disclosure is %v wide: the whole row, not its chevron", goos, d.Bounds.W)
+		}
+		if err := tr.Click(name); err != nil {
+			t.Fatal(err)
+		}
+		tr.Frame()
+		if d, _ := tr.AccessByRole(ui.RoleDisclosure, name); !d.Expanded || !a.groupsOpen[raw] {
+			t.Errorf("%s: a click did not open Auto (%v)", goos, a.groupsOpen)
 		}
 	}
 }

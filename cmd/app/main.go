@@ -69,6 +69,7 @@ type app struct {
 	panel     *mygo.Window
 	win       *mygo.Window
 	page      string
+	ovBar     commandBar // 总览's quick actions on Windows (overview.go)
 	actionErr string
 	settings  settingsForm
 	logs      logsView
@@ -331,7 +332,6 @@ func (a *app) start() {
 
 		ExitNodeAccepted: a.cfg.ExitNodeAccepted,
 		Processes:        a.probes.processes,
-		MihomoFile:       newMihomoFile(a.probes, cc),
 	})
 	a.egressProbe = newEgressProbe(a.probes, cc)
 	if a.hc != nil {

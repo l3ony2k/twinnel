@@ -291,14 +291,14 @@ func TestDisabledPrimariesKnowIt(t *testing.T) {
 		if _, ok := isCall(sel.X, "ui", "PrimaryButton"); ok {
 			return true
 		}
-		for _, name := range []string{"opButton", "iconButton", "busyButton"} {
+		for _, name := range []string{"opButton", "iconButton", "busyButton", "saveButton"} {
 			inner, ok := isCall(sel.X, "", name)
 			if !ok {
 				continue
 			}
 			arg := 3 // opButton(c, icon, label, primary, op), iconButton(c, icon, label, primary)
-			if name == "busyButton" {
-				arg = 2
+			if name == "busyButton" || name == "saveButton" {
+				arg = 2 // busyButton(c, label, primary, …); saveButton(c, op, disabled) is always primary
 			}
 			if len(inner.Args) > arg {
 				if id, ok := inner.Args[arg].(*ast.Ident); ok && id.Name == "false" {
@@ -519,6 +519,61 @@ func walkStrings(v reflect.Value, path string, fn func(path, s string)) {
 	case reflect.Map:
 		for _, k := range v.MapKeys() {
 			walkStrings(v.MapIndex(k), path, fn)
+		}
+	}
+}
+
+// N2 (Windows QA round 5): a window shortcut's change shows in a hidden
+// or off-screen window too: each goes through windowKey, which asks the
+// engine for the next build.
+func TestWindowKeysRebuild(t *testing.T) {
+	got := fileCalls(t, func(fn *ast.FuncDecl, call *ast.CallExpr) bool {
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		return ok && sel.Sel.Name == "OnWindowShortcut" && fn.Name.Name != "windowKey"
+	})
+	checkMigrations(t, "OnWindowShortcut outside windowKey", got, map[string]int{})
+}
+
+// 6.6 / N5 (Windows QA round 5): 复制详情 is one control, copyDetails: a
+// text button on Windows, never link text in the accent built in place.
+func TestCopyDetailsOneControl(t *testing.T) {
+	got := fileCalls(t, func(fn *ast.FuncDecl, call *ast.CallExpr) bool {
+		if fn.Name.Name == "copyDetails" {
+			return false
+		}
+		for _, arg := range call.Args {
+			if sel, ok := arg.(*ast.SelectorExpr); ok && sel.Sel.Name == "TkCopyDetails" {
+				return true
+			}
+		}
+		return false
+	})
+	checkMigrations(t, "复制详情 built outside copyDetails", got, map[string]int{})
+	usePlat(t, "windows")
+	for _, dark := range []bool{true, false} {
+		tr := renderControls(t, dark, func(c *ui.Context) {
+			failedRowWhy(c, "what", "why", "raw error", func() {}, false)
+		})
+		r, ok := tr.Find(i18n.T.TkCopyDetails)
+		if !ok {
+			t.Fatal("no 复制详情")
+		}
+		th := systemTheme(dark, ui.Preferences{})
+		img := tr.Image()
+		// Its ink is the text color, not the accent: the darkest (light
+		// theme) or lightest (dark) pixel of the label.
+		var ink ui.Color
+		best := -1.0
+		for y := r.Y; y < r.Y+r.H; y++ {
+			for x := r.X; x < r.X+r.W; x++ {
+				p := pixel(img, x, y)
+				if c := contrast(p, pal(th).group.Over(th.Background)); c > best {
+					best, ink = c, p
+				}
+			}
+		}
+		if colorNear(ink, th.Accent, 24) {
+			t.Errorf("dark=%v: 复制详情 in the accent %v", dark, ink)
 		}
 	}
 }

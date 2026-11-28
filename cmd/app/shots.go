@@ -348,9 +348,18 @@ func (a *app) takeoverShots(save func(*mygo.Window, string), wait func(time.Dura
 	page(pageTakeover)
 	wait(time.Second)
 	save(a.win, "takeover-helper")
-	planOK := false
-	mygo.RunOnMain(func() { planOK = a.hd.connected && !a.hd.take.unsupported })
-	if planOK {
+	planOK, offered := false, false
+	mygo.RunOnMain(func() {
+		planOK = a.hd.connected && !a.hd.take.unsupported
+		offered = !a.twinnelManaged(a.viewSnapshot())
+	})
+	if planOK && !offered {
+		// Twinnel manages this setup: the page offers no plan, and a
+		// failed one would draw takeover-helper again (Windows QA round 5 T1).
+		_, why := helperPlanShot(false, false, false, "")
+		log.Printf("takeover-helper-plan: %s; not saved", why)
+	}
+	if planOK && offered {
 		// takeoverMakePlan does nothing while another operation runs, and
 		// the plan can fail: the shot is named after what the page shows,
 		// never "plan" over the page without one (ui-review 8.5).
@@ -370,7 +379,7 @@ func (a *app) takeoverShots(save func(*mygo.Window, string), wait func(time.Dura
 				msg = a.hd.msg
 			}
 		})
-		if name, why := helperPlanShot(started, hasPlan, msg); name != "" {
+		if name, why := helperPlanShot(true, started, hasPlan, msg); name != "" {
 			save(a.win, name)
 		} else {
 			log.Printf("takeover-helper-plan: %s; not saved", why)
@@ -407,9 +416,13 @@ func (a *app) takeoverShots(save func(*mygo.Window, string), wait func(time.Dura
 
 // helperPlanShot names the shot taken after asking the helper for a
 // takeover plan, by what the page shows: the plan, the failure, or
-// nothing new (no shot, and why).
-func helperPlanShot(started, hasPlan bool, errMsg string) (name, why string) {
+// nothing new (no shot, and why). offered is whether the page offers a
+// plan at all: not while Twinnel manages the setup, where any answer
+// draws the page as takeover-helper did.
+func helperPlanShot(offered, started, hasPlan bool, errMsg string) (name, why string) {
 	switch {
+	case !offered:
+		return "", "Twinnel manages this setup, so the page offers no plan"
 	case !started:
 		return "", "another helper operation was running"
 	case hasPlan:

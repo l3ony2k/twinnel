@@ -62,3 +62,26 @@ func TestNodeSurfacesNoFlagLetters(t *testing.T) {
 	}
 	_ = s
 }
+
+// N9 (Windows QA round 5): a mihomo log line's proxy chain loses its
+// flags where the fonts cannot draw them; the rest of the line is
+// mihomo's text, and where flags draw nothing changes.
+func TestLogPayloadText(t *testing.T) {
+	const line = "[TCP] 127.0.0.1:52341 --> example.com:443 match DomainSuffix(example.com) using PROXY[🇺🇸 NODE-US-1]"
+	const relay = "[TCP] 127.0.0.1:1 --> a.example:443 match Match using 🇯🇵 Relay[🇸🇬 HOP[🇺🇸 NODE-US-1]]"
+	t.Cleanup(resetFlags)
+	flagsOff.Store(true)
+	for in, want := range map[string]string{
+		line:  "[TCP] 127.0.0.1:52341 --> example.com:443 match DomainSuffix(example.com) using PROXY[NODE-US-1]",
+		relay: "[TCP] 127.0.0.1:1 --> a.example:443 match Match using Relay[HOP[NODE-US-1]]",
+		"[TCP] dial DIRECT (match RuleSet(cn)) 127.0.0.1:1 --> b.example:443": "[TCP] dial DIRECT (match RuleSet(cn)) 127.0.0.1:1 --> b.example:443",
+	} {
+		if got := logPayloadText(in); got != want {
+			t.Errorf("%q:\n got %q\nwant %q", in, got, want)
+		}
+	}
+	flagsOff.Store(false)
+	if got := logPayloadText(line); got != line {
+		t.Errorf("flags drawn: %q changed to %q", line, got)
+	}
+}

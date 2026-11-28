@@ -798,7 +798,7 @@ func (a *app) takeoverImpactRow(c *ui.Context, im *rpc.ReloadImpact) {
 				ui.Text(c, text).Wrap().LineHeight(lineText).Shrink(1)
 				if len(im.Notes) > 0 {
 					ui.Spacer(c)
-					if actionLink(c.Key("impact-copy"), T.TkCopyDetails).Clicked() {
+					if copyDetails(c.Key("impact-copy"), plat.smallSize, "").Clicked() {
 						copyText(c, strings.Join(im.Notes, "\n"))
 					}
 				}
@@ -1059,7 +1059,7 @@ func (a *app) adoptResultCard(c *ui.Context, s status.Snapshot, r *rpc.AdoptResu
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, icon).FontSize(iconInline + 2).TextColor(col)
 			ui.Text(c, head).FontSize(plat.headingSize).FontWeight(plat.headingWeight).Grow(1).Wrap().LineHeight(lineText)
-			if actionLink(c.Key("copy-result"), T.TkCopyDetails).Clicked() {
+			if copyDetails(c.Key("copy-result"), plat.smallSize, "").Clicked() {
 				copyText(c, adoptResultText(r))
 			}
 		})

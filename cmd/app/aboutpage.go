@@ -199,7 +199,7 @@ func (a *app) updateOutcome(c *ui.Context) {
 			ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(t.Warning).Shrink(0).AccessHidden(true)
 			ui.Text(c, updateFailText(v.err)).FontSize(plat.calloutSize).TextColor(pal(t).warnText).
 				SingleLine().Shrink(1).Tooltip(raw)
-			if raw != "" && actionLink(c.Key("update-copy"), T.TkCopyDetails).Clicked() {
+			if raw != "" && copyDetails(c.Key("update-copy"), plat.smallSize, "").Clicked() {
 				copyText(c, raw)
 			}
 		})

@@ -505,17 +505,12 @@ func busyButton(c *ui.Context, label string, primary, busy, disabled bool) ui.El
 	} else {
 		b = pushFace(c, ui.Button(c, ""))
 	}
-	b.Label(label).Disabled(disabled)
-	if primary {
-		disabledPrimaryFace(c, b)
-	}
+	b.Label(label)
 	spin := showBusy(c, b, busy)
+	busyFace(c, b, primary, disabled, spin)
 	return b.Busy(spin).Children(func() {
 		if spin {
-			sp := spinnerIcon(c)
-			if primary && !disabled { // on the accent, in the label's color
-				sp.TextColor(c.Theme().AccentText)
-			}
+			onBusyFace(c, spinnerIcon(c), primary, spin)
 		}
 		ui.Text(c, label).SingleLine()
 	})

@@ -54,8 +54,19 @@ func (h Helper) Connected() bool { return h.State == HelperConnected }
 
 // SetHelper records the helper connection state and notifies subscribers.
 // The helper does not change the overall level: it is optional.
+//
+// The DNS mode comes from the helper's status: the controller does not
+// report it, and the config file may be the helper's to read alone
+// (Windows QA round 5 N4: the app could not read it there). One path on
+// every platform; unknown while the helper is not connected.
 func (m *Monitor) SetHelper(h Helper) {
-	m.update(func(s *Snapshot) { s.Helper = h })
+	m.update(func(s *Snapshot) {
+		s.Helper = h
+		s.Mihomo.DNSMode = ""
+		if h.Status != nil {
+			s.Mihomo.DNSMode = h.Status.Mihomo.DNSMode
+		}
+	})
 }
 
 // ErrHelperNotConnected is returned by HelperConn.Call while there is no

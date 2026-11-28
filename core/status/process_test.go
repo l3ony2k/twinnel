@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/mihomo"
+	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
 // A synthetic `ps -axo pid=,rss=,pcpu=,etime=,comm=`.
@@ -135,20 +135,16 @@ func TestMonitorProcessesAndMemory(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)
-	dns := "fake-ip"
 	m := NewMonitor(Options{
-		Mihomo: mc, MihomoPoll: 20 * time.Millisecond, ProcessPoll: 20 * time.Millisecond, DNSPoll: 20 * time.Millisecond,
+		Mihomo: mc, MihomoPoll: 20 * time.Millisecond, ProcessPoll: 20 * time.Millisecond,
 		Now:       func() time.Time { return now },
 		Processes: func(context.Context) ([]ProcessEntry, error) { return ParsePS(psFixture), nil },
-		MihomoFile: func(context.Context) (*health.MihomoConfig, error) {
-			return &health.MihomoConfig{DNS: health.MihomoDNSConfig{Enable: dns != "", EnhancedMode: dns}}, nil
-		},
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	m.Run(ctx)
 	s := waitFor(t, m, "memory", func(s Snapshot) bool {
-		return s.Mihomo.Memory != 0 && s.Mihomo.Process != nil && s.Tailscale.Process != nil && s.Mihomo.DNSMode != ""
+		return s.Mihomo.Memory != 0 && s.Mihomo.Process != nil && s.Tailscale.Process != nil
 	})
 	if s.Mihomo.Memory != 48<<20 || s.Mihomo.Connections != 2 || s.Mihomo.Config.MixedPort != 7890 {
 		t.Errorf("mihomo %+v", s.Mihomo)
@@ -159,27 +155,19 @@ func TestMonitorProcessesAndMemory(t *testing.T) {
 	if p := s.Tailscale.Process; p.PID != 210 || p.CPU != 0.4 {
 		t.Errorf("tailscaled %+v", p)
 	}
-	if s.Mihomo.DNSMode != "fake-ip" {
-		t.Errorf("dns %q", s.Mihomo.DNSMode)
-	}
 }
 
-func TestPollDNSModes(t *testing.T) {
-	for _, tc := range []struct {
-		cfg  *health.MihomoConfig
-		err  error
-		want string
-	}{
-		{&health.MihomoConfig{}, nil, DNSModeOff},
-		{&health.MihomoConfig{DNS: health.MihomoDNSConfig{Enable: true}}, nil, DNSModeNormal},
-		{&health.MihomoConfig{DNS: health.MihomoDNSConfig{Enable: true, EnhancedMode: "Redir-Host"}}, nil, "redir-host"},
-		{nil, errors.New("no file"), ""},
-	} {
-		m := NewMonitor(Options{Mihomo: &fakeMihomo{}, MihomoFile: func(context.Context) (*health.MihomoConfig, error) { return tc.cfg, tc.err }})
-		m.pollDNS(context.Background())
-		if got := m.Snapshot().Mihomo.DNSMode; got != tc.want {
-			t.Errorf("%+v: %q, want %q", tc.cfg, got, tc.want)
-		}
+// N4 (Windows QA round 5): the DNS mode is the helper's answer, on
+// every platform; unknown without a helper.
+func TestHelperDNSMode(t *testing.T) {
+	m := NewMonitor(Options{Mihomo: &fakeMihomo{}})
+	m.SetHelper(Helper{State: HelperConnected, Status: &rpc.Status{Mihomo: rpc.MihomoStatus{DNSMode: "fake-ip"}}})
+	if got := m.Snapshot().Mihomo.DNSMode; got != "fake-ip" {
+		t.Errorf("connected: %q", got)
+	}
+	m.SetHelper(Helper{State: HelperNotRunning})
+	if got := m.Snapshot().Mihomo.DNSMode; got != "" {
+		t.Errorf("no helper: %q", got)
 	}
 }
 

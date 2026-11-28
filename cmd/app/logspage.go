@@ -179,7 +179,7 @@ func (a *app) logSearch(c *ui.Context, width float32) ui.Element {
 	}
 	f.Label(T.LogSearch).Placeholder(T.LogSearch).Width(width)
 	for _, k := range findKeys() {
-		c.OnWindowShortcut(k.mods, k.key, func() { v.findKey = true; c.Invalidate() })
+		windowKey(c, k.mods, k.key, func() { v.findKey = true })
 	}
 	if v.findKey {
 		v.findKey = false
@@ -327,11 +327,12 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 				case "debug":
 					col = t.TextMuted
 				}
-				line := e.Time.Format("15:04:05") + " " + e.Type + " " + e.Payload
+				line := e.Time.Format("15:04:05") + " " + e.Type + " " + e.Payload // copied raw
+				shown := logPayloadText(e.Payload)
 				ui.Row(c).Gap(12).Padding(3, 12).AlignItems(ui.Start).Children(func() {
 					ui.Text(c, e.Time.Format("15:04:05")).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Shrink(0)
 					colLabel(c, ui.Span{Size: plat.smallSize}, logLevelName(e.Type), levelColW).TextColor(col)
-					ui.Text(c, e.Payload).Font("monospace").FontSize(plat.smallSize).TextColor(col).Grow(1).Wrap().LineHeight(lineText).Selectable().
+					ui.Text(c, shown).Font("monospace").FontSize(plat.smallSize).TextColor(col).Grow(1).Wrap().LineHeight(lineText).Selectable().
 						ContextMenu(func(m *ui.Menu) {
 							if m.Item(i18n.T.CopyLine).Chosen() {
 								copyText(c, line)
@@ -339,7 +340,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 							m.Separator()
 							m.EditItems()
 						})
-				}).Label(logLevelName(e.Type) + " " + e.Payload)
+				}).Label(logLevelName(e.Type) + " " + shown)
 			}).Grow(1).Background(ui.Transparent).PaddingY(6)
 		})
 	})

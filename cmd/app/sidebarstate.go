@@ -102,7 +102,7 @@ func (a *app) windowKeys(c *ui.Context) {
 		// The sidebar is built before the page, so this covers it.
 		c.DisableAnimations()
 	}
-	c.OnWindowShortcut(ui.Cmd, ui.KeyComma, func() {
+	windowKey(c, ui.Cmd, ui.KeyComma, func() {
 		if a.page != pageSettings {
 			old := a.page
 			a.page = pageSettings

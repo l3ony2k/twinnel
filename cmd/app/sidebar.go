@@ -202,10 +202,10 @@ func (a *app) sidebarFrame(c *ui.Context, body func()) {
 		s.need, s.needKey = sidebarNeed(c), key
 	}
 	if ui.Cmd != ui.Ctrl { // macOS: ⌃⌘S, as Finder's and Mail's Show Sidebar
-		c.OnWindowShortcut(ui.Ctrl|ui.Cmd, ui.KeyS, a.toggleSidebar)
+		windowKey(c, ui.Ctrl|ui.Cmd, ui.KeyS, a.toggleSidebar)
 	}
 	if plat.sidebarKey != 0 { // Linux: F9, as GNOME's apps (Files, Settings)
-		c.OnWindowShortcut(0, plat.sidebarKey, a.toggleSidebar)
+		windowKey(c, 0, plat.sidebarKey, a.toggleSidebar)
 	}
 	frame := ui.Row(c.Key("side-frame")).Width(s.widthOf(s.mode)).Shrink(0).Clip().AlignItems(ui.Stretch)
 	if !s.dragging {
@@ -651,18 +651,29 @@ func (a *app) paneKeys(c *ui.Context) {
 	if !panesCycle() {
 		return
 	}
-	cycle := func() {
+	cycle := func() { // the focus moves in the next build (windowKey)
 		if navFocused || a.side.mode == sideHidden {
 			a.side.focusPage = true
 		} else {
 			navFocus = true
 		}
-		if a.win != nil {
-			a.win.Invalidate()
-		}
 	}
-	c.OnWindowShortcut(0, ui.KeyF6, cycle)
-	c.OnWindowShortcut(ui.Shift, ui.KeyF6, cycle)
+	windowKey(c, 0, ui.KeyF6, cycle)
+	windowKey(c, ui.Shift, ui.KeyF6, cycle)
+}
+
+// windowKey is c.OnWindowShortcut whose fn's change shows in the next
+// build, which c.Invalidate asks of this window's engine. Window.Invalidate
+// asks the native surface for a display frame instead, which a window
+// that is hidden or off-screen (a locked console, a shot run) never gets:
+// F6 did nothing there while Ctrl+F, which used c.Invalidate, worked
+// (Windows QA round 5 N2). Every window shortcut goes through it
+// (TestWindowKeysRebuild).
+func windowKey(c *ui.Context, mods ui.Modifiers, key ui.Key, fn func()) {
+	c.OnWindowShortcut(mods, key, func() {
+		fn()
+		c.Invalidate()
+	})
 }
 
 // pagePane makes the page's pane a place F6 can put the focus: not a

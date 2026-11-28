@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -13,9 +14,9 @@ import (
 // platform, in lang.
 func overviewTester(t *testing.T, goos, lang string, width int) (*app, *ui.Tester) {
 	t.Helper()
+	t.Cleanup(resetFlags) // after usePlat's cleanup (LIFO): from the platform restored
 	usePlat(t, goos)
 	resetFlags()
-	t.Cleanup(resetFlags)
 	i18n.Set(lang)
 	t.Cleanup(func() { i18n.Set("zh") })
 	a, _ := layoutApp(t)
@@ -26,6 +27,41 @@ func overviewTester(t *testing.T, goos, lang string, width int) (*app, *ui.Teste
 		tr.Frame()
 	}
 	return a, tr
+}
+
+// N3 (Windows QA round 5): at the window's minimum width (760) the
+// CommandBar stays one line inside the pane: the commands that do not
+// fit fold, last first, into "…", above its own items.
+func TestOverviewCommandBarFolds(t *testing.T) {
+	for _, lang := range []string{"zh", "en"} {
+		a, tr := overviewTester(t, "windows", lang, 760)
+		for range 3 {
+			tr.Frame()
+		}
+		T := i18n.T
+		first, ok1 := tr.Access(T.TestAllDelay)
+		more, ok2 := tr.Access(T.OvMoreActions)
+		if !ok1 || !ok2 {
+			t.Fatalf("%s: commands missing (%v %v)", lang, ok1, ok2)
+		}
+		if d := more.Bounds.Y - first.Bounds.Y; d > 1 || d < -1 {
+			t.Errorf("%s: … wrapped (y %.0f vs %.0f)", lang, more.Bounds.Y, first.Bounds.Y)
+		}
+		if right := more.Bounds.X + more.Bounds.W; right > a.paneBox.X+a.paneBox.W {
+			t.Errorf("%s: … ends at %.0f, past the pane %+v", lang, right, a.paneBox)
+		}
+		if _, ok := tr.AccessByRole(ui.RoleMenuButton, T.Recovery); ok {
+			t.Errorf("%s: 应急恢复 still a button at 760", lang)
+		}
+		if err := tr.Click(T.OvMoreActions); err != nil {
+			t.Fatal(err)
+		}
+		menu := tr.Menu()
+		tr.CloseMenu()
+		if len(menu) < 3 || menu[len(menu)-2] != T.ReloadConfig || menu[len(menu)-1] != T.RestartMihomo || !slices.Contains(menu, T.Recovery) {
+			t.Errorf("%s: overflow menu %q", lang, menu)
+		}
+	}
 }
 
 // 4.1: on Windows the quick actions are a CommandBar: they fit one line

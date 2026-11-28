@@ -55,12 +55,9 @@ func (a *app) mainView(c *ui.Context) {
 	}
 	a.flushToast(c)
 	if back := pageBack(a.page); back != "" { // ⌘[ as in Finder and System Settings, Alt+← on Windows
-		c.OnWindowShortcut(plat.backMods, plat.backKey, func() { a.showPage(back) })
+		windowKey(c, plat.backMods, plat.backKey, func() { a.showPage(back) })
 	}
-	s := a.mon.Snapshot()
-	if a.shotSnap != nil { // shot mode: synthetic state over the fake one
-		a.shotSnap(&s)
-	}
+	s := a.viewSnapshot()
 	helperOutdatedNow = helperOutdated(s)
 	if a.page == pageWizard { // the first-run wizard: the whole window (wizard.go)
 		a.wizardWindow(c, s)
@@ -412,7 +409,7 @@ func (a *app) pageKeys(c *ui.Context, sections []navSection) {
 				continue
 			}
 			id := it.id
-			c.OnWindowShortcut(ui.Cmd, it.key, func() { a.showPage(id) })
+			windowKey(c, ui.Cmd, it.key, func() { a.showPage(id) })
 		}
 	}
 }
@@ -721,8 +718,9 @@ func (a *app) proxiesPage(c *ui.Context, s status.Snapshot) {
 		if busy && total > 0 {
 			num(small(c, i18n.F(T.TestAllProgress, done, total))).SingleLine()
 		}
-		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Disabled(busy)
+		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay)
 		spin := showBusy(c, b, busy)
+		busyFace(c, b, false, busy, spin)
 		b.Children(func() {
 			busyIcon(c, iconSpeed, spin)
 			ui.Text(c, T.TestAllDelay).SingleLine()
@@ -800,8 +798,8 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	box.Children(func() {
 		// The head is a disclosure the keyboard reaches: Tab stops on it,
 		// Return or Space opens and closes the group.
-		head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).
-			Role(ui.RoleDisclosure).Label(nodeText(g.Name)).Expanded(open).Focusable().FocusRingOffset(2)
+		head := disclosureHead(ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).FocusRingOffset(2),
+			open, nodeText(g.Name))
 		head.ContextMenu(func(m *ui.Menu) {
 			label := T.GroupExpand
 			if open {
@@ -818,6 +816,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 				copyText(c, g.Name)
 			}
 		})
+		toggled := false
 		head.Children(func() {
 			// The chevron: macOS before the name, Windows after the controls.
 			disclosureStart(c, open)
@@ -830,9 +829,9 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			if toolIcon(c.Key("test"), iconSpeed, T.TestGroupDelay, testing).Clicked() && !testing {
 				a.testGroup(g.Name)
 			}
-			disclosureEnd(c, open)
+			toggled = disclosureToggle(c.Key("chevron"), open, nodeText(g.Name))
 		})
-		if head.Clicked() {
+		if head.Clicked() || toggled {
 			a.groupsOpen[g.Name] = !open
 		}
 		a.controlError(c, nodeKey(g.Name))
@@ -1461,4 +1460,14 @@ func switchLabel(c *ui.Context, label, tip string, more func()) {
 			infoTipAbout(c, label, tip, more)
 		}
 	})
+}
+
+// viewSnapshot is the snapshot the window draws: the monitor's, with shot
+// mode's synthetic state over it.
+func (a *app) viewSnapshot() status.Snapshot {
+	s := a.mon.Snapshot()
+	if a.shotSnap != nil {
+		a.shotSnap(&s)
+	}
+	return s
 }

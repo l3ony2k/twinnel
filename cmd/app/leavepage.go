@@ -460,7 +460,7 @@ func (a *app) undoResult(c *ui.Context, r *rpc.TakeoverUndoResult) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Icon(c, icon).FontSize(iconInline).TextColor(col)
 		ui.Text(c, head).FontWeight(600).Grow(1)
-		if r.Error != "" && actionLink(c.Key("undo-copy"), T.TkCopyDetails).Clicked() {
+		if r.Error != "" && copyDetails(c.Key("undo-copy"), plat.smallSize, "").Clicked() {
 			copyText(c, r.Error)
 		}
 	})

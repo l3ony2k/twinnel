@@ -130,9 +130,7 @@ func failedRowWith(c *ui.Context, what, reason, raw string, retry func(), busy b
 			}
 		}
 		if raw != "" {
-			l := ui.Text(c.Key("failed-copy"), T.TkCopyDetails).FontSize(plat.calloutSize).TextColor(t.Accent).
-				SingleLine().Shrink(0).Focusable().Role(ui.RoleButton).Tooltip(raw)
-			if l.Clicked() {
+			if copyDetails(c.Key("failed-copy"), plat.calloutSize, raw).Clicked() {
 				copyText(c, raw)
 			}
 		}

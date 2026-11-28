@@ -86,6 +86,41 @@ func showBusy(c *ui.Context, e ui.Element, busy bool) bool {
 	return st.visible(now)
 }
 
+// busyFace dresses b, a push or primary button that shows a busy mark
+// (a spinner, or its turning icon) while spin, and colors mark, drawn in
+// its label, in the ink of that face. Every button that shows a busy
+// mark goes through it (TestBusyMarksReadOnTheirFace).
+//
+// A busy button keeps its working face (the accent of a primary), not
+// dimmed even when it is disabled meanwhile: a disabled face's ink is
+// too faint for a spinner (WinUI's TextFillColorDisabled is 2.5:1 on its
+// light fill), and the work shows where it was started. Otherwise a
+// disabled primary takes disabledPrimaryFace. On a primary the mark takes
+// the label's color (AccentText); on a push face it keeps the platform's
+// own (the accent ring on Windows, gray spokes on macOS), which reads
+// there. (Windows QA round 5 N1: a busy, disabled 保存 painted its ring
+// AccentText, black, on MyGo's grey disabled face.)
+func busyFace(c *ui.Context, b ui.Element, primary, disabled, spin bool) ui.Element {
+	b.Disabled(disabled)
+	switch {
+	case spin:
+		b.DimDisabled(false)
+	case primary && disabled:
+		disabledPrimaryFace(c, b)
+	}
+	return b
+}
+
+// onBusyFace colors mark, the busy mark or icon in the label of a button
+// dressed by busyFace, for that face: on a working primary, in its
+// label's color. It returns mark.
+func onBusyFace(c *ui.Context, mark ui.Element, primary, spin bool) ui.Element {
+	if primary && spin {
+		mark.TextColor(c.Theme().AccentText)
+	}
+	return mark
+}
+
 // spinnerIcon is a spinner the size of an inline icon, to stand in for
 // one while its control works.
 func spinnerIcon(c *ui.Context) ui.Element {

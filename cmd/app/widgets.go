@@ -283,6 +283,42 @@ func disclosureEnd(c *ui.Context, open bool) {
 	}
 }
 
+// disclosureHead makes head, a row that shows or hides what is under it
+// and holds other controls (a switch, ⓘ, a 测速 button), the disclosure:
+// focusable, spoken as one with its state, named label. On Windows the
+// row is WinUI's SettingsExpander header instead: not one control, as a
+// disclosure exposes no children to UI Automation and the controls in it
+// vanished from Narrator (Windows QA round 5 N6); its trailing chevron is
+// the expander's button (disclosureToggle). A click anywhere on the row
+// still opens and closes it.
+func disclosureHead(head ui.Element, open bool, label string) ui.Element {
+	if plat.fluent {
+		return head
+	}
+	return head.Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(label)
+}
+
+// disclosureToggle is the trailing chevron of a disclosureHead row on
+// Windows: a subtle button that the keyboard reaches, spoken as a
+// disclosure named label, expanded or collapsed (UIA's ExpandCollapse).
+// It reports a click. Nothing elsewhere, where the row is the control.
+func disclosureToggle(c *ui.Context, open bool, label string) bool {
+	if !plat.fluent {
+		return false
+	}
+	k := fluentTok(c.Theme())
+	b := ui.Row(c).AlignItems(ui.Center).Justify(ui.Center).Size(28, 28).Shrink(0).Radius(plat.controlRadius).
+		Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(label).Transition(colorMotion)
+	switch {
+	case b.Pressed():
+		b.Background(k.subtlePressed)
+	case b.Hovered():
+		b.Background(k.subtleHover)
+	}
+	b.Children(func() { disclosure(c, open) })
+	return b.Clicked()
+}
+
 // linkDisclosure shows or hides more text under it (a file's content, a
 // full report). On macOS and Linux it is a small accent link with a
 // turning chevron before it; on Windows a quiet Expander header: the label
@@ -888,6 +924,36 @@ func disabledWhy(c *ui.Context, disabled bool, reason string, control func() ui.
 	}
 	w.Children(func() { e = control().Disabled(disabled) })
 	return e
+}
+
+// copyDetails is 复制详情, which copies a failure's raw text (tip, its
+// tooltip, when not empty). On Windows it is a text button (WinUI's
+// subtle button: no face at rest, the copy glyph and the label in the
+// text color, a faint fill on hover and press; ui-review 6.6, Windows QA
+// round 5 N5), not link text in the accent. Elsewhere it stays the
+// accent text of size, as macOS's inline actions.
+func copyDetails(c *ui.Context, size float32, tip string) ui.Element {
+	t := c.Theme()
+	label := i18n.T.TkCopyDetails
+	b := ui.Row(c).AlignItems(ui.Center).Focusable().Role(ui.RoleButton).Label(label).Shrink(0)
+	if tip != "" {
+		b.Tooltip(tip)
+	}
+	if !plat.fluent {
+		return b.Children(func() { ui.Text(c, label).FontSize(size).TextColor(t.Accent).SingleLine() })
+	}
+	k := fluentTok(t)
+	b.Gap(6).Padding(4, 8).Radius(plat.controlRadius).Transition(colorMotion)
+	switch {
+	case b.Pressed():
+		b.Background(k.subtlePressed)
+	case b.Hovered():
+		b.Background(k.subtleHover)
+	}
+	return b.Children(func() {
+		ui.Icon(c, iconCopy).FontSize(iconInline).TextColor(t.Text)
+		ui.Text(c, label).FontSize(plat.calloutSize).TextColor(t.Text).SingleLine()
+	})
 }
 
 // pushButton is a plain button with the native push-button face.

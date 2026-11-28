@@ -29,15 +29,18 @@ func TestShotPlanReadyWithoutPlan(t *testing.T) {
 // page under the plan's name (ui-review 8.5).
 func TestHelperPlanShot(t *testing.T) {
 	for _, c := range []struct {
-		started, plan bool
-		msg, want     string
+		offered, started, plan bool
+		msg, want              string
 	}{
-		{true, true, "", "takeover-helper-plan"},
-		{true, false, "takeover.plan: no mihomo found", "takeover-helper-plan-failed"},
-		{true, false, "", ""},
-		{false, true, "", ""}, // a plan from before: not this request's
+		{true, true, true, "", "takeover-helper-plan"},
+		{true, true, false, "takeover.plan: no mihomo found", "takeover-helper-plan-failed"},
+		{true, true, false, "", ""},
+		{true, false, true, "", ""}, // a plan from before: not this request's
+		// Twinnel manages the setup: no plan on the page, so no shot that
+		// repeats takeover-helper (Windows QA round 5 T1).
+		{false, true, false, "takeover.plan: managed", ""},
 	} {
-		name, why := helperPlanShot(c.started, c.plan, c.msg)
+		name, why := helperPlanShot(c.offered, c.started, c.plan, c.msg)
 		if name != c.want || (name == "") == (why == "") {
 			t.Errorf("%+v: %q (%s)", c, name, why)
 		}
