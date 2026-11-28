@@ -264,7 +264,7 @@ func (a *app) healthLine(c *ui.Context, s status.Snapshot) {
 		ui.Text(c, text).Grow(1).Shrink(1).SingleLine()
 		switch age := healthAge(s); {
 		case s.Health.Running:
-			ui.Spinner(c).Size(12, 12) // the number is being updated
+			spinner(c).FontSize(12).Size(12, 12) // the number is being updated
 		case age != "":
 			num(small(c, age)).SingleLine()
 		}

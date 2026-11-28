@@ -322,16 +322,12 @@ func TestSpinnersArePlatform(t *testing.T) {
 		_, ok := isCall(call, "ui", "Spinner")
 		return ok && fn.Name.Name != "spinner" && fn.Name.Name != "spinnerIcon"
 	})
-	checkMigrations(t, "ui.Spinner", spin, map[string]int{
-		"healthpage.go": 2, "helper.go": 2, "panel.go": 1,
-	})
+	checkMigrations(t, "ui.Spinner", spin, map[string]int{})
 	sw := fileCalls(t, func(fn *ast.FuncDecl, call *ast.CallExpr) bool {
 		_, ok := isCall(call, "ui", "Switch")
 		return ok && fn.Name.Name != "toggleSwitch"
 	})
-	checkMigrations(t, "ui.Switch", sw, map[string]int{
-		"healthpage.go": 1,
-	})
+	checkMigrations(t, "ui.Switch", sw, map[string]int{})
 }
 
 // 2.2: WinUI's ToggleSwitch: off, a stroked track with a knob in the

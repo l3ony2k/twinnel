@@ -6,6 +6,7 @@ package i18n
 // OverviewStrings holds them.
 type OverviewStrings struct {
 	OvCopyProxyEnv  string // quick action: copy `export https_proxy=…`
+	OvMoreActions   string // quick actions: the overflow (…) menu, Windows
 	OvDashboard     string // quick action: open the external UI in the browser
 	OvRestartTitle  string // confirm before restarting mihomo
 	OvRestartBody   string
@@ -44,6 +45,7 @@ type OverviewStrings struct {
 
 var zhOverview = OverviewStrings{
 	OvCopyProxyEnv:  "复制终端代理",
+	OvMoreActions:   "更多操作",
 	OvDashboard:     "控制面板",
 	OvRestartTitle:  "重启 mihomo？",
 	OvRestartBody:   "现有连接会断开，几秒内没有网络。",
@@ -82,6 +84,7 @@ var zhOverview = OverviewStrings{
 
 var enOverview = OverviewStrings{
 	OvCopyProxyEnv:  "Copy Proxy Env",
+	OvMoreActions:   "More actions",
 	OvDashboard:     "Dashboard",
 	OvRestartTitle:  "Restart mihomo?",
 	OvRestartBody:   "Open connections drop and the network is down for a few seconds.",

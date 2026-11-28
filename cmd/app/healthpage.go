@@ -122,7 +122,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 	case h.Report == nil:
 		groupBox(c, t).Children(func() {
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Justify(ui.Center).Padding(20).Children(func() {
-				ui.Spinner(c)
+				spinner(c)
 				small(c, T.HealthRunning)
 			})
 		})
@@ -154,7 +154,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 					num(small(c, last))
 					if h.Running {
-						ui.Spinner(c).Size(12, 12) // a new report is on its way
+						spinner(c).FontSize(12).Size(12, 12) // a new report is on its way
 					}
 				})
 			})
@@ -222,8 +222,27 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			}
 		})
 	})
-	list(T.HealthPassed, "", rest, nil)
+	// "Other" only after something: alone, the group is all the checks.
+	list(passedTitle(len(problems)+len(accepted)), "", rest, nil)
 	a.fixSheet(c, s)
+}
+
+// passedTitle is the heading of the passed checks' group: 其他检查 under
+// the groups before it, 全部检查 when it is the only one (6.1).
+func passedTitle(before int) string {
+	if before == 0 {
+		return i18n.T.HealthAll
+	}
+	return i18n.T.HealthPassed
+}
+
+// healthRowWeight is a check's title weight: Windows lists name their
+// rows in the body weight (WinUI's ListView), macOS and GNOME in medium.
+func healthRowWeight() int {
+	if plat.fluent {
+		return 400
+	}
+	return 500
 }
 
 // healthDemoted: the banner rates the checks' failures as warnings (a
@@ -285,7 +304,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 		})
 		head.Children(func() {
 			ui.Icon(c, icon).FontSize(iconNav).TextColor(col).Shrink(0).AccessHidden(true)
-			ui.Text(c, cr.Title).FontWeight(500).SingleLine().Shrink(0)
+			ui.Text(c, cr.Title).FontWeight(healthRowWeight()).SingleLine().Shrink(0)
 			switch {
 			case egress:
 				infoTip(c, cr.Title, T.TipEgress, nil)
@@ -293,6 +312,11 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 				// it was tested and what it found.
 				line := egressLine(cr, s)
 				ui.Text(c, line).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(line)
+			case cr.Status == health.StatusSkip && plat.fluent:
+				// Skipped, on Windows: the reason as the rows' other
+				// secondary text, after the skip glyph (a bordered chip
+				// reads as a text field there, 6.3).
+				ui.Text(c, cr.Summary).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(cr.Summary)
 			case cr.Status == health.StatusSkip:
 				// Skipped: the short reason as a chip; the error, if
 				// any, is in the evidence.
@@ -642,7 +666,7 @@ func (a *app) egressControls(c *ui.Context, cr health.CheckReport, s status.Snap
 		}
 		small(c, T.EgressPeriodic).SingleLine().Shrink(0)
 		on := set.HealthEgress
-		sw := ui.Switch(c.Key("egress-periodic"), &on).Label(T.EgressPeriodic).Disabled(!a.helperOpsEnabled(s) || a.hd.busy != "")
+		sw := toggleSwitch(c.Key("egress-periodic"), &on).Label(T.EgressPeriodic).Disabled(!a.helperOpsEnabled(s) || a.hd.busy != "")
 		if sw.Changed() {
 			set.HealthEgress = on // shown at once; the helper's answer follows
 			a.setEgressPeriodic(on)

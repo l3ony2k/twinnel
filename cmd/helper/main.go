@@ -209,6 +209,7 @@ func run(ctx context.Context, o *options, ready func(*engine.Engine)) error {
 	}
 	srv := rpc.NewServer(tr, auth, log)
 	e.Register(srv)
+	registerFixtureTailscale(srv, o)
 
 	l, err := tr.Listen(o.socket)
 	if err != nil {
