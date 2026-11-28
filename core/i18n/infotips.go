@@ -29,7 +29,7 @@ type InfoTipStrings struct {
 
 var zhInfoTips = InfoTipStrings{
 	InfoTipLabel: "说明",
-	InfoTipAbout: "关于%s",
+	InfoTipAbout: "关于 %s",
 
 	TipExitAccepted: "你确认过在 TUN 开着时使用这个出口节点。被它影响的健康检查不再算作问题，停用出口节点后恢复。",
 	TipMagicDNS:     "用设备名访问 Tailscale 里的设备。mihomo 接管 DNS 时，Twinnel 的共存设置把这些名字交给 Tailscale 解析。",

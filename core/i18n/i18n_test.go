@@ -199,3 +199,22 @@ func TestNoShadowedStrings(t *testing.T) {
 	}
 	walk(reflect.TypeOf(Strings{}), "Strings")
 }
+
+// 6.6: a Chinese template puts a space around a slot that can hold Latin
+// text (GEO, TUN, Mac); F drops it next to a Chinese value.
+func TestSlotSpacing(t *testing.T) {
+	zh := WordedFor("zh-Hans", Darwin)
+	for _, c := range []struct{ format, arg, want string }{
+		{zh.CompFailed, "GEO 数据库", "没能下载 GEO 数据库"},
+		{zh.CompFailed, "控制面板（external UI）", "没能下载控制面板（external UI）"},
+		{zh.InfoTipAbout, "TUN", "关于 TUN"},
+		{zh.InfoTipAbout, "接管", "关于接管"},
+	} {
+		if got := F(c.format, c.arg); got != c.want {
+			t.Errorf("F(%q, %q) = %q, want %q", c.format, c.arg, got, c.want)
+		}
+	}
+	if got := F(zh.WizWelcomeBody, "这台电脑"); !strings.Contains(got, "在这台电脑上") {
+		t.Errorf("welcome: %q", got)
+	}
+}

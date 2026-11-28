@@ -98,7 +98,7 @@ var zhComponents = ComponentStrings{
 	CompDoneUI:      "控制面板已是 %s",
 	CompNothing:     "都已是最新",
 	CompReloadLater: "新数据还没生效",
-	CompFailed:      "没能下载%s",
+	CompFailed:      "没能下载 %s",
 	CompViaSub:      "用订阅的节点下载",
 	CompViaProxy:    "用其他代理…",
 	CompViaHint:     "GitHub 连不上时，用订阅里的节点临时代理这次下载；也可以填局域网里另一台机器的代理。",
