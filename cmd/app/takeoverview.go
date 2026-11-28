@@ -465,7 +465,7 @@ func (a *app) takeoverEffectsCard(c *ui.Context, p *rpc.TakeoverPlan) {
 		for i, r := range rows {
 			listRow(c.Key(fmt.Sprint("eff", i))).Children(func() {
 				ui.Row(c).Gap(10).AlignItems(ui.Center).MinHeight(plat.rowMinHeight - 8).PaddingY(4).Children(func() {
-					ui.Text(c, r.item).TextColor(t.TextMuted).Width(effectItemWidth).Shrink(0).SingleLine().Tooltip(r.item)
+					colLabel(c, ui.Span{}, r.item, effectItemWidth).TextColor(t.TextMuted).Tooltip(r.item)
 					now := ui.Text(c, r.now).SingleLine().Grow(1).Basis(0).Shrink(1).Selectable()
 					if r.nowTip != "" {
 						now.Tooltip(r.nowTip)
@@ -637,7 +637,7 @@ func (a *app) takeoverLayersCard(c *ui.Context, p *rpc.TakeoverPlan) {
 		for i, l := range p.Layers {
 			ui.Row(c.Key(fmt.Sprint("l", i))).Gap(10).AlignItems(ui.Center).Children(func() {
 				name := T.TakeoverLayerName(l.NameCode, l.NameArgs, l.Name)
-				ui.Text(c, name).Width(180).Shrink(0).SingleLine().Tooltip(name)
+				colLabel(c, ui.Span{}, name, 180).Tooltip(name)
 				if stage := T.StageName(l.Stage); stage != name {
 					tag(c, stage)
 				}
@@ -1402,7 +1402,7 @@ func (a *app) secureCard(c *ui.Context, s status.Snapshot) {
 	headedCard(c, a.tipHead(c, T.SecureTitle, T.TipSecure, nil), func() {
 		set := a.creds.cur != nil && a.creds.cur.Secret != ""
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, T.TkSecretState).TextColor(t.TextMuted).Width(labelCol()).Shrink(0)
+			kvLabel(c, T.TkSecretState, "", nil, 0)
 			if set {
 				ui.Icon(c, iconOK).FontSize(iconInline).TextColor(t.Success)
 				ui.Text(c, T.TkSecretSetWeak)

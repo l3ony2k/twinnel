@@ -60,6 +60,12 @@ type Report struct {
 	// ended, in whole seconds and at least one. 0: the run was made for
 	// this request.
 	Age time.Duration `json:"ageNs,omitempty"`
+	// Gen is the helper's state generation when the run started
+	// (Scheduler.Gen; 0 where there is none). A report whose Gen is
+	// behind the helper's current one was taken before a state change
+	// (mihomo stopped or started, the controller's owner, the system DNS)
+	// and no longer says what a run now would.
+	Gen uint64 `json:"gen,omitempty"`
 }
 
 // Where a report's checks ran (Report.Source). The helper's run is the

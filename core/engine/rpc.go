@@ -171,7 +171,7 @@ func (e *Engine) Register(s *rpc.Server) {
 	e.registerImport(s)
 
 	rpc.Typed(s, rpc.MethodHealthLast, func(ctx context.Context, p rpc.HealthLastParams) (rpc.HealthReport, error) {
-		return e.withEgressIPs(e.HealthLast(p.Lang))(p.IPs)
+		return e.withEgressIPs(e.HealthLast(ctx, p.Lang))(p.IPs)
 	})
 	rpc.Typed(s, rpc.MethodHealthRun, func(ctx context.Context, p rpc.HealthRunParams) (rpc.HealthReport, error) {
 		return e.withEgressIPs(e.HealthRun(ctx, p.Reason, p.Lang))(p.IPs)

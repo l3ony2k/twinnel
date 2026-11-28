@@ -366,9 +366,12 @@ Rules that came out of round 1:
   request), but clicks, keys and the wheel do not reach it, and popups (menus,
   the tray flyout) cannot be captured: step with `open:page:<id>` only.
 - `twinnel doctor` shows the helper's last report when it is under 60 s old
-  (the header says `后台助手 N 秒前的检查结果`). Right after a test changes
-  state (stopping mihomo, a foreign controller, the DNS watchdog acting) that
-  report can predate the change: use `doctor --fresh` for evidence.
+  and no state change came after it (the header says `后台助手 N 秒前的检查结果`).
+  The helper bumps a state generation on every change it sees (mihomo
+  stopped or started by anyone, the controller's owner or reachability, the
+  DNS watchdog, an apply, dns point/restore) and runs the checks again; a
+  report from an older generation is never reused. `doctor --fresh` still
+  forces a run.
 - Tests that break traffic (mixed TUN stack, stopping mihomo, a foreign
   controller on 9090) arm a time box first. The LAN and the tailnet are
   excluded from the TUN, so SSH normally survives; plan for it not to.

@@ -227,3 +227,36 @@ func TestSchedulerLang(t *testing.T) {
 		t.Errorf("SetLang(\"\") changed the language to %q", rep.Lang)
 	}
 }
+
+// genCheck bumps a generation while it runs: a state change during a run.
+type genCheck struct {
+	varCheck
+	gen *atomic.Uint64
+}
+
+func (c *genCheck) Run(ctx context.Context, e Env) Result {
+	c.gen.Add(1)
+	return c.varCheck.Run(ctx, e)
+}
+
+// A report carries the generation read when its run started, so a change
+// during the run leaves it behind; Replace keeps the report's generation.
+func TestSchedulerGen(t *testing.T) {
+	var gen atomic.Uint64
+	gen.Store(4)
+	c := &genCheck{varCheck: varCheck{id: "a"}, gen: &gen}
+	c.status.Store(StatusOK)
+	s, _ := newTestScheduler(c, newVarCheck("b", StatusOK))
+	s.Gen = gen.Load
+	rep := s.RunNow(context.Background(), "test")
+	if rep.Gen != 4 || gen.Load() != 5 {
+		t.Fatalf("gen %d, state %d; want 4 (read before the checks), 5", rep.Gen, gen.Load())
+	}
+	rep = s.Replace(CheckReport{ID: "b", Result: Result{Status: StatusWarn}}, "egress")
+	if rep == nil || rep.Gen != 4 || s.Last().Gen != 4 {
+		t.Fatalf("replace: %+v", rep)
+	}
+	if rep := s.RunNow(context.Background(), "again"); rep.Gen != 5 {
+		t.Fatalf("second run gen %d", rep.Gen)
+	}
+}

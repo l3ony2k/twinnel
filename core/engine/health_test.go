@@ -66,7 +66,7 @@ func TestHealthRPC(t *testing.T) {
 	h := newHarness(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if _, err := h.e.HealthLast(""); err == nil {
+	if _, err := h.e.HealthLast(context.Background(), ""); err == nil {
 		t.Error("health.last without a scheduler should fail")
 	}
 	chk, _ := newHealth(h)
@@ -196,7 +196,7 @@ func TestHealthEgressKeepsResult(t *testing.T) {
 	if c := egress(hr.Report); probes != 1 || c.Status != health.StatusWarn || !c.At.Equal(now) {
 		t.Fatalf("health.egress: %d probes, check %+v", probes, c)
 	}
-	if lr, _ := h.e.HealthLast(""); egress(lr.Report).Status != health.StatusWarn {
+	if lr, _ := h.e.HealthLast(context.Background(), ""); egress(lr.Report).Status != health.StatusWarn {
 		t.Fatal("health.last lost the result")
 	}
 
@@ -264,7 +264,7 @@ func TestHealthEgressIPs(t *testing.T) {
 	if strings.Contains(string(hr.Report), via) {
 		t.Errorf("unmasked address in the report: %s", hr.Report)
 	}
-	if hr, _ := h.e.withEgressIPs(h.e.HealthLast(""))(false); hr.Egress != nil {
+	if hr, _ := h.e.withEgressIPs(h.e.HealthLast(context.Background(), ""))(false); hr.Egress != nil {
 		t.Errorf("not asked, got %+v", hr.Egress)
 	}
 	b, err := os.ReadFile(filepath.Join(h.e.Store.Dir, egressFile))
@@ -279,7 +279,7 @@ func TestHealthEgressIPs(t *testing.T) {
 	again := New(h.e.Store, h.e.Secrets)
 	again.Now = h.e.Now
 	newSched(again).RunNow(ctx, "start")
-	hr, _ = again.withEgressIPs(again.HealthLast(""))(true)
+	hr, _ = again.withEgressIPs(again.HealthLast(context.Background(), ""))(true)
 	if hr.Egress == nil || hr.Egress.Proxied != via {
 		t.Fatalf("after restart: %+v", hr.Egress)
 	}
