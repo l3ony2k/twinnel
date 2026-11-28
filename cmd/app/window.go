@@ -136,8 +136,12 @@ var pageBar toolbarSpec
 // toolbarHeight is the toolbar's height: a band centered on the traffic
 // lights' line, as a unified toolbar's (52 on macOS 26). The window's
 // reported title bar height (66 under the hidden-inset style) is not that
-// line (sidebar.go, trafficLightsMid).
+// line (sidebar.go, trafficLightsMid). Without lights the toolbar is the
+// title bar the window draws, the caption buttons' height on Windows 11.
 func toolbarHeight(c *ui.Context) float32 {
+	if h := c.TitleBar().Height; !plat.trafficLights && h > 0 {
+		return h
+	}
 	return max(2*trafficLightsMid(c), 52)
 }
 

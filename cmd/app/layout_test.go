@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/health/fixture"
+	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/mihomo"
 	"github.com/l3ony2k/twinnel/core/status"
 	"github.com/l3ony2k/twinnel/core/tailscale"
@@ -150,6 +152,54 @@ func TestPageLayoutAllWidthsAndScales(t *testing.T) {
 						t.Errorf("%s: column %+v differs from scale 1's %+v", where, col, r0)
 					}
 				}
+			}
+		}
+	}
+}
+
+// Windows draws its own title bar (Windows 11's tall one, as File
+// Explorer's): the sidebar toggle and the page's title sit on the caption
+// buttons' line in it, as on macOS, and nothing in the band runs under
+// the caption buttons at its right.
+func TestWindowsTitleBar(t *testing.T) {
+	old := plat
+	defer func() { plat = old; resetFlags() }()
+	plat = platformFor("windows")
+	resetFlags()
+	if plat.titleBar != mygo.TitleBarHidden || plat.titleBarHeight != 48 {
+		t.Fatalf("windows title bar %q %d", plat.titleBar, plat.titleBarHeight)
+	}
+	a, _ := layoutApp(t)
+	tr := ui.NewTester(func(c *ui.Context) { a.mainView(c) }, 1280, 800)
+	bar := titleBarFor("windows")
+	tr.SetTitleBar(bar)
+	tr.SetScale(1.5)
+	for _, p := range []string{pageHealth, pageOverview, pageSettings} {
+		a.page = p
+		tr.Frame()
+		tr.Frame()
+		mid := bar.Height / 2
+		for _, name := range []string{i18n.T.SidebarToggle, pageBar.title} {
+			// The toggle, and the title's text in the toolbar (the sidebar
+			// has a row of the same name, and the toolbar is labeled with
+			// it too).
+			var r ui.Rect
+			for _, e := range tr.AccessAll() {
+				if e.Name == name && e.Role != ui.RoleToolbar && e.Bounds.Y < bar.Height && e.Bounds.H < bar.Height {
+					r = e.Bounds
+				}
+			}
+			if r.H == 0 {
+				t.Fatalf("%s: no %q in the title bar", p, name)
+			}
+			if c := r.Y + r.H/2; math.Abs(float64(c-mid)) > 1.5 {
+				t.Errorf("%s: %q centered at %.1f, the caption buttons at %.1f", p, name, c, mid)
+			}
+		}
+		for _, txt := range tr.Texts() {
+			r, _ := tr.Find(txt)
+			if r.Y < bar.Height && r.Y+r.H > 0 && r.X+r.W > 1280-bar.Right+0.5 {
+				t.Errorf("%s: %q (%+v) under the caption buttons", p, txt, r)
 			}
 		}
 	}
