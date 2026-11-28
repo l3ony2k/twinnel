@@ -93,7 +93,7 @@ func titleBarFor(goos string) ui.TitleBar {
 // Every page, on every platform's shell, at window widths from small to
 // a 4K screen's and the display scales of Windows (100–200%): the page
 // column sits inside the window, centered in the pane right of the
-// sidebar; no text runs past the window's right edge; and the layout in
+// sidebar (on Windows at its leading edge); no text runs past the window's right edge; and the layout in
 // DIPs is the same at every scale (the column's math never sees pixels).
 func TestPageLayoutAllWidthsAndScales(t *testing.T) {
 	old := plat
@@ -154,7 +154,12 @@ func TestPageLayoutAllWidthsAndScales(t *testing.T) {
 						t.Errorf("%s: column %.1f wider than its max %v", where, col.W, pageMaxWidth(p))
 					}
 					left, right := col.X-pane.X, pane.X+pane.W-(col.X+col.W)
-					if math.Abs(float64(left-right)) > 1 {
+					switch {
+					case goos == "windows": // at the leading edge, as Windows Settings (ui-review 3.3)
+						if math.Abs(float64(left-plat.pagePadX)) > 1 || right < left-1 {
+							t.Errorf("%s: column not at the pane's leading edge: left %.1f, right %.1f", where, left, right)
+						}
+					case math.Abs(float64(left-right)) > 1:
 						t.Errorf("%s: column not centered in the pane: left %.1f, right %.1f", where, left, right)
 					}
 					key := fmt.Sprintf("%s@%d", p, w)

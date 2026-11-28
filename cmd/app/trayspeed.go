@@ -41,7 +41,7 @@ func (a *app) menuBarCard(c *ui.Context) {
 	card(c, T.MenuBar, func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, T.TraySpeedSwitch).Grow(1)
-			if ui.Switch(c.Key("tray-speed"), &on).Label(T.TraySpeedSwitch).Changed() {
+			if toggleSwitch(c.Key("tray-speed"), &on).Label(T.TraySpeedSwitch).Changed() {
 				a.setTraySpeed(!on, a.cfg.TraySpeedLayout)
 			}
 		})

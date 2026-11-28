@@ -70,9 +70,12 @@ func (a *app) mainView(c *ui.Context) {
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
 	}
+	a.sideToggle(c) // sidebar.go: first in Tab order, over the layout
+	a.paneKeys(c)
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
 		a.sidebarFrame(c, func() { a.sidebar(c, s) }) // sidebar.go
-		content := ui.Column(c).Grow(1).Background(t.Background)
+		content := ui.Column(c.Key("page-pane")).Grow(1).Background(t.Background)
+		a.pagePane(content) // F6's target (sidebar.go)
 		if c.Vibrancy() && a.contentHairline() {
 			content.BorderWidth(0, 0, 0, 1).BorderColor(pal(t).separator)
 		}
@@ -92,9 +95,11 @@ func (a *app) mainView(c *ui.Context) {
 				ui.Scroll(c.Key("page:"+a.page)).TrackScroll(st).Grow(1).ScrollbarInsets(barH, 0, 0, 0).Children(func() {
 					// The column stops growing at pageMaxWidth and is
 					// centered in the pane past it (full screen, wide
-					// displays): the slack splits equally left and right.
-					inset := columnInset(a.paneW, pageMaxWidth(a.page))
-					ui.Column(c).Padding(barH+4, inset, 32).AlignItems(ui.Start).Children(func() {
+					// displays): the slack splits equally left and right;
+					// on Windows it stays left and the slack goes right
+					// (columnInsets).
+					left, right := columnInsets(a.paneW, pageMaxWidth(a.page))
+					ui.Column(c).Padding(barH+4, right, 32, left).AlignItems(ui.Start).Children(func() {
 						col := ui.Column(c).Gap(gapGroup).FillWidth().MaxWidth(pageMaxWidth(a.page))
 						col.Children(func() {
 							a.pageBody(c, s)
@@ -106,13 +111,16 @@ func (a *app) mainView(c *ui.Context) {
 			}
 			a.toolbar(c, barH, scrolled)
 		})
+		if panesCycle() { // F6 lands on the pane: screen readers say the page
+			content.Label(pageBar.title)
+		}
 		a.paneBox = content.Bounds()
 		if w := a.paneBox.W; w > 0 && w != a.paneW { // the pane's width changed: center again
 			a.paneW = w
 			c.Invalidate()
 		}
 	})
-	a.sidebarChrome(c, toolbarHeight(c)) // the sidebar toggle and the divider's grip
+	a.sidebarChrome(c, toolbarHeight(c)) // the divider's grip
 	a.importSheet(c, s)                  // importsheet.go: over the whole window
 	a.toasts(c)                          // toast.go
 }
@@ -160,11 +168,11 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 	if a.page == pageLogs {
 		inner = 0
 	}
-	inset := plat.pagePadX
+	left, right := plat.pagePadX, plat.pagePadX
 	if inner > 0 {
-		inset = columnInset(a.paneW, inner)
+		left, right = columnInsets(a.paneW, inner)
 	}
-	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).Padding(0, max(inset, c.TitleBar().Right+toolbarGap), 0, max(inset, a.toolbarLead(c))).
+	ui.Column(c.Key("toolbar")).Absolute().Top(0).Left(0).Right(0).Height(h).Padding(0, max(right, c.TitleBar().Right+toolbarGap), 0, max(left, a.toolbarLead(c))).
 		AlignItems(ui.Start).Justify(ui.Center).DragWindow().Role(ui.RoleToolbar).Label(spec.title).Children(func() {
 		row := ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center)
 		if inner > 0 {
@@ -174,11 +182,7 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 			if spec.back != nil {
 				back := spec.back
 				toolbarActions(c, func() {
-					b := pushButton(c.Key("back"), "").Label(i18n.T.NavBack).Tooltip(i18n.T.NavBack)
-					b.Children(func() {
-						ui.Icon(c, iconCollapsed).FontSize(iconInline).Rotate(180)
-					})
-					if b.Clicked() {
+					if backButton(c.Key("back"), a.side.mode != sideHidden).Clicked() {
 						back()
 					}
 				})
@@ -192,6 +196,59 @@ func (a *app) toolbar(c *ui.Context, h float32, scrolled bool) {
 			}
 		})
 	})
+}
+
+// backButton is a sub-page's way back, before its title: a push button
+// with a chevron on macOS and Linux; on Windows the title bar's back
+// button, a borderless arrow with a subtle fill on hover and press, as
+// WinUI's (a bordered box read as a form control there). With align, the
+// arrow lines up with the page's column (not while the sidebar is hidden:
+// the pane toggle is just before it then).
+func backButton(c *ui.Context, align bool) ui.Element {
+	T := i18n.T
+	if !plat.fluent {
+		b := pushButton(c, "").Label(T.NavBack).Tooltip(T.NavBack)
+		b.Children(func() {
+			ui.Icon(c, iconCollapsed).FontSize(iconInline).Rotate(180)
+		})
+		return b
+	}
+	t := c.Theme()
+	k := fluentTok(t)
+	b := ui.Button(c, "").Label(T.NavBack).Tooltip(T.NavBack).Size(40, toolbarItemH).Padding(0).
+		Radius(plat.controlRadius)
+	if align {
+		b.MarginStart(-(40 - iconNav) / 2)
+	}
+	b.BorderWidth(0).Background(ui.Transparent).
+		AlignItems(ui.Center).Justify(ui.Center).Transition(colorMotion)
+	switch {
+	case b.Pressed():
+		b.Background(k.subtlePressed)
+	case b.Hovered():
+		b.Background(k.subtleHover)
+	}
+	b.Children(func() {
+		ui.Icon(c, iconBackArrow).FontSize(iconNav).TextColor(t.Text)
+	})
+	return b
+}
+
+// iconBackArrow is WinUI's back glyph (an arrow pointing left), on the
+// icons' 24 grid.
+var iconBackArrow = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 12H4.5M11 5.5L4.5 12L11 18.5" fill="none" stroke="#000000" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`))
+
+// columnInsets are the page column's left and right insets in a content
+// pane paneW wide: centered (columnInset) on macOS and Linux, as System
+// Settings and GNOME's clamped pages; on Windows the column stays at the
+// pane's leading edge and the slack goes right, as Windows Settings
+// keeps its content next to the navigation pane (ui-review 3.3).
+func columnInsets(paneW, maxW float32) (left, right float32) {
+	if plat.fluent {
+		return plat.pagePadX, plat.pagePadX + max(0, paneW-2*plat.pagePadX-maxW)
+	}
+	in := columnInset(paneW, maxW)
+	return in, in
 }
 
 // columnInset is the page column's inset from each side of a content
@@ -271,7 +328,7 @@ func (a *app) sidebar(c *ui.Context, s status.Snapshot) {
 			side.Background(ui.Hex("#2a2a2c"))
 		}
 	}
-	side.Padding(sidebarTop(c), 10, 12).Gap(4).Children(func() {
+	side.Padding(sidebarTop(c), sidePadX(), 12).Gap(4).Children(func() {
 		old := a.page
 		ts := 0
 		if s.Tailscale.Reachable {
@@ -760,7 +817,8 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			}
 		})
 		head.Children(func() {
-			disclosure(c, open)
+			// The chevron: macOS before the name, Windows after the controls.
+			disclosureStart(c, open)
 			ui.Text(c, nodeText(g.Name)).FontWeight(500).SingleLine().Shrink(0) // a row title, not a heading (R-unslop-30)
 			typeMeta(c, g.Type)
 			ui.Text(c, chain).TextColor(t.TextMuted).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(chain)
@@ -770,6 +828,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			if toolIcon(c.Key("test"), iconSpeed, T.TestGroupDelay, testing).Clicked() && !testing {
 				a.testGroup(g.Name)
 			}
+			disclosureEnd(c, open)
 		})
 		if head.Clicked() {
 			a.groupsOpen[g.Name] = !open
@@ -778,9 +837,14 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 		if !open {
 			return
 		}
-		// The head row spans the list's width; the grid is 22 in from it,
-		// under the name.
-		cols, maxW := tileLayout(head.Bounds().W-22, len(g.Members))
+		// The head row spans the list's width; the grid is under the name:
+		// 22 in from it past the leading chevron, flush where the chevron
+		// trails (Windows).
+		indent := float32(22)
+		if plat.fluent {
+			indent = 0
+		}
+		cols, maxW := tileLayout(head.Bounds().W-indent, len(g.Members))
 		if cols != a.tileCols[g.Name] { // the width changed: lay out again with the new count
 			a.tileCols[g.Name] = cols
 			c.Invalidate()
@@ -789,7 +853,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 		// ← and → step through them, ↑ and ↓ by a row of the grid
 		// (nodeTile). The arrows only move the focus: Return or Space
 		// selects, as switching the node changes where traffic goes.
-		grid := ui.Grid(c.Key("tiles")).Gap(tileGap).MarginStart(22).MarginY(2).Columns(cols).
+		grid := ui.Grid(c.Key("tiles")).Gap(tileGap).MarginStart(indent).MarginY(2).Columns(cols).
 			Role(ui.RoleRadioGroup).Label(g.Name).FocusGroup(ui.Horizontal)
 		if maxW > 0 {
 			grid.MaxWidth(maxW)
@@ -1221,7 +1285,7 @@ func (a *app) generalCard(c *ui.Context) {
 				// limits, and the tag says why (the tooltip, how).
 				tag(c, tg).Tooltip(T.NotificationsUnsupportedTip)
 			}
-			if ui.Switch(c.Key("notify"), &on).Label(T.Notifications).Disabled(!ok).Changed() {
+			if toggleSwitch(c.Key("notify"), &on).Label(T.Notifications).Disabled(!ok).Changed() {
 				a.setNotifications(on)
 			}
 		})

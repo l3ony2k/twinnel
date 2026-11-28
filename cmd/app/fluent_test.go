@@ -332,8 +332,7 @@ func TestSpinnersArePlatform(t *testing.T) {
 		return ok && fn.Name.Name != "toggleSwitch"
 	})
 	checkMigrations(t, "ui.Switch", sw, map[string]int{
-		"agentsection.go": 1, "components.go": 1, "controls.go": 2, "configpage.go": 1, "healthpage.go": 1,
-		"helpermgmt.go": 1, "trayspeed.go": 1, "window.go": 1,
+		"agentsection.go": 1, "components.go": 1, "configpage.go": 1, "healthpage.go": 1,
 	})
 }
 
