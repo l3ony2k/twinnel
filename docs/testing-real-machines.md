@@ -365,6 +365,14 @@ Rules that came out of round 1:
   `printshot:NAME` still captures the main window (the app draws it on
   request), but clicks, keys and the wheel do not reach it, and popups (menus,
   the tray flyout) cannot be captured: step with `open:page:<id>` only.
+- 截图的尺寸必须等于窗口的物理像素尺寸（`windows` / `printshot` 那一行会打印
+  尺寸和缩放比例）。150% 下 2575 DIP 宽的窗口是 3862 px。第 4 轮的
+  `printshot` 在一个没有拿到 per-monitor DPI 感知的 PowerShell 里运行，
+  位图按 2575×1417 建、PrintWindow 却按 3862×2125 画，只留下左上角三分之二，
+  看起来像内容整体右移并被右边缘截断。脚本现在设置线程级 DPI 感知并核对；
+  看到 `warning: not per-monitor DPI aware` 时尺寸是按窗口 DPI 换算的。
+  (A capture must be the window's size in physical pixels; round 4's was
+  cropped by a DPI-unaware capture, not the app.)
 - `twinnel doctor` shows the helper's last report when it is under 60 s old
   and no state change came after it (the header says `后台助手 N 秒前的检查结果`).
   The helper bumps a state generation on every change it sees (mihomo
