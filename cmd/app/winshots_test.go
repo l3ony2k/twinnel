@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -43,6 +44,7 @@ func TestWindowsShots(t *testing.T) {
 	plat = platformFor("windows")
 	resetFlags()
 	a, _ := layoutApp(t)
+	a.probes = &shotProbes{goos: "windows", machine: shotMachine("windows")} // Windows fixtures (ui-review 8.6)
 	a.theme = "dark"
 	tr := ui.NewTesterWith(func(c *ui.Context) { a.mainView(c) }, width, width*945/1717, ui.TesterOptions{Dark: true})
 	tr.SetTitleBar(titleBarFor("windows"))
@@ -50,6 +52,7 @@ func TestWindowsShots(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	var digests shotDigests
 	for _, p := range pages {
 		o, err := parseLaunchOpen("page:" + p)
 		if err != nil {
@@ -60,15 +63,19 @@ func TestWindowsShots(t *testing.T) {
 		a.pageChanged(prev)
 		tr.Frame()
 		tr.Frame()
-		f, err := os.Create(filepath.Join(dir, "win-"+p+".png"))
-		if err != nil {
+		var buf bytes.Buffer
+		if err := png.Encode(&buf, tr.Image()); err != nil {
 			t.Fatal(err)
 		}
-		if err := png.Encode(f, tr.Image()); err != nil {
+		name := filepath.Join(dir, "win-"+p+".png")
+		if err := os.WriteFile(name, buf.Bytes(), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		f.Close()
-		t.Logf("saved %s", f.Name())
+		t.Logf("saved %s", name)
+		digests.add("win-"+p, buf.Bytes())
+	}
+	if err := digests.err(); err != nil {
+		t.Error(err) // two pages drew the same: the page switch did not render
 	}
 }
 
