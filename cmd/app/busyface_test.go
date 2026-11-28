@@ -19,37 +19,64 @@ func TestBusyMarksReadOnTheirFace(t *testing.T) {
 	for _, goos := range []string{"darwin", "windows", "linux"} {
 		usePlat(t, goos)
 		for _, dark := range []bool{true, false} {
-			type btn struct {
-				label             string
-				primary, disabled bool
-			}
-			var btns []btn
-			for _, primary := range []bool{true, false} {
-				for _, disabled := range []bool{false, true} {
-					btns = append(btns, btn{fmt.Sprintf("b-%v-%v", primary, disabled), primary, disabled})
+			for _, active := range []bool{true, false} {
+				type btn struct {
+					label             string
+					primary, disabled bool
 				}
-			}
-			tr := renderControls(t, dark, func(c *ui.Context) {
-				ui.Column(c).Gap(12).Children(func() {
-					for _, b := range btns {
-						ui.Row(c).Children(func() { busyButton(c.Key(b.label), b.label, b.primary, true, b.disabled) })
+				var btns []btn
+				for _, primary := range []bool{true, false} {
+					for _, disabled := range []bool{false, true} {
+						btns = append(btns, btn{fmt.Sprintf("b-%v-%v", primary, disabled), primary, disabled})
 					}
+				}
+				tr := renderControls(t, dark, func(c *ui.Context) {
+					ui.Column(c).Gap(12).Children(func() {
+						for _, b := range btns {
+							ui.Row(c).Children(func() { busyButton(c.Key(b.label), b.label, b.primary, true, b.disabled) })
+						}
+					})
 				})
+				tr.SetScale(2)             // a Retina or 200 % display: the mark's own ink, not its antialiasing
+				tr.SetWindowActive(active) // R1: a busy primary in a window the user left
+				tr.Advance(busyDelay + 50*time.Millisecond)
+				tr.Frame()
+				img := tr.Image()
+				for _, b := range btns {
+					r, ok := tr.Find(b.label)
+					if !ok {
+						t.Fatalf("%s: %s not found", goos, b.label)
+					}
+					face, mark := faceAndMark(img, ui.Rect{X: r.X * 2, Y: r.Y * 2, W: r.W * 2, H: r.H * 2})
+					if got := contrast(face, mark); got < 3 {
+						t.Errorf("%s dark=%v active=%v primary=%v disabled=%v: spinner %v on face %v, %.2f:1, want >= 3",
+							goos, dark, active, b.primary, b.disabled, mark, face, got)
+					}
+				}
+			}
+		}
+	}
+}
+
+// R1: on Windows a primary keeps the accent when its window isn't active
+// (WinUI's AccentButton); macOS fades it as AppKit does.
+func TestFluentPrimaryKeepsAccentInactive(t *testing.T) {
+	for goos, keeps := range map[string]bool{"windows": true, "darwin": false} {
+		usePlat(t, goos)
+		for _, dark := range []bool{true, false} {
+			tr := renderControls(t, dark, func(c *ui.Context) {
+				ui.PrimaryButton(c.Key("p"), "primary")
 			})
-			tr.SetScale(2) // a Retina or 200 % display: the mark's own ink, not its antialiasing
-			tr.Advance(busyDelay + 50*time.Millisecond)
+			tr.SetWindowActive(false)
 			tr.Frame()
-			img := tr.Image()
-			for _, b := range btns {
-				r, ok := tr.Find(b.label)
-				if !ok {
-					t.Fatalf("%s: %s not found", goos, b.label)
-				}
-				face, mark := faceAndMark(img, ui.Rect{X: r.X * 2, Y: r.Y * 2, W: r.W * 2, H: r.H * 2})
-				if got := contrast(face, mark); got < 3 {
-					t.Errorf("%s dark=%v primary=%v disabled=%v: spinner %v on face %v, %.2f:1, want >= 3",
-						goos, dark, b.primary, b.disabled, mark, face, got)
-				}
+			r, ok := tr.Find("primary")
+			if !ok {
+				t.Fatal("no primary")
+			}
+			th := finishTheme(systemTheme(dark, ui.Preferences{}), ui.Preferences{})
+			face := pixel(tr.Image(), r.X+r.W/2, r.Y+3) // the top padding, clear of the label
+			if got := colorNear(face, th.Accent, 30); got != keeps {
+				t.Errorf("%s dark=%v: inactive primary face %v, accent %v, keeps=%v", goos, dark, face, th.Accent, got)
 			}
 		}
 	}

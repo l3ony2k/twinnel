@@ -115,7 +115,11 @@ func busyFace(c *ui.Context, b ui.Element, primary, disabled, spin bool) ui.Elem
 // dressed by busyFace, for that face: on a working primary, in its
 // label's color. It returns mark.
 func onBusyFace(c *ui.Context, mark ui.Element, primary, spin bool) ui.Element {
-	if primary && spin {
+	// A primary's face is the accent only while it shows one: MyGo
+	// draws a primary in a window that isn't active as a plain button
+	// (AppKit), unless the theme keeps the accent there (Fluent's
+	// InactiveAccent). On a plain face the mark keeps the text color.
+	if primary && spin && (c.WindowActive() || c.Theme().InactiveAccent != ui.Transparent) {
 		mark.TextColor(c.Theme().AccentText)
 	}
 	return mark

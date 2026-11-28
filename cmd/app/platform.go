@@ -322,6 +322,10 @@ func fluentAccent(t *ui.Theme) {
 	t.AccentHover = a.Mix(t.Background, 0.1)
 	t.AccentPressed = a.Mix(t.Background, 0.2)
 	t.Selection = a.Alpha(0.4)
+	// WinUI's AccentButton keeps its accent in a window that isn't
+	// active; MyGo fades it the AppKit way unless InactiveAccent is set
+	// (round 6 R1: primaries and their busy mark went grey).
+	t.InactiveAccent = a
 }
 
 // fluentFocus is Windows 11's focus visual: a 2 DIP outer stroke in the
