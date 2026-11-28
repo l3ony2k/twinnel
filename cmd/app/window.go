@@ -548,6 +548,8 @@ func (a *app) trafficChart(c *ui.Context, s status.Snapshot, height float32) {
 		return fmt.Sprintf("%s %s · %s %s · %s", T.Download, status.Rate(h.Down), T.Upload, status.Rate(h.Up), status.Ago(s.Time, h.Time))
 	}
 	chart.Plot(c, axes, func(area ui.Element) {
+		// A Tab stop (chart.Select): named, with the rates now (4.5, 7.3).
+		area.Label(fmt.Sprintf("%s · %s %s · %s %s", T.Traffic, T.Download, status.Rate(traffic.Down), T.Upload, status.Rate(traffic.Up)))
 		area.Draw(func(p *ui.Painter, r ui.Rect) {
 			for _, tk := range ticks {
 				p.Line(r.X, chart.Y(r, tk.At), r.X+r.W, chart.Y(r, tk.At), 1, grid)
