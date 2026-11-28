@@ -95,10 +95,10 @@ func parseEtime(s string) (time.Duration, error) {
 }
 
 // IsMihomoCommand reports whether a process is a mihomo core: its file
-// name starts with mihomo (mihomo, mihomo-darwin-arm64) or is a Clash
-// Meta build.
+// name starts with mihomo (mihomo, mihomo-darwin-arm64, mihomo.exe) or is
+// a Clash Meta build.
 func IsMihomoCommand(cmd string) bool {
-	b := strings.ToLower(path.Base(cmd))
+	b := strings.TrimSuffix(strings.ToLower(path.Base(strings.ReplaceAll(cmd, `\`, "/"))), ".exe")
 	return strings.HasPrefix(b, "mihomo") || b == "clash-meta" || b == "clash"
 }
 
