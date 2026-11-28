@@ -126,7 +126,9 @@ func platformFor(goos string) platformStyle {
 			titleBar: mygo.TitleBarHidden, titleBarHeight: 48, sidebarMat: mygo.VibrancyMica,
 			sidebarWidth: 240, contentMax: 1000, pagePadX: 32, pagePadTop: 24,
 			groupRadius: 8, controlRadius: 4, innerRadius: 6, rowMinHeight: 40,
-			bodySize: 14, smallSize: 12, calloutSize: 13, leadSize: 16, figureSize: 20, panelTextSize: 13, titleSize: 28, headingSize: 14,
+			// Fluent's type ramp has Caption 12 and Body 14, nothing between:
+			// secondary text (callouts, notes, table cells) is a Caption.
+			bodySize: 14, smallSize: 12, calloutSize: 12, leadSize: 16, figureSize: 20, panelTextSize: 13, titleSize: 28, headingSize: 14,
 			titleWeight: 600, headingWeight: 600, panelPad: 16,
 			titleBarSize: 28, titleBarWeight: 600, // Windows 11 Settings: the page title stays large
 			navSel: navNeutralPill, fluent: true,
@@ -290,7 +292,116 @@ func finishTheme(t *ui.Theme, p ui.Preferences) *ui.Theme {
 	// Tooltips (labels) open after half a second, as AppKit's; once one
 	// shows, its neighbours open at once (MyGo's warm-up).
 	t.TooltipDelay = 500 * time.Millisecond
-	return t.WithPreferences(p)
+	t = t.WithPreferences(p)
+	if plat.fluent {
+		fluentAccent(t)
+		fluentFocus(t)
+	}
+	return t
+}
+
+// fluentAccent derives the accent's shades as WinUI does from the
+// system's accent (the raw color WithPreferences set): accent fills take
+// AccentLight2 in the dark, with black text on them, and AccentDark1 in
+// the light, with white; hover and press are the fill at 90 and 80 %
+// (AccentFillColorSecondary/Tertiary). The raw accent with white text
+// (#3073CF on #202020) left links at about 3.5:1 in the dark. The
+// lightness targets are those of Windows 11's default blue (#0078D4 →
+// Light2 #60CDFF, Dark1 #005FB8); an accent already past them keeps its
+// own.
+func fluentAccent(t *ui.Theme) {
+	a := t.Accent
+	if t.Dark {
+		a = withLightness(a, max(lightness(a), 0.68))
+		t.AccentText = ui.RGB(0, 0, 0)
+	} else {
+		a = withLightness(a, min(lightness(a), 0.36))
+		t.AccentText = ui.RGB(255, 255, 255)
+	}
+	t.Accent = a
+	t.AccentHover = a.Mix(t.Background, 0.1)
+	t.AccentPressed = a.Mix(t.Background, 0.2)
+	t.Selection = a.Alpha(0.4)
+}
+
+// fluentFocus is Windows 11's focus visual: a 2 DIP outer stroke in the
+// text color (white in the dark, near black in the light), fully opaque,
+// one DIP outside the control, the gap standing for the inner contrast
+// stroke (FocusStrokeColorInner), which MyGo's single ring cannot draw.
+// The accent ring of the other platforms read as a hairline at 150 %.
+func fluentFocus(t *ui.Theme) {
+	if t.Dark {
+		t.Focus = ui.RGB(255, 255, 255)
+	} else {
+		t.Focus = ui.RGBA(0, 0, 0, 0.894)
+	}
+	t.FocusRingWidth, t.FocusRingOffset = 2, 1
+}
+
+// lightness is c's HSL lightness, 0 to 1.
+func lightness(c ui.Color) float32 {
+	hi := max(c.R, c.G, c.B)
+	lo := min(c.R, c.G, c.B)
+	return (float32(hi) + float32(lo)) / 510
+}
+
+// withLightness is c with its HSL hue and saturation and lightness l.
+func withLightness(c ui.Color, l float32) ui.Color {
+	r, g, b := float32(c.R)/255, float32(c.G)/255, float32(c.B)/255
+	hi, lo := max(r, g, b), min(r, g, b)
+	if hi == lo {
+		v := uint8(l*255 + 0.5)
+		return ui.Color{R: v, G: v, B: v, A: c.A}
+	}
+	l0 := (hi + lo) / 2
+	d := hi - lo
+	s := d / (1 - abs32(2*l0-1))
+	var h float32
+	switch hi {
+	case r:
+		h = (g - b) / d
+		if h < 0 {
+			h += 6
+		}
+	case g:
+		h = (b-r)/d + 2
+	default:
+		h = (r-g)/d + 4
+	}
+	ch := (1 - abs32(2*l-1)) * min(s, 1)
+	x := ch * (1 - abs32(mod32(h, 2)-1))
+	var r1, g1, b1 float32
+	switch int(h) % 6 {
+	case 0:
+		r1, g1 = ch, x
+	case 1:
+		r1, g1 = x, ch
+	case 2:
+		g1, b1 = ch, x
+	case 3:
+		g1, b1 = x, ch
+	case 4:
+		r1, b1 = x, ch
+	default:
+		r1, b1 = ch, x
+	}
+	m := l - ch/2
+	to := func(v float32) uint8 { return uint8(min(max(v+m, 0), 1)*255 + 0.5) }
+	return ui.Color{R: to(r1), G: to(g1), B: to(b1), A: c.A}
+}
+
+func abs32(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+func mod32(v, m float32) float32 {
+	for v >= m {
+		v -= m
+	}
+	return v
 }
 
 // displayFont sets the platform's font for large titles on e, where it
