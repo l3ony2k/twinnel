@@ -156,13 +156,14 @@ From the repo root:
 S=$HOME/.cache/twinnel-e2e/hermetic        # scratch dir, outside the repo
 TS=$PWD/cmd/app/testdata/shots-tailscale-status.json
 mkdir -p $S/home $S/state $S/empty
-go build -o $S/devfake ./cmd/helper/internal/devfake
+go build -o $S/fakemihomo ./cmd/app/internal/fakemihomo
 go build -o $S/twinnel-helper ./cmd/helper
 go build -o $S/twinnel ./cmd/cli
 go build -o $S/twinnel-app ./cmd/app      # needs the Linux GUI (feat/linux-gui) merged
 
-# 1. fake controller (invented groups and nodes)
-$S/devfake -listen 127.0.0.1:19894 &
+# 1. fake controller: invented groups, nodes, traffic and logs (fakemihomo;
+#    devfake answers only /version and PUT /configs, too little for the pages)
+$S/fakemihomo --listen 127.0.0.1:19894 &
 
 # 2. scratch helper: temp socket, file secrets, your own group, synthetic tailnet,
 #    no host health checks, no takeover probing
@@ -335,7 +336,7 @@ the remote-access path (Tailscale, when that is how you reach the PC).
 | `windows-deploy.sh HOST` | the Mac | builds the Windows app zip from main (refuses another branch), copies it to `%ProgramData%\TwinnelQA\deploy`, runs `install.ps1 -NoLaunch`, `twinnel helper upgrade`, prints `twinnel version` and `helper upgrade --check` |
 | `windows-snapshot.ps1 snapshot` / `verify -Dir` | the PC (elevated) | saves the state before a test (config.export zip, settings, layers, status, doctor, DNS of every adapter, service states) into `%ProgramData%\TwinnelQA\snap-<ts>`; `verify` compares and checks HTTPS to a DIRECT and a PROXY target through the TUN |
 | `windows-timebox.ps1 arm -Name N -Restore FILE -Seconds S` | the PC (elevated) | a one-shot SYSTEM scheduled task that runs the restore script after S seconds even when the SSH session dies; `run` restores early, `disarm` removes it |
-| `windows-usersession.ps1 -Script FILE -Arguments 'a;b'` | the PC (elevated) | runs a script in the signed-in user's desktop session (one-shot Interactive task, hidden console) and prints its output |
+| `windows-usersession.ps1 -Script FILE -Arguments 'a;b' [-Task NAME]` | the PC (elevated) | runs a script in the signed-in user's desktop session (one-shot Interactive task, hidden console) and prints its output. Each run has its own task (`-Task`, else `TwinnelQA-us-<script>-<pid>`), so two agents or batches at once never replace each other's run; give `-Task` a name of your own when you need to find the run's `<task>.out.txt` |
 | `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `open:VALUE` (`Twinnel.exe --open=page:<id>`: a running copy turns to that page), `wheel:N` (scroll the window), `windows`, `shot:NAME`, `winshot:NAME`, `printshot:NAME` (the window drawn by PrintWindow: works on a locked console), `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
 
 Rules that came out of round 1:
