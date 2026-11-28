@@ -171,7 +171,7 @@ func (a *app) onboarding(c *ui.Context, s status.Snapshot) {
 				a.installHelper()
 			}
 			if v.running {
-				ui.Spinner(c)
+				spinner(c)
 			}
 			if !s.WritesAllowed {
 				// A development run's read-only switch: a lock, its

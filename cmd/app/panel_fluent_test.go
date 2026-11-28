@@ -139,4 +139,3 @@ func TestPanelRatesSteady(t *testing.T) {
 		t.Errorf("the rates moved: ↓ ends at %.1f then %.1f, ↑ at %.1f then %.1f", d1, d2, u1, u2)
 	}
 }
-
