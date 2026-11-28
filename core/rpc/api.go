@@ -677,7 +677,21 @@ type HealthReport struct {
 	// Egress is the egress check's unmasked addresses, only when the
 	// params asked (IPs) and the check measured any.
 	Egress *EgressIPs `json:"egress,omitempty"`
+	// Gen is the generation the report was taken at (the report's
+	// health.Report.Gen), StateGen the helper's current one. It goes up
+	// on every state change the helper sees (a service started or
+	// stopped, by it or by someone else; the controller's owner or
+	// reachability; the DNS watchdog; an apply; dns.point/restore), and
+	// each change asks for a run. A client that reuses a report instead
+	// of running the checks (twinnel doctor, MCP doctor) does so only
+	// while Gen == StateGen. Both 0 from helpers older than this.
+	Gen      uint64 `json:"gen,omitempty"`
+	StateGen uint64 `json:"stateGen,omitempty"`
 }
+
+// Fresh reports whether the report was taken at the helper's current
+// state generation (always true for helpers that do not keep one).
+func (r HealthReport) Fresh() bool { return r.Gen == r.StateGen }
 
 // EgressIPs are the public addresses the egress test saw (core/health
 // EgressIPs): through mihomo, by which node, and directly. "" = not

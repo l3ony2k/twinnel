@@ -521,7 +521,7 @@ func evidenceLines(c *ui.Context, lines []string) {
 			continue
 		}
 		ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-			ui.Text(c, lb).FontSize(plat.smallSize).TextColor(t.TextMuted).Width(56).Shrink(0).SingleLine()
+			colLabel(c, ui.Span{Size: plat.smallSize}, lb, 56).TextColor(t.TextMuted)
 			ui.Text(c, val).Font("monospace").FontSize(plat.smallSize).Grow(1).Shrink(1).Wrap().LineHeight(lineText).Selectable()
 		})
 	}

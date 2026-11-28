@@ -69,9 +69,13 @@ type doctorRequest struct {
 }
 
 // doctorMaxAge is how old the helper's last report may be for doctor to
-// show it instead of asking for a run (about 5 s on a real machine). The
-// helper runs the checks itself on a timer, on network changes and after
-// every apply, so a recent report is what a run would say.
+// show it instead of asking for a run (about 5 s on a real machine). Age
+// alone is not enough: the report must also be from the helper's current
+// state generation (rpc.HealthReport.Fresh), which goes up on every state
+// change the helper sees, its own or not (mihomo stopped or started by
+// someone else, the controller's owner, the DNS watchdog, an apply). Each
+// such change also asks for a run, so a recent current report is what a
+// run would say.
 const doctorMaxAge = 60 * time.Second
 
 // doctorReport runs the checks as q asks.
@@ -134,8 +138,9 @@ func helperHealth(ctx context.Context, q doctorRequest) (*health.Report, error) 
 }
 
 // recentHelperReport is the helper's last report (health.last) with its
-// Age set, when it is what a run now would be asked for: at most
-// doctorMaxAge old, in q's language, with every check q.only names and,
+// Age set, when it is what a run now would be asked for: taken at the
+// helper's current state generation, at most doctorMaxAge old, in q's
+// language, with every check q.only names and,
 // with q.egress, an egress result measured within doctorMaxAge too. nil
 // otherwise, and on any error (the run that follows reports it).
 func recentHelperReport(ctx context.Context, q doctorRequest) *health.Report {
@@ -144,6 +149,9 @@ func recentHelperReport(ctx context.Context, q doctorRequest) *health.Report {
 	// it; a report in the wrong language is not used.
 	if err := helperRPC(ctx, q.socket, rpc.MethodHealthLast, nil, &hr); err != nil {
 		return nil
+	}
+	if !hr.Fresh() {
+		return nil // taken before the latest state change
 	}
 	rep, err := healthsrc.Decode(hr)
 	if err != nil || rep == nil {

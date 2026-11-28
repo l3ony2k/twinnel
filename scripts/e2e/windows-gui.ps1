@@ -13,6 +13,10 @@
     windows            print Twinnel's top-level windows: handle, title, rect
     shot:NAME          full virtual screen to <Out>\NAME.png
     winshot:NAME       only the largest Twinnel window to <Out>\NAME.png
+    printshot:NAME     the largest Twinnel window drawn by PrintWindow: works
+                       when the console is locked or the window is covered
+                       (shot/winshot then capture the lock screen); no
+                       popups or tray flyout, as they are separate windows
     click:X,Y          left click at screen X,Y (physical pixels)
     rclick:X,Y         right click
     wclick:X,Y         left click at X,Y relative to the largest Twinnel window
@@ -40,6 +44,7 @@ if (-not ('QA.Win' -as [type])) {
     Add-Type -Namespace QA -Name Win -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr v);
 [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+[DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint f);
 [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
 [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
@@ -84,6 +89,18 @@ function Save-Shot([string]$Name, $Rect) {
     $g.Dispose(); $bmp.Dispose()
     "shot $f ($($Rect.W)x$($Rect.H))"
 }
+# Print-Shot asks the window to draw itself (PW_RENDERFULLCONTENT), so the
+# result does not depend on what the screen shows.
+function Print-Shot([string]$Name, $W) {
+    $bmp = New-Object System.Drawing.Bitmap $W.W, $W.H
+    $g = [System.Drawing.Graphics]::FromImage($bmp); $dc = $g.GetHdc()
+    $ok = [QA.Win]::PrintWindow($W.Handle, $dc, 2); $g.ReleaseHdc($dc)
+    $f = Join-Path $Out "$Name.png"
+    $bmp.Save($f, [System.Drawing.Imaging.ImageFormat]::Png)
+    $g.Dispose(); $bmp.Dispose()
+    "printshot $f ($($W.W)x$($W.H)) ok=$ok"
+}
+
 function Click([int]$X, [int]$Y, [bool]$Right = $false) {
     [void][QA.Win]::SetCursorPos($X, $Y); Start-Sleep -Milliseconds 80
     if ($Right) { [QA.Win]::mouse_event(0x8, 0, 0, 0, [UIntPtr]::Zero); [QA.Win]::mouse_event(0x10, 0, 0, 0, [UIntPtr]::Zero) }
@@ -108,6 +125,7 @@ foreach ($s in ($Steps -split ';' | Where-Object { $_ })) {
         'windows' { Get-TwinnelWindows | ForEach-Object { "window '{0}' at {1},{2} {3}x{4}" -f $_.Title, $_.L, $_.T, $_.W, $_.H } }
         'shot' { Save-Shot $arg $null }
         'winshot' { $w = Get-MainWindow; if ($w) { Save-Shot $arg $w } else { "no Twinnel window for $arg" } }
+        'printshot' { $w = Get-MainWindow; if ($w) { Print-Shot $arg $w } else { "no Twinnel window for $arg" } }
         'click' { $x, $y = $arg -split ','; Click $x $y }
         'rclick' { $x, $y = $arg -split ','; Click $x $y $true }
         'wclick' { $w = Get-MainWindow; $x, $y = $arg -split ','; if ($w) { Click ($w.L + [int]$x) ($w.T + [int]$y) } else { 'no window' } }

@@ -336,7 +336,7 @@ the remote-access path (Tailscale, when that is how you reach the PC).
 | `windows-snapshot.ps1 snapshot` / `verify -Dir` | the PC (elevated) | saves the state before a test (config.export zip, settings, layers, status, doctor, DNS of every adapter, service states) into `%ProgramData%\TwinnelQA\snap-<ts>`; `verify` compares and checks HTTPS to a DIRECT and a PROXY target through the TUN |
 | `windows-timebox.ps1 arm -Name N -Restore FILE -Seconds S` | the PC (elevated) | a one-shot SYSTEM scheduled task that runs the restore script after S seconds even when the SSH session dies; `run` restores early, `disarm` removes it |
 | `windows-usersession.ps1 -Script FILE -Arguments 'a;b'` | the PC (elevated) | runs a script in the signed-in user's desktop session (one-shot Interactive task, hidden console) and prints its output |
-| `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `open:VALUE` (`Twinnel.exe --open=page:<id>`: a running copy turns to that page), `wheel:N` (scroll the window), `windows`, `shot:NAME`, `winshot:NAME`, `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
+| `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `open:VALUE` (`Twinnel.exe --open=page:<id>`: a running copy turns to that page), `wheel:N` (scroll the window), `windows`, `shot:NAME`, `winshot:NAME`, `printshot:NAME` (the window drawn by PrintWindow: works on a locked console), `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
 
 Rules that came out of round 1:
 
@@ -361,7 +361,17 @@ Rules that came out of round 1:
 - Screenshots fail with "The handle is invalid" when the input desktop is not
   `Default`: a running screensaver (desktop `Screen-saver`) or a locked
   session. A non-secure screensaver can be ended (it comes back after the
-  idle timeout); a locked session needs the owner.
+  idle timeout); a locked session needs the owner. On a locked console
+  `printshot:NAME` still captures the main window (the app draws it on
+  request), but clicks, keys and the wheel do not reach it, and popups (menus,
+  the tray flyout) cannot be captured: step with `open:page:<id>` only.
+- `twinnel doctor` shows the helper's last report when it is under 60 s old
+  and no state change came after it (the header says `后台助手 N 秒前的检查结果`).
+  The helper bumps a state generation on every change it sees (mihomo
+  stopped or started by anyone, the controller's owner or reachability, the
+  DNS watchdog, an apply, dns point/restore) and runs the checks again; a
+  report from an older generation is never reused. `doctor --fresh` still
+  forces a run.
 - Tests that break traffic (mixed TUN stack, stopping mihomo, a foreign
   controller on 9090) arm a time box first. The LAN and the tailnet are
   excluded from the TUN, so SSH normally survives; plan for it not to.

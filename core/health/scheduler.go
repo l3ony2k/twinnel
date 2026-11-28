@@ -86,6 +86,10 @@ type Scheduler struct {
 	// off). It also sees reports passed to Replace.
 	Overlay func(*Report)
 	Clock   Clock // default RealClock
+	// Gen, if set, is the owner's state generation: read when a run
+	// starts and kept in its report (Report.Gen), so a client can tell
+	// a report taken before the latest state change.
+	Gen func() uint64
 
 	once    sync.Once
 	trig    chan string
@@ -306,7 +310,12 @@ func (s *Scheduler) runOnce(ctx context.Context, reason string) *Report {
 		ctx = WithLang(ctx, s.lang)
 	}
 	s.mu.Unlock()
+	var gen uint64
+	if s.Gen != nil {
+		gen = s.Gen() // before the checks: a change during the run makes the report stale
+	}
 	rep := s.Runner.Run(ctx, env)
+	rep.Gen = gen
 	if ctx.Err() != nil {
 		// Cancelled mid-run: the results are timeouts, not facts.
 		return rep

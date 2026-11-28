@@ -29,6 +29,9 @@ func (e *Engine) SetHealth(s *health.Scheduler) {
 	if s.Overlay == nil {
 		s.Overlay = e.egressOverlay
 	}
+	if s.Gen == nil {
+		s.Gen = e.StateGen
+	}
 	// Every run knows who holds the controller (the preflight's answer),
 	// so the checks can say which controller their evidence came from.
 	if newEnv := s.NewEnv; newEnv != nil {
@@ -74,21 +77,21 @@ func (e *Engine) onHealthEvent(ev health.Event) {
 	e.publish(rpc.EventHealthUpdated, sum)
 }
 
-// triggerHealth asks for a (debounced) health run, if health is attached.
-func (e *Engine) triggerHealth(reason string) {
-	if s := e.healthSched(); s != nil {
-		s.Trigger(reason)
-	}
-}
+// triggerHealth records a state change the helper made or saw: a new
+// state generation and a (debounced) health run, if health is attached
+// (stategen.go).
+func (e *Engine) triggerHealth(reason string) { e.stateChanged(reason) }
 
 func (e *Engine) healthReport(rep *health.Report) (rpc.HealthReport, error) {
 	var out rpc.HealthReport
 	e.health.mu.Lock()
 	out.Reason, out.At = e.health.reason, e.health.at
 	e.health.mu.Unlock()
+	out.StateGen = e.StateGen()
 	if rep == nil {
 		return out, nil
 	}
+	out.Gen = rep.Gen
 	b, err := json.Marshal(rep)
 	if err != nil {
 		return out, err
@@ -98,11 +101,17 @@ func (e *Engine) healthReport(rep *health.Report) (rpc.HealthReport, error) {
 }
 
 // HealthLast returns the newest report without running anything; a lang
-// other than the report's asks for a run in it (Scheduler.SetLang).
-func (e *Engine) HealthLast(lang string) (rpc.HealthReport, error) {
+// other than the report's asks for a run in it (Scheduler.SetLang). It
+// looks at mihomo first (observeMihomo, a few ms): a change made outside
+// the helper since the last look makes the answer's StateGen newer than
+// the report's Gen, so a client does not reuse it.
+func (e *Engine) HealthLast(ctx context.Context, lang string) (rpc.HealthReport, error) {
 	s := e.healthSched()
 	if s == nil {
 		return rpc.HealthReport{}, rpc.Errorf(rpc.CodeFailed, "health checks are not available in this helper")
+	}
+	if st, err := e.Store.Settings(); err == nil {
+		e.observeMihomo(ctx, st)
 	}
 	s.SetLang(lang)
 	return e.healthReport(s.Last())
@@ -243,7 +252,7 @@ type egressIPsAt struct {
 
 // withEgressIPs adds the egress check's unmasked addresses of the newest
 // report to a health.* answer when the caller asked for them (the app).
-// Usage: e.withEgressIPs(e.HealthLast(lang))(p.IPs).
+// Usage: e.withEgressIPs(e.HealthLast(ctx, lang))(p.IPs).
 func (e *Engine) withEgressIPs(out rpc.HealthReport, err error) func(bool) (rpc.HealthReport, error) {
 	return func(want bool) (rpc.HealthReport, error) {
 		if err != nil || !want {

@@ -102,7 +102,8 @@ peer-relay, idle), whether it is or may be an exit node. online_only limits the 
 
 	if s.d.Doctor != nil {
 		addTool(s, rpc.TierRead, "doctor", "Doctor",
-			"Runs `twinnel doctor`: the helper's coexistence checks, the report the app shows. Its last report when it is under a minute old "+
+			"Runs `twinnel doctor`: the helper's coexistence checks, the report the app shows. Its last report when it is under a minute old and no state change "+
+				"(mihomo started or stopped, the controller's owner, the DNS watchdog, an apply) came after it "+
 				"(ageNs then says how old), else the helper runs them now; fresh=true always runs them now. "+
 				"When the helper does not answer, this process runs them itself against the running mihomo and Tailscale; "+
 				"the report's source then says local-no-helper, and checks that need the helper's knowledge skip (read-only).",
@@ -183,6 +184,9 @@ type healthSum struct {
 	Counts  map[string]int `json:"counts,omitempty"`
 	At      time.Time      `json:"at,omitzero"`
 	Failing []string       `json:"not_ok,omitempty"` // "id: summary" of warn/fail checks
+	// Stale: taken before the helper's latest state change (a run is
+	// under way); call doctor for a current one.
+	Stale bool `json:"stale,omitempty"`
 }
 
 func (s *Server) status(c *call, _ noArgs) (any, error) {
@@ -292,7 +296,7 @@ func summarizeHealth(hr rpc.HealthReport) *healthSum {
 	if json.Unmarshal(hr.Report, &r) != nil {
 		return nil
 	}
-	h := &healthSum{Overall: r.Overall, Counts: map[string]int{}, At: hr.At}
+	h := &healthSum{Overall: r.Overall, Counts: map[string]int{}, At: hr.At, Stale: !hr.Fresh()}
 	for _, ch := range r.Checks {
 		h.Counts[ch.Status]++
 		if ch.Status == "warn" || ch.Status == "fail" {
@@ -395,7 +399,12 @@ func (s *Server) health(c *call, in healthIn) (any, error) {
 	if len(hr.Report) == 0 {
 		return map[string]any{"report": nil, "note": "no health run yet; call health with run=true"}, nil
 	}
-	return map[string]any{"at": hr.At, "reason": hr.Reason, "report": hr.Report}, nil
+	out := map[string]any{"at": hr.At, "reason": hr.Reason, "report": hr.Report}
+	if !in.Run && !hr.Fresh() {
+		// Taken before the helper's latest state change; its run is under way.
+		out["stale"] = true
+	}
+	return out, nil
 }
 
 // ---- proxies ----
@@ -825,7 +834,7 @@ func (s *Server) tailnetPeers(c *call, in peersIn) (any, error) {
 }
 
 type doctorIn struct {
-	Fresh bool `json:"fresh,omitempty" jsonschema:"run the checks now even when the helper's last report is under a minute old"`
+	Fresh bool `json:"fresh,omitempty" jsonschema:"run the checks now even when the helper's last report is current and under a minute old"`
 }
 
 func (s *Server) doctor(c *call, in doctorIn) (any, error) {

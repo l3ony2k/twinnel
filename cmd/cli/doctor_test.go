@@ -107,6 +107,12 @@ func lastReport(t *testing.T, end time.Time, lang string, checks ...health.Check
 	return rpc.HealthReport{Report: b, Reason: "timer", At: end}
 }
 
+// atGen sets a health.last answer's report and state generations.
+func atGen(hr rpc.HealthReport, gen, state uint64) rpc.HealthReport {
+	hr.Gen, hr.StateGen = gen, state
+	return hr
+}
+
 // The helper's last report stands in for a run when it is recent and
 // covers what was asked; the report says how old it is. Anything it does
 // not cover, or --fresh, asks for a run.
@@ -138,6 +144,12 @@ func TestDoctorReusesRecentReport(t *testing.T) {
 		{"--egress off", time.Second, lastReport(t, end, "en", dns, egressOff), doctorRequest{egress: true}, false},
 		{"--egress carried, old", time.Second, lastReport(t, end, "en", dns, egressOld), doctorRequest{egress: true}, false},
 		{"none yet", time.Second, rpc.HealthReport{}, doctorRequest{}, false},
+		// The state generation: a report taken before the helper's latest
+		// state change (mihomo stopped by someone else, the controller's
+		// owner, the DNS watchdog) is not reused however young it is.
+		{"current generation", time.Second, atGen(lastReport(t, end, "en", dns), 7, 7), doctorRequest{}, true},
+		{"older generation", time.Second, atGen(lastReport(t, end, "en", dns), 6, 7), doctorRequest{}, false},
+		{"older generation, --only", time.Second, atGen(lastReport(t, end, "en", dns), 6, 7), doctorRequest{only: []string{"system-dns"}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			asked := fakeHelperRPC(t, map[string]any{
