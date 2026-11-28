@@ -8,13 +8,31 @@ import (
 const testUserSID = "S-1-5-21-1000000001-2000000002-3000000003-1001"
 
 func TestPipeSDDL(t *testing.T) {
-	got, err := PipeSDDL(testUserSID, "", SIDLocalSystem, testUserSID)
+	// The installed helper: LocalSystem serves, the installing user is a
+	// client and can never create an instance (squat the pipe).
+	got, err := PipeSDDL(SIDLocalSystem, testUserSID, "", SIDLocalSystem, testUserSID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x0012019b;;;" + testUserSID + ")"
 	if got != want {
 		t.Fatalf("got %s\nwant %s", got, want)
+	}
+	// A development helper, not elevated, serves as testUserSID: it needs
+	// FILE_CREATE_PIPE_INSTANCE for every instance after the first, or its
+	// second Accept fails with "Access is denied" (ui-review 8.2). Other
+	// allowed users stay clients.
+	const other = "S-1-5-21-1000000001-2000000002-3000000003-1002"
+	got, err = PipeSDDL(testUserSID, other, testUserSID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x0012019f;;;" + testUserSID + ")(A;;0x0012019b;;;" + other + ")"
+	if got != want {
+		t.Fatalf("dev helper: got %s\nwant %s", got, want)
+	}
+	if PipeServerAccess&^PipeClientAccess != 0x4 || PipeClientAccess&0x4 != 0 {
+		t.Errorf("server access %#x adds more than FILE_CREATE_PIPE_INSTANCE to %#x", PipeServerAccess, PipeClientAccess)
 	}
 	for _, bad := range []string{"S-1-5-21-1)(A;;GA;;;WD", "WD", "S-1-5", "s-1-5-18"} {
 		if _, err := PipeSDDL(bad); err == nil {
