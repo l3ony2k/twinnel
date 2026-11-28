@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -21,7 +22,11 @@ func (a *app) shots(dir string) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		log.Fatal(err)
 	}
+	var digests shotDigests
 	save := func(w *mygo.Window, name string) {
+		if shotShowOffscreen(runtime.GOOS) {
+			showShotWindow(w)
+		}
 		png, err := w.CapturePage()
 		if err != nil {
 			log.Printf("capture %s: %v", name, err)
@@ -32,13 +37,25 @@ func (a *app) shots(dir string) {
 			log.Print(err)
 			return
 		}
+		if first := digests.add(name, png); first != "" {
+			log.Printf("saved %s: SAME PICTURE AS %s", path, first)
+			return
+		}
 		log.Printf("saved %s", path)
+	}
+	quit := func() { // a run that repeated a picture fails
+		if err := digests.err(); err != nil {
+			log.Printf("shots: %v", err)
+			mygo.App.Exit(1)
+			return
+		}
+		mygo.App.Quit()
 	}
 	go func() {
 		time.Sleep(6 * time.Second) // let the monitor load, traffic accumulate and the health checks finish
 		if f, ok := a.shotFlows()[os.Getenv("TWINNEL_SHOTS_FLOW")]; ok {
 			f(save)
-			mygo.App.Quit()
+			quit()
 			return
 		}
 		for _, p := range []string{pageOverview, pageProxies, pageTailscale, pageHealth, pageLogs, pageSettings, pageAbout} {
@@ -88,7 +105,7 @@ func (a *app) shots(dir string) {
 		if panel != nil {
 			save(panel, "panel")
 		}
-		mygo.App.Quit()
+		quit()
 	}()
 }
 
