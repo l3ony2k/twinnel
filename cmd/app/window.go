@@ -372,6 +372,9 @@ func (a *app) pageChanged(old string) {
 		a.hd.msg, a.hd.msgErr = "", false // the last outcome belongs to the page it ran on
 	}
 	if a.page == pageLogs {
+		if old != pageLogs {
+			a.logs.atEnd = 0 // the newest lines first (followNewest)
+		}
 		a.mon.SetLogLevel(a.logs.levelName())
 	} else if old == pageLogs {
 		a.mon.SetLogLevel("")
