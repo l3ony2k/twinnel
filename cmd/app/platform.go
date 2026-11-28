@@ -20,7 +20,10 @@ import (
 //     popover over the menu bar's own material.
 //   - Windows 11 (Fluent 2): Segoe UI Variable (Text, Display for titles),
 //     Cascadia Mono / Consolas for code (MyGo's monospace), 14 px body,
-//     Mica behind the navigation pane under the system's own title bar,
+//     Mica behind the navigation pane and the title bar, which the app
+//     draws (hidden title bar, 48 as File Explorer's): MyGo puts the
+//     caption buttons at its right, the sidebar toggle and the page's
+//     title share it as on macOS,
 //     cards of radius 8 and controls of 4, 40 px rows, WinUI's neutrals
 //     and signal colors with the system's accent; the tray flyout on
 //     Acrylic (Windows 11), opaque on Windows 10. Cross-compiled and
@@ -60,7 +63,7 @@ type platformStyle struct {
 	panelPad       float32 // the flyout's padding
 	panelWindow    bool    // the panel is a window placed by the app, not a flyout of the tray (Linux: AppIndicator tells no icon position)
 	trafficLights  bool    // macOS's traffic lights sit in the title bar (sidebar.go measures from them)
-	titleBarHeight int     // the title bar the window draws, where the system centers its buttons in it (Linux); 0 = the system's
+	titleBarHeight int     // the title bar the window draws: Linux centers its buttons in it, Windows' caption buttons fill it; 0 = the system's
 	sidebarKey     ui.Key  // the sidebar toggle's key without modifiers (Linux: F9, as GNOME's apps); 0 = none
 	adwaita        bool    // libadwaita's colors (Linux)
 	fluent         bool    // WinUI's colors (Windows)
@@ -94,6 +97,8 @@ type platformStyle struct {
 	// as NSPopUpButton's pull-down keeps. 0 where the menu opens at the
 	// point given.
 	menuDrop float32
+	// flags: whether node names' flag emoji can be drawn (flags.go).
+	flags flagSupport
 }
 
 // navSelection is how a platform's sidebar marks the selected row.
@@ -118,7 +123,7 @@ func platformFor(goos string) platformStyle {
 	switch goos {
 	case "windows":
 		return platformStyle{
-			titleBar: mygo.TitleBarDefault, sidebarMat: mygo.VibrancyMica,
+			titleBar: mygo.TitleBarHidden, titleBarHeight: 48, sidebarMat: mygo.VibrancyMica,
 			sidebarWidth: 240, contentMax: 1000, pagePadX: 32, pagePadTop: 24,
 			groupRadius: 8, controlRadius: 4, innerRadius: 6, rowMinHeight: 40,
 			bodySize: 14, smallSize: 12, calloutSize: 13, leadSize: 16, figureSize: 20, panelTextSize: 13, titleSize: 28, headingSize: 14,
@@ -130,6 +135,7 @@ func platformFor(goos string) platformStyle {
 			panelVibrancy: mygo.VibrancyAcrylic,
 			reorderMods:   ui.Alt | ui.Shift,
 			backMods:      ui.Alt, backKey: ui.KeyLeft,
+			flags: flagsMissing,
 		}
 	case "linux":
 		return platformStyle{
@@ -140,6 +146,7 @@ func platformFor(goos string) platformStyle {
 			titleWeight: 700, headingWeight: 700, panelPad: 16, panelWindow: true,
 			titleBarSize: 15, titleBarWeight: 700, navSel: navNeutral,
 			reorderMods: ui.Alt | ui.Ctrl, backMods: ui.Ctrl, backKey: ui.KeyBracketLeft, cliLink: true,
+			flags: flagsProbe,
 		}
 	}
 	navSel := navAccentFill // macOS 15 and earlier
@@ -158,6 +165,7 @@ func platformFor(goos string) platformStyle {
 		titleBarSize: 15, titleBarWeight: 700,
 		navSel: navSel, menuDrop: menuInsetTop + menuGap,
 		reorderMods: ui.Alt | ui.Super, backMods: ui.Super, backKey: ui.KeyBracketLeft, cliLink: true,
+		flags: flagsDrawn,
 	}
 }
 

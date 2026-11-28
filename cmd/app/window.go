@@ -47,6 +47,7 @@ var allPages = []string{
 
 func (a *app) mainView(c *ui.Context) {
 	a.applyTheme(c)
+	probeFlags(c) // flags.go
 	t := c.Theme()
 	if c.Shortcut(ui.Cmd, ui.KeyW) {
 		a.win.Close()
@@ -94,16 +95,19 @@ func (a *app) mainView(c *ui.Context) {
 					// displays): the slack splits equally left and right.
 					inset := columnInset(a.paneW, pageMaxWidth(a.page))
 					ui.Column(c).Padding(barH+4, inset, 32).AlignItems(ui.Start).Children(func() {
-						ui.Column(c).Gap(gapGroup).FillWidth().MaxWidth(pageMaxWidth(a.page)).Children(func() {
+						col := ui.Column(c).Gap(gapGroup).FillWidth().MaxWidth(pageMaxWidth(a.page))
+						col.Children(func() {
 							a.pageBody(c, s)
 						})
+						a.colBox = col.Bounds()
 					})
 				})
 				scrolled = st.Y > 0.5
 			}
 			a.toolbar(c, barH, scrolled)
 		})
-		if w := content.Bounds().W; w > 0 && w != a.paneW { // the pane's width changed: center again
+		a.paneBox = content.Bounds()
+		if w := a.paneBox.W; w > 0 && w != a.paneW { // the pane's width changed: center again
 			a.paneW = w
 			c.Invalidate()
 		}
@@ -132,8 +136,12 @@ var pageBar toolbarSpec
 // toolbarHeight is the toolbar's height: a band centered on the traffic
 // lights' line, as a unified toolbar's (52 on macOS 26). The window's
 // reported title bar height (66 under the hidden-inset style) is not that
-// line (sidebar.go, trafficLightsMid).
+// line (sidebar.go, trafficLightsMid). Without lights the toolbar is the
+// title bar the window draws, the caption buttons' height on Windows 11.
 func toolbarHeight(c *ui.Context) float32 {
+	if h := c.TitleBar().Height; !plat.trafficLights && h > 0 {
+		return h
+	}
 	return max(2*trafficLightsMid(c), 52)
 }
 
@@ -438,11 +446,11 @@ func (a *app) verdict(c *ui.Context, s status.Snapshot) {
 				for _, r := range reasons {
 					if tip := reasonTip(r); tip != "" {
 						ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-							ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable().Shrink(1)
+							ui.Text(c, nodeText(r.Text)).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable().Shrink(1)
 							infoTip(c, "", tip, nil)
 						})
 					} else {
-						ui.Text(c, r.Text).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
+						ui.Text(c, nodeText(r.Text)).TextColor(t.TextMuted).Wrap().LineHeight(lineText).Selectable()
 					}
 					if r.Raw != "" {
 						// The system's own words, secondary (as errorNote).
@@ -727,14 +735,14 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	T := i18n.T
 	open := a.groupsOpen[g.Name]
 	sel := pendingValue(a, nodeKey(g.Name), g.Now) // the pick shows at once
-	chain := strings.Join(g.Chain, " → ")
+	chain := strings.Join(mapStrings(g.Chain, nodeText), " → ")
 	box := ui.Column(c).Gap(8).PaddingY(listRowPadY).Clip().Transition(expandFor(open))
 	a.spotRing(c, box, "group:"+g.Name) // a health fix's 去调整 points here
 	box.Children(func() {
 		// The head is a disclosure the keyboard reaches: Tab stops on it,
 		// Return or Space opens and closes the group.
 		head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).
-			Role(ui.RoleDisclosure).Label(g.Name).Expanded(open).Focusable().FocusRingOffset(2)
+			Role(ui.RoleDisclosure).Label(nodeText(g.Name)).Expanded(open).Focusable().FocusRingOffset(2)
 		head.ContextMenu(func(m *ui.Menu) {
 			label := T.GroupExpand
 			if open {
@@ -753,7 +761,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 		})
 		head.Children(func() {
 			disclosure(c, open)
-			ui.Text(c, g.Name).FontWeight(500).SingleLine().Shrink(0) // a row title, not a heading (R-unslop-30)
+			ui.Text(c, nodeText(g.Name)).FontWeight(500).SingleLine().Shrink(0) // a row title, not a heading (R-unslop-30)
 			typeMeta(c, g.Type)
 			ui.Text(c, chain).TextColor(t.TextMuted).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(chain)
 			ui.Spacer(c)
@@ -807,7 +815,7 @@ func (a *app) nodeTile(c *ui.Context, g status.Group, i, cols int, mem status.Me
 		typ = "?"
 	}
 	delay := mem.DelayText()
-	desc := mem.Name + " · " + typ + " · " + delay
+	desc := nodeText(mem.Name) + " · " + typ + " · " + delay
 	canSelect := writes && g.Selectable() && !selected
 	// Every tile takes the focus, so the keyboard and VoiceOver can read
 	// the whole group; one that cannot be picked (read-only mode, or a
@@ -852,7 +860,7 @@ func (a *app) nodeTile(c *ui.Context, g status.Group, i, cols int, mem status.Me
 		}
 	})
 	chip.Children(func() {
-		middleText(c, mem.Name)
+		middleText(c, nodeText(mem.Name))
 		ui.Row(c).Gap(6).Children(func() {
 			typeMeta(c, typ).Grow(1).Shrink(1)
 			num(ui.Text(c, delay).FontSize(plat.smallSize).TextColor(delayColor(t, mem.Delay, mem.Tested)))
@@ -1367,7 +1375,7 @@ func (a *app) saveSettings() {
 // not the generic 出现故障 above a line that repeats it.
 func levelHeadline(s status.Snapshot) (string, []status.Reason) {
 	if len(s.Reasons) == 1 && s.Reasons[0].Health {
-		return s.Reasons[0].Text, nil
+		return nodeText(s.Reasons[0].Text), nil
 	}
 	return s.Level.Text(), s.Reasons
 }

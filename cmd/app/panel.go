@@ -29,6 +29,7 @@ import (
 // the edge, outside a module too (rowInset+moduleInset there).
 func (a *app) panelView(c *ui.Context) {
 	a.applyTheme(c)
+	probeFlags(c) // flags.go
 	// Text one step under the main window's on Windows and Linux (13 for
 	// 14), as on macOS: the size of Control Center's and the Wi-Fi menu's.
 	th := *c.Theme()
@@ -212,7 +213,7 @@ func (a *app) panelAttention(c *ui.Context, s status.Snapshot) {
 			// text stays in the text color.
 			ui.Row(c).Gap(8).AlignItems(ui.Center).PaddingX(rowInset).PaddingY(5).MinHeight(panelRowH).Children(func() {
 				leading(c, levelIcon(r.Level), levelColor(t, r.Level))
-				ui.Text(c, r.Text).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
+				ui.Text(c, nodeText(r.Text)).Grow(1).Shrink(1).Wrap().LineHeight(lineText)
 			})
 		}
 		if health {
@@ -454,7 +455,7 @@ func (a *app) nodeRow(c *ui.Context, s status.Snapshot, p *status.Group) {
 	}
 	row := panelMenuRow(c.Key("node"), T.Node, !can, func(m *ui.Menu) {
 		for _, mem := range p.Members {
-			if m.Item(mem.Name).Checked(mem.Name == sel).Trailing(mem.DelayText()).Chosen() && mem.Name != sel {
+			if m.Item(nodeText(mem.Name)).Checked(mem.Name == sel).Trailing(mem.DelayText()).Chosen() && mem.Name != sel {
 				a.selectNode(p.Name, mem.Name)
 			}
 		}
@@ -463,15 +464,15 @@ func (a *app) nodeRow(c *ui.Context, s status.Snapshot, p *status.Group) {
 		leading(c, iconGlobe, t.TextMuted)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).PaddingY(4).Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, p.Name).SingleLine().Shrink(0)
-				middleText(c, sel).TextColor(t.TextMuted).Grow(1).TextAlign(ui.End)
+				ui.Text(c, nodeText(p.Name)).SingleLine().Shrink(0)
+				middleText(c, nodeText(sel)).TextColor(t.TextMuted).Grow(1).TextAlign(ui.End)
 				if !via {
 					delay()
 				}
 			})
 			if via {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					small(c, p.Node).Grow(1).Shrink(1).MinWidth(0).TextAlign(ui.End).SingleLine().TruncateMiddle().Tooltip(p.Node)
+					small(c, nodeText(p.Node)).Grow(1).Shrink(1).MinWidth(0).TextAlign(ui.End).SingleLine().TruncateMiddle().Tooltip(routeText(p))
 					delay()
 				})
 			}

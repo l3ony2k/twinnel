@@ -267,13 +267,14 @@ const (
 )
 
 // trafficLightsMid is the traffic lights' center line from the window's
-// top: the line the toolbar's items are centered on. Without lights (full
-// screen, other platforms) it is a 52 pt band's middle; on Linux the
-// desktop's window buttons are centered in the title bar's height
-// (plat.titleBarHeight), the same band.
+// top: the line the toolbar's items are centered on. Without lights it
+// is the middle of the title bar the window draws (plat.titleBarHeight:
+// Linux centers its window buttons in 52, Windows 11's caption buttons
+// fill 48), or of a 52 pt band where there is none (full screen, a
+// compositor that decorates the window).
 func trafficLightsMid(c *ui.Context) float32 {
 	if !plat.trafficLights {
-		if h := c.TitleBar().Height; h > 52 {
+		if h := c.TitleBar().Height; h > 0 {
 			return h / 2
 		}
 		return 26

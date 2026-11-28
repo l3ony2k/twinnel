@@ -55,8 +55,8 @@ func (realProbes) runCLI(ctx context.Context, args ...string) (string, error) {
 }
 func (realProbes) liveSetup() liveSetup { return probeLiveSetup() }
 func (realProbes) processes(ctx context.Context) ([]status.ProcessEntry, error) {
-	if runtime.GOOS == "windows" {
-		return nil, errors.New("no ps")
+	if list, ok, err := systemProcesses(ctx); ok { // Windows: no ps (procs_windows.go)
+		return list, err
 	}
 	out, err := exec.CommandContext(ctx, "ps", status.PSArgs...).Output()
 	if err != nil {

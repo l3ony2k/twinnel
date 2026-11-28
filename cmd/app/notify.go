@@ -21,9 +21,10 @@ type notifier struct {
 
 func newNotifier() *notifier { return &notifier{} }
 
-// supported reports whether this run can show notifications (macOS shows
-// them only for a packaged app).
-func notificationsSupported() bool { return mygo.NotificationsSupported() }
+// notificationsSupported reports whether this run can show notifications
+// (macOS shows them only for a packaged app). It asks the app's main
+// loop: layout tests, which have none, replace it.
+var notificationsSupported = mygo.NotificationsSupported
 
 // check feeds a snapshot to the alerter and shows what it returns; a click
 // calls open with the alert's key.

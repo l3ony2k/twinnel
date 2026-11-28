@@ -62,7 +62,7 @@ func exitTileView(s status.Snapshot, testing bool, eg *health.CheckReport, at ti
 		v.egress = egressNoTest
 		return v
 	}
-	v.node = p.Node
+	v.node = nodeText(p.Node)
 	v.route = routeText(p)
 	v.testing = testing
 	switch {
@@ -109,11 +109,12 @@ func exitTileView(s status.Snapshot, testing bool, eg *health.CheckReport, at ti
 	return v
 }
 
-// routeText is a group's route to its node: "PROXY → Auto → node".
+// routeText is a group's route to its node: "PROXY → Auto → node", as
+// the names show (nodeText).
 func routeText(p *status.Group) string {
-	out := p.Name
+	out := nodeText(p.Name)
 	for _, n := range p.Chain {
-		out += " → " + n
+		out += " → " + nodeText(n)
 	}
 	return out
 }
