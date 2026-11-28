@@ -34,6 +34,9 @@ type SetupStrings struct {
 	// SetupWhyInstall: installing failed after the download (setup
 	// CodeInstallFailed); the coded message (MsgTexts) follows it.
 	SetupWhyInstall string
+	// SetupWhyDamaged: an installed program's files are damaged
+	// (setup.CodeDamaged); the path stays behind 复制详情.
+	SetupWhyDamaged string
 
 	// Warnings by core/setup code.
 	SetupWarnGeo, SetupWarnSystemVPN string
@@ -87,6 +90,7 @@ var zhSetup = SetupStrings{
 	SetupWhyHealth:   "未通过：%s",
 	SetupNeedsSub:    "先填订阅链接，或从备份导入",
 	SetupWhyInstall:  "安装没有完成",
+	SetupWhyDamaged:  "Tailscale 的程序文件损坏了",
 
 	SetupWarnGeo:       "GEO 数据库没有下载，mihomo 启动时会自己下载",
 	SetupWarnSystemVPN: "保留了 Tailscale app，它占用系统 VPN 通道，会和 mihomo 的 TUN 冲突",
@@ -141,6 +145,7 @@ var enSetup = SetupStrings{
 	SetupWhyHealth:   "Failed: %s",
 	SetupNeedsSub:    "Enter a subscription URL or import a backup first",
 	SetupWhyInstall:  "The installation didn't finish",
+	SetupWhyDamaged:  "Tailscale's program files are damaged",
 
 	SetupWarnGeo:       "The GEO databases did not download; mihomo downloads them when it starts",
 	SetupWarnSystemVPN: "Kept the Tailscale app; it takes the system VPN slot, which conflicts with mihomo's TUN",

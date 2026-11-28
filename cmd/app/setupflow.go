@@ -119,10 +119,9 @@ func setupReason(st setup.StepState) string {
 	case setup.CodeNeedsSubscription:
 		return T.SetupNeedsSub
 	case setup.CodeDamaged:
-		if m, ok := T.Msg(msg.Parse(st.Error)); ok {
-			return m
-		}
-		return T.SetupWhyInstall
+		// In words only: the damaged file's path (and the helper's
+		// English) stay behind 复制详情.
+		return T.SetupWhyDamaged
 	case setup.CodeInstallFailed:
 		// The helper's coded message (the installer's exit, a binary
 		// that does not run), worded when Twinnel knows it.
@@ -177,7 +176,7 @@ func (a *app) setupStepRow(c *ui.Context, n int, st setup.StepState) {
 						if st.ID == setup.StepLogin {
 							spinnerIcon(c)
 						} else {
-							ui.Icon(c, iconCollapsed).FontSize(iconInline).TextColor(t.Accent)
+							waitingMark(c)
 						}
 					case setup.Skipped:
 						ui.Icon(c, iconSkip).FontSize(iconInline).TextColor(t.TextMuted)
@@ -212,6 +211,13 @@ func (a *app) setupStepRow(c *ui.Context, n int, st setup.StepState) {
 			}
 		})
 	})
+}
+
+// waitingMark is a step that waits on the person (a link to paste): a
+// muted open ring, a step not finished. Not the accent chevron, which
+// reads as a disclosure.
+func waitingMark(c *ui.Context) ui.Element {
+	return ui.Box(c).Width(12).Height(12).Radius(6).Border(1.5, c.Theme().TextMuted).Shrink(0).AccessHidden(true)
 }
 
 const maxSetupZip = 64 << 20

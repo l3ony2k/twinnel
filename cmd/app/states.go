@@ -97,17 +97,27 @@ func failedRow(c *ui.Context, what, raw string, retry func(), busy bool) ui.Elem
 // failedRowWhy is failedRow with the reason already worded (helperError),
 // for a failure whose reason is not only a network one.
 func failedRowWhy(c *ui.Context, what, reason, raw string, retry func(), busy bool) ui.Element {
+	return failedRowWith(c, what, reason, raw, retry, busy, nil)
+}
+
+// failedRowWith is failedRowWhy with another way on (extra: a link, a
+// button) drawn before 重试.
+func failedRowWith(c *ui.Context, what, reason, raw string, retry func(), busy bool, extra func()) ui.Element {
 	t := c.Theme()
 	T := i18n.T
+	icon, iconCol, titleCol := failedMark(t)
 	row := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Role(ui.RoleStatus).Label(what)
 	row.Children(func() {
-		ui.Icon(c, iconWarning).FontSize(iconInline).TextColor(t.Warning).Shrink(0).AccessHidden(true)
+		ui.Icon(c, icon).FontSize(iconInline).TextColor(iconCol).Shrink(0).AccessHidden(true)
 		ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).Children(func() {
-			ui.Text(c, what).TextColor(pal(t).warnText).Wrap().LineHeight(lineText)
+			ui.Text(c, what).TextColor(titleCol).Wrap().LineHeight(lineText)
 			if reason != "" {
 				ui.Text(c, reason).FontSize(plat.calloutSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 			}
 		})
+		if extra != nil {
+			extra()
+		}
 		if retry != nil {
 			b := pushButton(c.Key("failed-retry"), "").Label(T.Retry)
 			spin := showBusy(c, b, busy)
@@ -128,6 +138,18 @@ func failedRowWhy(c *ui.Context, what, reason, raw string, retry func(), busy bo
 		}
 	})
 	return row
+}
+
+// failedMark is a failed row's mark and its title's color. Something that
+// did not work is an error, and Windows says so as Fluent's InfoBar
+// Error: the error glyph in the critical color, the title in the text
+// color. macOS and Linux keep the caution mark with the title in the
+// warning text, as their alerts do.
+func failedMark(t *ui.Theme) (icon *ui.SVG, iconCol, titleCol ui.Color) {
+	if plat.fluent {
+		return iconError, t.Danger, t.Text
+	}
+	return iconWarning, t.Warning, pal(t).warnText
 }
 
 // unreachableLine is the small form for a card or the flyout: the plain
