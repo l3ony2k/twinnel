@@ -89,7 +89,41 @@ func showBusy(c *ui.Context, e ui.Element, busy bool) bool {
 // spinnerIcon is a spinner the size of an inline icon, to stand in for
 // one while its control works.
 func spinnerIcon(c *ui.Context) ui.Element {
+	if plat.fluent {
+		return progressRing(c, iconInline)
+	}
 	return ui.Spinner(c).Size(iconInline, iconInline)
+}
+
+// spinner is the platform's indicator of work of unknown length: AppKit's
+// spokes (ui.Spinner) on macOS and Linux, WinUI's ProgressRing on
+// Windows. It is as large as ui.Spinner (1.25 × the font size). Use it
+// for every spinner (TestSpinnersArePlatform).
+func spinner(c *ui.Context) ui.Element {
+	if plat.fluent {
+		return progressRing(c, c.Theme().FontSize*1.25)
+	}
+	return ui.Spinner(c)
+}
+
+// iconProgressArc is the ProgressRing's arc: a third of a circle from
+// twelve o'clock, on the icons' 24 grid.
+var iconProgressArc = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" ><path d="M12 3a9 9 0 0 1 7.79 13.5" fill="none" stroke="#000000" stroke-width="2.5" stroke-linecap="round"/></svg>`))
+
+// ringPeriod is one turn of the ProgressRing.
+const ringPeriod = time.Second
+
+// progressRing is WinUI's indeterminate ProgressRing at size: an arc in
+// the accent turning clockwise (TextColor changes it, as the text on the
+// accent of a primary button). It turns under Reduce Motion too, as a
+// sign that work goes on (MyGo's Loop does the same). Assistive
+// technology sees a progress indicator; name it with Label.
+func progressRing(c *ui.Context, size float32) ui.Element {
+	e := ui.Icon(c, iconProgressArc).FontSize(size).Size(size, size).Shrink(0).
+		TextColor(c.Theme().Accent).Role(ui.RoleProgress).AccessHidden(false)
+	frac := float32(c.Now().UnixMilli()%ringPeriod.Milliseconds()) / float32(ringPeriod.Milliseconds())
+	c.AnimationFrame()
+	return e.Rotate(360 * frac)
 }
 
 // turnPeriod is one whole turn of a turning icon.
