@@ -55,7 +55,7 @@ func (a *app) mainView(c *ui.Context) {
 	}
 	a.flushToast(c)
 	if back := pageBack(a.page); back != "" { // ⌘[ as in Finder and System Settings, Alt+← on Windows
-		c.OnWindowShortcut(plat.backMods, plat.backKey, func() { a.showPage(back) })
+		windowKey(c, plat.backMods, plat.backKey, func() { a.showPage(back) })
 	}
 	s := a.mon.Snapshot()
 	if a.shotSnap != nil { // shot mode: synthetic state over the fake one
@@ -412,7 +412,7 @@ func (a *app) pageKeys(c *ui.Context, sections []navSection) {
 				continue
 			}
 			id := it.id
-			c.OnWindowShortcut(ui.Cmd, it.key, func() { a.showPage(id) })
+			windowKey(c, ui.Cmd, it.key, func() { a.showPage(id) })
 		}
 	}
 }

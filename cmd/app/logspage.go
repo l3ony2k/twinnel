@@ -179,7 +179,7 @@ func (a *app) logSearch(c *ui.Context, width float32) ui.Element {
 	}
 	f.Label(T.LogSearch).Placeholder(T.LogSearch).Width(width)
 	for _, k := range findKeys() {
-		c.OnWindowShortcut(k.mods, k.key, func() { v.findKey = true; c.Invalidate() })
+		windowKey(c, k.mods, k.key, func() { v.findKey = true })
 	}
 	if v.findKey {
 		v.findKey = false

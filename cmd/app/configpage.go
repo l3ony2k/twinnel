@@ -545,8 +545,8 @@ func (a *app) overridesCard(c *ui.Context, s status.Snapshot) {
 		}
 	})
 	if i := slices.Index(ids, v.sel); i >= 0 && w && !v.isNew {
-		c.OnWindowShortcut(plat.reorderMods, ui.KeyUp, func() { a.moveLayer(ids, i, -1) })
-		c.OnWindowShortcut(plat.reorderMods, ui.KeyDown, func() { a.moveLayer(ids, i, 1) })
+		windowKey(c, plat.reorderMods, ui.KeyUp, func() { a.moveLayer(ids, i, -1) })
+		windowKey(c, plat.reorderMods, ui.KeyDown, func() { a.moveLayer(ids, i, 1) })
 	}
 }
 

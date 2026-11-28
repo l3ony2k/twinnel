@@ -522,3 +522,14 @@ func walkStrings(v reflect.Value, path string, fn func(path, s string)) {
 		}
 	}
 }
+
+// N2 (Windows QA round 5): a window shortcut's change shows in a hidden
+// or off-screen window too: each goes through windowKey, which asks the
+// engine for the next build.
+func TestWindowKeysRebuild(t *testing.T) {
+	got := fileCalls(t, func(fn *ast.FuncDecl, call *ast.CallExpr) bool {
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		return ok && sel.Sel.Name == "OnWindowShortcut" && fn.Name.Name != "windowKey"
+	})
+	checkMigrations(t, "OnWindowShortcut outside windowKey", got, map[string]int{})
+}
