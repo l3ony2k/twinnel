@@ -462,7 +462,7 @@ func (a *app) togglePanel() {
 	a.panel = mygo.NewFlyout(mygo.FlyoutOptions{
 		Tray:       a.tray,
 		Placement:  mygo.PlacementBottom,
-		Gap:        4,
+		Gap:        panelGap(),
 		Width:      panelWidth,
 		Height:     420,
 		FitContent: true,
@@ -476,6 +476,9 @@ func (a *app) togglePanel() {
 		Content:    ui.View(a.panelView),
 	})
 	a.panel.OnClosed(func() { a.panel = nil })
+	if plat.fluent {
+		keepFlyoutInset(a.panel) // panel.go
+	}
 }
 
 func (a *app) openMain() {
