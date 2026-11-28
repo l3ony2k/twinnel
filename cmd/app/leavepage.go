@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -627,9 +628,31 @@ func appExtraItems() []string {
 	return out
 }
 
-// tildePath shows a path under the home dir as ~/….
+// tildePath shows a path under the home folder short, as the system
+// writes it: ~/… on macOS and Linux; on Windows, where "~" is no idiom,
+// under the user's known folder variable (%LOCALAPPDATA%\Programs\Twinnel)
+// (ui-review 6.13).
 func tildePath(p string) string {
-	if home, err := os.UserHomeDir(); err == nil && home != "" && strings.HasPrefix(p, home+string(filepath.Separator)) {
+	home, _ := os.UserHomeDir()
+	return shortHome(p, runtime.GOOS, home, os.Getenv)
+}
+
+// shortHome is tildePath for goos, with home and the environment given.
+func shortHome(p, goos, home string, getenv func(string) string) string {
+	if goos == "windows" {
+		for _, v := range []string{"LOCALAPPDATA", "APPDATA", "USERPROFILE"} {
+			dir := strings.TrimRight(getenv(v), `\`)
+			if dir == "" {
+				continue
+			}
+			// Windows paths are case-insensitive.
+			if len(p) > len(dir) && strings.EqualFold(p[:len(dir)], dir) && p[len(dir)] == '\\' {
+				return "%" + v + "%" + p[len(dir):]
+			}
+		}
+		return p
+	}
+	if home != "" && strings.HasPrefix(p, home+"/") {
 		return "~" + strings.TrimPrefix(p, home)
 	}
 	return p

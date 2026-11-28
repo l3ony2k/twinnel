@@ -31,7 +31,7 @@ import (
 
 type accessoryKind struct {
 	kind                  string // rpc.AccessoryGeo or rpc.AccessoryUI
-	title, tip, what      string
+	title, tip            string
 	icon                  *ui.SVG
 	status, check, update string
 	view                  func(a *app) *accessoryView
@@ -39,7 +39,7 @@ type accessoryKind struct {
 
 func geoKind() accessoryKind {
 	return accessoryKind{
-		kind: rpc.AccessoryGeo, title: i18n.T.GeoTitle, tip: i18n.T.TipGeo, what: i18n.T.CompGeoWhat, icon: iconGeo,
+		kind: rpc.AccessoryGeo, title: i18n.T.GeoTitle, tip: i18n.T.TipGeo, icon: iconGeo,
 		status: rpc.MethodGeoStatus, check: rpc.MethodGeoCheck, update: rpc.MethodGeoUpdate,
 		view: func(a *app) *accessoryView { return &a.hd.kern.geo },
 	}
@@ -47,7 +47,7 @@ func geoKind() accessoryKind {
 
 func uiKind() accessoryKind {
 	return accessoryKind{
-		kind: rpc.AccessoryUI, title: i18n.T.UITitle, tip: i18n.T.TipUI, what: i18n.T.CompUIWhat, icon: iconDashboard,
+		kind: rpc.AccessoryUI, title: i18n.T.UITitle, tip: i18n.T.TipUI, icon: iconDashboard,
 		status: rpc.MethodUIStatus, check: rpc.MethodUICheck, update: rpc.MethodUIUpdate,
 		view: func(a *app) *accessoryView { return &a.hd.kern.ui },
 	}
@@ -67,8 +67,9 @@ type accessoryView struct {
 	prog    *rpc.AccessoryProgress     // the running download's stage
 	proxy   string                     // the route of the last download (retry keeps it)
 
-	proxyOpen bool
-	proxyAddr string
+	routesOpen bool // 其他下载方式, under a failed download
+	proxyOpen  bool
+	proxyAddr  string
 }
 
 // loadAccessories reads geo.status and ui.status (local reads). Main
@@ -268,14 +269,22 @@ func (a *app) accessoryRows(c *ui.Context, s status.Snapshot, k accessoryKind) {
 	// unused: nothing there and nothing the running config loads.
 	unused := none && len(sum.missing) == 0 && sum.unused > 0
 	listRow(c).Children(func() {
-		componentHead(c, k.title, k.tip, func() {
-			switch {
-			case ck == nil && v.loading:
-				small(c, T.Loading)
-			case unused:
-				tag(c, T.AccessoryUnused)
-			case none:
-				tag(c, T.AccessoryMissing)
+		// One row while nothing is there (ui-review 6.8): the name, its
+		// state in secondary text under it, the download at the end. No
+		// sentence besides the ⓘ (6.7); no badge while it downloads.
+		state := ""
+		switch {
+		case ck == nil && v.loading:
+			state = T.Loading
+		case running:
+		case unused:
+			state = T.AccessoryUnused
+		case none:
+			state = T.AccessoryMissing
+		}
+		componentHead(c, k.title, k.tip, state, func() {
+			if none && !running && v.failErr == "" {
+				a.accessoryDownload(c, s, k, v, sum, none, w)
 			}
 		})
 		if ck == nil {
@@ -283,9 +292,6 @@ func (a *app) accessoryRows(c *ui.Context, s status.Snapshot, k accessoryKind) {
 				hintText(c, T.HelperTooOld)
 			}
 			return
-		}
-		if none {
-			hintText(c, k.what)
 		}
 		if !none {
 			switch {
@@ -311,7 +317,7 @@ func (a *app) accessoryRows(c *ui.Context, s status.Snapshot, k accessoryKind) {
 		switch {
 		case running:
 			a.accessoryProgressRow(c, k, v)
-		case none && v.failErr != "": // the failed row below is the action
+		case none: // the head's download, or the failed row below, is the action
 		default:
 			a.accessoryActionRow(c, s, k, v, sum, none, w)
 		}
@@ -348,7 +354,9 @@ func (a *app) accessoryActionRow(c *ui.Context, s status.Snapshot, k accessoryKi
 		switch {
 		case none:
 		case sum.updates > 0 && len(sum.missing) == 0:
-			line, col = i18n.F(T.CompNewer, orDash(sum.from), orDash(sum.to)), t.Accent
+			// The state in the body color: the accent is the button's
+			// beside it (6.8).
+			line, col = i18n.F(T.CompNewer, orDash(sum.from), orDash(sum.to)), t.Text
 			if sum.size > 0 {
 				line = i18n.F(T.CompNewerSize, orDash(sum.from), orDash(sum.to), status.Bytes(sum.size))
 			}
@@ -374,10 +382,8 @@ func (a *app) accessoryActionRow(c *ui.Context, s status.Snapshot, k accessoryKi
 				a.accessoryUpdate(k, v.proxy)
 			}
 		}
-		if label := downloadLabel(sum, none); label != "" && v.failErr == "" {
-			if a.opAction(c.Key("download"), iconDownload, label, true, !w, k.opUpdate()).Clicked() {
-				a.accessoryUpdate(k, v.proxy)
-			}
+		if v.failErr == "" {
+			a.accessoryDownload(c, s, k, v, sum, none, w)
 		}
 		if k.kind == rpc.AccessoryUI && !none && ck.Configured {
 			if pushButton(c.Key("open"), T.CompOpenUI).Disabled(!s.MihomoLive()).Tooltip(dashTooltip(s)).Clicked() {
@@ -385,6 +391,16 @@ func (a *app) accessoryActionRow(c *ui.Context, s status.Snapshot, k accessoryKi
 			}
 		}
 	})
+}
+
+// accessoryDownload is the download (or update) button, when there is
+// something to download.
+func (a *app) accessoryDownload(c *ui.Context, s status.Snapshot, k accessoryKind, v *accessoryView, sum accessorySummary, none, w bool) {
+	if label := downloadLabel(sum, none); label != "" {
+		if a.opAction(c.Key("download"), iconDownload, label, true, !w, k.opUpdate()).Clicked() {
+			a.accessoryUpdate(k, v.proxy)
+		}
+	}
 }
 
 func dashTooltip(s status.Snapshot) string {
@@ -420,13 +436,49 @@ func downloadLabel(sum accessorySummary, none bool) string {
 	return T.CompUpdate
 }
 
-// accessoryProgressRow says what the running download does.
+// accessoryProgressRow says what the running download does: its stage,
+// and while the size is known a determinate bar under it (ui-review
+// 6.5); a spinner only while the stage has no measure.
 func (a *app) accessoryProgressRow(c *ui.Context, k accessoryKind, v *accessoryView) {
 	t := c.Theme()
-	ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(plat.rowMinHeight).Role(ui.RoleStatus).Children(func() {
-		spinnerIcon(c).TextColor(t.TextMuted)
-		num(ui.Text(c, progressText(k, v.prog)).FontSize(plat.calloutSize).TextColor(t.TextMuted).Grow(1).Wrap().LineHeight(lineText))
+	frac, known := progressFraction(v.prog)
+	ui.Column(c).Gap(6).Role(ui.RoleStatus).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(plat.rowMinHeight - 8).Children(func() {
+			if !known {
+				spinnerIcon(c).TextColor(t.TextMuted)
+			}
+			num(ui.Text(c, progressText(k, v.prog)).FontSize(plat.calloutSize).TextColor(t.TextMuted).Grow(1).Wrap().LineHeight(lineText))
+		})
+		if known {
+			progressBar(c, frac).Label(progressText(k, v.prog))
+		}
 	})
+}
+
+// progressFraction is how far a download is, and whether that is known
+// (the download stage of a file whose size is known).
+func progressFraction(p *rpc.AccessoryProgress) (float64, bool) {
+	if p == nil || p.Total <= 0 || (p.Stage != "" && p.Stage != rpc.AccStageDownload) {
+		return 0, false
+	}
+	return min(1, float64(p.Done)/float64(p.Total)), true
+}
+
+// progressBar is the platform's determinate progress bar, as wide as its
+// row: WinUI's ProgressBar on Windows (a 3 DIP rounded indicator on a
+// 1 DIP track), MyGo's elsewhere.
+func progressBar(c *ui.Context, frac float64) ui.Element {
+	if !plat.fluent {
+		return ui.Progress(c, frac).Grow(1)
+	}
+	t := c.Theme()
+	var b ui.Element
+	ui.Row(c).Height(3).Grow(1).AlignItems(ui.Stretch).Draw(func(p *ui.Painter, r ui.Rect) {
+		p.Fill(ui.Rect{X: r.X, Y: r.Y + 1, W: r.W, H: 1}, fluentTok(t).strongStroke, 0.5)
+	}).Children(func() {
+		b = ui.Progress(c, frac).Grow(1).Height(3).Radius(1.5).Background(ui.Transparent)
+	})
+	return b
 }
 
 // progressText words an accessory.progress.
@@ -469,7 +521,7 @@ func accessoryFileRow(c *ui.Context, f rpc.AccessoryFile) {
 		case !f.Installed:
 			tag(c, T.AccessoryMissing)
 		case f.UpdateAvailable:
-			ui.Text(c, T.UpdateAvailable).FontSize(plat.calloutSize).TextColor(t.Accent).SingleLine().Shrink(0)
+			ui.Text(c, T.UpdateAvailable).FontSize(plat.calloutSize).TextColor(t.Text).SingleLine().Shrink(0)
 		}
 		if f.Installed {
 			info := status.Bytes(f.Size)
@@ -565,6 +617,14 @@ func (a *app) accessoryFailed(c *ui.Context, k accessoryKind, v *accessoryView) 
 	busy := a.hd.busy != ""
 	ui.Column(c).Gap(8).Children(func() {
 		failedRowWhy(c.Key("dl-failed"), i18n.F(T.CompFailed, k.title), v.failWhy, v.failErr, func() { a.accessoryUpdate(k, v.proxy) }, busy)
+		// The other routes under one disclosure (ui-review 6.6): 重试 is
+		// the action; these are for when it keeps failing.
+		if linkDisclosure(c.Key("routes"), v.routesOpen, T.CompOtherRoutes).Clicked() {
+			v.routesOpen = !v.routesOpen
+		}
+		if !v.routesOpen {
+			return
+		}
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
 			if v.proxy != rpc.ProxySubscription && pushButton(c.Key("via-sub"), T.CompViaSub).Disabled(busy).Clicked() {
 				a.accessoryUpdate(k, rpc.ProxySubscription)
@@ -688,17 +748,24 @@ func (a *app) openDashboard(path string) {
 	a.openExternal(u)
 }
 
-// componentHead is the first line of a 组件 section: its name (and ⓘ),
-// then what is known of it.
-func componentHead(c *ui.Context, title, tip string, rest func()) {
+// componentHead is the head of a 组件 section, as a settings card: its
+// name (and ⓘ), the state under it in secondary text when there is one,
+// and trailing (an action) at the end.
+func componentHead(c *ui.Context, title, tip, state string, trailing func()) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).Children(func() {
-		ui.Text(c, title).FontWeight(500).SingleLine().Shrink(0)
-		if tip != "" {
-			infoTipAbout(c, title, tip, nil)
-		}
-		ui.Spacer(c)
-		if rest != nil {
-			rest()
+		ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, title).FontWeight(500).SingleLine().Shrink(1)
+				if tip != "" {
+					infoTipAbout(c, title, tip, nil)
+				}
+			})
+			if state != "" {
+				ui.Text(c, state).FontSize(plat.calloutSize).TextColor(c.Theme().TextMuted).SingleLine()
+			}
+		})
+		if trailing != nil {
+			trailing()
 		}
 	})
 }

@@ -280,11 +280,11 @@ func (a *app) tailscaleRows(c *ui.Context, s status.Snapshot) {
 	v := &a.hd.kern
 	info := v.ts
 	listRow(c).Children(func() {
-		componentHead(c, T.Tailscale, "", func() {
-			if info == nil && v.tsLoading {
-				ui.Text(c, T.Checking).FontSize(plat.calloutSize).TextColor(t.TextMuted).SingleLine()
-			}
-		})
+		state := ""
+		if info == nil && v.tsLoading {
+			state = T.Checking
+		}
+		componentHead(c, T.Tailscale, "", state, nil)
 		if info == nil {
 			return
 		}

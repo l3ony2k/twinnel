@@ -367,7 +367,7 @@ func (a *app) agentConnectRow(c *ui.Context) {
 	v := &a.agent
 	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 		settingsLabel(c, T.AgentConnect, "")
-		segmented(c.Key("ag-client"), &v.client, "Claude Code", "Codex", "Cursor", T.AgentClientOther)
+		selectorBar(c.Key("ag-client"), &v.client, "Claude Code", "Codex", "Cursor", T.AgentClientOther)
 		ui.Spacer(c)
 		snip := agentSnippet(v.client, a.agentCommand())
 		if pushButton(c.Key("ag-copy"), T.AgentCopy).Clicked() {

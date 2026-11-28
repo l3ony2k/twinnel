@@ -5,7 +5,6 @@ package i18n
 // installed and offers the one action that fits.
 type ComponentStrings struct {
 	// One line under a component that is not installed: what it is for.
-	CompGeoWhat, CompUIWhat string
 
 	CompDownload     string // 下载
 	CompDownloadSize string // %s: size
@@ -45,6 +44,7 @@ type ComponentStrings struct {
 	CompViaSub      string // retry through the subscription's nodes
 	CompViaProxy    string
 	CompViaHint     string // ⓘ body for the download routes
+	CompOtherRoutes string // the disclosure over CompViaSub and CompViaProxy
 
 	// The dashboard.
 	CompOpenUI       string
@@ -63,8 +63,6 @@ type ComponentStrings struct {
 }
 
 var zhComponents = ComponentStrings{
-	CompGeoWhat: "GEOIP、GEOSITE 这类规则要用到它；没有它，这些规则不生效。",
-	CompUIWhat:  "在浏览器里看连接、切节点的网页面板。Twinnel 本身不需要它。",
 
 	CompDownload:     "下载",
 	CompDownloadSize: "下载 · %s",
@@ -101,6 +99,7 @@ var zhComponents = ComponentStrings{
 	CompFailed:      "没能下载 %s",
 	CompViaSub:      "用订阅的节点下载",
 	CompViaProxy:    "用其他代理…",
+	CompOtherRoutes: "其他下载方式",
 	CompViaHint:     "GitHub 连不上时，用订阅里的节点临时代理这次下载；也可以填局域网里另一台机器的代理。",
 
 	CompOpenUI:       "打开控制面板",
@@ -118,8 +117,6 @@ var zhComponents = ComponentStrings{
 }
 
 var enComponents = ComponentStrings{
-	CompGeoWhat: "Rules like GEOIP and GEOSITE need these; without them those rules don't work.",
-	CompUIWhat:  "A web page for watching connections and switching nodes in the browser. Twinnel itself doesn't need it.",
 
 	CompDownload:     "Download",
 	CompDownloadSize: "Download · %s",
@@ -156,6 +153,7 @@ var enComponents = ComponentStrings{
 	CompFailed:      "Couldn't download %s",
 	CompViaSub:      "Download Through Subscription Nodes",
 	CompViaProxy:    "Use Another Proxy…",
+	CompOtherRoutes: "Other ways to download",
 	CompViaHint:     "When GitHub can't be reached, a node from your subscription can proxy this one download; or enter a proxy on another machine on your network.",
 
 	CompOpenUI:       "Open Dashboard",

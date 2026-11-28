@@ -40,7 +40,7 @@ var zhInfoTips = InfoTipStrings{
 	TipHistRollback:   "回滚把这条记录的配置和当时的覆写设为当前配置，并重载 mihomo；现在的配置也会留在历史里。「接管前」是接管时备份的原配置。",
 
 	TipKernelState: "Twinnel 管理：Twinnel 下载并校验 mihomo，可以更新和回滚。\n外部程序：服务仍在用你自己的程序，Twinnel 不更新它。\n待重启：新版本已装好，重启 mihomo 后生效。",
-	TipGeo:         "mihomo 规则里 GEOIP、GEOSITE 用到的数据文件，按配置里的 geox-url 下载。「可校验」的文件下载后会核对校验值。",
+	TipGeo:         "mihomo 规则里 GEOIP、GEOSITE 用到的数据文件，没有它们这些规则不生效。按配置里的 geox-url 下载，「可校验」的文件下载后会核对校验值。",
 
 	TipLogs: "mihomo：内核的实时日志，从打开页面起记录。\nTwinnel：后台助手做过的操作。\n后台助手：它自己的运行日志，排查问题时用。\n级别只影响这里显示什么，不改 mihomo 的配置。",
 
@@ -69,7 +69,7 @@ var enInfoTips = InfoTipStrings{
 	TipHistRollback:   "Rolling back makes this entry's config, with the overrides it had, the current config and reloads mihomo. The config you have now stays in history. “Before Twinnel” is the original config backed up at takeover.",
 
 	TipKernelState: "Managed by Twinnel: Twinnel downloads and verifies mihomo and can update or roll it back.\nExternal binary: the service still runs your own binary, which Twinnel doesn't update.\nRestart pending: a new version is installed and takes effect when mihomo restarts.",
-	TipGeo:         "The data files that GEOIP and GEOSITE rules use, downloaded from the config's geox-url. Files marked Verifiable are checked against a published digest.",
+	TipGeo:         "The data files that GEOIP and GEOSITE rules use; without them those rules don't work. Downloaded from the config's geox-url; files marked Verifiable are checked against a published digest.",
 
 	TipLogs: "mihomo shows the core's live log from when you open this page.\nTwinnel shows what the helper has done.\nHelper shows the helper's own log, for troubleshooting.\nThe level only filters what shows here; mihomo's config is not changed.",
 
