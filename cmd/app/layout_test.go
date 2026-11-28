@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"testing"
@@ -67,6 +68,9 @@ func layoutApp(t *testing.T) (*app, status.Snapshot) {
 	a.shotSnap = func(s *status.Snapshot) { *s = snap }
 	a.onMain = func(f func()) { f() }
 	a.probes = &shotProbes{machine: fixture.Synthetic()} // never this machine
+	// The health page lists the snapshot's report (never run here).
+	a.healthSrc = status.HealthFunc(func(context.Context) (*health.Report, error) { return snap.Health.Report, nil })
+	a.egressProbe = func(context.Context) *health.CheckReport { return nil }
 	ns := notificationsSupported
 	notificationsSupported = func() bool { return true } // no app main loop under a Tester
 	t.Cleanup(func() { notificationsSupported = ns })
@@ -126,6 +130,14 @@ func TestPageLayoutAllWidthsAndScales(t *testing.T) {
 					for _, txt := range tr.Texts() {
 						if r, ok := tr.Find(txt); ok && r.W > 0 && r.X+r.W > W+0.5 {
 							t.Errorf("%s: %q ends at %.1f, past the window (%d)", where, txt, r.X+r.W, w)
+						}
+					}
+					if p == pageHealth { // r4: both were cut off at the right edge
+						for _, b := range []string{i18n.T.EgressRetest, i18n.T.HealthCopyReport} {
+							r, ok := tr.Find(b)
+							if !ok || r.X+r.W > pane.X+pane.W+0.5 || r.X < pane.X {
+								t.Errorf("%s: %q at %+v (found %v), not inside the pane %+v", where, b, r, ok, pane)
+							}
 						}
 					}
 					if p == pageLogs {
