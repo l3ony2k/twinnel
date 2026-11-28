@@ -54,7 +54,11 @@ Page ids: `overview proxies tailscale health logs config history kernel takeover
 
 ### Screenshots (development)
 
-`TWINNEL_SHOTS=<dir> twinnel-app` renders every page and the flyout into PNGs, without showing a window or taking the focus, then quits (`cmd/app/shots*.go`; `TWINNEL_SHOTS_FLOW`, `TWINNEL_SHOTS_QUICK`, `TWINNEL_SHOTS_WIDTH` pick other passes; `TWINNEL_SHOTS_FLOW=toolbar` saves each page's toolbar idle, hovered and pressed; `TWINNEL_SHOTS_FLOW=helpermgmt` saves 设置 → 后台助手 in each state and the 需要更新后台助手 row). Shots are read-only by default (as `TWINNEL_READ_ONLY=1`); a flow that writes against a fake helper or controller sets `TWINNEL_READ_ONLY=0` and `TWINNEL_SHOTS_WRITE=1`. Run it against synthetic data only, so no real account, tailnet, device or node name ends up in a picture.
+`TWINNEL_SHOTS=<dir> twinnel-app` renders every page and the flyout into PNGs without taking the focus, then quits (`cmd/app/shots*.go`; `TWINNEL_SHOTS_FLOW`, `TWINNEL_SHOTS_QUICK`, `TWINNEL_SHOTS_WIDTH` pick other passes; `TWINNEL_SHOTS_FLOW=toolbar` saves each page's toolbar idle, hovered and pressed; `TWINNEL_SHOTS_FLOW=helpermgmt` saves 设置 → 后台助手 in each state and the 需要更新后台助手 row). Shots are read-only by default (as `TWINNEL_READ_ONLY=1`); a flow that writes against a fake helper or controller sets `TWINNEL_READ_ONLY=0` and `TWINNEL_SHOTS_WRITE=1`. Run it against synthetic data only, so no real account, tailnet, device or node name ends up in a picture.
+
+On macOS and Linux the windows stay hidden and are captured from memory. On Windows a hidden window draws no frame after its first, so every capture would repeat it: there each shot window is moved far off screen (−32000) and shown without activation before its first capture (`cmd/app/shots_window.go`). It may show a taskbar button for the run; it never takes the focus. Every run hashes what it saves: two shot names with the same picture (a stale capture, or a step that changed nothing) are logged as `SAME PICTURE AS` and the run exits 1. `TestWindowsShots` checks its pages the same way.
+
+`go test ./cmd/app -run TestWindowsShots` with `TWINNEL_WINSHOTS=<dir>` (and `TWINNEL_WINSHOTS_PAGES`, `TWINNEL_WINSHOTS_SCALE`, default 1.5, `TWINNEL_WINSHOTS_WIDTH` in DIPs) renders the Windows layout (Fluent `plat`, Windows fixtures) headless from any machine: a first look before a real-PC round.
 
 A shot run is hermetic by construction: `shotGuard` (`cmd/app/shotguard.go`) stops it at startup unless it names a scratch helper socket (`TWINNEL_SOCKET`, never `/var/run/twinnel/helper.sock`), a fake controller (`TWINNEL_CONTROLLER`, never port 9090), a synthetic tailnet (`TWINNEL_TAILSCALE_STATUS_FILE`) and a scratch `HOME` (not your real home). Every other read of the machine goes through `machineProbes` (`cmd/app/probes.go`), which in shot mode answers from fixtures: the in-process health checks read a `core/health/fixture` machine (`TWINNEL_HEALTH_FIXTURE=<file.json>`, else `fixture.Synthetic()`, whose tailnet is the status file's), live-setup detection finds nothing (flows set it), the Tailscale install is synthetic, and the `twinnel` CLI is never run (version, install plan and upgrade check are canned; every other command fails). Health comes from the fixture even when the helper is connected. `TestShotFlowsAreHermetic` fails if any flow's setup reaches the host probes.
 
@@ -63,15 +67,19 @@ Recipe (from the repo root; `S` is a scratch dir outside the repo):
 ```sh
 S=${TWINNEL_SCRATCH:-$HOME/.cache/twinnel-dev}/shots; TS=$PWD/cmd/app/testdata/shots-tailscale-status.json
 mkdir -p $S/home $S/state $S/empty $S/out
-go build -o $S/devfake ./cmd/helper/internal/devfake && go build -o $S/twinnel-helper ./cmd/helper && go build -o $S/twinnel-app ./cmd/app
-$S/devfake -listen 127.0.0.1:19894 &                      # fake mihomo controller, invented groups and nodes
+go build -o $S/fakemihomo ./cmd/app/internal/fakemihomo && go build -o $S/devfake ./cmd/helper/internal/devfake
+go build -o $S/twinnel-helper ./cmd/helper && go build -o $S/twinnel-app ./cmd/app
+$S/fakemihomo --listen 127.0.0.1:19894 &                   # fake mihomo controller: invented groups, nodes, traffic, logs
+$S/devfake --listen 127.0.0.1:19895 --write-mihomo $S/fakebin &  # writes the fake `mihomo -t` (mihomo, or mihomo.cmd on Windows)
 $S/twinnel-helper --state-dir $S/state --socket $S/twinnel.sock --foreground --secrets file --group staff \
   --tailnet-status-file $TS --no-health --no-controller-owner --tailnet-iface none \
   --takeover-services-dir $S/empty --takeover-home $S/home &   # scratch helper: no host health, takeover probe or route lookups
-# set "controller": "127.0.0.1:19894" under "mihomo" in $S/state/settings.json, then restart the helper
+# set "controller": "127.0.0.1:19894" and "binary": "$S/fakebin/mihomo" under "mihomo" in $S/state/settings.json, then restart the helper
 TWINNEL_SHOTS=$S/out TWINNEL_SHOTS_FLOW=status TWINNEL_SOCKET=$S/twinnel.sock TWINNEL_CONTROLLER=127.0.0.1:19894 \
   TWINNEL_TAILSCALE_STATUS_FILE=$TS HOME=$S/home $S/twinnel-app
 ```
+
+`devfake`'s own controller answers only `/version` and `PUT /configs` (what the helper's tests need); pages want `fakemihomo`. `scripts/readme-shots.sh` is the full version of this recipe. On Windows the scratch helper serves its pipe (`--socket \\.\pipe\twinnel-dev-<name>`) without elevation; keep it unelevated next to the live services.
 
 The README's images (`docs/images/`) come from `scripts/readme-shots.sh <scratch dir>` (`TWINNEL_SHOTS_FLOW=readme`, fixtures in `cmd/app/testdata/readme`): it builds the same hermetic stack, seeds the scratch helper with a synthetic subscription and layers, shoots English and Chinese in light and dark, and frames and compresses the PNGs. Look at every image before committing it.
 

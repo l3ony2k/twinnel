@@ -1,6 +1,8 @@
 package main
 
 import (
+	"cmp"
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -50,39 +52,17 @@ func (a *app) lifecycleShots(save func(*mygo.Window, string)) {
 		save(a.win, name)
 	}
 
-	// Takeover.
+	// Takeover, when its fixture loaded: without a plan there is nothing
+	// to show, so the section is skipped (it used to panic).
 	var fixErr error
 	mygo.RunOnMain(func() { fixErr = a.loadTakeoverFixture(fix) })
-	if fixErr != nil {
-		log.Printf("takeover fixture %s: %v", fix, fixErr)
+	var hasPlan bool
+	mygo.RunOnMain(func() { hasPlan = a.shotPlanReady() })
+	if fixErr != nil || !hasPlan {
+		log.Printf("takeover fixture %s: %v; skipping the takeover shots", fix, cmp.Or(fixErr, errNoShotPlan))
+	} else {
+		a.lifecycleTakeoverShots(fix, connected, shot)
 	}
-	adopt := a.hd.take.adopt
-	noResult := func() {
-		a.hd.take.adopt = nil
-		if a.hd.take.plan != nil {
-			a.hd.take.plan.State = rpc.PlanReady
-		}
-		a.hd.take.plans = []rpc.TakeoverPlan{*a.hd.take.plan}
-	}
-	shot("takeover-plan", pageTakeover, "plan", connected, 1300, func() {
-		noResult()
-		a.hd.take.candOpen, a.hd.take.othersOpen = true, true
-	})
-	shot("takeover-verdict", pageTakeover, "verdict", connected, 1500, func() {
-		noResult()
-		a.hd.take.keysOpen = nil
-	})
-	shot("takeover-empty", pageTakeover, "plan", connected, 900, func() {
-		a.hd.take.plan, a.hd.take.plans, a.hd.take.adopt = nil, nil, nil
-	})
-	mygo.RunOnMain(func() { a.loadTakeoverFixture(fix) })
-	shot("takeover-result", pageTakeover, "result", connected, 1200, func() {
-		a.hd.take.adopt = adopt
-		if a.hd.take.plan != nil {
-			a.hd.take.plan.State = rpc.PlanAdopted
-			a.hd.take.plans = []rpc.TakeoverPlan{*a.hd.take.plan}
-		}
-	})
 
 	// 停止使用 Twinnel.
 	home := "/Users/example"
@@ -156,4 +136,53 @@ func (a *app) lifecycleShots(save func(*mygo.Window, string)) {
 		}
 		a.about.faqOpen[i18n.T.FAQLeaveQ] = true
 	})
+}
+
+// lifecycleShotFn is lifecycleShots' shot: a name, a page and its section,
+// the helper state, the window height and what to set before the capture.
+type lifecycleShotFn = func(name, page, section string, h status.Helper, height int, prep func())
+
+// lifecycleTakeoverShots: the plan, the verdict, no plan, and the result,
+// from the takeover fixture (loaded, with a plan: shotPlanReady).
+func (a *app) lifecycleTakeoverShots(fix string, connected status.Helper, shot lifecycleShotFn) {
+	adopt := a.hd.take.adopt
+	noResult := func() {
+		a.hd.take.adopt = nil
+		a.shotPlanReady()
+	}
+	shot("takeover-plan", pageTakeover, "plan", connected, 1300, func() {
+		noResult()
+		a.hd.take.candOpen, a.hd.take.othersOpen = true, true
+	})
+	shot("takeover-verdict", pageTakeover, "verdict", connected, 1500, func() {
+		noResult()
+		a.hd.take.keysOpen = nil
+	})
+	shot("takeover-empty", pageTakeover, "plan", connected, 900, func() {
+		a.hd.take.plan, a.hd.take.plans, a.hd.take.adopt = nil, nil, nil
+	})
+	mygo.RunOnMain(func() { a.loadTakeoverFixture(fix) })
+	shot("takeover-result", pageTakeover, "result", connected, 1200, func() {
+		a.hd.take.adopt = adopt
+		if a.hd.take.plan != nil {
+			a.hd.take.plan.State = rpc.PlanAdopted
+			a.hd.take.plans = []rpc.TakeoverPlan{*a.hd.take.plan}
+		}
+	})
+}
+
+var errNoShotPlan = errors.New("the fixture has no plan")
+
+// shotPlanReady shows the loaded takeover plan as ready (not adopted) and
+// as the only one, and reports whether there is a plan at all. Main
+// thread.
+func (a *app) shotPlanReady() bool {
+	p := a.hd.take.plan
+	if p == nil {
+		a.hd.take.plans = nil
+		return false
+	}
+	p.State = rpc.PlanReady
+	a.hd.take.plans = []rpc.TakeoverPlan{*p}
+	return true
 }

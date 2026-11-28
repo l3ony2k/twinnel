@@ -133,7 +133,7 @@ func (a *app) readmeShots(save func(*mygo.Window, string)) {
 		a.hd.settings.Agent = rpc.AgentSettings{MCP: true, Operate: true}
 		v := &a.agent
 		v.activity, v.actLoaded, v.actErr, v.actSeq = acts, true, "", a.hd.lastEvent.Seq
-		v.shotLinks = []string{"/usr/local/bin/twinnel"}
+		v.shotLinks = []string{shotCLILink(a.shotGOOS())}
 		a.shotSection = "agent"
 	}
 	on(agentOn)

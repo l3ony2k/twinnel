@@ -14,13 +14,20 @@
   The script runs as the user, not elevated. Write its files under the
   user's %TEMP% (it can not write to admin-only folders).
 
+  Each run registers its own task: -Task, else TwinnelQA-us-<script
+  name>-<this process id>, so two runs at once (two agents, two batches)
+  never replace each other's task or output. Only that task is removed
+  afterwards; the output is left next to -Script as <task>.out.txt.
+
 .EXAMPLE
   pwsh -File windows-usersession.ps1 -Script $env:TEMP\TwinnelQA-gui\step.ps1
+  pwsh -File windows-usersession.ps1 -Script $env:TEMP\TwinnelQA-gui\step.ps1 -Task TwinnelQA-batch2
 #>
 param(
     [Parameter(Mandatory)][string]$Script,
     [string]$Arguments = '',
-    [int]$Timeout = 120
+    [int]$Timeout = 120,
+    [string]$Task = ''
 )
 $ErrorActionPreference = 'Stop'
 
@@ -28,8 +35,13 @@ $console = (Get-CimInstance Win32_ComputerSystem).UserName  # DOMAIN\user at the
 if (-not $console) { throw 'nobody is signed in at the console' }
 if (Get-Process LogonUI -ErrorAction SilentlyContinue) { Write-Warning 'the console session looks locked: screenshots will be blank' }
 
-$task = 'TwinnelQA-usersession'
-$log = [IO.Path]::ChangeExtension($Script, '.out.txt')
+$task = if ($Task) { $Task } else {
+    $base = [IO.Path]::GetFileNameWithoutExtension($Script) -replace '[^A-Za-z0-9_-]', '_'
+    "TwinnelQA-us-$base-$PID"
+}
+if ($task -notmatch '^[A-Za-z0-9_.-]{1,200}$') { throw "task name '$task': letters, digits, '.', '_' and '-' only" }
+if (Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue) { throw "a task named $task already exists: another run is using it (pass a different -Task)" }
+$log = Join-Path ([IO.Path]::GetDirectoryName($Script)) "$task.out.txt"  # per run, like the task
 Remove-Item -LiteralPath $log -ErrorAction SilentlyContinue
 $pwsh = (Get-Command pwsh).Source
 $quoted = if ($Arguments) { "'" + ($Arguments -replace "'", "''") + "'" } else { '' }
@@ -38,7 +50,7 @@ $arg = "--headless `"$pwsh`" -NoProfile -NonInteractive -ExecutionPolicy Bypass 
 $a = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\conhost.exe" -Argument $arg
 $p = New-ScheduledTaskPrincipal -UserId $console -LogonType Interactive -RunLevel Limited
 $s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Seconds ($Timeout + 30))
-Register-ScheduledTask -TaskName $task -Action $a -Principal $p -Settings $s -Force | Out-Null
+Register-ScheduledTask -TaskName $task -Action $a -Principal $p -Settings $s | Out-Null
 try {
     Start-ScheduledTask -TaskName $task
     Start-Sleep -Milliseconds 800

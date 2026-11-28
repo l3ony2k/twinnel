@@ -28,6 +28,10 @@ func (a *app) agentShots(save func(*mygo.Window, string)) {
 		a.pageChanged(old)
 	})
 	time.Sleep(1500 * time.Millisecond) // the helper's settings load
+	link, linkErr := shotCLILink(a.shotGOOS()), "symlink /usr/local/bin/twinnel: permission denied"
+	if a.shotGOOS() == "windows" {
+		linkErr = "open " + link + ": Access is denied."
+	}
 	for _, st := range []struct {
 		name  string
 		agent rpc.AgentSettings
@@ -37,9 +41,9 @@ func (a *app) agentShots(save func(*mygo.Window, string)) {
 		cli   int
 	}{
 		{"settings-agent-off", rpc.AgentSettings{Operate: true}, []rpc.AgentAction{}, nil, "", 0},
-		{"settings-agent-on", rpc.AgentSettings{MCP: true, Operate: true}, acts, []string{"/usr/local/bin/twinnel"}, "", 0},
+		{"settings-agent-on", rpc.AgentSettings{MCP: true, Operate: true}, acts, []string{link}, "", 0},
 		{"settings-agent-json", rpc.AgentSettings{MCP: true, Operate: true, Configure: true}, acts[:2], nil,
-			"symlink /usr/local/bin/twinnel: permission denied", 3},
+			linkErr, 3},
 	} {
 		apply := func() {
 			if a.hd.settings == nil {
