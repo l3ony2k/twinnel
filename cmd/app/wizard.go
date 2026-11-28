@@ -122,7 +122,6 @@ func (a *app) finishWizard() {
 // wizardWindow is the whole window while the wizard shows.
 func (a *app) wizardWindow(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
-	T := i18n.T
 	w := &a.wiz
 	if s.Helper.Connected() && !w.detectedHelper && !a.setupV.running {
 		// The helper came up (② installed it): find what is done again.
@@ -132,11 +131,7 @@ func (a *app) wizardWindow(c *ui.Context, s status.Snapshot) {
 	a.setupDetect()
 	barH := toolbarHeight(c)
 	ui.Column(c.Key("wizard")).Fill().Background(t.Background).Children(func() {
-		// The title bar's band: drags the window, clears the traffic
-		// lights, says where the user is.
-		ui.Row(c).Height(barH).FillWidth().Shrink(0).DragWindow().AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-			displayFont(ui.Text(c, T.WizTitle).FontSize(plat.titleBarSize).FontWeight(plat.titleBarWeight).SingleLine())
-		})
+		wizardBand(c, barH)
 		ui.Scroll(c.Key("wiz-scroll:" + fmt.Sprint(w.state.Step))).Grow(1).Children(func() {
 			// The column is centered in the window at every width.
 			ui.Row(c).FillWidth().Justify(ui.Center).Padding(8, plat.pagePadX, 24).Children(func() {
@@ -163,9 +158,32 @@ func (a *app) wizardWindow(c *ui.Context, s status.Snapshot) {
 	})
 }
 
+// wizardBand is the title bar's band: drags the window, clears the
+// window controls, says where the user is. macOS and Linux center a
+// toolbar title in it; Windows writes a window caption at its left (the
+// app's mark and the title in Caption type, as Windows 11's setup
+// windows), so the step's own heading is the one large title.
+func wizardBand(c *ui.Context, h float32) {
+	t := c.Theme()
+	T := i18n.T
+	band := ui.Row(c).Height(h).FillWidth().Shrink(0).DragWindow().AlignItems(ui.Center)
+	if plat.fluent {
+		band.Gap(12).PaddingStart(16).Children(func() {
+			ui.Icon(c, iconTwinnel).FontSize(16).TextColor(t.Accent).Shrink(0)
+			ui.Text(c, T.WizTitle).FontSize(plat.smallSize).SingleLine()
+		})
+		return
+	}
+	band.Justify(ui.Center).Children(func() {
+		displayFont(ui.Text(c, T.WizTitle).FontSize(plat.titleBarSize).FontWeight(plat.titleBarWeight).SingleLine())
+	})
+}
+
 // wizardProgress is the row of six steps: done ones ticked, the current
-// one in the accent, with 第 n 步，共 6 步 under it. A step already
-// reached can be clicked to go back to it.
+// one in the accent, with 第 n 步，共 6 步 under it (not on Windows: the
+// stepper says it, as Windows' setup flows). A step passed without being
+// done (Tailscale skipped, the kernel left for ④) has the skip mark. A
+// step already reached can be clicked to go back to it.
 func (a *app) wizardProgress(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
@@ -191,9 +209,9 @@ func (a *app) wizardProgress(c *ui.Context, s status.Snapshot) {
 					}
 					ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
 						switch {
-						case done && a.wizStepDone(i, s):
+						case done && a.wizStepComplete(i, s):
 							ui.Icon(c, iconOK).FontSize(iconSmall).TextColor(pal(t).okText)
-						case done: // passed, not done (Tailscale skipped)
+						case done: // passed, not done
 							ui.Icon(c, iconSkip).FontSize(iconSmall).TextColor(t.TextMuted)
 						}
 						txt := ui.Text(c, name).FontSize(plat.smallSize).TextColor(col).SingleLine()
@@ -207,72 +225,109 @@ func (a *app) wizardProgress(c *ui.Context, s status.Snapshot) {
 				}
 			}
 		})
-		num(small(c, i18n.F(T.WizProgress, cur+1, wizSteps)))
+		if !plat.fluent {
+			num(small(c, i18n.F(T.WizProgress, cur+1, wizSteps)))
+		}
 	})
 }
 
-// wizardFooter: 稍后再说 on the left, 上一步 and the step's way on at the
-// right. The way on is the accent once the step is done; until then the
-// step's own button is.
+// wizardFooter: the step's way on is the accent once the step is done;
+// until then the step's own button is. macOS (Setup Assistant) and Linux
+// put 稍后再说 on the left and 上一步 · 下一步 on the right; Windows groups
+// 上一步 · 下一步 · 稍后再说 on the right, as its setup flows' Back · Next ·
+// Cancel, every button one Fluent control high.
 func (a *app) wizardFooter(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	T := i18n.T
 	step := a.wiz.state.Step
+	fit := func(b ui.Element) ui.Element {
+		if plat.fluent {
+			b.Height(wizFooterButtonH)
+		}
+		return b
+	}
+	later := func() {
+		if step != wizDone {
+			if fit(pushButton(c.Key("later"), T.WizLater)).Clicked() {
+				a.leaveWizard()
+			}
+		}
+	}
 	ui.Box(c).Height(1).FillWidth().Background(pal(t).separator).Shrink(0)
 	ui.Row(c).FillWidth().Padding(12, plat.pagePadX).Shrink(0).Justify(ui.Center).Children(func() {
 		ui.Row(c).Gap(10).FillWidth().MaxWidth(wizMaxW).AlignItems(ui.Center).Children(func() {
-			if step != wizDone {
-				if pushButton(c.Key("later"), T.WizLater).Clicked() {
-					a.leaveWizard()
-				}
+			if !plat.fluent {
+				later()
 			}
 			ui.Spacer(c)
 			if step > wizWelcome {
-				if pushButton(c.Key("back"), T.WizBack).Disabled(a.setupV.running).Clicked() {
+				if fit(pushButton(c.Key("back"), T.WizBack)).Disabled(a.setupV.running).Clicked() {
 					a.setWizardStep(step - 1)
 				}
 			}
 			switch step {
 			case wizWelcome:
-				if ui.PrimaryButton(c.Key("start"), T.WizStart).Clicked() {
+				if fit(ui.PrimaryButton(c.Key("start"), T.WizStart)).Clicked() {
 					a.setWizardStep(wizHelper)
 				}
 			case wizTS:
 				if a.wizTSDone(s) {
-					if ui.PrimaryButton(c.Key("next"), T.WizNext).Clicked() {
+					if fit(ui.PrimaryButton(c.Key("next"), T.WizNext)).Clicked() {
 						a.setWizardStep(wizDone)
 					}
-				} else if pushButton(c.Key("skip"), T.WizSkip).Disabled(a.setupV.running).Clicked() {
+				} else if fit(pushButton(c.Key("skip"), T.WizSkip)).Disabled(a.setupV.running).Clicked() {
 					a.wiz.state.TSSkipped = true
 					a.setWizardStep(wizDone)
 				}
 			case wizDone:
-				if ui.PrimaryButton(c.Key("finish"), T.WizFinish).Clicked() {
+				if fit(ui.PrimaryButton(c.Key("finish"), T.WizFinish)).Clicked() {
 					a.finishWizard()
 				}
 			default:
 				done := a.wizStepDone(step, s)
-				if b := primaryButton(c.Key("next"), T.WizNext, !done || a.setupV.running); b.Clicked() {
+				if b := fit(primaryButton(c.Key("next"), T.WizNext, !done || a.setupV.running)); b.Clicked() {
 					a.setWizardStep(step + 1)
 				}
+			}
+			if plat.fluent {
+				later()
 			}
 		})
 	})
 }
 
-// wizStepDone reports whether a step needs nothing more.
+// wizFooterButtonH is a footer button's height on Windows: Fluent's
+// standard control height, the same for the accent and the plain ones.
+const wizFooterButtonH = 32
+
+// wizStepDone reports whether a step needs nothing more on its page, so
+// 下一步 goes on: ③ also when its kernel is left for ④ (the download
+// through the subscription's nodes), ⑤ also when skipped.
 func (a *app) wizStepDone(step int, s status.Snapshot) bool {
 	switch step {
 	case wizHelper:
 		return a.wizHelperDone(s)
 	case wizMihomo:
-		return a.wizMihomoDone(s)
+		return a.wizMihomoDone(s) || a.wiz.viaSub
 	case wizSub:
 		return a.wizSubDone(s)
 	case wizTS:
 		return a.wizTSDone(s) || a.wiz.state.TSSkipped
 	}
 	return true
+}
+
+// wizStepComplete reports whether a step's work is really done: the
+// stepper's ✓. A step only passed (wizStepDone: ③ left for ④, ⑤
+// skipped) is not.
+func (a *app) wizStepComplete(step int, s status.Snapshot) bool {
+	switch step {
+	case wizMihomo:
+		return a.wizMihomoDone(s)
+	case wizTS:
+		return a.wizTSDone(s)
+	}
+	return a.wizStepDone(step, s)
 }
 
 // wizStep is one of the flow's steps (or a shot's).
@@ -287,13 +342,28 @@ func (a *app) wizStep(id setup.Step) setup.StepState {
 
 func isDone(st setup.StepState) bool { return st.State == setup.Done || st.State == setup.Skipped }
 
-// stepHead is a step's heading and the paragraph that says what it does
-// and why.
-func stepHead(c *ui.Context, title, body string) {
+// stepHead is a step's heading and the one sentence that says what it
+// is; tip, when not "", is the rest behind an ⓘ after the sentence (the
+// copy rule: one sentence per step).
+func stepHead(c *ui.Context, title, body, tip string) {
 	ui.Column(c).Gap(8).FillWidth().Children(func() {
-		displayFont(ui.Text(c, title).FontSize(plat.titleSize - 3).FontWeight(plat.titleWeight))
-		ui.Text(c, body).Wrap().LineHeight(lineText)
+		displayFont(ui.Text(c, title).FontSize(stepTitleSize()).FontWeight(plat.titleWeight))
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, body).Wrap().LineHeight(lineText).Shrink(1)
+			if tip != "" {
+				infoTip(c, title, tip, nil)
+			}
+		})
 	})
+}
+
+// stepTitleSize is a step's heading: Windows' page title (Title, 28, as
+// the welcome's), a step under the page title elsewhere.
+func stepTitleSize() float32 {
+	if plat.fluent {
+		return plat.titleSize
+	}
+	return plat.titleSize - 3
 }
 
 // stepState is a step's outcome line: ✓ and what was done, a spinner and
@@ -314,13 +384,14 @@ func (a *app) okLine(c *ui.Context, text string) {
 }
 
 // needsHelperNote stands in for a step's action while the helper is not
-// connected: why, and the way back to ②.
+// connected: why, and the way back to ②, the step's one way on (so the
+// accent).
 func (a *app) needsHelperNote(c *ui.Context) {
 	T := i18n.T
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Icon(c, iconSkip).FontSize(iconInline).TextColor(c.Theme().TextMuted)
 		ui.Text(c, T.WizNeedsHelper).Grow(1)
-		if pushButton(c.Key("to-helper"), T.WizHelperHead).Clicked() {
+		if ui.PrimaryButton(c.Key("to-helper"), T.WizHelperHead).Clicked() {
 			a.setWizardStep(wizHelper)
 		}
 	})
@@ -382,7 +453,7 @@ func (a *app) wizHelperDone(s status.Snapshot) bool {
 
 func (a *app) wizHelper(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
-	stepHead(c, T.WizHelperHead, T.WizHelperBody)
+	stepHead(c, T.WizHelperHead, T.WizHelperBody, T.TipWizHelper)
 	st := a.wizStep(setup.StepHelper)
 	running := a.setupV.running && st.State == setup.Running
 	groupBox(c, c.Theme()).Gap(12).Children(func() {
@@ -459,7 +530,7 @@ func (a *app) wizTakenOver(s status.Snapshot) bool {
 
 func (a *app) wizMihomo(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
-	stepHead(c, T.WizMihomoHead, T.WizMihomoBody)
+	stepHead(c, T.WizMihomoHead, T.WizMihomoBody, T.TipWizMihomo)
 	if !a.live.loaded {
 		a.detectLiveSetup()
 	}
@@ -483,7 +554,16 @@ func (a *app) wizMihomo(c *ui.Context, s status.Snapshot) {
 			a.needsHelperNote(c)
 			return
 		case a.wiz.viaSub:
-			stepState(c, iconSkip, c.Theme().TextMuted, T.WizSubDownloadLater)
+			// Left for ④: 下一步 goes on (wizStepDone); this way back
+			// is the direct download's failed row, with its 重试.
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Grow(1).Shrink(1).Children(func() {
+					stepState(c, iconSkip, c.Theme().TextMuted, T.WizSubDownloadLater)
+				})
+				if pushButton(c.Key("direct"), T.WizMihomoDirect).Disabled(a.setupV.running).Clicked() {
+					a.wiz.viaSub = false
+				}
+			})
 			return
 		case a.live.found() && !a.wiz.ownMih && st.State != setup.Failed && st.State != setup.Running:
 			a.wizTakeOverChoice(c, s)
@@ -517,7 +597,12 @@ func (a *app) wizMihomo(c *ui.Context, s status.Snapshot) {
 // new one starts from a subscription.
 func (a *app) wizTakeOverChoice(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
-	ui.Text(c, i18n.F(T.WizMihomoFound, tildePath(a.live.Config))).Wrap().LineHeight(lineText)
+	// The path on its own line, mono, losing its middle when it does
+	// not fit: never wrapped mid-path.
+	ui.Column(c).Gap(4).Children(func() {
+		ui.Text(c, T.WizMihomoFound).Wrap().LineHeight(lineText)
+		mono(middleText(c, tildePath(a.live.Config))).FontSize(plat.calloutSize).Selectable()
+	})
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Wrap().Children(func() {
 		if primaryButton(c.Key("takeover"), T.WizMihomoTakeOver, !s.WritesAllowed).Clicked() {
 			a.openPage(pageTakeover)
@@ -582,7 +667,7 @@ func (a *app) wizSub(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	v := &a.setupV
 	w := &a.wiz
-	stepHead(c, T.WizSubHead, T.WizSubBody)
+	stepHead(c, T.WizSubHead, T.WizSubBody, "")
 	done := a.wizSubDone(s)
 	if done && !w.counted && !w.counting {
 		a.countConfig()
@@ -605,29 +690,38 @@ func (a *app) wizSub(c *ui.Context, s status.Snapshot) {
 			a.needsHelperNote(c)
 			return
 		}
-		ui.TextInput(c.Key("sub-url"), &v.url).Label(T.WizSubURL).Placeholder(T.WizSubPlaceholder).FillWidth().Disabled(v.running)
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+		sub := a.wizStep(setup.StepSubscription)
+		if wizSubURLShown(w.importName, sub) {
+			// The field's label above it, as a form's (not the
+			// placeholder alone).
+			ui.Column(c).Gap(6).FillWidth().Children(func() {
+				ui.Text(c, T.WizSubURL).FontWeight(500)
+				ui.TextInput(c.Key("sub-url"), &v.url).Label(T.WizSubURL).Placeholder(T.WizSubPlaceholder).FillWidth().Disabled(v.running)
+			})
+		}
+		if sub.State == setup.Waiting && w.importName != "" {
+			stepState(c, iconWarning, t.Warning, T.WizSubNeedsURL)
+		}
+		if wizIsZip(w.importName) {
+			stepState(c, iconWarning, t.Warning, T.SetupImportSecret)
+		}
+		running := v.running
+		// The file and the start on one row: the picked file (or 导入)
+		// at the start, the step's one accent at the end.
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			if w.importName != "" {
-				ui.Icon(c, iconOK).FontSize(iconInline).TextColor(pal(t).okText)
-				ui.Text(c, i18n.F(T.WizSubImported, w.importName)).SingleLine().Shrink(1)
-				if actionLink(c.Key("clear"), T.WizSubClear).Clicked() {
+				ui.Icon(c, iconOK).FontSize(iconInline).TextColor(pal(t).okText).Shrink(0)
+				ui.Text(c, i18n.F(T.WizSubImported, w.importName)).SingleLine().Shrink(1).MinWidth(0)
+				if actionLink(c.Key("clear"), T.WizSubClear).Disabled(running).Clicked() {
 					w.importName, w.importData = "", nil
 				}
 			} else if setupImport != nil {
-				if pushButton(c.Key("import"), T.WizSubImport).Disabled(v.running).Clicked() {
+				if pushButton(c.Key("import"), T.WizSubImport).Disabled(running).Clicked() {
 					a.pickWizardImport()
 				}
 				infoTipAbout(c, T.WizSubImport, T.TipWizImport, nil)
 			}
-		})
-		if sub := a.wizStep(setup.StepSubscription); sub.State == setup.Waiting && w.importName != "" {
-			stepState(c, iconWarning, t.Warning, T.WizSubNeedsURL)
-		}
-		if strings.HasSuffix(strings.ToLower(w.importName), ".zip") {
-			stepState(c, iconWarning, t.Warning, T.SetupImportSecret)
-		}
-		running := v.running
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Spacer(c)
 			label := T.WizSubStart
 			if running {
 				label = T.WizSubStarting
@@ -658,6 +752,16 @@ func (a *app) wizSub(c *ui.Context, s status.Snapshot) {
 			})
 		})
 	}
+}
+
+// wizIsZip: the picked file is a Twinnel export (which carries its
+// subscription).
+func wizIsZip(name string) bool { return strings.HasSuffix(strings.ToLower(name), ".zip") }
+
+// wizSubURLShown: ④'s link field shows, except after an export's import
+// (it has the link) until the flow says the file had none.
+func wizSubURLShown(importName string, sub setup.StepState) bool {
+	return !wizIsZip(importName) || sub.State == setup.Waiting
 }
 
 // wizSubStarted: one of ④'s steps ran (so its progress list shows).
@@ -798,15 +902,17 @@ func (a *app) wizTSDone(s status.Snapshot) bool {
 func (a *app) wizTS(c *ui.Context, s status.Snapshot) {
 	T := i18n.T
 	t := c.Theme()
-	stepHead(c, T.WizTSHead, T.WizTSBody)
+	stepHead(c, T.WizTSHead, T.WizTSBody, T.TipWizTS+"\n"+a.wizOS().TSInstallHow)
 	inst := a.wizStep(setup.StepTailscale)
 	notInstalled := tsPhaseOf(s) == tsNotInstalled
 	groupBox(c, t).Gap(12).Children(func() {
 		switch {
 		case inst.State == setup.Running:
-			ui.Text(c, a.wizOS().TSInstallHow).Wrap().LineHeight(lineText)
-			b := busyButton(c.Key("ts-install"), T.WizTSInstalling, true, true, true)
-			disabledPrimaryFace(c, b)
+			// In a row, as ②③④'s: the button keeps its own width.
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				b := busyButton(c.Key("ts-install"), T.WizTSInstalling, true, true, true)
+				disabledPrimaryFace(c, b)
+			})
 			return
 		case inst.State == setup.Failed && inst.Code == setup.CodeDamaged:
 			// An install left broken (a zeroed tailscale.exe): reinstall it.
@@ -819,14 +925,15 @@ func (a *app) wizTS(c *ui.Context, s status.Snapshot) {
 			})
 			return
 		case inst.State == setup.Failed:
-			failedRowWhy(c.Key("failed"), T.WizTSFailed, setupReason(inst), inst.Error, func() { a.wizRun(nil, setup.StepTailscale) }, a.setupV.running)
+			// The official download stays beside 重试: the way on when
+			// Twinnel's own install failed.
+			failedRowWith(c.Key("failed"), T.WizTSFailed, setupReason(inst), inst.Error, func() { a.wizRun(nil, setup.StepTailscale) }, a.setupV.running, func() {
+				ui.Link(c.Key("ts-download"), T.TSLDownload, tsDownloadURL()).FontSize(plat.calloutSize).Shrink(0)
+			})
 			return
 		case notInstalled && !s.Helper.Connected() && !a.wizHelperDone(s):
 			a.needsHelperNote(c) // installing goes through the helper
 			return
-		}
-		if notInstalled {
-			ui.Text(c, a.wizOS().TSInstallHow).Wrap().LineHeight(lineText)
 		}
 		a.tsLoginPanel(c, s, tsPanelOpts{
 			OnInstall:   func() { a.wizRun(nil, setup.StepTailscale) },
@@ -845,26 +952,17 @@ func (a *app) wizDone(c *ui.Context, s status.Snapshot) {
 	t := c.Theme()
 	warn, fail := s.Health.Counts()
 	issues := warn + fail
-	// 设置完成 only when nothing is left: a skipped or failed step counts,
-	// as does every health issue.
-	left := a.wizLeft(s) + issues
-	head := T.WizDoneHead
-	switch {
-	case left > 0:
-		head = i18n.F(T.WizDoneIssues, left)
-	case s.Health.Report == nil:
-		head = T.WizDoneChecking
-	}
+	head, state := wizDoneHeading(a.wizLeft(s), s.Health.Report != nil, issues)
 	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-		switch {
-		case left > 0:
+		switch state {
+		case wizDoneLeft:
 			ui.Icon(c, iconWarning).FontSize(iconHero).TextColor(t.Warning)
-		case s.Health.Report == nil:
+		case wizDoneChecking:
 			ui.Box(c).Width(iconHero).AlignItems(ui.Center).Shrink(0).Children(func() { spinnerIcon(c) })
 		default:
 			ui.Icon(c, iconOK).FontSize(iconHero).TextColor(pal(t).okText)
 		}
-		displayFont(ui.Text(c, head).FontSize(plat.titleSize - 3).FontWeight(plat.titleWeight))
+		displayFont(ui.Text(c, head).FontSize(stepTitleSize()).FontWeight(plat.titleWeight))
 	})
 	listBox(c, t).Children(func() {
 		a.doneRow(c, "helper", T.WizDoneHelper, a.wizHelperDone(s), T.WizDoneInstalled, wizHelper)
@@ -899,7 +997,12 @@ func (a *app) wizDone(c *ui.Context, s status.Snapshot) {
 			doneLine(c, "dns", func() {
 				doneRowHead(c, iconSkip, t.TextMuted, T.WizDoneDNS)
 				if st := a.wizStep(setup.StepDNS); st.State == setup.Skipped && st.Code == setup.CodeUnsupported {
+					// Set by hand: how, and the address to paste.
 					small(c, T.WizDoneManual)
+					infoTip(c, T.WizDoneDNS, a.wizOS().DNSManual, nil)
+					if pushButton(c.Key("dns-copy"), T.WizDoneDNSCopy).Clicked() {
+						copyText(c, wizDNSAddr)
+					}
 					return
 				}
 				small(c, T.WizDoneNotSet)
@@ -948,11 +1051,42 @@ func (a *app) wizDone(c *ui.Context, s status.Snapshot) {
 	})
 }
 
-// wizLeft counts ⑥'s rows that are not done: a step not set up, Tailscale
-// skipped, the system DNS not pointed at the proxy.
+// wizDNSAddr is the DNS server the system points at: mihomo's resolver.
+const wizDNSAddr = "127.0.0.1"
+
+// wizDoneState is ⑥'s heading: things left, checks still running, or
+// all set.
+type wizDoneState int
+
+const (
+	wizDoneAllSet wizDoneState = iota
+	wizDoneLeft
+	wizDoneChecking
+)
+
+// wizDoneHeading is ⑥'s heading from the steps left (wizLeft), whether
+// the health checks answered, and their issues. A step left says so at
+// once; otherwise the checks decide, so the heading never turns to 还有
+// n 项 before they ran.
+func wizDoneHeading(stepsLeft int, checked bool, issues int) (string, wizDoneState) {
+	T := i18n.T
+	switch {
+	case stepsLeft > 0:
+		return i18n.F(T.WizDoneIssues, stepsLeft+issues), wizDoneLeft
+	case !checked:
+		return T.WizDoneChecking, wizDoneChecking
+	case issues > 0:
+		return i18n.F(T.WizDoneIssues, issues), wizDoneLeft
+	}
+	return T.WizDoneHead, wizDoneAllSet
+}
+
+// wizLeft counts ⑥'s rows that are not done: a step not set up, the
+// system DNS not pointed at the proxy. Tailscale skipped is not left: it
+// is optional, and its row says 已跳过.
 func (a *app) wizLeft(s status.Snapshot) int {
 	n := 0
-	for _, done := range []bool{a.wizHelperDone(s), a.wizMihomoDone(s), a.wizSubDone(s), a.wizTSDone(s), !a.wizDNSLeft(s)} {
+	for _, done := range []bool{a.wizHelperDone(s), a.wizMihomoDone(s), a.wizSubDone(s), a.wizTSDone(s) || a.wiz.state.TSSkipped, !a.wizDNSLeft(s)} {
 		if !done {
 			n++
 		}

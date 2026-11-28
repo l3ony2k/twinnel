@@ -238,6 +238,16 @@ func (a *app) installPlanList(c *ui.Context) {
 			})
 		case !parsed && v.plan != "":
 			listRow(c).Children(func() { codeBlock(c, v.plan) })
+		case !parsed && !v.loaded:
+			// Asked for, not started yet (the caller loads it): the
+			// loading row, never an empty box.
+			listRow(c).Children(func() { ui.Spinner(c).Label(T.Loading) })
+		case !parsed:
+			listRow(c).Children(func() {
+				ui.Row(c).MinHeight(plat.rowMinHeight).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, T.WizPlanEmpty).TextColor(c.Theme().TextMuted)
+				})
+			})
 		case parsed:
 			head := ui.Row(c.Key("steps")).Gap(8).AlignItems(ui.Center).PaddingY(listRowPadY).
 				Transition(colorMotion).Focusable().Role(ui.RoleDisclosure).Expanded(v.stepsOpen).Label(i18n.F(T.OnboardSteps, len(steps)))
