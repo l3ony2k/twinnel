@@ -417,10 +417,10 @@ func (a *app) mihomoRows(c *ui.Context, s status.Snapshot) ovRows {
 	if p := m.Primary; p != nil {
 		// Where traffic leaves: the node and its delay; the route to it
 		// on hover.
-		route := strings.Join(append([]string{p.Name}, p.Chain...), " → ")
+		route := routeText(p)
 		rows[slotExit] = func() {
 			kvWith(c, T.Exit, func() {
-				ui.Text(c, p.Node).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(route)
+				ui.Text(c, nodeText(p.Node)).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(route)
 				ui.Spacer(c)
 				monoText(c, p.DelayText()).TextColor(delayColor(t, p.Delay, p.Tested)).Shrink(0)
 			})

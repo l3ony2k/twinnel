@@ -94,6 +94,8 @@ type platformStyle struct {
 	// as NSPopUpButton's pull-down keeps. 0 where the menu opens at the
 	// point given.
 	menuDrop float32
+	// flags: whether node names' flag emoji can be drawn (flags.go).
+	flags flagSupport
 }
 
 // navSelection is how a platform's sidebar marks the selected row.
@@ -130,6 +132,7 @@ func platformFor(goos string) platformStyle {
 			panelVibrancy: mygo.VibrancyAcrylic,
 			reorderMods:   ui.Alt | ui.Shift,
 			backMods:      ui.Alt, backKey: ui.KeyLeft,
+			flags:         flagsMissing,
 		}
 	case "linux":
 		return platformStyle{
@@ -140,6 +143,7 @@ func platformFor(goos string) platformStyle {
 			titleWeight: 700, headingWeight: 700, panelPad: 16, panelWindow: true,
 			titleBarSize: 15, titleBarWeight: 700, navSel: navNeutral,
 			reorderMods: ui.Alt | ui.Ctrl, backMods: ui.Ctrl, backKey: ui.KeyBracketLeft, cliLink: true,
+			flags: flagsProbe,
 		}
 	}
 	navSel := navAccentFill // macOS 15 and earlier
@@ -158,6 +162,7 @@ func platformFor(goos string) platformStyle {
 		titleBarSize: 15, titleBarWeight: 700,
 		navSel: navSel, menuDrop: menuInsetTop + menuGap,
 		reorderMods: ui.Alt | ui.Super, backMods: ui.Super, backKey: ui.KeyBracketLeft, cliLink: true,
+		flags: flagsDrawn,
 	}
 }
 

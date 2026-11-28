@@ -596,7 +596,7 @@ func egressIPs(c *ui.Context, ips *health.EgressIPs) {
 			kvWith(c, T.OvEgressVia, func() {
 				monoText(c, ips.Proxied.String()).SingleLine().Shrink(0).Selectable()
 				if ips.Node != "" {
-					small(c, ips.Node).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0)
+					small(c, nodeText(ips.Node)).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0)
 				}
 			})
 		}

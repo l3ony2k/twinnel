@@ -42,6 +42,10 @@ type app struct {
 	cfg     status.Config
 	install tailscale.Install
 
+	// paneBox and colBox are the content pane and the page column at the
+	// last layout, in window DIPs (layout_test.go checks one in the other).
+	paneBox, colBox ui.Rect
+
 	mh        *mihomo.Client
 	ts        *tailscale.Client
 	mon       *status.Monitor
