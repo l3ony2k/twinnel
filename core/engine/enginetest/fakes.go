@@ -1,6 +1,6 @@
 // Package enginetest has fakes of mihomo for tests and development runs of
 // the helper: an HTTP controller that "loads" config files, and a shell
-// script that answers `mihomo -v` and `mihomo -t`. Nothing here touches a
+// script (a batch file on Windows) that answers `mihomo -v` and `mihomo -t`. Nothing here touches a
 // real mihomo.
 package enginetest
 
@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 )
@@ -174,8 +175,58 @@ echo "fake mihomo: unsupported arguments: $*" >&2
 exit 2
 `
 
-// WriteFakeMihomo writes FakeMihomoScript to dir/mihomo and returns its path.
+// FakeMihomoCmd is FakeMihomoScript for Windows, which has no /bin/sh: a
+// batch file that answers -v and -t the same way. CreateProcess (and so
+// os/exec) runs a .cmd given by its path.
+const FakeMihomoCmd = `@echo off
+setlocal
+rem Fake mihomo for Twinnel tests. Answers -v and -t only.
+if "%~1"=="-v" goto version
+if "%~1"=="-t" goto test
+echo fake mihomo: unsupported arguments: %* 1>&2
+exit /b 2
+:version
+echo Mihomo Meta v1.19.34 windows amd64 with go1.27.4 ^(fake^)
+exit /b 0
+:test
+shift
+:args
+if "%~1"=="" goto run
+if "%~1"=="-f" set "f=%~2"
+if "%~1"=="-d" set "d=%~2"
+if "%~1"=="-f" shift
+if "%~1"=="-d" shift
+shift
+goto args
+:run
+if not defined f goto noconfig
+if not exist "%f%" goto noconfig
+findstr /L /C:"` + MarkInvalid + `" "%f%" >nul
+if errorlevel 1 goto ok
+echo time="2026-11-26T00:00:00Z" level=error msg="proxy group[0]: 'missing-node' not found"
+echo configuration file %f% test failed
+exit /b 1
+:ok
+echo configuration file %f% test is successful
+exit /b 0
+:noconfig
+echo level=fatal msg="no config file"
+exit /b 1
+`
+
+// FakeMihomoFile is the fake mihomo's file name and content on goos: a
+// shell script named mihomo, or mihomo.cmd on Windows.
+func FakeMihomoFile(goos string) (name, content string) {
+	if goos == "windows" {
+		return "mihomo.cmd", strings.ReplaceAll(FakeMihomoCmd, "\n", "\r\n")
+	}
+	return "mihomo", FakeMihomoScript
+}
+
+// WriteFakeMihomo writes the fake mihomo for this platform (FakeMihomoFile)
+// into dir and returns its path.
 func WriteFakeMihomo(dir string) (string, error) {
-	p := filepath.Join(dir, "mihomo")
-	return p, os.WriteFile(p, []byte(FakeMihomoScript), 0o755)
+	name, content := FakeMihomoFile(runtime.GOOS)
+	p := filepath.Join(dir, name)
+	return p, os.WriteFile(p, []byte(content), 0o755)
 }
