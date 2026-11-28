@@ -222,8 +222,27 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 			}
 		})
 	})
-	list(T.HealthPassed, "", rest, nil)
+	// "Other" only after something: alone, the group is all the checks.
+	list(passedTitle(len(problems)+len(accepted)), "", rest, nil)
 	a.fixSheet(c, s)
+}
+
+// passedTitle is the heading of the passed checks' group: 其他检查 under
+// the groups before it, 全部检查 when it is the only one (6.1).
+func passedTitle(before int) string {
+	if before == 0 {
+		return i18n.T.HealthAll
+	}
+	return i18n.T.HealthPassed
+}
+
+// healthRowWeight is a check's title weight: Windows lists name their
+// rows in the body weight (WinUI's ListView), macOS and GNOME in medium.
+func healthRowWeight() int {
+	if plat.fluent {
+		return 400
+	}
+	return 500
 }
 
 // healthDemoted: the banner rates the checks' failures as warnings (a
@@ -285,7 +304,7 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 		})
 		head.Children(func() {
 			ui.Icon(c, icon).FontSize(iconNav).TextColor(col).Shrink(0).AccessHidden(true)
-			ui.Text(c, cr.Title).FontWeight(500).SingleLine().Shrink(0)
+			ui.Text(c, cr.Title).FontWeight(healthRowWeight()).SingleLine().Shrink(0)
 			switch {
 			case egress:
 				infoTip(c, cr.Title, T.TipEgress, nil)
@@ -293,6 +312,11 @@ func (a *app) healthCheckRow(c *ui.Context, cr health.CheckReport, s status.Snap
 				// it was tested and what it found.
 				line := egressLine(cr, s)
 				ui.Text(c, line).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(line)
+			case cr.Status == health.StatusSkip && plat.fluent:
+				// Skipped, on Windows: the reason as the rows' other
+				// secondary text, after the skip glyph (a bordered chip
+				// reads as a text field there, 6.3).
+				ui.Text(c, cr.Summary).TextColor(t.TextMuted).SingleLine().Shrink(1).Tooltip(cr.Summary)
 			case cr.Status == health.StatusSkip:
 				// Skipped: the short reason as a chip; the error, if
 				// any, is in the evidence.
