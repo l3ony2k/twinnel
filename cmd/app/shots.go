@@ -351,9 +351,30 @@ func (a *app) takeoverShots(save func(*mygo.Window, string), wait func(time.Dura
 	planOK := false
 	mygo.RunOnMain(func() { planOK = a.hd.connected && !a.hd.take.unsupported })
 	if planOK {
-		on(func() { a.takeoverMakePlan("") })
+		// takeoverMakePlan does nothing while another operation runs, and
+		// the plan can fail: the shot is named after what the page shows,
+		// never "plan" over the page without one (ui-review 8.5).
+		started := false
+		on(func() {
+			if a.hd.busy == "" {
+				a.takeoverMakePlan("")
+				started = a.hd.busy != ""
+			}
+		})
 		wait(5 * time.Second)
-		save(a.win, "takeover-helper-plan")
+		var hasPlan bool
+		var msg string
+		mygo.RunOnMain(func() {
+			hasPlan, msg = a.hd.take.plan != nil, ""
+			if a.hd.msgErr {
+				msg = a.hd.msg
+			}
+		})
+		if name, why := helperPlanShot(started, hasPlan, msg); name != "" {
+			save(a.win, name)
+		} else {
+			log.Printf("takeover-helper-plan: %s; not saved", why)
+		}
 	}
 	dir := os.Getenv("TWINNEL_TAKEOVER_FIXTURE")
 	if dir == "" {
@@ -382,6 +403,21 @@ func (a *app) takeoverShots(save func(*mygo.Window, string), wait func(time.Dura
 	}
 	a.autostartShots(save, wait, on)
 	on(func() { a.shotSection = "" })
+}
+
+// helperPlanShot names the shot taken after asking the helper for a
+// takeover plan, by what the page shows: the plan, the failure, or
+// nothing new (no shot, and why).
+func helperPlanShot(started, hasPlan bool, errMsg string) (name, why string) {
+	switch {
+	case !started:
+		return "", "another helper operation was running"
+	case hasPlan:
+		return "takeover-helper-plan", ""
+	case errMsg != "":
+		return "takeover-helper-plan-failed", ""
+	}
+	return "", "the helper returned no plan in time"
 }
 
 // section reports whether a page section draws: always, except in shot
