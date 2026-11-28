@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"sync/atomic"
 
 	"github.com/egoist/mygo/ui"
@@ -66,6 +67,38 @@ func nodeText(name string) string {
 		return name
 	}
 	return status.StripFlags(name)
+}
+
+// logPayloadText is a mihomo log line as it shows: the proxy chain after
+// " using " (GROUP[NODE], nested for relays) with each name as nodeText
+// shows it, so no flag turns into two stray letters where the fonts
+// cannot draw it (Windows QA round 5 N9: "PROXY[us NODE]"). The rest is
+// mihomo's text as it came; copying a line copies the raw text.
+func logPayloadText(p string) string {
+	if !flagsOff.Load() || !status.HasFlag(p) {
+		return p
+	}
+	i := strings.LastIndex(p, " using ")
+	if i < 0 {
+		return p
+	}
+	i += len(" using ")
+	var b strings.Builder
+	b.WriteString(p[:i])
+	rest := p[i:]
+	for rest != "" {
+		j := strings.IndexAny(rest, "[]")
+		if j < 0 {
+			b.WriteString(nodeText(rest))
+			break
+		}
+		if j > 0 {
+			b.WriteString(nodeText(rest[:j]))
+		}
+		b.WriteByte(rest[j])
+		rest = rest[j+1:]
+	}
+	return b.String()
 }
 
 // mapStrings returns f of each of ss.
