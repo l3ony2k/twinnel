@@ -337,7 +337,7 @@ the remote-access path (Tailscale, when that is how you reach the PC).
 | `windows-snapshot.ps1 snapshot` / `verify -Dir` | the PC (elevated) | saves the state before a test (config.export zip, settings, layers, status, doctor, DNS of every adapter, service states) into `%ProgramData%\TwinnelQA\snap-<ts>`; `verify` compares and checks HTTPS to a DIRECT and a PROXY target through the TUN |
 | `windows-timebox.ps1 arm -Name N -Restore FILE -Seconds S` | the PC (elevated) | a one-shot SYSTEM scheduled task that runs the restore script after S seconds even when the SSH session dies; `run` restores early, `disarm` removes it |
 | `windows-usersession.ps1 -Script FILE -Arguments 'a;b' [-Task NAME]` | the PC (elevated) | runs a script in the signed-in user's desktop session (one-shot Interactive task, hidden console) and prints its output. Each run has its own task (`-Task`, else `TwinnelQA-us-<script>-<pid>`), so two agents or batches at once never replace each other's run; give `-Task` a name of your own when you need to find the run's `<task>.out.txt` |
-| `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `open:VALUE` (`Twinnel.exe --open=page:<id>`: a running copy turns to that page), `wheel:N` (scroll the window), `windows`, `shot:NAME`, `winshot:NAME`, `printshot:NAME` (the window drawn by PrintWindow: works on a locked console), `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
+| `windows-gui.ps1` | the user session (through the above) | steps: `launch[:K=V,...]`, `open:VALUE` (`Twinnel.exe --open=page:<id>`: a running copy turns to that page), `wheel:N` (scroll the window), `windows`, `shot:NAME`, `winshot:NAME`, `printshot:NAME` (the window drawn by PrintWindow: works on a locked console), `printall:NAME` (every Twinnel window, the flyout too), `max` / `restore` / `size:W,H` (DIPs, no activation), `workarea`, `click:X,Y`, `wclick:X,Y`, `key:KEYS`, `front`, `wake`, `close` |
 
 Rules that came out of round 1:
 
@@ -381,6 +381,11 @@ Rules that came out of round 1:
   DNS watchdog, an apply, dns point/restore) and runs the checks again; a
   report from an older generation is never reused. `doctor --fresh` still
   forces a run.
+- PrintWindow draws no Mica or Acrylic: in the light theme the sidebar and
+  the flyout come out as dark text on black. Judge the light theme from a
+  hermetic shot run, not from `printshot`. The caption buttons are a child
+  window of their own (`MyGoCaption`): hit-test them there, not on the main
+  window, which answers `HTCLIENT` everywhere.
 - Tests that break traffic (mixed TUN stack, stopping mihomo, a foreign
   controller on 9090) arm a time box first. The LAN and the tailnet are
   excluded from the TUN, so SSH normally survives; plan for it not to.

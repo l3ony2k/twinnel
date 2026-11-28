@@ -20,6 +20,12 @@
                        The PNG is the window's size in physical pixels: at
                        150% a window 2575 DIPs wide is 3862 px (the line
                        printed says the size and the scale)
+    printall:NAME      every visible Twinnel window by PrintWindow, as
+                       NAME-<n>.png (the flyout is a window of its own)
+    max / restore      maximize or restore the largest Twinnel window
+                       (ShowWindowAsync: no activation)
+    size:W,H           restore it and size it to W x H DIPs (SWP_NOACTIVATE)
+    workarea           print the work area of each display (physical px)
     click:X,Y          left click at screen X,Y (physical pixels)
     rclick:X,Y         right click
     wclick:X,Y         left click at X,Y relative to the largest Twinnel window
@@ -52,6 +58,9 @@ if (-not ('QA.Gui' -as [type])) {
 [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
 [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
 [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint f);
+[DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr h, int cmd);
+[DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint f);
+[DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr h);
 [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
 [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
@@ -146,6 +155,24 @@ foreach ($s in ($Steps -split ';' | Where-Object { $_ })) {
         'windows' { Get-TwinnelWindows | ForEach-Object { "window '{0}' at {1},{2} {3}x{4} px, {5}%" -f $_.Title, $_.L, $_.T, $_.W, $_.H, [int]($_.Dpi * 100 / 96) } }
         'shot' { Save-Shot $arg $null }
         'winshot' { $w = Get-MainWindow; if ($w) { Save-Shot $arg $w } else { "no Twinnel window for $arg" } }
+        'printall' {
+            $n = 0
+            foreach ($w in (Get-TwinnelWindows | Sort-Object { $_.W * $_.H } -Descending)) { $n++; Print-Shot "$arg-$n" $w; "  window '{0}' at {1},{2}" -f $w.Title, $w.L, $w.T }
+            if ($n -eq 0) { "no Twinnel window for $arg" }
+        }
+        'max' { $w = Get-MainWindow; if ($w) { [void][QA.Gui]::ShowWindowAsync($w.Handle, 3); Start-Sleep -Milliseconds 800; "max zoomed=$([QA.Gui]::IsZoomed($w.Handle))" } }
+        'restore' { $w = Get-MainWindow; if ($w) { [void][QA.Gui]::ShowWindowAsync($w.Handle, 9); Start-Sleep -Milliseconds 800; "restore zoomed=$([QA.Gui]::IsZoomed($w.Handle))" } }
+        'size' {
+            $w = Get-MainWindow
+            if ($w) {
+                if ([QA.Gui]::IsZoomed($w.Handle)) { [void][QA.Gui]::ShowWindowAsync($w.Handle, 9); Start-Sleep -Milliseconds 800; $w = Get-MainWindow }
+                $dw, $dh = $arg -split ','; $k = $w.Dpi / 96
+                # SWP_NOZORDER|SWP_NOACTIVATE|SWP_NOMOVE
+                [void][QA.Gui]::SetWindowPos($w.Handle, [IntPtr]::Zero, 0, 0, [int]([int]$dw * $k), [int]([int]$dh * $k), 0x16)
+                Start-Sleep -Milliseconds 800; $w = Get-MainWindow; "size {0}x{1} px ({2} DIP wide)" -f $w.W, $w.H, [int]($w.W / $k)
+            }
+        }
+        'workarea' { [System.Windows.Forms.Screen]::AllScreens | ForEach-Object { "display {0} bounds {1} workarea {2}" -f $_.DeviceName, $_.Bounds, $_.WorkingArea } }
         'printshot' { $w = Get-MainWindow; if ($w) { Print-Shot $arg $w } else { "no Twinnel window for $arg" } }
         'click' { $x, $y = $arg -split ','; Click $x $y }
         'rclick' { $x, $y = $arg -split ','; Click $x $y $true }
