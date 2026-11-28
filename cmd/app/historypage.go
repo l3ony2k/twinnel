@@ -63,8 +63,9 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		nameColumn(c, T.HistoryReason, 120),
 	}
 	v.list.RowHeight = 30
-	// The chosen row is the table's own selection (the accent row, as
-	// every macOS table), which the arrow keys also move.
+	// The chosen row is the table's own selection, which the arrow keys
+	// also move: the accent row of every macOS table; on Windows
+	// ListView's subtle fill with the accent pill (listSelectionTheme).
 	v.selRow = -1
 	for i := range hist {
 		if hist[i].ID == v.sel {
@@ -73,48 +74,51 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 	}
 	v.list.Selected, v.list.RoundRows = &v.selRow, true
 	card(c, "", func() {
-		tbl := ui.Table(c, &v.list, cols, len(hist), func(row, col int) {
-			e := hist[row]
-			cell := ui.Text
-			var el ui.Element
-			switch col {
-			case 0:
-				el = num(cell(c, historyTime(e.Time)))
-			case 1:
-				el = cell(c, T.HistoryKindName(e.Kind))
-			case 2:
-				el = monoText(c, status.Bytes(int64(e.Size)))
-			case 3:
-				reason := historyReason(e)
-				el = ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					if e.BeforeTwinnel {
-						tag(c, T.HistBeforeTwinnel)
+		var tbl ui.Element
+		ui.Themed(c, listSelectionTheme(t)).Background(ui.Transparent).Children(func() {
+			tbl = ui.Table(c, &v.list, cols, len(hist), func(row, col int) {
+				e := hist[row]
+				cell := ui.Text
+				var el ui.Element
+				switch col {
+				case 0:
+					el = selectionPill(num(cell(c, historyTime(e.Time))), row == v.selRow, t.Accent, t.Space(2.5))
+				case 1:
+					el = cell(c, T.HistoryKindName(e.Kind))
+				case 2:
+					el = monoText(c, status.Bytes(int64(e.Size)))
+				case 3:
+					reason := historyReason(e)
+					el = ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+						if e.BeforeTwinnel {
+							tag(c, T.HistBeforeTwinnel)
+						}
+						cell(c, reason).SingleLine().Shrink(1).Tooltip(reason)
+					})
+				}
+				if col != 3 {
+					el.SingleLine()
+				}
+				el.ContextMenu(func(m *ui.Menu) {
+					if m.Item(T.HistoryDiff).Disabled(a.hd.busy != "").Chosen() {
+						v.sel, v.reveal = e.ID, true
+						a.historyDiff(s, e.ID)
 					}
-					cell(c, reason).SingleLine().Shrink(1).Tooltip(reason)
+					if m.Item(T.HistoryRollback + "…").Disabled(!a.helperWrites(s)).Chosen() {
+						v.sel = e.ID
+						a.historyRollback(e)
+					}
+					m.Separator()
+					if m.Item(T.CopyID).Chosen() {
+						copyText(c, e.ID)
+					}
+					if m.Item(T.HistCopyHash).Chosen() {
+						copyText(c, e.Hash)
+					}
 				})
-			}
-			if col != 3 {
-				el.SingleLine()
-			}
-			el.ContextMenu(func(m *ui.Menu) {
-				if m.Item(T.HistoryDiff).Disabled(a.hd.busy != "").Chosen() {
-					v.sel, v.reveal = e.ID, true
-					a.historyDiff(s, e.ID)
-				}
-				if m.Item(T.HistoryRollback + "…").Disabled(!a.helperWrites(s)).Chosen() {
-					v.sel = e.ID
-					a.historyRollback(e)
-				}
-				m.Separator()
-				if m.Item(T.CopyID).Chosen() {
-					copyText(c, e.ID)
-				}
-				if m.Item(T.HistCopyHash).Chosen() {
-					copyText(c, e.Hash)
-				}
 			})
+			tbl.Height(float32(min(len(hist), 10)*30 + 40)).Background(ui.Transparent).MarginX(-8).Label(T.PageHistory)
 		})
-		tbl.Height(float32(min(len(hist), 10)*30 + 40)).Background(ui.Transparent).MarginX(-8)
 		if tbl.Changed() && v.selRow >= 0 && v.selRow < len(hist) && hist[v.selRow].ID != v.sel {
 			v.sel, v.reveal = hist[v.selRow].ID, true
 		}
@@ -141,7 +145,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 		if pushButton(c.Key("hist-diff"), T.HistoryDiff).Disabled(a.hd.busy != "").Clicked() {
 			a.historyDiff(s, entry.ID)
 		}
-		if a.opButton(c.Key("hist-rollback"), iconRollback, T.HistoryRollback+"…", false, T.HistoryRollback).Disabled(!a.helperWrites(s)).Clicked() {
+		if a.opAction(c.Key("hist-rollback"), iconRollback, T.HistoryRollback+"…", false, !a.helperWrites(s), T.HistoryRollback).Clicked() {
 			a.historyRollback(*entry)
 		}
 	}, func() {
@@ -178,7 +182,7 @@ func (a *app) historyPage(c *ui.Context, s status.Snapshot) {
 				ui.Text(c, T.StateInSync).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 			} else {
 				ui.Text(c, T.HistoryDiffHint+" · "+i18n.F(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted)
-				codeFrame(c, 380, func() { diffView(c.Key("hist-diff-view"), v.diff).Grow(1) })
+				codeFrame(c, diffHeight(v.diff), func() { diffView(c.Key("hist-diff-view"), v.diff).Grow(1) })
 			}
 		}
 		if r := v.result; r != nil {

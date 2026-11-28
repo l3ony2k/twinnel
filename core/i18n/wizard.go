@@ -116,7 +116,7 @@ var zhWizard = WizardStrings{
 	WizNeedsHelper: "这一步要先安装后台助手",
 
 	WizWelcomeHead: "欢迎使用 Twinnel",
-	WizWelcomeBody: "Twinnel 让代理（mihomo）和私有网络（Tailscale）在%s上同时运行、互不干扰。设置好以后，两者的状态和开关都在一个地方。",
+	WizWelcomeBody: "Twinnel 让代理（mihomo）和私有网络（Tailscale）在 %s 上同时运行、互不干扰。设置好以后，两者的状态和开关都在一个地方。",
 	WizPlanHead:    "接下来会做这些",
 	WizPlan: []string{
 		"安装后台助手，只需要授权一次",

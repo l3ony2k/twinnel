@@ -262,7 +262,7 @@ func (a *app) driftState(c *ui.Context, s status.Snapshot, dr rpc.Drift, w bool)
 	if dr.Manifest && pushButton(c.Key("drift-restore"), T.DriftRestore).Disabled(!w || busy).Clicked() {
 		a.restoreLayers(T.DriftRestore, T.DoneRestored, dr.HistoryID, nil)
 	}
-	if a.opButton(c.Key("drift-reapply"), iconOK, T.DriftReapply, true, T.Apply).Disabled(!w || busy).Clicked() {
+	if a.opAction(c.Key("drift-reapply"), iconOK, T.DriftReapply, true, !w || busy, T.Apply).Clicked() {
 		a.runApply()
 	}
 }

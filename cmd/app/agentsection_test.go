@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/l3ony2k/twinnel/core/i18n"
 	"github.com/l3ony2k/twinnel/core/rpc"
 )
 
@@ -79,9 +80,12 @@ func TestTwinnelLinkOnlyOurs(t *testing.T) {
 }
 
 func TestAgentEventRow(t *testing.T) {
+	old := i18n.T
+	t.Cleanup(func() { i18n.T = old })
+	i18n.Set("zh")
 	data, _ := json.Marshal(rpc.AgentAction{Client: "claude-code 2.1", Tool: "set_mode", Args: "mode=direct", OK: true})
 	r, ok := describeEvent(rpc.Event{Type: rpc.EventAgentAction, Data: data}, nil)
-	if !ok || !strings.Contains(r.text, "claude-code 2.1") || !strings.Contains(r.text, "set_mode mode=direct") || r.failed {
+	if !ok || !strings.Contains(r.text, "claude-code 2.1") || !strings.Contains(r.text, "切换到直连模式") || r.failed {
 		t.Fatalf("row = %+v", r)
 	}
 	data, _ = json.Marshal(rpc.AgentAction{Client: "x", Tool: "apply", OK: false, Error: "boom"})
