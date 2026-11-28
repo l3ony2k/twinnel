@@ -101,6 +101,14 @@ func TestHelperEndToEnd(t *testing.T) {
 		t.Errorf("status: %+v", status)
 	}
 
+	// --tailnet-status-file: tailscale.info is the fixture's, never the
+	// machine's Tailscale (hermetic dev and shot stacks).
+	var tsi rpc.TailscaleInfo
+	call(rpc.MethodTailscaleInfo, nil, &tsi)
+	if !tsi.Installed || tsi.Version != "1.90.0" || tsi.Path != "" || tsi.Latest != "" {
+		t.Errorf("tailscale.info: %+v", tsi)
+	}
+
 	sub, _ := os.ReadFile("../../core/engine/testdata/subscription.yaml")
 	call(rpc.MethodSubPut, rpc.SubPutParams{ID: "main", Content: string(sub)}, nil)
 	call(rpc.MethodLayerPut, rpc.LayerPutParams{ID: "base", Stage: "base", Content: "mixed-port: 7890\nexternal-controller: " + srv.Listener.Addr().String() + "\n"}, nil)
