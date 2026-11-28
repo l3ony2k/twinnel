@@ -648,8 +648,8 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 		// Open is not selected: the chevron turns and the body shows; the
 		// row takes no fill (never the accent, AGENTS.md).
 		head := ui.Row(c.Key("head")).Gap(10).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(layerRowH).
-			Transition(colorMotion).
-			Focusable().Role(ui.RoleDisclosure).Expanded(open).Label(title)
+			Transition(colorMotion)
+		disclosureHead(head, open, title)
 		rowFill(c, head, false) // col reaches the box's edges
 		head.ContextMenu(func(m *ui.Menu) { a.layerMenu(c, m, l, ids, w) })
 		if at >= 0 && w && len(ids) > 1 {
@@ -658,6 +658,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 				head.Opacity(0.4)
 			}
 		}
+		toggled := false
 		head.Children(func() {
 			disclosureStart(c, open)
 			ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).Children(func() {
@@ -677,9 +678,9 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 			})
 			a.layerMark(c, l.ID)
 			a.layerSwitch(c, l, w)
-			disclosureEnd(c, open)
+			toggled = disclosureToggle(c.Key("chevron"), open, title)
 		})
-		if head.Clicked() {
+		if head.Clicked() || toggled {
 			if open {
 				v.sel, v.ed = "", nil
 			} else {

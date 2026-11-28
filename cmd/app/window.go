@@ -801,8 +801,8 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 	box.Children(func() {
 		// The head is a disclosure the keyboard reaches: Tab stops on it,
 		// Return or Space opens and closes the group.
-		head := ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).
-			Role(ui.RoleDisclosure).Label(nodeText(g.Name)).Expanded(open).Focusable().FocusRingOffset(2)
+		head := disclosureHead(ui.Row(c).Gap(8).AlignItems(ui.Center).MinHeight(28).FocusRingOffset(2),
+			open, nodeText(g.Name))
 		head.ContextMenu(func(m *ui.Menu) {
 			label := T.GroupExpand
 			if open {
@@ -819,6 +819,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 				copyText(c, g.Name)
 			}
 		})
+		toggled := false
 		head.Children(func() {
 			// The chevron: macOS before the name, Windows after the controls.
 			disclosureStart(c, open)
@@ -831,9 +832,9 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			if toolIcon(c.Key("test"), iconSpeed, T.TestGroupDelay, testing).Clicked() && !testing {
 				a.testGroup(g.Name)
 			}
-			disclosureEnd(c, open)
+			toggled = disclosureToggle(c.Key("chevron"), open, nodeText(g.Name))
 		})
-		if head.Clicked() {
+		if head.Clicked() || toggled {
 			a.groupsOpen[g.Name] = !open
 		}
 		a.controlError(c, nodeKey(g.Name))
