@@ -11,9 +11,9 @@ import (
 // shellTester renders the main window on goos's shell (plat, title bar).
 func shellTester(t *testing.T, goos string, w, h int) (*app, *ui.Tester) {
 	t.Helper()
+	t.Cleanup(resetFlags) // after usePlat's cleanup (LIFO): from the platform restored
 	usePlat(t, goos)
 	resetFlags()
-	t.Cleanup(resetFlags)
 	a, _ := layoutApp(t)
 	tr := ui.NewTester(func(c *ui.Context) { a.mainView(c) }, w, h)
 	tr.SetTitleBar(titleBarFor(goos))
