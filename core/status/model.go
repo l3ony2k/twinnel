@@ -111,8 +111,9 @@ type Mihomo struct {
 	// Process is mihomo's process as the system lists it (resident
 	// memory, CPU, start); nil when not found or not read.
 	Process *Process
-	// DNSMode is the config file's DNS mode: fake-ip, redir-host,
-	// DNSModeNormal, DNSModeOff; "" when unknown.
+	// DNSMode is the config file's DNS mode as the helper read it
+	// (SetHelper): fake-ip, redir-host, DNSModeNormal, DNSModeOff; ""
+	// when unknown.
 	DNSMode string
 	Updated time.Time
 }

@@ -332,7 +332,6 @@ func (a *app) start() {
 
 		ExitNodeAccepted: a.cfg.ExitNodeAccepted,
 		Processes:        a.probes.processes,
-		MihomoFile:       newMihomoFile(a.probes, cc),
 	})
 	a.egressProbe = newEgressProbe(a.probes, cc)
 	if a.hc != nil {

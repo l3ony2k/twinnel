@@ -179,7 +179,12 @@ type MihomoStatus struct {
 	Controller string `json:"controller"`
 	Reachable  bool   `json:"reachable"`
 	Version    string `json:"version,omitempty"` // from the controller's /version
-	Error      string `json:"error,omitempty"`
+	// DNSMode is the config file's DNS mode (health.MihomoDNSConfig.Mode):
+	// fake-ip, redir-host, normal, off; empty when the file was not read.
+	// The helper reads it, as the file may be its own to read (Windows:
+	// SYSTEM and Administrators only); the controller does not report it.
+	DNSMode string `json:"dns_mode,omitempty"`
+	Error   string `json:"error,omitempty"`
 	// Owner is who listens on the controller address: Twinnel's mihomo,
 	// another program's (Clash Party, Clash Verge Rev…: Twinnel then
 	// never reloads it), or unknown.

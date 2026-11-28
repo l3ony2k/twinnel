@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/l3ony2k/twinnel/core/health"
 	"github.com/l3ony2k/twinnel/core/i18n"
 )
 
@@ -169,41 +170,9 @@ func (m *Monitor) pollProcesses(ctx context.Context) {
 	})
 }
 
-// dnsLoop reads the mihomo config file's DNS mode every DNSPoll: the
-// controller does not report it.
-func (m *Monitor) dnsLoop(ctx context.Context) {
-	t := time.NewTicker(m.o.DNSPoll)
-	defer t.Stop()
-	for {
-		m.pollDNS(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-		}
-	}
-}
-
-func (m *Monitor) pollDNS(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	cfg, err := m.o.MihomoFile(ctx)
-	mode := ""
-	if err == nil && cfg != nil {
-		mode = DNSModeOff
-		if cfg.DNS.Enable {
-			mode = strings.ToLower(strings.TrimSpace(cfg.DNS.EnhancedMode))
-			if mode == "" {
-				mode = DNSModeNormal
-			}
-		}
-	}
-	m.update(func(s *Snapshot) { s.Mihomo.DNSMode = mode })
-}
-
 // DNS modes besides mihomo's own enhanced-mode values (fake-ip,
-// redir-host).
+// redir-host): health's, which the helper reports (rpc.MihomoStatus).
 const (
-	DNSModeOff    = "off"    // dns.enable is false
-	DNSModeNormal = "normal" // dns on, no enhanced mode
+	DNSModeOff    = health.DNSModeOff
+	DNSModeNormal = health.DNSModeNormal
 )
