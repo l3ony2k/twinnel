@@ -122,7 +122,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 	case h.Report == nil:
 		groupBox(c, t).Children(func() {
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Justify(ui.Center).Padding(20).Children(func() {
-				ui.Spinner(c)
+				spinner(c)
 				small(c, T.HealthRunning)
 			})
 		})
@@ -154,7 +154,7 @@ func (a *app) healthPage(c *ui.Context, s status.Snapshot) {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 					num(small(c, last))
 					if h.Running {
-						ui.Spinner(c).Size(12, 12) // a new report is on its way
+						spinner(c).FontSize(12).Size(12, 12) // a new report is on its way
 					}
 				})
 			})
@@ -642,7 +642,7 @@ func (a *app) egressControls(c *ui.Context, cr health.CheckReport, s status.Snap
 		}
 		small(c, T.EgressPeriodic).SingleLine().Shrink(0)
 		on := set.HealthEgress
-		sw := ui.Switch(c.Key("egress-periodic"), &on).Label(T.EgressPeriodic).Disabled(!a.helperOpsEnabled(s) || a.hd.busy != "")
+		sw := toggleSwitch(c.Key("egress-periodic"), &on).Label(T.EgressPeriodic).Disabled(!a.helperOpsEnabled(s) || a.hd.busy != "")
 		if sw.Changed() {
 			set.HealthEgress = on // shown at once; the helper's answer follows
 			a.setEgressPeriodic(on)

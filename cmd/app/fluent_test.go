@@ -325,14 +325,14 @@ func TestSpinnersArePlatform(t *testing.T) {
 		return ok && fn.Name.Name != "spinner" && fn.Name.Name != "spinnerIcon"
 	})
 	checkMigrations(t, "ui.Spinner", spin, map[string]int{
-		"healthpage.go": 2, "helper.go": 2, "leavepage.go": 1, "onboarding.go": 2, "panel.go": 1, "takeoverview.go": 1,
+		"leavepage.go": 1, "onboarding.go": 2, "takeoverview.go": 1,
 	})
 	sw := fileCalls(t, func(fn *ast.FuncDecl, call *ast.CallExpr) bool {
 		_, ok := isCall(call, "ui", "Switch")
 		return ok && fn.Name.Name != "toggleSwitch"
 	})
 	checkMigrations(t, "ui.Switch", sw, map[string]int{
-		"agentsection.go": 1, "components.go": 1, "controls.go": 2, "configpage.go": 1, "healthpage.go": 1,
+		"agentsection.go": 1, "components.go": 1, "controls.go": 2, "configpage.go": 1,
 		"helpermgmt.go": 1, "trayspeed.go": 1, "window.go": 1,
 	})
 }
