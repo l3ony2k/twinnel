@@ -495,7 +495,9 @@ func (a *app) setOpenAtLogin(on bool) {
 // --- drawing ---
 
 // busyButton is a push (or primary) button that shows a spinner in front
-// of its label while busy (after busyDelay), keeping its size.
+// of its label while busy (after busyDelay), keeping its size. A disabled
+// primary takes the disabled face here (disabledPrimaryFace), so no
+// caller can leave it a washed-out accent (ui-review 2.3).
 func busyButton(c *ui.Context, label string, primary, busy, disabled bool) ui.Element {
 	var b ui.Element
 	if primary {
@@ -504,11 +506,14 @@ func busyButton(c *ui.Context, label string, primary, busy, disabled bool) ui.El
 		b = pushFace(c, ui.Button(c, ""))
 	}
 	b.Label(label).Disabled(disabled)
+	if primary {
+		disabledPrimaryFace(c, b)
+	}
 	spin := showBusy(c, b, busy)
 	return b.Busy(spin).Children(func() {
 		if spin {
 			sp := spinnerIcon(c)
-			if primary {
+			if primary && !disabled { // on the accent, in the label's color
 				sp.TextColor(c.Theme().AccentText)
 			}
 		}
@@ -529,7 +534,7 @@ func (a *app) helperSection(c *ui.Context, s status.Snapshot) {
 		trailing = func() {
 			on := a.helperOpsEnabled(s)
 			if a.canUpdateHelper() {
-				if disabledPrimaryFace(c, busyButton(c.Key("hm-update"), T.HelperUpdate, true, v.running == T.HelperUpdate, !on)).Clicked() {
+				if busyButton(c.Key("hm-update"), T.HelperUpdate, true, v.running == T.HelperUpdate, !on).Clicked() {
 					a.updateHelper()
 				}
 			}
@@ -643,7 +648,7 @@ func (a *app) loginRow(c *ui.Context) {
 		if tg := needsBundleTag(ok); tg != "" {
 			tag(c, tg).Tooltip(T.OpenAtLoginUnsupportedTip)
 		}
-		if ui.Switch(c.Key("login"), &on).Label(T.OpenAtLogin).Disabled(!ok).Changed() {
+		if toggleSwitch(c.Key("login"), &on).Label(T.OpenAtLogin).Disabled(!ok).Changed() {
 			a.setOpenAtLogin(on)
 		}
 	})

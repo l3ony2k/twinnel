@@ -30,7 +30,7 @@ func (a *app) tunOn(s status.Snapshot) bool {
 // tunSwitch turns mihomo's TUN on or off.
 func (a *app) tunSwitch(c *ui.Context, s status.Snapshot) {
 	on := a.tunOn(s)
-	if ui.Switch(c.Key("tun"), &on).Label(i18n.T.Tun).Disabled(!s.Can().Mihomo).Changed() {
+	if toggleSwitch(c.Key("tun"), &on).Label(i18n.T.Tun).Disabled(!s.Can().Mihomo).Changed() {
 		a.setTun(on)
 	}
 }
@@ -104,7 +104,7 @@ func (a *app) reloadMihomo(s status.Snapshot) {
 // tsPowerSwitch connects or disconnects Tailscale: on is "wants to run".
 func (a *app) tsPowerSwitch(c *ui.Context, s status.Snapshot) ui.Element {
 	on := pendingValue(a, pendTS, s.Tailscale.State.Prefs.WantRunning)
-	sw := ui.Switch(c.Key("ts-power"), &on).Label(i18n.T.TSConnect).Disabled(!s.Can().Tailscale)
+	sw := toggleSwitch(c.Key("ts-power"), &on).Label(i18n.T.TSConnect).Disabled(!s.Can().Tailscale)
 	if sw.Changed() {
 		fn := a.ts.Down
 		if on {

@@ -760,7 +760,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			}
 		})
 		head.Children(func() {
-			disclosure(c, open)
+			disclosureStart(c, open) // macOS: before the name; Windows: after the controls
 			ui.Text(c, nodeText(g.Name)).FontWeight(500).SingleLine().Shrink(0) // a row title, not a heading (R-unslop-30)
 			typeMeta(c, g.Type)
 			ui.Text(c, chain).TextColor(t.TextMuted).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(chain)
@@ -770,6 +770,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			if toolIcon(c.Key("test"), iconSpeed, T.TestGroupDelay, testing).Clicked() && !testing {
 				a.testGroup(g.Name)
 			}
+			disclosureEnd(c, open)
 		})
 		if head.Clicked() {
 			a.groupsOpen[g.Name] = !open
@@ -778,9 +779,14 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 		if !open {
 			return
 		}
-		// The head row spans the list's width; the grid is 22 in from it,
-		// under the name.
-		cols, maxW := tileLayout(head.Bounds().W-22, len(g.Members))
+		// The head row spans the list's width; the grid is under the name:
+		// 22 in from it past the leading chevron, flush where the chevron
+		// trails (Windows).
+		indent := float32(22)
+		if plat.fluent {
+			indent = 0
+		}
+		cols, maxW := tileLayout(head.Bounds().W-indent, len(g.Members))
 		if cols != a.tileCols[g.Name] { // the width changed: lay out again with the new count
 			a.tileCols[g.Name] = cols
 			c.Invalidate()
@@ -789,7 +795,7 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 		// ← and → step through them, ↑ and ↓ by a row of the grid
 		// (nodeTile). The arrows only move the focus: Return or Space
 		// selects, as switching the node changes where traffic goes.
-		grid := ui.Grid(c.Key("tiles")).Gap(tileGap).MarginStart(22).MarginY(2).Columns(cols).
+		grid := ui.Grid(c.Key("tiles")).Gap(tileGap).MarginStart(indent).MarginY(2).Columns(cols).
 			Role(ui.RoleRadioGroup).Label(g.Name).FocusGroup(ui.Horizontal)
 		if maxW > 0 {
 			grid.MaxWidth(maxW)
@@ -1221,7 +1227,7 @@ func (a *app) generalCard(c *ui.Context) {
 				// limits, and the tag says why (the tooltip, how).
 				tag(c, tg).Tooltip(T.NotificationsUnsupportedTip)
 			}
-			if ui.Switch(c.Key("notify"), &on).Label(T.Notifications).Disabled(!ok).Changed() {
+			if toggleSwitch(c.Key("notify"), &on).Label(T.Notifications).Disabled(!ok).Changed() {
 				a.setNotifications(on)
 			}
 		})
