@@ -890,6 +890,36 @@ func disabledWhy(c *ui.Context, disabled bool, reason string, control func() ui.
 	return e
 }
 
+// copyDetails is 复制详情, which copies a failure's raw text (tip, its
+// tooltip, when not empty). On Windows it is a text button (WinUI's
+// subtle button: no face at rest, the copy glyph and the label in the
+// text color, a faint fill on hover and press; ui-review 6.6, Windows QA
+// round 5 N5), not link text in the accent. Elsewhere it stays the
+// accent text of size, as macOS's inline actions.
+func copyDetails(c *ui.Context, size float32, tip string) ui.Element {
+	t := c.Theme()
+	label := i18n.T.TkCopyDetails
+	b := ui.Row(c).AlignItems(ui.Center).Focusable().Role(ui.RoleButton).Label(label).Shrink(0)
+	if tip != "" {
+		b.Tooltip(tip)
+	}
+	if !plat.fluent {
+		return b.Children(func() { ui.Text(c, label).FontSize(size).TextColor(t.Accent).SingleLine() })
+	}
+	k := fluentTok(t)
+	b.Gap(6).Padding(4, 8).Radius(plat.controlRadius).Transition(colorMotion)
+	switch {
+	case b.Pressed():
+		b.Background(k.subtlePressed)
+	case b.Hovered():
+		b.Background(k.subtleHover)
+	}
+	return b.Children(func() {
+		ui.Icon(c, iconCopy).FontSize(iconInline).TextColor(t.Text)
+		ui.Text(c, label).FontSize(plat.calloutSize).TextColor(t.Text).SingleLine()
+	})
+}
+
 // pushButton is a plain button with the native push-button face.
 func pushButton(c *ui.Context, label string) ui.Element {
 	return pushFace(c, ui.Button(c, label))

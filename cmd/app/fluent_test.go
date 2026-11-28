@@ -533,3 +533,47 @@ func TestWindowKeysRebuild(t *testing.T) {
 	})
 	checkMigrations(t, "OnWindowShortcut outside windowKey", got, map[string]int{})
 }
+
+// 6.6 / N5 (Windows QA round 5): 复制详情 is one control, copyDetails: a
+// text button on Windows, never link text in the accent built in place.
+func TestCopyDetailsOneControl(t *testing.T) {
+	got := fileCalls(t, func(fn *ast.FuncDecl, call *ast.CallExpr) bool {
+		if fn.Name.Name == "copyDetails" {
+			return false
+		}
+		for _, arg := range call.Args {
+			if sel, ok := arg.(*ast.SelectorExpr); ok && sel.Sel.Name == "TkCopyDetails" {
+				return true
+			}
+		}
+		return false
+	})
+	checkMigrations(t, "复制详情 built outside copyDetails", got, map[string]int{})
+	usePlat(t, "windows")
+	for _, dark := range []bool{true, false} {
+		tr := renderControls(t, dark, func(c *ui.Context) {
+			failedRowWhy(c, "what", "why", "raw error", func() {}, false)
+		})
+		r, ok := tr.Find(i18n.T.TkCopyDetails)
+		if !ok {
+			t.Fatal("no 复制详情")
+		}
+		th := systemTheme(dark, ui.Preferences{})
+		img := tr.Image()
+		// Its ink is the text color, not the accent: the darkest (light
+		// theme) or lightest (dark) pixel of the label.
+		var ink ui.Color
+		best := -1.0
+		for y := r.Y; y < r.Y+r.H; y++ {
+			for x := r.X; x < r.X+r.W; x++ {
+				p := pixel(img, x, y)
+				if c := contrast(p, pal(th).group.Over(th.Background)); c > best {
+					best, ink = c, p
+				}
+			}
+		}
+		if colorNear(ink, th.Accent, 24) {
+			t.Errorf("dark=%v: 复制详情 in the accent %v", dark, ink)
+		}
+	}
+}
