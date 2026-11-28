@@ -69,6 +69,7 @@ type app struct {
 	panel     *mygo.Window
 	win       *mygo.Window
 	page      string
+	ovBar     commandBar // 总览's quick actions on Windows (overview.go)
 	actionErr string
 	settings  settingsForm
 	logs      logsView

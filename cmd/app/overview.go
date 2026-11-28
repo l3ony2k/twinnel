@@ -150,11 +150,18 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 	can := s.Can()
 	live := s.MihomoLive()
 	lock := mihomoLockTip(s) // why the mihomo actions are off, if another mihomo is on the port
-	ui.Row(c.Key("quick")).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+	row := ui.Row(c.Key("quick")).Gap(8).AlignItems(ui.Center)
+	if plat.fluent {
+		row.FillWidth() // the CommandBar's width, which its commands fit (commandBar)
+	} else {
+		row.Wrap()
+	}
+	bar := &a.ovBar
+	row.Children(func() {
 		// 全部测速: one batch (status.Monitor.TestAll), the icon a spinner
 		// while it runs, as on 策略组.
 		_, _, busy := a.mon.DelayProgress()
-		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay)
+		b := pushButton(c.Key("test-all"), "").Label(T.TestAllDelay).Shrink(0)
 		lockTip(b, lock)
 		spin := showBusy(c, b, busy)
 		busyFace(c, b, false, busy || !live || len(m.Groups) == 0, spin)
@@ -169,36 +176,84 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 		if b.Clicked() {
 			a.testAll()
 		}
+		bar.measure("test-all", b)
 		env := proxyEnv(m.Config)
-		cp := iconButton(c.Key("copy-env"), iconCopy, T.OvCopyProxyEnv, false).Disabled(!live || env == "")
-		if env != "" && live {
-			cp.Tooltip(env)
+		recovery := !a.bannerOffers(s, "recovery") // never twice on one screen
+		// On Windows the row is a CommandBar (4.1): the commands used most
+		// as buttons, then 应急恢复, and 重载配置 / 重启 mihomo under "…";
+		// the ones that do not fit the row fold into "…", last first (N3).
+		opt := []string{"copy-env", "dashboard"}
+		if recovery {
+			opt = append(opt, "recovery")
 		}
-		lockTip(cp, lock)
-		if cp.Clicked() {
-			copyText(c, env)
+		shown := len(opt)
+		if plat.fluent {
+			shown = bar.fit(c, opt, []string{"test-all", "more"}, 8)
 		}
-		if lockTip(iconButton(c.Key("dashboard"), iconDashboard, T.OvDashboard, false).Disabled(!live), lock).Clicked() {
-			a.openDashboard("/ui/")
+		show := func(key string) bool {
+			for i, k := range opt {
+				if k == key {
+					return i < shown
+				}
+			}
+			return false
+		}
+		if show("copy-env") {
+			cp := iconButton(c.Key("copy-env"), iconCopy, T.OvCopyProxyEnv, false).Disabled(!live || env == "").Shrink(0)
+			if env != "" && live {
+				cp.Tooltip(env)
+			}
+			lockTip(cp, lock)
+			if cp.Clicked() {
+				copyText(c, env)
+			}
+			bar.measure("copy-env", cp)
+		}
+		if show("dashboard") {
+			d := lockTip(iconButton(c.Key("dashboard"), iconDashboard, T.OvDashboard, false).Disabled(!live), lock).Shrink(0)
+			if d.Clicked() {
+				a.openDashboard("/ui/")
+			}
+			bar.measure("dashboard", d)
 		}
 		if plat.fluent {
-			// A CommandBar (4.1): the commands used most as buttons, then
-			// 应急恢复, and 重载配置 / 重启 mihomo under "…", so the row
-			// fits the window's default width in every language.
-			if !a.bannerOffers(s, "recovery") { // never twice on one screen
-				a.recoveryMenu(c, s)
+			if show("recovery") {
+				bar.measure("recovery", a.recoveryMenu(c, s).Shrink(0))
 			}
-			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-				lockTip(overflowMenu(c.Key("more"), T.OvMoreActions, func(m *ui.Menu) {
-					if m.Item(T.ReloadConfig).Disabled(!can.Mihomo).Chosen() {
+			more := ui.Row(c).Gap(4).AlignItems(ui.Center).Shrink(0).Children(func() {
+				lockTip(overflowMenu(c.Key("more"), T.OvMoreActions, func(mn *ui.Menu) {
+					// The commands that did not fit, in their order, then
+					// the secondary ones.
+					folded := false
+					if !show("copy-env") {
+						if mn.Item(T.OvCopyProxyEnv).Disabled(!live || env == "").Chosen() {
+							copyText(c, env)
+						}
+						folded = true
+					}
+					if !show("dashboard") {
+						if mn.Item(T.OvDashboard).Disabled(!live).Chosen() {
+							a.openDashboard("/ui/")
+						}
+						folded = true
+					}
+					if recovery && !show("recovery") {
+						mn.Submenu(T.Recovery, func(sub *ui.Menu) { a.recoveryItems(sub, s) })
+						folded = true
+					}
+					if folded {
+						mn.Separator()
+					}
+					if mn.Item(T.ReloadConfig).Disabled(!can.Mihomo).Chosen() {
 						a.reloadMihomo(s)
 					}
-					if m.Item(T.RestartMihomo).Disabled(!a.canRestartMihomo(s)).Chosen() {
+					if mn.Item(T.RestartMihomo).Disabled(!a.canRestartMihomo(s)).Chosen() {
 						a.confirmRestartMihomo()
 					}
 				}), lock)
 				a.helperLock(c, s)
 			})
+			bar.measure("more", more)
 			return
 		}
 		if lockTip(iconButton(c.Key("reload"), iconRefresh, T.ReloadConfig, false).Disabled(!can.Mihomo), lock).Clicked() {
@@ -210,10 +265,56 @@ func (a *app) quickActions(c *ui.Context, s status.Snapshot) {
 			}
 			a.helperLock(c, s)
 		})
-		if !a.bannerOffers(s, "recovery") { // never twice on one screen
+		if recovery {
 			a.recoveryMenu(c, s)
 		}
 	})
+	bar.avail = row.Bounds().W
+}
+
+// commandBar is the overflow of WinUI's CommandBar: the optional
+// commands that do not fit the bar's row fold, last first, into its "…".
+// Widths come from the last frame; a command never shown counts as
+// fitting until it was measured.
+type commandBar struct {
+	w     map[string]float32 // each command's width when last shown
+	avail float32            // the row's width in the last frame
+	shown int                // how many optional commands showed
+}
+
+// measure records e's width as command key's, from the last frame.
+func (b *commandBar) measure(key string, e ui.Element) {
+	if w := e.Bounds().W; w > 0 {
+		if b.w == nil {
+			b.w = map[string]float32{}
+		}
+		b.w[key] = w
+	}
+}
+
+// fit returns how many of opt show, from the first, beside the commands
+// that always show (fixed), gap apart; it asks for another build when the
+// answer changed, as the widths it used are the last frame's.
+func (b *commandBar) fit(c *ui.Context, opt, fixed []string, gap float32) int {
+	n := len(opt)
+	if b.avail > 0 {
+		used := -gap
+		for _, k := range fixed {
+			used += gap + b.w[k]
+		}
+		for i, k := range opt {
+			if used+gap+b.w[k] > b.avail {
+				n = i
+				break
+			}
+			used += gap + b.w[k]
+		}
+	}
+	if n != b.shown {
+		b.shown = n
+		c.Invalidate()
+	}
+	return n
 }
 
 // iconMore is "…": a CommandBar's overflow (Windows' More glyph).
