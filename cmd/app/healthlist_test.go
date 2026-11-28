@@ -69,13 +69,17 @@ func TestHealthRowFluent(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s: no reason in %q", goos, tr.Texts())
 		}
-		// A chip's border: a line of the border color just outside the
-		// text's box, above it.
+		// A chip's padding and border sit just right of the text, where
+		// no glyph draws (looking above the text is font-dependent: a
+		// fallback font's ascenders reach above the box, and the skip
+		// glyph sits to its left). Compare with the row further right.
 		img := tr.Image()
-		bg := pixel(img, r.X+r.W/2, r.Y-12)
+		mid := r.Y + r.H/2
+		end := r.X + r.W
+		bg := pixel(img, end+24, mid)
 		chip := false
-		for y := r.Y - 4; y < r.Y; y++ {
-			if p := pixel(img, r.X+r.W/2, y); contrast(p, bg) > 1.15 {
+		for x := end + 1; x < end+9; x++ {
+			if p := pixel(img, x, mid); contrast(p, bg) > 1.15 {
 				chip = true
 			}
 		}
