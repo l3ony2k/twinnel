@@ -760,7 +760,8 @@ func (a *app) groupRow(c *ui.Context, g status.Group, writes bool) {
 			}
 		})
 		head.Children(func() {
-			disclosureStart(c, open) // macOS: before the name; Windows: after the controls
+			// The chevron: macOS before the name, Windows after the controls.
+			disclosureStart(c, open)
 			ui.Text(c, nodeText(g.Name)).FontWeight(500).SingleLine().Shrink(0) // a row title, not a heading (R-unslop-30)
 			typeMeta(c, g.Type)
 			ui.Text(c, chain).TextColor(t.TextMuted).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(chain)
