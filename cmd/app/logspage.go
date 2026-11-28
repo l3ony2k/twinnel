@@ -269,7 +269,7 @@ func (a *app) logsBody(c *ui.Context, entries []mihomo.LogEntry) {
 				line := e.Time.Format("15:04:05") + " " + e.Type + " " + e.Payload
 				ui.Row(c).Gap(12).Padding(3, 12).AlignItems(ui.Start).Children(func() {
 					ui.Text(c, e.Time.Format("15:04:05")).Font("monospace").FontSize(plat.smallSize).TextColor(t.TextMuted).Shrink(0)
-					ui.Text(c, logLevelName(e.Type)).FontSize(plat.smallSize).TextColor(col).Width(levelColW).SingleLine().Shrink(0)
+					colLabel(c, ui.Span{Size: plat.smallSize}, logLevelName(e.Type), levelColW).TextColor(col)
 					ui.Text(c, e.Payload).Font("monospace").FontSize(plat.smallSize).TextColor(col).Grow(1).Wrap().LineHeight(lineText).Selectable().
 						ContextMenu(func(m *ui.Menu) {
 							if m.Item(i18n.T.CopyLine).Chosen() {

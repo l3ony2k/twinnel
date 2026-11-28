@@ -129,6 +129,23 @@ func kvLabel(c *ui.Context, label, tip string, more func(), extra float32) ui.El
 	})
 }
 
+// colLabel is a label in a fixed-width column that is not a kv row's
+// (kvLabel): one line when it fits, else wrapped at the text line height,
+// never cut with "…" (a Windows font is wider than the one a column was
+// sized with). sp is the face it is drawn in (Size 0: the body size).
+// labelcol_test.go fails on a fixed-width single-line label drawn any
+// other way.
+func colLabel(c *ui.Context, sp ui.Span, label string, width float32) ui.Element {
+	e := ui.Text(c, label).Width(width).Shrink(0)
+	if sp.Size > 0 {
+		e = e.FontSize(sp.Size)
+	}
+	if textWidth(c, sp, label) > width {
+		return e.Wrap().LineHeight(lineText)
+	}
+	return e.SingleLine()
+}
+
 // lineText is the line height of text that wraps, as a multiple of its
 // size: every paragraph (hints, notes, errors, row details) spaces its
 // lines alike, CJK and Latin mixed, whatever font the fallback picks.

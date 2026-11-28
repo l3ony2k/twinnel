@@ -306,7 +306,9 @@ func (a *app) inventoryCard(c *ui.Context, s status.Snapshot) {
 					if invNested(it.Kind) {
 						indent = 16
 					}
-					ui.Text(c, label).Width(200-indent).Margin(0, 0, 0, indent).Shrink(0).SingleLine().Tooltip(label)
+					// The kv label column: it widens for a long label and
+					// wraps one wider than labelMax, never cuts it.
+					kvLabel(c, label, "", nil, -indent).Margin(0, 0, 0, indent).Tooltip(label)
 					detail := it.Path
 					if it.Kind == rpc.InvSecrets {
 						detail = secretNames(it.Names)
