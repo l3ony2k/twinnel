@@ -43,7 +43,7 @@ func (a *app) kernelPage(c *ui.Context, s status.Snapshot) {
 		if !s.Helper.Connected() {
 			return
 		}
-		if a.opButton(c.Key("check-all"), iconRefresh, T.KernelCheck, false, T.KernelCheck).Disabled(d.busy != "").Clicked() {
+		if a.opAction(c.Key("check-all"), iconRefresh, T.KernelCheck, false, d.busy != "", T.KernelCheck).Clicked() {
 			a.checkUpdates()
 		}
 	})
@@ -162,11 +162,11 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 		listRow(c).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				kvLabel(c, T.KernelChannel, "", nil, 0)
-				if ui.Segmented(c.Key("channel"), &v.channel, T.ChannelStable, T.ChannelAlpha).Changed() {
+				if pageChoice(c.Key("channel"), &v.channel, T.ChannelStable, T.ChannelAlpha).Changed() {
 					v.release = nil
 				}
 				ui.Spacer(c)
-				if k.Previous != "" && a.opButton(c.Key("k-rollback"), iconRollback, T.KernelRollback, false, T.KernelRollback).Disabled(!w).Clicked() {
+				if k.Previous != "" && a.opAction(c.Key("k-rollback"), iconRollback, T.KernelRollback, false, !w, T.KernelRollback).Clicked() {
 					a.confirm(fmt.Sprintf(T.KernelRollbackTitle, k.Previous), T.KernelRollbackBody, T.KernelRollback, func() {
 						a.helperOp(T.KernelRollback, time.Minute, func(ctx context.Context, hc *status.HelperConn) error {
 							return hc.Call(ctx, rpc.MethodKernelRollback, nil, nil)
@@ -194,7 +194,7 @@ func (a *app) kernelCard(c *ui.Context, s status.Snapshot) {
 					ui.Text(c, head).FontWeight(500).Grow(1).Wrap().LineHeight(lineText)
 					if r.UpdateAvailable {
 						rel := *r
-						if a.opButton(c.Key("k-install"), iconOK, fmt.Sprintf(T.KernelInstall, r.Version), true, fmt.Sprintf(T.KernelInstall, r.Version)).Disabled(!w).Clicked() {
+						if a.opAction(c.Key("k-install"), iconOK, fmt.Sprintf(T.KernelInstall, r.Version), true, !w, fmt.Sprintf(T.KernelInstall, r.Version)).Clicked() {
 							body := i18n.F(T.KernelUpdateBody, orDash(k.Current), rel.Version)
 							if k.Current == "" {
 								body = i18n.F(T.KernelFirstBody, rel.Version)

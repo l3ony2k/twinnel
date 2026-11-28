@@ -310,8 +310,6 @@ func TestDisabledPrimariesKnowIt(t *testing.T) {
 		return false
 	})
 	checkMigrations(t, "primaries disabled after they were built", got, map[string]int{
-		"configpage.go": 4, "components.go": 3, "configstate.go": 1, "importsheet.go": 1,
-		"kernelpage.go": 1, "takeoverview.go": 3, "onboarding.go": 1,
 		"shots_surfaces.go": 1, // MyGo's own disabled primary, shown for comparison
 	})
 }
@@ -325,14 +323,14 @@ func TestSpinnersArePlatform(t *testing.T) {
 		return ok && fn.Name.Name != "spinner" && fn.Name.Name != "spinnerIcon"
 	})
 	checkMigrations(t, "ui.Spinner", spin, map[string]int{
-		"healthpage.go": 2, "helper.go": 2, "leavepage.go": 1, "onboarding.go": 2, "panel.go": 1, "takeoverview.go": 1,
+		"healthpage.go": 2, "helper.go": 2, "panel.go": 1,
 	})
 	sw := fileCalls(t, func(fn *ast.FuncDecl, call *ast.CallExpr) bool {
 		_, ok := isCall(call, "ui", "Switch")
 		return ok && fn.Name.Name != "toggleSwitch"
 	})
 	checkMigrations(t, "ui.Switch", sw, map[string]int{
-		"agentsection.go": 1, "components.go": 1, "controls.go": 2, "configpage.go": 1, "healthpage.go": 1,
+		"controls.go": 2, "healthpage.go": 1,
 		"helpermgmt.go": 1, "trayspeed.go": 1, "window.go": 1,
 	})
 }

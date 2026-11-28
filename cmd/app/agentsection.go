@@ -290,7 +290,7 @@ func (a *app) agentSection(c *ui.Context, s status.Snapshot) {
 			row.Children(func() {
 				switchLabel(c, label, tip, nil)
 				val := on
-				e := disabledWhy(c, disabled, why, func() ui.Element { return ui.Switch(c.Key(key), &val).Label(label) })
+				e := disabledWhy(c, disabled, why, func() ui.Element { return toggleSwitch(c.Key(key), &val).Label(label) })
 				if e.Changed() {
 					a.setAgentSwitch(set(val))
 				}

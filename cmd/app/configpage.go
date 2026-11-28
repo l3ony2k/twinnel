@@ -143,6 +143,32 @@ func diffView(c *ui.Context, d *editor.DiffState) ui.Element {
 	return editor.DiffView(c, d)
 }
 
+// pageChoice is a choice among two or three settings in a page's form
+// (内核 通道, an override's 格式 and 阶段): on Windows WinUI's RadioButtons
+// in a row (segmented), which Windows has instead of a segmented control
+// (ui-review 2.1); MyGo's segmented control elsewhere, as before.
+func pageChoice(c *ui.Context, selected *int, labels ...string) ui.Element {
+	if plat.fluent {
+		return segmented(c, selected, labels...)
+	}
+	return ui.Segmented(c, selected, labels...)
+}
+
+// diffMaxH is the tallest a diff pane grows before it scrolls.
+const diffMaxH = 380
+
+// diffHeight is a diff pane's height: as tall as the diff as the last
+// frame laid it out (its changes, their context and the folded runs
+// between), up to diffMaxH, so a short change does not sit above an
+// empty box (6.10). Before the first layout it is the whole pane.
+func diffHeight(d *editor.DiffState) float32 {
+	h := float32(d.LineTop(editor.DiffNew, d.New.LineCount()))
+	if h <= 0 {
+		return diffMaxH
+	}
+	return min(max(h+2, 3*codeLineH), diffMaxH) // +2: the frame's border
+}
+
 // codeLineH is the editor's line height: 13 pt at 1.5.
 const codeLineH = 19.5
 
@@ -200,7 +226,7 @@ func (a *app) configEmpty(c *ui.Context, s status.Snapshot) {
 		ui.Text(c, T.ConfigEmptyHint).FontSize(plat.calloutSize).TextColor(t.TextMuted).TextAlign(ui.Center).
 			Wrap().LineHeight(lineText).MaxWidth(360)
 		ui.Row(c).Gap(8).Margin(8, 0, 0).Children(func() {
-			if ui.PrimaryButton(c.Key("empty-add"), T.SubAdd).Disabled(!w).Clicked() {
+			if primaryButton(c.Key("empty-add"), T.SubAdd, !w).Clicked() {
 				a.hd.cfg.subOpen, a.hd.cfg.subMins = true, "1440"
 			}
 			if pushButton(c.Key("empty-takeover"), T.ConfigEmptyTakeover).Clicked() {
@@ -303,7 +329,7 @@ func (a *app) subscriptionRow(c *ui.Context, sub rpc.Subscription, s status.Snap
 			}
 			ui.Spacer(c)
 			never := sub.LastFetch.IsZero()
-			if sub.HasURL && a.opButton(c.Key("refresh"), iconRefresh, T.SubRefresh, never, T.SubRefresh+" "+id).Disabled(!w).Clicked() {
+			if sub.HasURL && a.opAction(c.Key("refresh"), iconRefresh, T.SubRefresh, never, !w, T.SubRefresh+" "+id).Clicked() {
 				refresh()
 			}
 			if !sub.Active && pushButton(c.Key("activate"), T.SubActivate).Disabled(!w).Clicked() {
@@ -388,7 +414,7 @@ func (a *app) subscriptionForm(c *ui.Context, w bool) {
 	ui.Text(c, T.SubURLHint).FontSize(plat.smallSize).TextColor(t.TextMuted).Wrap().LineHeight(lineText)
 	ui.Row(c).Gap(8).Children(func() {
 		ready := strings.TrimSpace(v.subID) != "" && (strings.TrimSpace(v.subURL) != "" || v.subContent != "")
-		if ui.PrimaryButton(c.Key("sub-save"), T.Save).Disabled(!w || !ready).Clicked() {
+		if primaryButton(c.Key("sub-save"), T.Save, !w || !ready).Clicked() {
 			a.saveSubscription()
 		}
 		if pushButton(c.Key("sub-cancel"), T.Cancel).Clicked() {
@@ -633,7 +659,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 			}
 		}
 		head.Children(func() {
-			disclosure(c, open).Shrink(0)
+			disclosureStart(c, open)
 			ui.Column(c).Gap(gapSub).Grow(1).Shrink(1).Children(func() {
 				ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, title).FontWeight(500).SingleLine().Shrink(1).Tooltip(title)
@@ -651,6 +677,7 @@ func (a *app) layerRow(c *ui.Context, l rpc.Layer, ids []string, s status.Snapsh
 			})
 			a.layerMark(c, l.ID)
 			a.layerSwitch(c, l, w)
+			disclosureEnd(c, open)
 		})
 		if head.Clicked() {
 			if open {
@@ -789,7 +816,7 @@ func (a *app) layerSwitch(c *ui.Context, l rpc.Layer, w bool) {
 	T := i18n.T
 	v := &a.hd.cfg
 	on := l.Enabled
-	sw := ui.Switch(c.Key("on"), &on).Label(T.LayerEnabled + " " + layerTitle(l)).Shrink(0)
+	sw := toggleSwitch(c.Key("on"), &on).Label(T.LayerEnabled + " " + layerTitle(l)).Shrink(0)
 	isGuard := l.Managed && l.ID != coexistLayerID
 	switch {
 	case isGuard:
@@ -873,11 +900,12 @@ func (a *app) newLayerRow(c *ui.Context, s status.Snapshot, w bool) {
 	v := &a.hd.cfg
 	ui.Column(c).Transition(rowMotion).Clip().MarginX(-groupPadX).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).PaddingX(groupPadX).MinHeight(layerRowH).Children(func() {
-			disclosure(c, true).Shrink(0)
+			disclosureStart(c, true)
 			ui.Text(c, T.LayerNew).FontWeight(500).Grow(1).SingleLine()
 			if pushButton(c.Key("ed-cancel"), T.Cancel).Clicked() {
 				v.isNew, v.ed = false, nil
 			}
+			disclosureEnd(c, true)
 		})
 		a.layerEditor(c.Key("editor-new"), s, w)
 	})
@@ -1070,7 +1098,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 				if !v.isNew && layerStages[v.edStage] == stageBase {
 					ui.Column(c).Gap(4).Children(func() {
 						ui.Text(c, T.LayerStage).FontSize(plat.calloutSize).TextColor(t.TextMuted)
-						ui.Segmented(c.Key("ed-stage"), &v.edStage, T.StageUserLong, T.StageBaseLong)
+						pageChoice(c.Key("ed-stage"), &v.edStage, T.StageUserLong, T.StageBaseLong)
 					})
 				}
 				ui.Column(c).Gap(4).Children(func() {
@@ -1080,7 +1108,7 @@ func (a *app) layerEditor(c *ui.Context, s status.Snapshot, w bool) {
 						ui.Text(c, T.LayerFormat).FontSize(plat.calloutSize).TextColor(t.TextMuted)
 						infoTip(c, T.LayerFormat, T.LayerFormatInfo, nil)
 					})
-					ui.Segmented(c.Key("ed-format"), &v.edFormat, T.FormatPartyName, T.FormatVergeName)
+					pageChoice(c.Key("ed-format"), &v.edFormat, T.FormatPartyName, T.FormatVergeName)
 				})
 			})
 		}
@@ -1536,7 +1564,7 @@ func (a *app) applyCard(c *ui.Context, s status.Snapshot) {
 			if open {
 				label = T.PreviewHide
 			}
-			pv := a.opButton(c.Key("preview"), iconPreview, label, false, T.Preview).Disabled(!s.Helper.Connected() || busy || (!work && !open))
+			pv := a.opAction(c.Key("preview"), iconPreview, label, false, !s.Helper.Connected() || busy || (!work && !open), T.Preview)
 			if !work && !open {
 				pv.Tooltip(T.StateInSync)
 			}
@@ -1547,7 +1575,7 @@ func (a *app) applyCard(c *ui.Context, s status.Snapshot) {
 					a.runPreview(s)
 				}
 			}
-			ap := a.opButton(c.Key("apply"), iconOK, T.Apply, work, T.Apply).Disabled(!w || !work)
+			ap := a.opAction(c.Key("apply"), iconOK, T.Apply, work, !w || !work, T.Apply)
 			if !work {
 				ap.Tooltip(T.NothingToApply)
 			}
@@ -1606,7 +1634,7 @@ func (a *app) previewBody(c *ui.Context) {
 			})
 		} else {
 			num(ui.Text(c, i18n.F(T.DiffStats, add, del)).FontSize(plat.calloutSize).TextColor(t.TextMuted))
-			codeFrame(c, 380, func() { diffView(c.Key("preview-diff"), v.diff).Grow(1) })
+			codeFrame(c, diffHeight(v.diff), func() { diffView(c.Key("preview-diff"), v.diff).Grow(1) })
 		}
 	}
 	if v.preview != nil && !same {

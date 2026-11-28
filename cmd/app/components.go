@@ -365,17 +365,17 @@ func (a *app) accessoryActionRow(c *ui.Context, s status.Snapshot, k accessoryKi
 		}
 		// 检查更新 for this section alone, unless a download is what fits.
 		if !none && len(sum.missing) == 0 && sum.updates == 0 {
-			if a.opButton(c.Key("check"), iconRefresh, T.CompCheck, false, k.opCheck()).Disabled(a.hd.busy != "" || !s.Helper.Connected()).Clicked() {
+			if a.opAction(c.Key("check"), iconRefresh, T.CompCheck, false, a.hd.busy != "" || !s.Helper.Connected(), k.opCheck()).Clicked() {
 				a.accessoryCheck(k)
 			}
 		}
 		if k.kind == rpc.AccessoryUI && !none && !ck.Configured && sum.updates == 0 {
-			if a.opButton(c.Key("enable"), iconOK, T.CompEnableUI, true, k.opUpdate()).Disabled(!w).Clicked() {
+			if a.opAction(c.Key("enable"), iconOK, T.CompEnableUI, true, !w, k.opUpdate()).Clicked() {
 				a.accessoryUpdate(k, v.proxy)
 			}
 		}
 		if label := downloadLabel(sum, none); label != "" && v.failErr == "" {
-			if a.opButton(c.Key("download"), iconDownload, label, true, k.opUpdate()).Disabled(!w).Clicked() {
+			if a.opAction(c.Key("download"), iconDownload, label, true, !w, k.opUpdate()).Clicked() {
 				a.accessoryUpdate(k, v.proxy)
 			}
 		}
@@ -490,7 +490,7 @@ func (a *app) geoAutoRow(c *ui.Context, s status.Snapshot, ck *rpc.AccessoryChec
 		ui.Text(c, T.CompAutoWeekly).SingleLine().Shrink(0)
 		infoTipAbout(c, T.CompAutoWeekly, T.TipGeoAuto, nil)
 		ui.Spacer(c)
-		if ui.Switch(c.Key("geo-auto"), &on).Label(T.CompAutoWeekly).Disabled(!a.helperWrites(s)).Changed() {
+		if toggleSwitch(c.Key("geo-auto"), &on).Label(T.CompAutoWeekly).Disabled(!a.helperWrites(s)).Changed() {
 			a.setGeoAuto(on)
 		}
 	})
@@ -550,7 +550,7 @@ func (a *app) accessoryResult(c *ui.Context, s status.Snapshot, k accessoryKind,
 		if r.ReloadNeeded && k.kind == rpc.AccessoryGeo {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, T.CompReloadLater).FontSize(plat.calloutSize).TextColor(pal(t).warnText).Grow(1).Wrap().LineHeight(lineText).Tooltip(r.ReloadError)
-				if a.opButton(c.Key("apply"), iconRefresh, T.AccessoryApply, true, T.AccessoryApply).Disabled(!a.helperWrites(s)).Clicked() {
+				if a.opAction(c.Key("apply"), iconRefresh, T.AccessoryApply, true, !a.helperWrites(s), T.AccessoryApply).Clicked() {
 					a.applyForce(T.AccessoryApplyReason, func() { r.ReloadNeeded = false })
 				}
 			})

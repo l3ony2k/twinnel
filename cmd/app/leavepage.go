@@ -289,7 +289,7 @@ func (a *app) inventoryCard(c *ui.Context, s status.Snapshot) {
 		if !v.loaded {
 			listRow(c).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Spinner(c)
+					spinner(c)
 					small(c, T.LeaveInventoryLoading)
 				})
 			})
